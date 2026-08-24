@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root {
+    --bg:#F7F5F0; --white:#FFFFFF; --forest:#1B3B32; --forest-light:#2C5147;
+    --terracotta:#E8845C; --gold:#D4A857; --charcoal:#3D3A35; --muted:#8A8478;
+    --line:#EAE6DC;
+  }
+  html,body { height:100%; }
+  body {
+    width:100%; height:100%; background:#E4E0D4;
+    font-family:'Inter', sans-serif; color:var(--charcoal);
+    display:flex; align-items:stretch; justify-content:stretch; overflow:hidden;
+  }
+  .frame {
+    width:100%; height:100%; background:var(--bg);
+    display:flex; overflow:hidden;
+  }
+  .disp { font-family:'Fraunces', serif; }
+
+  /* ===================== SIDEBAR ===================== */
+  .sidebar { width:230px; flex-shrink:0; background:var(--forest); color:#EAF1EC; display:flex; flex-direction:column; padding:28px 0; position:relative; overflow:hidden; }
+  .sidebar-leaf { position:absolute; opacity:0.07; font-size:90px; pointer-events:none; }
+  .leaf1 { top:-20px; right:-24px; transform:rotate(18deg); }
+  .leaf2 { bottom:120px; left:-30px; transform:rotate(-25deg); font-size:110px; }
+  .leaf3 { top:340px; right:-20px; transform:rotate(50deg); font-size:70px; }
+  .brand { padding:0 26px 30px; position:relative; z-index:2; }
+  .brand-mark { width:38px; height:38px; border-radius:11px; background:linear-gradient(150deg,var(--terracotta),var(--gold)); display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px; }
+  .brand-name { font-family:'Fraunces',serif; font-size:18px; font-weight:600; color:#fff; }
+  .brand-tag { font-size:10.5px; color:#8FAA9E; margin-top:2px; }
+
+  .nav { flex:1; padding:6px 16px; display:flex; flex-direction:column; gap:2px; position:relative; z-index:2; }
+  .nav-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:11px; font-size:13.5px; font-weight:500; color:#B9CBC2; cursor:pointer; }
+  .nav-item .ic { width:18px; text-align:center; font-size:15px; }
+  .nav-item.active { background:rgba(255,255,255,0.1); color:#fff; font-weight:600; }
+
+  .sidebar-footer { padding:16px; margin:0 16px; background:rgba(255,255,255,0.07); border-radius:16px; position:relative; z-index:2; }
+  .sf-title { font-size:12.5px; font-weight:700; color:#fff; margin-bottom:4px; }
+  .sf-sub { font-size:11px; color:#9FB6AB; line-height:1.4; margin-bottom:10px; }
+  .sf-btn { font-size:11px; font-weight:700; color:var(--forest); background:#EAF1EC; padding:8px 12px; border-radius:9px; display:inline-block; }
+
+  /* ===================== MAIN ===================== */
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .main-scroll { flex:1; overflow-y:auto; padding:16px 24px 18px; }
+  .main-scroll::-webkit-scrollbar { width:8px; }
+  .main-scroll::-webkit-scrollbar-thumb { background:#DDD6C4; border-radius:8px; }
+
+  /* header */
+  .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .greet { font-family:'Fraunces',serif; font-size:26px; font-weight:600; color:var(--forest); line-height:1.2; }
+  .greet-sub { font-size:13px; color:var(--muted); margin-top:4px; }
+  .header-right { display:flex; align-items:center; gap:10px; height:52px; }
+  .pill-btn { height:52px; box-sizing:border-box; background:#fff; border:1px solid var(--line); border-radius:14px; padding:0 16px; font-size:12.5px; font-weight:600; color:var(--charcoal); display:flex; align-items:center; gap:7px; }
+  .weather-pill { flex-direction:column; align-items:flex-start; justify-content:center; gap:1px; padding:0 16px; }
+  .weather-top { display:flex; align-items:center; gap:6px; font-size:13.5px; font-weight:700; }
+  .weather-loc { font-size:10px; color:var(--muted); font-weight:500; padding-left:20px; }
+  .bell-btn { position:relative; width:52px; height:52px; border-radius:14px; background:#fff; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:17px; box-sizing:border-box; }
+  .bell-badge { position:absolute; top:6px; right:6px; width:16px; height:16px; border-radius:50%; background:var(--terracotta); color:#fff; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; border:2px solid #fff; }
+  .avatar-wrap { display:flex; align-items:center; gap:6px; height:52px; padding:0 4px; }
+  .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(150deg,var(--gold),var(--terracotta)); display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; font-weight:700; flex-shrink:0; }
+  .avatar-chevron { font-size:10px; color:var(--muted); }
+
+  /* content grid: left column + right rail */
+  .content-grid { display:flex; gap:22px; align-items:flex-start; }
+  .col-left { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  .col-right { width:300px; flex-shrink:0; display:flex; flex-direction:column; gap:20px; }
+
+  .card { background:var(--white); border-radius:18px; padding:14px 18px; box-shadow:0 2px 14px rgba(61,58,53,0.05); border:1px solid var(--line); }
+  .card-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+  .card-title { font-family:'Fraunces',serif; font-size:17px; font-weight:600; color:var(--forest); }
+  .card-sub { font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .card-action { font-size:11.5px; font-weight:700; color:var(--forest); display:flex; align-items:center; gap:5px; }
+
+  /* ===== 48-slot strip ===== */
+  .strip-outer { position:relative; padding-top:16px; }
+  .strip { display:flex; height:38px; border-radius:10px; overflow:hidden; background:#F1EDE2; cursor:pointer; }
+  .seg { height:100%; }
+  .seg.selected-slot { outline:2.5px solid var(--forest); outline-offset:-2.5px; z-index:2; }
+  .seg.drop-hover { outline:2.5px solid var(--gold); outline-offset:-2.5px; z-index:4; filter:brightness(1.08); }
+  .now-badge-onstrip {
+    position:absolute; top:-14px; transform:translateX(-50%);
+    background:var(--forest); color:#fff; font-size:10px; font-weight:700; padding:4px 9px; border-radius:8px;
+  }
+  .now-badge-onstrip::after { content:''; position:absolute; bottom:-4px; left:50%; transform:translateX(-50%); width:7px; height:7px; background:var(--forest); rotate:45deg; }
+  .now-line { position:absolute; top:16px; width:2px; height:38px; background:var(--forest); }
+  .flag-emoji-inslot {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:9px; line-height:1; z-index:3;
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+  }
+  .strip-labels { display:flex; justify-content:space-between; font-size:10px; color:var(--muted); margin-top:8px; font-weight:500; }
+
+  /* ===== What's next / edit card ===== */
+  .next-row { display:flex; align-items:center; gap:16px; background:linear-gradient(120deg,#EAF3EE,#F3EEE0); border-radius:16px; padding:16px 18px; }
+  .next-art { width:52px; height:52px; border-radius:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .next-info { flex:1; }
+  .next-time { font-family:'Fraunces',serif; font-size:15px; color:var(--forest); font-weight:600; }
+  .next-name { font-size:12px; color:var(--muted); margin-top:2px; }
+  .next-btn { background:var(--forest); color:#fff; font-size:12px; font-weight:700; padding:10px 18px; border-radius:12px; display:flex; align-items:center; gap:6px; }
+
+  .flags-row { display:flex; gap:6px; }
+  .flag-btn {
+    width:34px; height:34px; border-radius:10px; border:1.5px solid var(--line); background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer;
+    position:relative;
+  }
+  .flag-btn.on { background:var(--terracotta); border-color:var(--terracotta); box-shadow:0 2px 8px rgba(232,132,92,0.35); }
+  .flag-btn::after {
+    content:attr(data-label); position:absolute; bottom:-22px; left:50%; transform:translateX(-50%);
+    font-size:9px; font-weight:700; color:var(--muted); white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 0.15s;
+  }
+  .flag-btn:hover::after { opacity:1; }
+
+  .existing-acts { margin-top:14px; }
+  .existing-acts:empty { display:none; }
+  .existing-label { font-size:10px; color:var(--muted); font-weight:700; letter-spacing:0.5px; margin-bottom:8px; }
+  .existing-row { display:flex; align-items:center; gap:10px; padding:9px 12px; background:var(--bg); border-radius:12px; margin-bottom:6px; }
+  .existing-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .existing-name { flex:1; font-size:12px; font-weight:500; }
+  .existing-dur { font-size:11px; color:var(--muted); font-weight:600; }
+  .existing-remove { font-size:10.5px; color:var(--terracotta); font-weight:700; cursor:pointer; }
+
+  .crumb-row { display:flex; align-items:center; gap:6px; margin-top:14px; min-height:16px; }
+  .crumb-row:empty { display:none; margin-top:0; min-height:0; }
+  .crumb { font-size:12px; color:var(--muted); font-weight:600; }
+  .crumb.current { color:var(--forest); }
+  .crumb-sep { color:#CFC9BA; font-size:10px; }
+  .crumb-back { font-size:12px; color:var(--gold); font-weight:700; cursor:pointer; }
+
+  /* ===== Activity library — photographic-style cards ===== */
+  .lib-pills { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .lib-pill { padding:8px 15px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid var(--line); background:#fff; color:var(--charcoal); }
+  .lib-pill.on { background:var(--forest); color:#fff; border-color:var(--forest); }
+
+  .lib-grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; }
+  .lib-card {
+    border-radius:16px; overflow:hidden; background:#fff; border:1px solid var(--line);
+    cursor:grab; position:relative; aspect-ratio:1.25/1; transition:opacity 0.15s, transform 0.15s;
+  }
+  .lib-card.on { outline:2.5px solid var(--forest); outline-offset:-2.5px; }
+  .lib-card.dragging { opacity:0.4; transform:scale(0.96); cursor:grabbing; }
+  .lib-art {
+    height:100%; position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lib-art-icon { font-size:28px; position:relative; z-index:2; filter:drop-shadow(0 1px 3px rgba(0,0,0,0.15)); }
+  .lib-count-badge {
+    position:absolute; top:6px; right:6px; z-index:3;
+    background:rgba(255,255,255,0.92); color:var(--charcoal); font-size:10px; font-weight:800;
+    width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  }
+
+  .dur-row { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+  .dur-label { font-size:11px; color:var(--muted); font-weight:600; }
+  .dur-track { display:flex; align-items:center; gap:14px; }
+  .dur-btn { width:28px; height:28px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color:var(--forest); font-size:15px; background:#fff; }
+  .dur-val { font-family:'Fraunces',serif; font-size:14px; color:var(--charcoal); min-width:52px; text-align:center; }
+  .confirm-btn { margin-top:14px; background:var(--forest); color:#fff; text-align:center; padding:13px; border-radius:13px; font-size:13.5px; font-weight:700; }
+  .slot-full-msg { font-size:12.5px; color:var(--muted); line-height:1.5; padding:16px 0; }
+  .add-another-label { font-size:10.5px; color:var(--gold); font-weight:700; letter-spacing:0.3px; margin-bottom:10px; }
+
+  /* ===== Right rail ===== */
+  .score-ring-row { display:flex; align-items:center; gap:16px; margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+  .score-ring-wrap { position:relative; width:76px; height:76px; flex-shrink:0; }
+  .score-ring-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-size:20px; font-weight:700; color:var(--forest); }
+  .score-info-title { font-size:11px; color:var(--muted); font-weight:600; margin-bottom:4px; }
+  .score-info-status { font-size:16px; font-weight:700; color:var(--forest); }
+  .score-info-trend { font-size:11px; color:#4F9A6E; font-weight:700; margin-top:3px; display:flex; align-items:center; gap:3px; }
+
+  .cat-bar-row { margin-bottom:13px; }
+  .cat-bar-row:last-child { margin-bottom:0; }
+  .cat-bar-label-row { display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:6px; }
+  .cat-bar-name { display:flex; align-items:center; gap:8px; font-weight:600; color:var(--charcoal); }
+  .cat-icon { width:20px; height:20px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; }
+  .cat-bar-val { color:var(--muted); font-weight:600; }
+  .cat-bar-track { height:7px; background:var(--bg); border-radius:5px; overflow:hidden; }
+  .cat-bar-fill { height:100%; border-radius:5px; }
+
+  .recent-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .recent-row:last-child { border-bottom:none; }
+  .recent-emoji { width:34px; height:34px; border-radius:10px; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .recent-name { font-size:12.5px; font-weight:600; color:var(--charcoal); }
+  .recent-time { font-size:10.5px; color:var(--muted); margin-top:2px; }
+
+  /* ===== MOBILE ONLY (phones, ≤768px) — everything above this is untouched ===== */
+  @media (max-width: 768px) {
+    body { overflow:auto; height:auto; }
+    .frame { flex-direction:column; height:auto; overflow:visible; }
+    .sidebar { display:none; }
+    .main { overflow:visible; }
+    .main-scroll { overflow-y:visible; padding:16px 16px 24px; }
+    .header { flex-wrap:wrap; gap:10px; }
+    .greet { font-size:21px; width:100%; }
+    .header-right { height:auto; flex-wrap:wrap; gap:8px; }
+    .pill-btn { height:44px; font-size:11.5px; padding:0 12px; }
+    .bell-btn { width:44px; height:44px; }
+    .avatar { width:34px; height:34px; font-size:13px; }
+    .content-grid { flex-direction:column; gap:16px; }
+    .col-left { width:100%; }
+    .col-right { width:100%; flex-direction:column; gap:16px; }
+    .card { border-radius:14px; padding:14px 14px; }
+    .card-title { font-size:15px; }
+    .strip { height:30px; border-radius:8px; }
+    .strip-labels { font-size:8px; }
+    .now-line { height:30px; }
+    .now-badge-onstrip { font-size:8px; padding:3px 6px; border-radius:6px; }
+    .flag-emoji-inslot { font-size:7px; }
+    .card-head { flex-wrap:wrap; gap:8px; }
+    .flags-row { order:2; }
+    .lib-grid { grid-template-columns:repeat(4, 1fr); gap:8px; }
+    .lib-card { aspect-ratio:1.15/1; }
+    .lib-art-icon { font-size:20px; }
+    .lib-count-badge { width:16px; height:16px; font-size:9px; top:4px; right:4px; }
+    .dur-row { flex-wrap:wrap; gap:8px; }
+    .confirm-btn { font-size:13px; padding:12px; }
+    .score-ring-row { gap:12px; }
+    .score-ring-wrap { width:64px; height:64px; }
+    .score-ring-wrap svg { width:64px; height:64px; }
+    .score-ring-label { font-size:17px; }
+    .score-info-status { font-size:14px; }
+    .cat-bar-name { font-size:11px; }
+    .recent-row { gap:10px; padding:9px 0; }
+    .recent-emoji { width:30px; height:30px; font-size:13px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <div class="sidebar">
+    <div class="sidebar-leaf leaf1">🌿</div>
+    <div class="sidebar-leaf leaf2">🌱</div>
+    <div class="sidebar-leaf leaf3">🍃</div>
+    <div class="brand">
+      <div class="brand-mark">✦</div>
+      <div class="brand-name">Ritual Board</div>
+      <div class="brand-tag">Small steps. Every day.</div>
+    </div>
+    <div class="nav">
+      <div class="nav-item active"><span class="ic">⌂</span><span class="lbl">Today</span></div>
+      <div class="nav-item"><span class="ic">◷</span><span class="lbl">My Slots</span></div>
+      <div class="nav-item"><span class="ic">▤</span><span class="lbl">Activity Library</span></div>
+      <div class="nav-item"><span class="ic">◔</span><span class="lbl">Progress</span></div>
+      <div class="nav-item"><span class="ic">✦</span><span class="lbl">Insights</span></div>
+      <div class="nav-item"><span class="ic">⚑</span><span class="lbl">Flags</span></div>
+      <div class="nav-item"><span class="ic">⚙</span><span class="lbl">Settings</span></div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sf-title">Stay Consistent</div>
+      <div class="sf-sub">Build better rituals, one slot at a time.</div>
+      <div class="sf-btn">View Tips →</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="main-scroll">
+      <div class="header">
+        <div>
+          <div class="greet">Good Afternoon, Deepthi 👋</div>
+          <div class="greet-sub" id="headerSub">14 of 48 slots placed today · You're on a 6-day streak</div>
+        </div>
+        <div class="header-right">
+          <div class="pill-btn">📅 Thu, Aug 20</div>
+          <div class="pill-btn weather-pill">
+            <div class="weather-top">☀️ 28°C</div>
+            <div class="weather-loc">Hyderabad</div>
+          </div>
+          <div class="bell-btn">🔔<div class="bell-badge">3</div></div>
+          <div class="avatar-wrap">
+            <div class="avatar">👤</div>
+            <span class="avatar-chevron">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <div class="col-left">
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">24-Hour Ritual Flow</div>
+                <div class="card-sub"><span id="filledCount">14</span>/48 marked</div>
+              </div>
+            </div>
+            <div class="strip-outer" id="stripOuter">
+              <div class="strip" id="strip"></div>
+              <div class="strip-labels">
+                <span>12a</span><span>2a</span><span>4a</span><span>6a</span><span>8a</span><span>10a</span>
+                <span>12p</span><span>2p</span><span>4p</span><span>6p</span><span>8p</span><span>10p</span><span>12a</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title" id="focusTitle">Right Now</div>
+                <div class="card-sub" id="focusTime">4:00 PM – 4:30 PM</div>
+              </div>
+              <div class="flags-row" id="flagsRow"></div>
+            </div>
+
+            <div class="existing-acts" id="existingActs"></div>
+            <div class="crumb-row" id="crumbRow"></div>
+
+            <div class="lib-grid" id="pickerArea"></div>
+
+            <div class="dur-row" id="durRow">
+              <span class="dur-label">DURATION FOR THIS ACTIVITY</span>
+              <div class="dur-track">
+                <div class="dur-btn" id="durMinus">−</div>
+                <span class="dur-val" id="durVal">15 min</span>
+                <div class="dur-btn" id="durPlus">+</div>
+              </div>
+            </div>
+            <div class="confirm-btn" id="confirmBtn">Add to this slot</div>
+          </div>
+
+        </div>
+
+        <div class="col-right">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Today's Shape</div>
+                <div class="card-sub" id="glanceSub">25 of 48 slots marked</div>
+              </div>
+            </div>
+            <div class="score-ring-row" id="scoreRingRow"></div>
+            <div id="catBars"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title" style="font-size:15px;">Recent Activity</div>
+            </div>
+            <div id="recentList"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const TOTAL_SLOTS = 48;
+
+const CARDS = [
+  {name:"Flags", sub:["Trauma response","Stress response","Fear response"], color:"#E8845C", isFlag:true},
+  {name:"Night Sleep", sub:null, color:"#6B8F82", icon:"🌙", cat:"Mind & Rest"},
+  {name:"Day Sleep", sub:null, color:"#6B8F82", icon:"😴", cat:"Mind & Rest"},
+  {name:"Brushing + Shower", sub:null, color:"#C9B48A", icon:"🚿", cat:"Body & Domestic"},
+  {name:"Clothes maintenance", sub:null, color:"#C9B48A", icon:"👕", cat:"Body & Domestic"},
+  {name:"Writing — author journey", sub:null, color:"#1B3B32", icon:"✍️", cat:"Focus & Growth"},
+  {name:"Image generation", sub:null, color:"#1B3B32", icon:"🎨", cat:"Focus & Growth"},
+  {name:"Homework", sub:null, color:"#1B3B32", icon:"📚", cat:"Focus & Growth"},
+  {name:"Meal Prep", sub:null, color:"#C9B48A", icon:"🍲", cat:"Body & Domestic"},
+  {name:"Nursery visit", sub:null, color:"#C9B48A", icon:"🌱", cat:"Body & Domestic"},
+  {name:"Star Bazar visit", sub:null, color:"#C9B48A", icon:"🛒", cat:"Body & Domestic"},
+  {name:"Vipassana", sub:null, color:"#6B8F82", icon:"🧘", cat:"Mind & Rest"},
+  {name:"Nature connect", sub:["Sunlight","Breathwork","Star sleeping"], color:"#4F7D6C", icon:"🌿", cat:"Nature & Connection"},
+  {name:"Sports or Exercise", sub:["Dance","Skipping","Running","HIIT","Suryanamaskar","Moonnamaskar"], color:"#E8845C", icon:"🏃", cat:"Sports or Exercise"},
+  {name:"YouTube watching", sub:null, color:"#6B8F82", icon:"📺", cat:"Mind & Rest"},
+  {name:"Human connection", sub:null, color:"#4F7D6C", icon:"🤝", cat:"Nature & Connection"},
+  {name:"GEOM / HOSS / HECOLL", sub:null, color:"#1B3B32", icon:"🚀", cat:"Focus & Growth"},
+  {name:"Spiritual Care", sub:["Singing time / worship time","Bible reading","Prayer"], color:"#4F7D6C", icon:"🙏", cat:"Nature & Connection"},
+  {name:"Building & Rebuilding", sub:["Podcasts","Audiobook"], color:"#1B3B32", icon:"🎧", cat:"Focus & Growth"},
+  {name:"Errand time", sub:null, color:"#C9B48A", icon:"🚗", cat:"Body & Domestic"},
+  {name:"Pomodoro Break", sub:["Eating leaves","CCTV Control Station","Stretching","Humor content"], color:"#6B8F82", icon:"⏱️", cat:"Mind & Rest"},
+  {name:"Body care", sub:["Massage","Oiling","Mask"], color:"#C9B48A", icon:"🧴", cat:"Body & Domestic", third:{"Massage":["Face","Body","Hair"],"Oiling":["Face","Body","Hair"],"Mask":["Face","Body","Hair"]}},
+  {name:"Supplements", sub:["Omega","Magnesium","Zinc"], color:"#6B8F82", icon:"💊", cat:"Mind & Rest"},
+  {name:"Gmeet / Zoom", sub:["Coach","Therapist","Cofounder","Personal Board of Director"], color:"#1B3B32", icon:"💻", cat:"Focus & Growth"},
+  {name:"Miscellaneous", sub:null, color:"#C9B48A", icon:"✦", cat:"Body & Domestic"},
+];
+const NON_FLAG_CARDS = CARDS.filter(c => !c.isFlag);
+const FLAG_CARD = CARDS.find(c => c.isFlag);
+const FLAG_EMOJI = {"Trauma response":"💔","Stress response":"😰","Fear response":"😨"};
+
+const CATEGORY_LIST = ["Mind & Rest","Body & Domestic","Sports or Exercise","Nature & Connection","Focus & Growth"];
+const CAT_COLORS = {"Mind & Rest":"#6B8F82","Body & Domestic":"#C9B48A","Sports or Exercise":"#E8845C","Nature & Connection":"#4F7D6C","Focus & Growth":"#1B3B32"};
+const CAT_COLORS_LIGHT = {"Mind & Rest":"#BFD9C9","Body & Domestic":"#EDDFC0","Sports or Exercise":"#F5C7AE","Nature & Connection":"#CFE3C2","Focus & Growth":"#C7D6D8"};
+const CAT_ICONS = {"Mind & Rest":"🌙","Body & Domestic":"🏠","Sports or Exercise":"🏃","Nature & Connection":"🌿","Focus & Growth":"🎯"};
+
+function fmtRange(i){
+  const totalMin=i*30; let h=Math.floor(totalMin/60); const m=totalMin%60;
+  const ap=h>=12?'PM':'AM'; let h12=h%12; if(h12===0) h12=12;
+  const totalMin2=totalMin+30; let h2=Math.floor(totalMin2/60); const m2=totalMin2%60;
+  const ap2=h2>=12?'PM':'AM'; let h12b=h2%12; if(h12b===0) h12b=12;
+  return `${h12}:${m===0?'00':'30'} ${ap} – ${h12b}:${m2===0?'00':'30'} ${ap2}`;
+}
+function fmtShort(i){
+  const totalMin=i*30; let h=Math.floor(totalMin/60); const m=totalMin%60;
+  const ap=h>=12?'PM':'AM'; let h12=h%12; if(h12===0) h12=12;
+  return `${h12}:${m===0?'00':'30'}${ap}`;
+}
+
+const NOW_INDEX = 32;
+const entries = {};
+for(let i=0;i<16;i++) entries[i] = { activities:[{name:"Night Sleep", path:[], duration:30}], flags:[] };
+Object.assign(entries, {
+  16:{ activities:[{name:"Nature connect", path:["Sunlight"], duration:30}], flags:[] },
+  17:{ activities:[{name:"Vipassana", path:[], duration:30}], flags:[] },
+  20:{ activities:[{name:"Vipassana", path:[], duration:30}], flags:[] },
+  22:{ activities:[{name:"Spiritual Care", path:["Prayer"], duration:30}], flags:["Trauma response"] },
+  24:{ activities:[{name:"Meal Prep", path:[], duration:30}], flags:[] },
+  27:{ activities:[{name:"Sports or Exercise", path:["HIIT"], duration:30}], flags:[] },
+  29:{ activities:[
+        {name:"Body care", path:["Oiling","Body"], duration:15},
+        {name:"Supplements", path:["Magnesium"], duration:15}
+      ], flags:["Stress response"] },
+  30:{ activities:[{name:"Errand time", path:[], duration:30}], flags:[] },
+  31:{ activities:[{name:"Homework", path:[], duration:30}], flags:["Fear response"] },
+});
+
+let selectedSlot = NOW_INDEX;
+let currentPath = [];
+let pendingCard = null;
+let pendingDuration = 15;
+let pendingFlags = [];
+
+function slotUsedMinutes(i, excludeIdx=null){
+  const acts = entries[i]?.activities || [];
+  return acts.reduce((sum,a,idx) => idx===excludeIdx ? sum : sum + a.duration, 0);
+}
+function slotRemainingMinutes(i){ return 30 - slotUsedMinutes(i); }
+
+function renderStrip(){
+  const strip = document.getElementById('strip');
+  strip.innerHTML = '';
+  for(let i=0;i<TOTAL_SLOTS;i++){
+    const e = entries[i];
+    const seg = document.createElement('div');
+    seg.className='seg' + (i===selectedSlot?' selected-slot':'');
+    seg.style.width=(100/TOTAL_SLOTS)+'%';
+    seg.style.display='flex';
+    if(e && e.activities.length){
+      e.activities.forEach(a => {
+        const part = document.createElement('div');
+        part.style.height='100%';
+        part.style.width = ((a.duration/30)*100)+'%';
+        const cardDef = CARDS.find(c=>c.name===a.name);
+        part.style.background = CAT_COLORS_LIGHT[cardDef?.cat] || '#DCE3D9';
+        seg.appendChild(part);
+      });
+    }
+    if(e && e.flags && e.flags.length){
+      seg.style.position='relative';
+      const fw = document.createElement('div');
+      fw.className='flag-emoji-inslot';
+      fw.innerHTML = e.flags.map(f=>FLAG_EMOJI[f]).join('');
+      seg.appendChild(fw);
+    }
+    seg.onclick = () => { selectSlot(i); };
+    seg.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect='copy'; seg.classList.add('drop-hover'); });
+    seg.addEventListener('dragleave', () => seg.classList.remove('drop-hover'));
+    seg.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      seg.classList.remove('drop-hover');
+      const cardName = ev.dataTransfer.getData('text/plain');
+      const card = NON_FLAG_CARDS.find(c => c.name === cardName);
+      if(!card) return;
+      handleCardDrop(card, i);
+    });
+    strip.appendChild(seg);
+  }
+  const outer = document.getElementById('stripOuter');
+  outer.querySelectorAll('.now-line, .now-badge-onstrip').forEach(el=>el.remove());
+
+  const line = document.createElement('div');
+  line.className='now-line';
+  line.style.left = `calc(${(NOW_INDEX/TOTAL_SLOTS)*100}% )`;
+  outer.appendChild(line);
+
+  const badge = document.createElement('div');
+  badge.className='now-badge-onstrip';
+  badge.style.left = `calc(${(NOW_INDEX/TOTAL_SLOTS)*100}% )`;
+  badge.textContent = 'NOW';
+  outer.appendChild(badge);
+
+  const filledCount = Object.values(entries).filter(e=>e.activities.length).length;
+  document.getElementById('filledCount').textContent = filledCount;
+}
+
+function renderFlagsRow(){
+  const row = document.getElementById('flagsRow');
+  row.innerHTML = FLAG_CARD.sub.map(f => `
+    <div class="flag-btn ${pendingFlags.includes(f)?'on':''}" data-f="${f}" data-label="${f.replace(' response','')}">
+      ${FLAG_EMOJI[f]}
+    </div>
+  `).join('');
+  row.querySelectorAll('.flag-btn').forEach(el=>{
+    el.onclick = () => {
+      const f = el.dataset.f;
+      const idx = pendingFlags.indexOf(f);
+      if(idx>-1) pendingFlags.splice(idx,1); else pendingFlags.push(f);
+      entries[selectedSlot] = entries[selectedSlot] || {activities:[], flags:[]};
+      entries[selectedSlot].flags = pendingFlags.slice();
+      renderFlagsRow(); renderStrip(); renderGlance();
+    };
+  });
+}
+
+function selectSlot(i){
+  selectedSlot = i;
+  currentPath = [];
+  pendingCard = null;
+  const existing = entries[i];
+  pendingFlags = (existing?.flags || []).slice();
+  pendingDuration = Math.max(15, Math.min(30, slotRemainingMinutes(i) || 30));
+  renderAll();
+}
+
+function handleCardDrop(card, slotIndex){
+  const remaining = slotRemainingMinutes(slotIndex);
+  if(remaining <= 0){
+    selectSlot(slotIndex);
+    return;
+  }
+  selectedSlot = slotIndex;
+  const existing = entries[slotIndex];
+  pendingFlags = (existing?.flags || []).slice();
+  const defaultDur = Math.max(15, Math.min(30, remaining));
+
+  if(!card.sub){
+    entries[slotIndex] = entries[slotIndex] || {activities:[], flags:[]};
+    entries[slotIndex].activities.push({ name: card.name, path: [], duration: defaultDur });
+    currentPath = [];
+    pendingCard = null;
+    pendingDuration = Math.max(15, Math.min(30, slotRemainingMinutes(slotIndex)));
+    renderAll();
+  } else {
+    pendingCard = card;
+    currentPath = [];
+    pendingDuration = defaultDur;
+    renderAll();
+  }
+}
+
+function renderCrumbs(){
+  const crumbRow = document.getElementById('crumbRow');
+  if(!pendingCard){ crumbRow.innerHTML=''; return; }
+  let html = `<span class="crumb-back" id="crumbBack">← back</span><span class="crumb-sep">/</span>`;
+  html += `<span class="crumb ${currentPath.length===0?'current':''}">${pendingCard.name}</span>`;
+  currentPath.forEach((p,idx)=>{
+    html += `<span class="crumb-sep">/</span><span class="crumb ${idx===currentPath.length-1?'current':''}">${p}</span>`;
+  });
+  crumbRow.innerHTML = html;
+  const back = document.getElementById('crumbBack');
+  if(back) back.onclick = () => {
+    if(currentPath.length>0){ currentPath.pop(); } else { pendingCard = null; }
+    renderPicker(); renderCrumbs();
+  };
+}
+
+function renderExistingActivities(){
+  const wrap = document.getElementById('existingActs');
+  const e = entries[selectedSlot];
+  const acts = e ? e.activities : [];
+  if(acts.length === 0){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<div class="existing-label">IN THIS SLOT</div>` + acts.map((a,idx) => {
+    const card = CARDS.find(c=>c.name===a.name);
+    const pathStr = a.path && a.path.length ? ' · '+a.path.join(' / ') : '';
+    return `<div class="existing-row">
+      <div class="existing-dot" style="background:${card?card.color:'#6B8F82'}"></div>
+      <div class="existing-name">${a.name}${pathStr}</div>
+      <div class="existing-dur">${a.duration}m</div>
+      <div class="existing-remove" data-idx="${idx}">Remove</div>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.existing-remove').forEach(el=>{
+    el.onclick = () => {
+      entries[selectedSlot].activities.splice(parseInt(el.dataset.idx),1);
+      pendingDuration = Math.max(15, Math.min(30, slotRemainingMinutes(selectedSlot)));
+      renderAll();
+    };
+  });
+}
+
+function renderPicker(){
+  const area = document.getElementById('pickerArea');
+  const remaining = slotRemainingMinutes(selectedSlot);
+  const acts = entries[selectedSlot]?.activities || [];
+
+  if(remaining <= 0 && !pendingCard){
+    area.innerHTML = `<div class="slot-full-msg" style="grid-column:1/-1;">This slot is full (2 activities, 30 min total). Remove one above to add another, or choose a different slot.</div>`;
+    return;
+  }
+
+  if(!pendingCard){
+    area.innerHTML = NON_FLAG_CARDS.map(c => `
+      <div class="lib-card" data-name="${c.name}" title="${c.name}" draggable="true">
+        <div class="lib-art" style="background:linear-gradient(150deg, ${c.color}dd, ${c.color}88);">
+          <div class="lib-art-icon">${c.icon}</div>
+          ${c.sub ? '<div class="lib-count-badge">'+c.sub.length+'</div>' : ''}
+        </div>
+      </div>
+    `).join('');
+    area.querySelectorAll('.lib-card').forEach(el=>{
+      el.onclick = () => {
+        pendingCard = NON_FLAG_CARDS.find(c=>c.name===el.dataset.name);
+        currentPath = [];
+        pendingDuration = Math.min(pendingDuration, slotRemainingMinutes(selectedSlot));
+        renderPicker(); renderCrumbs(); renderDurRow();
+      };
+      el.addEventListener('dragstart', (ev) => {
+        ev.dataTransfer.setData('text/plain', el.dataset.name);
+        ev.dataTransfer.effectAllowed = 'copy';
+        el.classList.add('dragging');
+      });
+      el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    });
+    return;
+  }
+
+  let options, isThird=false;
+  if(currentPath.length===0){ options = pendingCard.sub; }
+  else if(pendingCard.third && currentPath.length===1){ options = pendingCard.third[currentPath[0]]; isThird = true; }
+  else { options = null; }
+
+  if(!options){
+    area.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:10px 0;grid-column:1/-1;">Selected. Set duration and confirm below.</div>`;
+    return;
+  }
+  area.innerHTML = `<div style="grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px;">
+    ${options.map(o => `<div class="lib-pill ${currentPath[isThird?1:0]===o?'on':''}" data-o="${o}" style="cursor:pointer;">${o}</div>`).join('')}
+  </div>`;
+  area.querySelectorAll('[data-o]').forEach(el=>{
+    el.onclick = () => {
+      const val = el.dataset.o;
+      if(isThird){ currentPath[1] = val; } else { currentPath[0] = val; }
+      renderPicker(); renderCrumbs();
+    };
+  });
+}
+
+function renderDurRow(){
+  const remaining = slotRemainingMinutes(selectedSlot);
+  const maxAllowed = Math.max(15, remaining);
+  if(pendingDuration > maxAllowed) pendingDuration = maxAllowed;
+  document.getElementById('durVal').textContent = pendingDuration + ' min';
+  document.getElementById('durRow').style.display = pendingCard ? 'flex' : 'none';
+  document.getElementById('confirmBtn').style.display = pendingCard ? 'block' : 'none';
+}
+
+document.getElementById('durMinus').onclick = () => { pendingDuration = Math.max(15, pendingDuration-15); renderDurRow(); };
+document.getElementById('durPlus').onclick = () => { pendingDuration = Math.min(slotRemainingMinutes(selectedSlot), pendingDuration+15); renderDurRow(); };
+
+document.getElementById('confirmBtn').onclick = () => {
+  if(!pendingCard) return;
+  entries[selectedSlot] = entries[selectedSlot] || {activities:[], flags:[]};
+  entries[selectedSlot].activities.push({ name: pendingCard.name, path: currentPath.slice(), duration: pendingDuration });
+  pendingCard = null; currentPath = [];
+  pendingDuration = Math.max(15, Math.min(30, slotRemainingMinutes(selectedSlot)));
+  renderAll();
+};
+
+function renderGlance(){
+  const filledCount = Object.values(entries).filter(e=>e.activities.length).length;
+  document.getElementById('glanceSub').textContent = `${filledCount} of ${TOTAL_SLOTS} slots marked`;
+
+  const scorePct = Math.round((filledCount/TOTAL_SLOTS)*100);
+  let status, ringColor, fillColor, labelColor;
+  if(scorePct>=80){ status='Excellent'; ringColor='#3E9B5C'; fillColor='#E7F5EA'; labelColor='#2E7A47'; }
+  else if(scorePct>=60){ status='Good'; ringColor='#C6A857'; fillColor='#FBF3DF'; labelColor='#96792F'; }
+  else if(scorePct>=40){ status='Building'; ringColor='#E0904A'; fillColor='#FCECDC'; labelColor='#B06A28'; }
+  else { status='Just started'; ringColor='#D2604A'; fillColor='#FBE3DC'; labelColor='#A8442F'; }
+
+  const circumference = 2*Math.PI*30;
+  const dash = (scorePct/100)*circumference;
+  document.getElementById('scoreRingRow').innerHTML = `
+    <div class="score-ring-wrap">
+      <svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="30" fill="${fillColor}" stroke="#EFEAE0" stroke-width="7"/>
+        <circle cx="38" cy="38" r="30" fill="none" stroke="${ringColor}" stroke-width="7"
+          stroke-dasharray="${dash} ${circumference}" stroke-linecap="round" transform="rotate(-90 38 38)"/>
+      </svg>
+      <div class="score-ring-label" style="color:${labelColor}">${scorePct}</div>
+    </div>
+    <div>
+      <div class="score-info-title">Overall progress</div>
+      <div class="score-info-status" style="color:${labelColor}">${status}</div>
+      <div class="score-info-trend">▲ vs yesterday</div>
+    </div>
+  `;
+
+  const totals = {};
+  CATEGORY_LIST.forEach(c=>totals[c]=0);
+  Object.values(entries).forEach(e => {
+    (e.activities||[]).forEach(a => {
+      const card = CARDS.find(c=>c.name===a.name);
+      const cat = card?.cat || "Mind & Rest";
+      totals[cat] += a.duration;
+    });
+  });
+  const maxMinutes = Math.max(...Object.values(totals), 60);
+  document.getElementById('catBars').innerHTML = Object.entries(totals).map(([name,mins]) => `
+    <div class="cat-bar-row">
+      <div class="cat-bar-label-row">
+        <span class="cat-bar-name"><span class="cat-icon" style="background:${CAT_COLORS[name]}22;">${CAT_ICONS[name]}</span>${name}</span>
+        <span class="cat-bar-val">${Math.floor(mins/60)}h ${mins%60}m</span>
+      </div>
+      <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(mins/maxMinutes)*100}%; background:${CAT_COLORS[name]}"></div></div>
+    </div>
+  `).join('');
+
+  const recentWrap = document.getElementById('recentList');
+  const loggedSlots = Object.entries(entries)
+    .filter(([i,e]) => e.activities && e.activities.length)
+    .sort((a,b) => parseInt(b[0]) - parseInt(a[0]))
+    .slice(0, 3);
+  if(loggedSlots.length === 0){
+    recentWrap.innerHTML = `<div style="font-size:11.5px;color:var(--muted);">Nothing logged yet today</div>`;
+  } else {
+    recentWrap.innerHTML = loggedSlots.map(([i,e]) => {
+      const first = e.activities[0];
+      const card = CARDS.find(c=>c.name===first.name);
+      const flagBadge = e.flags && e.flags.length ? e.flags.map(f=>FLAG_EMOJI[f]).join('') : '';
+      const moreCount = e.activities.length>1 ? ` +${e.activities.length-1}` : '';
+      return `
+      <div class="recent-row">
+        <div class="recent-emoji">${card?.icon || '✦'}</div>
+        <div style="flex:1;">
+          <div class="recent-name">${first.name}${moreCount}</div>
+          <div class="recent-time">${fmtShort(parseInt(i))} · ${first.duration}m</div>
+        </div>
+        ${flagBadge ? `<div style="font-size:13px;">${flagBadge}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+}
+
+function renderAll(){
+  document.getElementById('focusTitle').textContent = selectedSlot===NOW_INDEX ? 'Right Now' : 'Edit Slot';
+  document.getElementById('focusTime').textContent = fmtRange(selectedSlot);
+  renderStrip();
+  renderFlagsRow();
+  renderExistingActivities();
+  renderCrumbs();
+  renderPicker();
+  renderDurRow();
+  renderGlance();
+}
+
+selectSlot(NOW_INDEX);
+</script>
+</body>
+</html>
