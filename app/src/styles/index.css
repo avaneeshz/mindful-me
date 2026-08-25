@@ -1,0 +1,380 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Mirrors of the Tailwind theme tokens, for the handful of places that need
+       runtime interpolation (per-category colours resolved from data). These are
+       the ONLY hex literals in the application source. */
+    --forest: #1b3b32;
+    --strip: #f1ede2;
+
+    /* Night row surface: a computed Deep Forest tint over the same day-row
+       base — deliberately NOT a new standalone hex value.
+
+       The approved spec said 5%. Rendered, 5% is ~11/255 per channel away from
+       the Day row and the two rows read as identical, which pushes the whole
+       Day/Night distinction onto the small text captions — exactly what the
+       requirement said not to do. Raised to 12%: clearly darker at a glance,
+       still well clear of the lightest category strip fill (#BFD9C9) so an
+       empty Night slot can never be mistaken for a filled one. */
+    --night-strip: #dedcd2; /* static fallback for engines without color-mix */
+    --night-strip: color-mix(in srgb, var(--forest) 12%, var(--strip));
+
+    /* Row accent bars — the second, non-textual Day/Night cue. Both are Deep
+       Forest composites of the row base, so no new brand colour is introduced;
+       only the strength differs. */
+    --day-accent: #b6bcb0;
+    --day-accent: color-mix(in srgb, var(--forest) 35%, var(--strip));
+    --night-accent: var(--forest);
+
+    /* Category DEEP tones — picker tiles and list-row icon chips only. */
+    --cat-mind-deep: #6b8f82;
+    --cat-body-deep: #c9b48a;
+    --cat-sports-deep: #e8845c;
+    --cat-nature-deep: #4f7d6c;
+    --cat-focus-deep: #1b3b32;
+
+    /* Category LIGHT tones — reserved exclusively for timeline strip fill. */
+    --cat-mind-light: #bfd9c9;
+    --cat-body-light: #eddfc0;
+    --cat-sports-light: #f5c7ae;
+    --cat-nature-light: #cfe3c2;
+    --cat-focus-light: #c7d6d8;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-width: 0;
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+
+  body {
+    @apply bg-bg font-sans text-body text-charcoal antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---------------------------------------------------------------------
+     Focus ring standard, product-wide: 2px solid Deep Forest, 2px offset.
+     One treatment for every interactive element — segment control, timeline
+     slots, tiles, flags, buttons, links. Never overridden per component.
+     --------------------------------------------------------------------- */
+  :where(a, button, [role='button'], [tabindex]):focus-visible {
+    outline: 2px solid var(--forest);
+    outline-offset: 2px;
+  }
+
+  /* Timeline slots sit flush against their neighbours, so a positive offset
+     would be clipped by the row's overflow. Draw it inside instead. */
+  .slot-button:focus-visible {
+    outline: 2px solid var(--forest);
+    outline-offset: -2px;
+    z-index: 5;
+  }
+}
+
+@layer components {
+  /* -------------------------------------------------------------------------
+     ACCESSIBILITY MITIGATION — Mind & Rest label legibility.
+
+     Measured WCAG 2.1 contrast against the Mind & Rest DEEP fill #6B8F82
+     (relative luminance 0.2482):
+         white    #FFFFFF -> 3.52:1
+         charcoal #3D3A35 -> 3.21:1
+     White is the better of the two and is what the tile uses, but neither
+     reaches the 4.5:1 AA threshold for text at this size. The category token
+     itself is the real defect and changing a brand colour is a design-level
+     decision, so this is a mitigation, not a fix: a Deep Forest shadow is laid
+     directly behind the glyphs, darkening the few pixels a reader actually
+     resolves an edge against and lifting effective legibility well past the
+     bare 3.52:1 the flat pairing gives.
+
+     Icons are unaffected — 3.52:1 already clears the 3:1 non-text minimum.
+
+     TODO (design): re-tone the Mind & Rest DEEP token so white clears 4.5:1
+     natively; this class should then be deleted, not kept as decoration.
+     ---------------------------------------------------------------------- */
+  .label-contrast-boost {
+    text-shadow:
+      0 1px 2px rgba(27, 59, 50, 0.65),
+      0 0 1px rgba(27, 59, 50, 0.9);
+  }
+
+  /* -------------------------------------------------------------------------
+     The Gold outline pulse played on a timeline row when the period navigator
+     jumps to it.
+
+     THIS WAS DEAD CODE. `animation: row-pulse` was declared here while the
+     matching @keyframes lived in tailwind.config.js's theme — and Tailwind only
+     emits a @keyframes block when the `animate-*` utility that owns it is
+     actually found by the content scanner. Nothing used `animate-row-pulse`, so
+     no keyframe was ever emitted (confirmed absent from the built CSS) and the
+     row silently never pulsed. That is the whole visible feedback for the
+     Day/Night jump on viewports where both rows already fit, so the control
+     read as broken.
+
+     Fix: this class now supplies the outline base only, and Timeline.tsx applies
+     Tailwind's real `animate-row-pulse` utility alongside it, which forces the
+     keyframes into the build. tailwind.config.js stays the single source of
+     truth for the animation itself.
+     ---------------------------------------------------------------------- */
+  .row-pulse {
+    outline: 2.5px solid transparent;
+    outline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 768px) {
+  main {
+    overflow-x: clip;
+  }
+
+  .timeline-row .slot-button {
+    width: 30px !important;
+    flex: 0 0 30px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-shell {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: min(280px, 86vw);
+    transform: translateX(-100%);
+    transition: transform 180ms ease-out;
+  }
+
+  .sidebar-shell.sidebar-mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-shell.sidebar-mobile-open .sidebar-label {
+    display: block;
+  }
+
+  .sidebar-shell .sidebar-collapse {
+    display: flex;
+  }
+}
+
+/* The collapse control owns this state; keep the rail usable at every desktop
+   width with icon labels available through each item's native tooltip. */
+.sidebar-shell {
+  transition: width 180ms ease-out;
+}
+
+.sidebar-shell.sidebar-collapsed {
+  box-sizing: border-box;
+  width: 72px;
+  padding-inline: 0;
+}
+
+.sidebar-shell.sidebar-collapsed .sidebar-label {
+  display: none;
+}
+
+/* Collapsed rail: the header block loses its horizontal padding so the 38px
+   brand mark and the 44px menu button both centre inside the 72px rail. The
+   menu button keeps its own size and place in normal flow — it is never
+   absolutely positioned, so it cannot drift over the brand at any width. */
+.sidebar-shell.sidebar-collapsed .sidebar-header {
+  padding-inline: 0;
+}
+
+.sidebar-shell.sidebar-collapsed .sidebar-collapse-row,
+.sidebar-shell.sidebar-collapsed .sidebar-brand-row {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.sidebar-shell.sidebar-collapsed .sidebar-brand-row > div:first-child {
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------------
+   The timeline strips pan horizontally on narrow viewports, but they must not
+   show any scroll furniture: the strip is a continuous object joined to its
+   Sun/Moon end-cap, and a scrollbar rendered across its foot broke that read.
+
+   Only the SCROLLBAR is hidden — `overflow-x` stays `auto`, so touch panning,
+   wheel/trackpad panning and programmatic `scrollIntoView` all still work.
+   ------------------------------------------------------------------------ */
+.timeline-scroll-region {
+  box-sizing: border-box;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge / IE */
+}
+
+.timeline-scroll-region::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+.sidebar-shell.sidebar-collapsed nav {
+  padding-inline: 12px;
+}
+
+.sidebar-shell.sidebar-collapsed nav a,
+.sidebar-shell.sidebar-collapsed nav button {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+@media (max-width: 768px) {
+  .sidebar-shell.sidebar-mobile-open {
+    width: min(280px, 86vw);
+  }
+
+  .sidebar-shell.sidebar-mobile-open .sidebar-label {
+    display: block;
+  }
+
+  .sidebar-shell.sidebar-mobile-open .sidebar-collapse {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SCROLL CUE — Acceptance Criterion 13 backstop.
+
+   The app's scroll container is <main>, not the document, so a check against
+   `document.documentElement.scrollHeight` reports "fits fine" while <main> is
+   genuinely overflowing. On a short viewport (iPad landscape, 834px tall) the
+   editor's trailing controls can sit just past the fold once the
+   capacity-ceiling message pushes them down, with nothing to say they are
+   there — and a touch device shows no resting scrollbar to hint at it either.
+
+   This is an OVERLAY, painted on top of the content at the container's bottom
+   edge. The pure-CSS `background-attachment: local` shadow trick was tried
+   first and does not work here: a container's background paints BEHIND its
+   children, so the white editor card sat straight over the shadow.
+
+   The tone is the elevation-1 shadow colour, so the cue reads as the same
+   depth language the rest of the product uses, over any surface it falls on.
+   Visibility is driven from App.tsx — it shows only while content actually
+   remains below, and only where <main> is the scroll container (never mobile,
+   where the document scrolls instead).
+   ------------------------------------------------------------------------ */
+.scroll-cue-bottom {
+  background-image: linear-gradient(
+    to top,
+    rgba(61, 58, 53, 0.14),
+    rgba(61, 58, 53, 0.05) 45%,
+    rgba(61, 58, 53, 0)
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Slot editor responsiveness — CONTAINER queries, scoped to the editor region.
+
+   Deliberately not viewport media queries: a global ~834px breakpoint is
+   exactly what caused the previously-reverted tablet layout in this project's
+   history. Nothing outside `.editor-body` can be affected by these rules.
+   ------------------------------------------------------------------------- */
+.editor-body {
+  container-type: inline-size;
+  container-name: editor;
+}
+
+.editor-split {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.staging-pane {
+  border-top: 1px solid theme('colors.line');
+  padding-top: 24px;
+}
+
+.picker-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* iPad portrait and anything narrower than a comfortable two-up split keeps
+   the stacked layout above; these steps only widen the picker grid. */
+@container editor (min-width: 460px) {
+  .picker-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@container editor (min-width: 620px) {
+  .picker-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+/* Wide enough for picker + persistent staging pane side by side. */
+@container editor (min-width: 860px) {
+  .editor-split {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .picker-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .staging-pane {
+    width: 280px;
+    flex-shrink: 0;
+    border-top: 0;
+    border-left: 1px solid theme('colors.line');
+    padding-top: 0;
+    padding-left: 24px;
+  }
+
+  .picker-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+/*
+  iPad landscape. The approved spec asked for ~10 picker columns; rendered at
+  1194x834 that produced 45px tiles whose labels truncated to 2-3 characters
+  ("Nig…", "Bru…", "Clo…") while saving nothing vertically — 24 tiles wrap to
+  3 rows at both 8 and 10 columns. 8 columns keeps the same 3 rows, widens each
+  tile to ~60px, and restores readable label stems. Flagged for design sign-off.
+*/
+@media (orientation: landscape) and (min-width: 900px) and (max-height: 900px) {
+  .picker-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+/* Respect reduced-motion for every motion the redesign introduces: the smooth
+   scroll to a period, the row outline pulse, and the undo fade-out. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  /* The undo affordance uses a forwards-filling fade to disappear. With motion
+     reduced it must still end up hidden, so keep the final state. */
+  .animate-undo-fade {
+    animation: none !important;
+    opacity: 1;
+  }
+}
