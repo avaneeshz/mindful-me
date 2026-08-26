@@ -305,9 +305,9 @@ describe('time formatting', () => {
 })
 
 describe('hour tick ruler', () => {
-  it('labels each row edge to edge at 2-hour intervals', () => {
-    expect(rowTickLabels('day')).toEqual(['06', '08', '10', '12', '14', '16', '18'])
-    expect(rowTickLabels('night')).toEqual(['18', '20', '22', '00', '02', '04', '06'])
+  it('labels exactly 3 points per row — start, midpoint, end — in 12-hour lowercase format', () => {
+    expect(rowTickLabels('day')).toEqual(['6a', '12p', '6p'])
+    expect(rowTickLabels('night')).toEqual(['6p', '12a', '6a'])
   })
 
   it('formats both noon and midnight as 12, never 0', () => {
