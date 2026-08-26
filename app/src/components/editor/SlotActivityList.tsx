@@ -1,4 +1,4 @@
-import { Pencil, X } from 'lucide-react'
+import { CheckCircle2, Circle, Pencil, X } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
 import { formatMinutes, minutesInSlot, startsInSlot } from '@/domain/slots'
 import type { ScheduledActivity } from '@/domain/types'
@@ -17,6 +17,7 @@ interface SlotActivityListProps {
   editingId: string | null
   onEdit: (id: string) => void
   onRemove: (id: string) => void
+  onToggleComplete: (id: string) => void
   onUndo: () => void
 }
 
@@ -27,6 +28,7 @@ export function SlotActivityList({
   editingId,
   onEdit,
   onRemove,
+  onToggleComplete,
   onUndo,
 }: SlotActivityListProps) {
   const removalHere = removal && minutesInSlot(removal.activity, selectedSlot) > 0 ? removal : null
@@ -48,6 +50,7 @@ export function SlotActivityList({
             continuedFrom={startsInSlot(activity, selectedSlot) ? null : activity.startMinutes}
             onEdit={() => onEdit(activity.id)}
             onRemove={() => onRemove(activity.id)}
+            onToggleComplete={() => onToggleComplete(activity.id)}
           />
         ))}
         {removalHere && (
@@ -65,6 +68,7 @@ function ActivityRow({
   continuedFrom,
   onEdit,
   onRemove,
+  onToggleComplete,
 }: {
   activity: ScheduledActivity
   /** This row's real share of the SELECTED slot — may differ from the activity's full duration. */
@@ -74,12 +78,14 @@ function ActivityRow({
   continuedFrom: number | null
   onEdit: () => void
   onRemove: () => void
+  onToggleComplete: () => void
 }) {
   const name = activity.name ?? 'Activity'
   const card = findCard(name)
   const category = categoryOf(name)
   const pathLabel = activity.path.length > 0 ? activity.path.join(' · ') : null
   const continuedFromLabel = continuedFrom !== null ? formatMinutes(continuedFrom) : null
+  const isCompleted = activity.status === 'completed'
 
   return (
     <li
@@ -92,11 +98,41 @@ function ActivityRow({
         isEditing && 'outline outline-1.5 -outline-offset-1.5 outline-forest',
       )}
     >
+      {/*
+        Planned vs. actual (Phase 3). A real checkbox semantic, not a bare
+        icon button — assistive tech announces "checked"/"not checked", never
+        colour alone. Placed first: this is the one control that changes the
+        row's own identity (completed or not), ahead of the actions that act
+        ON the row.
+      */}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isCompleted}
+        aria-label={isCompleted ? `Mark ${name} not completed` : `Mark ${name} completed`}
+        onClick={onToggleComplete}
+        className={cn(
+          'flex size-[22px] shrink-0 items-center justify-center rounded-full transition-colors',
+          isCompleted ? 'text-forest' : 'text-line hover:text-forest-light',
+        )}
+      >
+        {isCompleted ? (
+          <CheckCircle2 aria-hidden="true" className="size-[20px]" fill="currentColor" stroke="white" />
+        ) : (
+          <Circle aria-hidden="true" className="size-[20px]" strokeWidth={1.75} />
+        )}
+      </button>
+
       <CategoryIconChip category={category} icon={card?.icon} />
 
       <span className="min-w-0 flex-1">
         {/* Row hover changes the underline only — no background shift. */}
-        <span className="text-body font-semibold text-charcoal group-hover:underline group-hover:underline-offset-2">
+        <span
+          className={cn(
+            'text-body font-semibold text-charcoal group-hover:underline group-hover:underline-offset-2',
+            isCompleted && 'text-muted line-through decoration-1',
+          )}
+        >
           {name}
         </span>
         {pathLabel && (
@@ -111,9 +147,16 @@ function ActivityRow({
       </span>
 
       {/*
-        The outline alone would carry this state by colour only. The tag states
-        it in words as well — same pill treatment as the editor's NOW badge.
+        The outline/strikethrough alone would carry state by appearance only.
+        Both tags state it in words too — same pill treatment as the editor's
+        NOW badge, and they can legitimately coexist (editing a completed
+        activity, e.g. to fix its time after the fact — rule 4).
       */}
+      {isCompleted && (
+        <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
+          Completed
+        </span>
+      )}
       {isEditing && (
         <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
           Editing

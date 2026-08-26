@@ -160,6 +160,54 @@ describe('the "in this slot" list attributes a spanning activity per cell', () =
   })
 })
 
+describe('Phase 3 — marking an activity complete', () => {
+  it('renders an accessible checkbox that reflects planned status by default', () => {
+    const state = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    const html = renderEditor(state)
+    expect(html).toContain('role="checkbox"')
+    expect(html).toContain('aria-checked="false"')
+    expect(html).toContain('aria-label="Mark Homework completed"')
+    expect(html).not.toContain('Completed')
+  })
+
+  it('shows the Completed badge and a checked checkbox once toggled', () => {
+    let state = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    const id = realId(state)
+    state = boardReducer(state, { type: 'toggleComplete', id })
+
+    const html = renderEditor(state)
+    expect(html).toContain('aria-checked="true"')
+    expect(html).toContain('aria-label="Mark Homework not completed"')
+    expect(html).toContain('Completed')
+  })
+
+  it('rule 4 — editing a completed activity’s time keeps it completed', () => {
+    let state = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    const id = realId(state)
+    state = boardReducer(state, { type: 'toggleComplete', id })
+    state = applyFrom(
+      state,
+      { type: 'editActivity', id },
+      { type: 'stepDuration', delta: 5 },
+      { type: 'commit' },
+    )
+    expect(state.activities.find((a) => a.id === id)).toMatchObject({ status: 'completed', durationMinutes: 35 })
+    expect(renderEditor(state)).toContain('Completed')
+  })
+})
+
 describe('editing a spanning activity in place from a later cell', () => {
   const withSixtyMinuteActivity = run(
     { type: 'selectSlot', slot: 20 },

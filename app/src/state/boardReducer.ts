@@ -76,6 +76,7 @@ export type BoardAction =
   | { type: 'toggleFlag'; flag: FlagId }
   | { type: 'dropCard'; cardName: string; slot: number }
   | { type: 'hydrate'; activities: ScheduledActivity[] }
+  | { type: 'toggleComplete'; id: string }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -334,6 +335,22 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
      */
     case 'hydrate':
       return { ...state, activities: action.activities, staging: EMPTY_STAGING, removal: null }
+
+    /**
+     * Phase 3 — planned vs. actual. Toggling completion NEVER touches
+     * start/duration/path/flags (the mirror image of rule 4: a status change
+     * must be just as surgical as a reschedule is required to be), so it is
+     * deliberately its own action rather than routed through `commit`.
+     */
+    case 'toggleComplete': {
+      const activity = state.activities.find((a) => a.id === action.id)
+      if (!activity || activity.name === null) return state
+      const status = activity.status === 'completed' ? 'planned' : 'completed'
+      return {
+        ...state,
+        activities: state.activities.map((a) => (a.id === action.id ? { ...a, status } : a)),
+      }
+    }
 
     default:
       return state

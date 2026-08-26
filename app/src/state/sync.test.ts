@@ -91,6 +91,17 @@ describe('deriveSyncIntents', () => {
     expect(intents).toEqual([{ kind: 'delete', id: markerId }])
   })
 
+  it('produces a status intent when completion is toggled', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+
+    const { intents, next } = step(state, { type: 'toggleComplete', id })
+    expect(intents).toEqual([{ kind: 'status', activity: next.activities[0] }])
+    expect(next.activities[0].status).toBe('completed')
+  })
+
   it('never produces an intent for a rejected/no-op commit even with something staged', () => {
     // Fill the slot completely, then try to add a second thing — pickCard
     // itself no-ops (nothing staged), so nothing to commit either.

@@ -110,6 +110,7 @@ export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
         editingId={staging.editingId}
         onEdit={(id) => dispatch({ type: 'editActivity', id })}
         onRemove={(id) => dispatch({ type: 'removeActivity', id })}
+        onToggleComplete={(id) => dispatch({ type: 'toggleComplete', id })}
         onUndo={() => dispatch({ type: 'undoRemoval' })}
       />
 

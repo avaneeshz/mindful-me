@@ -262,6 +262,38 @@ describe('remove and undo', () => {
   })
 })
 
+describe('toggleComplete — Phase 3 planned vs. actual', () => {
+  it('marks a planned activity completed, and back again', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    expect(real(state)[0].status).toBe('planned')
+
+    state = boardReducer(state, { type: 'toggleComplete', id })
+    expect(real(state)[0].status).toBe('completed')
+
+    state = boardReducer(state, { type: 'toggleComplete', id })
+    expect(real(state)[0].status).toBe('planned')
+  })
+
+  it('touches nothing else about the activity — never a reschedule in disguise', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const before = real(state)[0]
+    const id = before.id
+
+    const after = boardReducer(state, { type: 'toggleComplete', id }).activities.find((a) => a.id === id)!
+    expect(after.startMinutes).toBe(before.startMinutes)
+    expect(after.durationMinutes).toBe(before.durationMinutes)
+    expect(after.flags).toEqual(before.flags)
+  })
+
+  it('no-ops for an unknown id or a flag-only marker', () => {
+    let state = run(start(), { type: 'toggleFlag', flag: 'Fear response' })
+    const markerId = state.activities[0].id
+    expect(boardReducer(state, { type: 'toggleComplete', id: markerId })).toBe(state)
+    expect(boardReducer(state, { type: 'toggleComplete', id: 'no-such-id' })).toBe(state)
+  })
+})
+
 describe('flags — whole-slot markers, independent of activities', () => {
   it('toggles independently of activities and never consumes schedule room', () => {
     let state = run(

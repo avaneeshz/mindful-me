@@ -6,6 +6,7 @@ import {
   apiRescheduleScheduledActivity,
   apiRestoreScheduledActivity,
   apiSetScheduledActivityFlags,
+  apiSetScheduledActivityStatus,
   apiSoftDeleteScheduledActivity,
 } from '@/api/scheduledActivities'
 
@@ -20,6 +21,7 @@ export type SyncIntent =
   | { kind: 'create'; activity: ScheduledActivity }
   | { kind: 'reschedule'; activity: ScheduledActivity }
   | { kind: 'flags'; activity: ScheduledActivity }
+  | { kind: 'status'; activity: ScheduledActivity }
   | { kind: 'delete'; id: string }
   | { kind: 'restore'; id: string }
 
@@ -60,6 +62,11 @@ export function deriveSyncIntents(
       return id ? [{ kind: 'restore', id }] : []
     }
 
+    case 'toggleComplete': {
+      const activity = nextState.activities.find((a) => a.id === action.id)
+      return activity ? [{ kind: 'status', activity }] : []
+    }
+
     case 'toggleFlag': {
       const before = flagMarkerAt(prevState.activities, prevState.selectedSlot)
       const after = flagMarkerAt(nextState.activities, nextState.selectedSlot)
@@ -91,6 +98,8 @@ export function runSyncIntents(intents: SyncIntent[], reference: Date): void {
           return apiRescheduleScheduledActivity(intent.activity, reference)
         case 'flags':
           return apiSetScheduledActivityFlags(intent.activity.id, intent.activity.flags)
+        case 'status':
+          return apiSetScheduledActivityStatus(intent.activity.id, intent.activity.status)
         case 'delete':
           return apiSoftDeleteScheduledActivity(intent.id)
         case 'restore':
