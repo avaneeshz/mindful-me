@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, Sun, User } from 'lucide-react'
 import { Chip } from '@/components/ui/chip'
+import type { AuthUser } from '@/state/AuthContext'
+import { cn } from '@/lib/utils'
 
 /* ---------------------------------------------------------------------------
  * ⚠ PLACEHOLDER DATA — NOT REAL, NOT COMPUTED.
@@ -38,7 +41,14 @@ function formatDatePill(date: Date): string {
   })
 }
 
-export function HeaderBar({ now }: { now: Date }) {
+export interface HeaderBarProps {
+  now: Date
+  /** The signed-in user, or `null` in local-only mode (no backend configured). */
+  user: AuthUser | null
+  onSignOut: () => void
+}
+
+export function HeaderBar({ now, user, onSignOut }: HeaderBarProps) {
   return (
     <header className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
       <h1 className="pl-0 font-display text-h1 font-semibold text-forest mobile:pl-[52px] mobile:text-h1-sm">
@@ -64,18 +74,94 @@ export function HeaderBar({ now }: { now: Date }) {
         <span className="sr-only">(placeholder weather, not live data)</span>
       </Chip>
 
-      {/*
-        Not interactive: there is no account menu behind it, so it carries no
-        hover or focus state and is not focusable. The dropdown chevron the
-        prototype showed has been dropped for the same reason.
-      */}
-      <div
-        className="flex size-avatar cursor-default items-center justify-center rounded-full bg-[linear-gradient(150deg,theme(colors.gold),theme(colors.terracotta))]"
-        aria-hidden="true"
-      >
-        <User className="size-[16px] text-white" />
-      </div>
+      {user ? (
+        <AccountMenu user={user} onSignOut={onSignOut} />
+      ) : (
+        // No real session (local-only mode) — same non-interactive treatment
+        // as before: there is no account menu behind it, so it carries no
+        // hover or focus state and is not focusable.
+        <div
+          className="flex size-avatar cursor-default items-center justify-center rounded-full bg-[linear-gradient(150deg,theme(colors.gold),theme(colors.terracotta))]"
+          aria-hidden="true"
+        >
+          <User className="size-[16px] text-white" />
+        </div>
+      )}
       </div>
     </header>
+  )
+}
+
+function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node
+      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={user.email ? `Account menu — signed in as ${user.email}` : 'Account menu'}
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          'flex size-avatar items-center justify-center rounded-full',
+          'bg-[linear-gradient(150deg,theme(colors.gold),theme(colors.terracotta))]',
+          'transition-[filter] hover:brightness-105 active:brightness-95',
+        )}
+      >
+        <User aria-hidden="true" className="size-[16px] text-white" />
+      </button>
+
+      {open && (
+        <div
+          ref={panelRef}
+          role="menu"
+          aria-label="Account"
+          className="absolute right-0 top-[calc(100%+8px)] z-30 w-[220px] rounded-md border border-line bg-white p-xs shadow-elevation-2"
+        >
+          {user.email && (
+            <div className="truncate px-md py-sm text-caption text-muted" title={user.email}>
+              {user.email}
+            </div>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onSignOut()
+            }}
+            className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-charcoal transition-colors hover:bg-bg"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

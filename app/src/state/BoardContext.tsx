@@ -20,7 +20,6 @@ import { slotIndexFromDate } from '@/domain/slots'
 import { deriveSyncIntents, runSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
 import { localDayRange } from '@/lib/localTime'
-import { ensureSignedIn } from '@/lib/supabaseClient'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 
 interface BoardContextValue {
@@ -115,17 +114,18 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     }
   }, [state, now, isTest])
 
-  // Cold-load reconciliation: sign in (best-effort, silent no-op if the
-  // backend isn't configured or reachable), then replace the board with the
-  // server's authoritative view of today (rule 8 — bounded to today's window,
-  // never the full history). A failure at any step simply leaves the locally
-  // seeded/cached board in place; the app already works from that alone.
+  // Cold-load reconciliation: replace the board with the server's
+  // authoritative view of today (rule 8 — bounded to today's window, never
+  // the full history). `BoardProvider` only ever mounts once the app-level
+  // auth gate (`App.tsx`) has already resolved to a real signed-in session
+  // (or Supabase isn't configured at all, in which case `apiListScheduledActivities`
+  // itself is a no-op) — so there is no sign-in step to do here any more. A
+  // failure at any step simply leaves the locally seeded/cached board in
+  // place; the app already works from that alone.
   useEffect(() => {
     if (isTest) return
     let cancelled = false
     ;(async () => {
-      const signedIn = await ensureSignedIn()
-      if (cancelled || !signedIn) return
       const { start, end } = localDayRange(now)
       const server = await apiListScheduledActivities(start, end)
       if (!cancelled && server !== null) {
