@@ -15,6 +15,7 @@ import {
   rowTickLabels,
 } from '@/domain/slots'
 import { PERIOD_ICONS } from '@/data/periods'
+import { TimelineScenery } from '@/components/TimelineScenery'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
@@ -166,6 +167,12 @@ function TimelineRow({
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
   const indices = rowSlotIndices(period)
   const Icon = PERIOD_ICONS[period]
+  // This row holds the real current time right now — the exact condition the
+  // Sun/Moon end-cap glow keys off. `marker` is already `null` on whichever
+  // row is NOT the live period (see the `Timeline` component above), so
+  // there's no separate "is this the current period" computation to get out
+  // of sync with the marker itself.
+  const isCurrentPeriod = marker !== null
 
   // Roving tabindex, in priority order: the slot the user last focused on THIS
   // row (so arrow-key movement survives tabbing away and back), else the
@@ -212,11 +219,20 @@ function TimelineRow({
           role="img"
           aria-label={period === 'day' ? 'Daytime' : 'Nighttime'}
           className={cn(
-            'flex size-timeline-row items-center justify-center rounded-full border',
+            'flex size-timeline-row items-center justify-center rounded-full border transition-shadow duration-500',
             'mobile:size-timeline-row-sm ipad-land:size-timeline-row-md',
             period === 'day'
               ? 'border-line bg-strip text-gold'
               : 'border-forest/20 bg-night-strip text-forest',
+            // Glows only on whichever row is the REAL current period, right
+            // now. The animated pulse is disabled under prefers-reduced-motion
+            // (`motion-reduce:animate-none`); the paired `shadow-[...]`
+            // utility then supplies the glow's resting frame as a static
+            // fallback so reduced motion loses the pulse, never the glow.
+            isCurrentPeriod &&
+              (period === 'day'
+                ? 'shadow-[0_0_0_3px_rgba(212,168,87,0.18),0_0_14px_2px_rgba(212,168,87,0.45)] animate-anchor-glow motion-reduce:animate-none'
+                : 'shadow-[0_0_0_3px_rgba(255,255,255,0.2),0_0_14px_2px_rgba(255,255,255,0.5)] animate-anchor-glow-night motion-reduce:animate-none'),
           )}
         >
           <Icon aria-hidden="true" className="size-[18px] mobile:size-[15px]" />
@@ -250,6 +266,13 @@ function TimelineRow({
             period === 'day' ? 'bg-strip' : 'bg-night-strip',
           )}
         >
+          {/*
+            Illustrated backdrop. Painted first, with no z-index of its own,
+            so it stacks below the slot buttons and the z-[1] activity-segment
+            overlay by construction (see TimelineScenery's own doc comment) —
+            it can never sit above a fill or intercept a click.
+          */}
+          <TimelineScenery period={period} />
           {indices.map((slot) => {
             const touching = activitiesTouchingSlot(activities, slot)
             const flags = flagMarkerAt(activities, slot)?.flags ?? []
@@ -282,19 +305,37 @@ function TimelineRow({
                 style={{ width: `${100 / SLOTS_PER_ROW}%` }}
                 className={cn(
                   'slot-button relative flex h-full items-stretch',
-                  'hover:outline hover:outline-1.5 hover:outline-gold',
-                  isSelected && 'z-[2] outline outline-2 -outline-offset-2 outline-forest',
+                  // The scenery behind an empty slot now ranges from a light
+                  // sky to a deep Night navy, instead of one flat strip
+                  // colour, and measured against it every one of these
+                  // outline colours has at least one weak spot: Deep Forest
+                  // (selected) measures ~1.5:1 on the Night sky, Gold
+                  // (hover/drag-over) measures ~1:1 on the Day sky's own
+                  // gold horizon — both close to invisible. A same-colour
+                  // ring can't fix that (it IS the colour that's blending
+                  // in), so each state also gets a soft white wash UNDER the
+                  // outline: it reliably lightens whatever scenery sits
+                  // beneath it — sky, mountain, or pine — regardless of that
+                  // scenery's own colour, so the state stays legible however
+                  // busy the backdrop gets. The outline itself, and its
+                  // colour per state, is unchanged.
+                  'hover:bg-white/25 hover:outline hover:outline-1.5 hover:outline-gold',
+                  isSelected && 'z-[2] bg-white/20 outline outline-2 -outline-offset-2 outline-forest',
                   // drag-over is deliberately the strongest state
                   isDragOver &&
-                    'z-[4] outline outline-2.5 -outline-offset-2.5 outline-gold brightness-105',
+                    'z-[4] bg-white/30 outline outline-2.5 -outline-offset-2.5 outline-gold',
                 )}
               >
                 {flags.length > 0 && (
                   // Stacked VERTICALLY — a deliberate prior bug fix; horizontal
-                  // flags bled into neighbouring slots.
+                  // flags bled into neighbouring slots. A small opaque backing
+                  // plate (not a Deep Forest colour change) keeps these
+                  // legible whether they sit over the light Day sky, the dark
+                  // Night sky, or a category segment fill — the one treatment
+                  // that works regardless of what scenery is behind it.
                   <span
                     aria-hidden="true"
-                    className="absolute left-1/2 top-1/2 z-[3] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px"
+                    className="absolute left-1/2 top-1/2 z-[3] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full bg-white/85 px-[3px] py-[2px] shadow-elevation-1"
                   >
                     {flags.map((flag) => {
                       const FlagIcon = FLAG_ICONS[flag]
@@ -317,6 +358,16 @@ function TimelineRow({
                   left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
                   width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
                   background: categoryOf(segment.activity.name ?? '').light,
+                  // A subtle hairline, independent of the category hue itself
+                  // (that palette is out of scope here). The fill is already
+                  // fully opaque so it was never blending with the scenery
+                  // behind it, but several category LIGHT tones are pale
+                  // enough that, sitting directly beside the new gradient sky
+                  // instead of the old flat strip, the segment's own edge —
+                  // where it starts and ends — was harder to place at a
+                  // glance. This hairline restores that boundary without
+                  // touching the fill colour.
+                  boxShadow: 'inset 0 0 0 1px rgba(61,58,53,0.14)',
                 }}
               />
             ))}
@@ -335,18 +386,28 @@ function TimelineRow({
           />
         )}
 
-        {/* Exactly one current-time marker exists, on the row that holds now. */}
+        {/*
+          Exactly one current-time marker exists, on the row that holds now.
+          Forest-on-light reads fine on the Day sky, but that same dark green
+          measures ~1.5:1 against the new Night sky's deep indigo/navy — close
+          to invisible. Night uses white for both the rule and the badge
+          instead (~19:1 against the Night sky); Day is unchanged.
+        */}
         {marker !== null && (
           <>
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute top-0 h-timeline-row w-[2px] bg-forest mobile:h-timeline-row-sm ipad-land:h-timeline-row-md"
+              className={cn(
+                'pointer-events-none absolute top-0 h-timeline-row w-[2px] mobile:h-timeline-row-sm ipad-land:h-timeline-row-md',
+                period === 'day' ? 'bg-forest' : 'bg-white',
+              )}
               style={{ left: `${marker * 100}%` }}
             />
             {/* Sits in the band `pt-xl` reserves above the strip. */}
             <span
               className={cn(
-                'pointer-events-none absolute -top-xl z-[6] rounded-sm bg-forest px-sm py-xs text-nano font-bold text-white',
+                'pointer-events-none absolute -top-xl z-[6] rounded-sm px-sm py-xs text-nano font-bold',
+                period === 'day' ? 'bg-forest text-white' : 'bg-white text-forest',
                 markerAnchor,
               )}
               style={{ left: `${marker * 100}%` }}

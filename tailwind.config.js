@@ -78,6 +78,24 @@ export default {
       'sidebar-muted': '#B9CBC2',
       'sidebar-dim': '#9FB6AB',
       'sidebar-tag': '#8FAA9E',
+
+      // Timeline strip SCENERY — decorative illustration only (Day/Night
+      // backdrop). Deliberately new hues: nothing in the palette above is a
+      // sky blue / indigo, and the brief calls for both explicitly. Chosen
+      // more saturated than every category LIGHT tone above so a scheduled
+      // activity's pastel fill still reads as a distinct flat chip against a
+      // busier backdrop, never blending into it.
+      'sky-day-from': '#A9D8EA',
+      'sky-day-to': '#E7A94E',
+      'sky-night-from': '#383B78',
+      'sky-night-to': '#0C0E24',
+      // Distant mountains (Day + Night) and moonlit pine silhouettes (Night).
+      // A classic near-black silhouette would nearly vanish against the deep
+      // Night sky above (~1.1:1) — this cooler, lighter tone reads clearly on
+      // both the light Day sky and the dark Night sky.
+      'scenery-cool': '#6E8CA0',
+      // Stars only.
+      starlight: '#F6EEDD',
     },
 
     extend: {
@@ -174,9 +192,31 @@ export default {
           '92%': { opacity: '1' },
           '100%': { opacity: '0' },
         },
+        // The Sun/Moon end-cap for whichever row is the REAL current period
+        // glows. Rest and peak frames both carry a real box-shadow (not
+        // "none") so `motion-reduce:animate-none` (Timeline.tsx) leaves a
+        // static glow in place rather than removing it.
+        'anchor-glow': {
+          '0%, 100%': {
+            boxShadow: '0 0 0 3px rgba(212,168,87,0.18), 0 0 14px 2px rgba(212,168,87,0.45)',
+          },
+          '50%': {
+            boxShadow: '0 0 0 5px rgba(212,168,87,0.28), 0 0 22px 5px rgba(212,168,87,0.7)',
+          },
+        },
+        'anchor-glow-night': {
+          '0%, 100%': {
+            boxShadow: '0 0 0 3px rgba(255,255,255,0.2), 0 0 14px 2px rgba(255,255,255,0.5)',
+          },
+          '50%': {
+            boxShadow: '0 0 0 5px rgba(255,255,255,0.32), 0 0 22px 5px rgba(255,255,255,0.78)',
+          },
+        },
       },
       animation: {
         'undo-fade': 'undo-fade 4000ms linear 1 forwards',
+        'anchor-glow': 'anchor-glow 2600ms ease-in-out infinite',
+        'anchor-glow-night': 'anchor-glow-night 2600ms ease-in-out infinite',
       },
     },
   },
