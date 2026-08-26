@@ -40,7 +40,13 @@ function describeSlot(slot: number, touching: ScheduledActivity[], flags: readon
 interface TimelineProps {
   activities: ActivityList
   selectedSlot: number
-  now: Date
+  /**
+   * Real device time, or `null` when the board is viewing a day other than
+   * today (BL-2) — the NOW marker/line only ever makes sense on the real
+   * current day, so `null` here means "draw no marker at all" rather than a
+   * marker computed against the wrong day's timeline.
+   */
+  now: Date | null
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
 }
@@ -61,7 +67,7 @@ export function Timeline({
    */
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
 
-  const marker = nowMarker(now)
+  const marker = now ? nowMarker(now) : null
 
   function focusSlot(slot: number) {
     const target = containerRef.current?.querySelector<HTMLButtonElement>(
@@ -116,7 +122,7 @@ export function Timeline({
   return (
     <section ref={containerRef} aria-labelledby="timeline-heading" className="flex flex-col gap-sm">
       <h2 id="timeline-heading" className="sr-only">
-        Today’s timeline
+        {now ? 'Today’s timeline' : 'Timeline'}
       </h2>
 
       <div className="flex flex-col gap-md ipad-land:gap-sm">
@@ -127,7 +133,7 @@ export function Timeline({
             activities={activities}
             selectedSlot={selectedSlot}
             focusedSlot={focusedSlot}
-            marker={marker.period === period ? marker.ratio : null}
+            marker={marker && marker.period === period ? marker.ratio : null}
             onFocusSlot={setFocusedSlot}
             onSelectSlot={onSelectSlot}
             onDropCard={onDropCard}

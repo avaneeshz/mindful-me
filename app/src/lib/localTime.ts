@@ -57,3 +57,12 @@ export function localDayRange(reference: Date): { start: Date; end: Date } {
   end.setDate(end.getDate() + 1)
   return { start, end }
 }
+
+/**
+ * True when `a` and `b` fall on the same local calendar day, independent of
+ * their time-of-day. Drives BL-2's "NOW marker only on the real current
+ * day" rule — comparing `viewedDate` against the live device clock.
+ */
+export function isSameLocalDay(a: Date, b: Date): boolean {
+  return localDateISO(a) === localDateISO(b)
+}

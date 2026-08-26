@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, Sun, User } from 'lucide-react'
-import { Chip } from '@/components/ui/chip'
+import { Chip, chipVariants } from '@/components/ui/chip'
+import { DatePicker } from '@/components/DatePicker'
 import type { AuthUser } from '@/state/AuthContext'
 import { cn } from '@/lib/utils'
 
@@ -42,13 +43,18 @@ function formatDatePill(date: Date): string {
 }
 
 export interface HeaderBarProps {
+  /** Real device time — the date picker's own "today" reference, never fixed. */
   now: Date
+  /** The calendar day the board is currently showing (BL-2). */
+  viewedDate: Date
+  /** Switches the board to a different day. */
+  onSelectDate: (date: Date) => void
   /** The signed-in user, or `null` in local-only mode (no backend configured). */
   user: AuthUser | null
   onSignOut: () => void
 }
 
-export function HeaderBar({ now, user, onSignOut }: HeaderBarProps) {
+export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: HeaderBarProps) {
   return (
     <header className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
       <h1 className="pl-0 font-display text-h1 font-semibold text-forest mobile:pl-[52px] mobile:text-h1-sm">
@@ -56,16 +62,15 @@ export function HeaderBar({ now, user, onSignOut }: HeaderBarProps) {
       </h1>
       <div className="flex flex-wrap items-center justify-end gap-sm">
       {/*
-        Phone-only simplification, not a data change: the two context pills are
-        hidden below 768px so the narrow header keeps the page title, the
-        avatar and the menu control legible on one line. iPad and desktop —
-        the primary targets — are untouched and still show both.
+        The date pill is a real navigation control now (BL-2), not display-
+        only text, so — unlike the weather pill beside it — it stays visible
+        on mobile too: it is the only way a phone-width viewport can view a
+        day other than today. Weather remains the phone-only simplification
+        the original comment described (secondary context, not something a
+        narrow header has room to keep alongside the title and the account
+        control).
       */}
-      {/* Real device date — the prototype hardcoded "Thu, Aug 20". */}
-      <Chip size="sm" className="font-semibold mobile:hidden">
-        <CalendarDays aria-hidden="true" className="size-[14px] text-muted" />
-        <time dateTime={machineDate(now)}>{formatDatePill(now)}</time>
-      </Chip>
+      <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
 
       <Chip size="sm" className="font-semibold mobile:hidden">
         <Sun aria-hidden="true" className="size-[14px] text-muted" />
@@ -89,6 +94,72 @@ export function HeaderBar({ now, user, onSignOut }: HeaderBarProps) {
       )}
       </div>
     </header>
+  )
+}
+
+function DatePill({
+  now,
+  viewedDate,
+  onSelectDate,
+}: {
+  now: Date
+  viewedDate: Date
+  onSelectDate: (date: Date) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node
+      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  function selectDate(date: Date) {
+    onSelectDate(date)
+    setOpen(false)
+    triggerRef.current?.focus()
+  }
+
+  function close() {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }
+
+  return (
+    <div ref={panelRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Change viewed date — currently ${formatDatePill(viewedDate)}`}
+        onClick={() => setOpen((value) => !value)}
+        className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
+      >
+        <CalendarDays aria-hidden="true" className="size-[14px] text-muted" />
+        <time dateTime={machineDate(viewedDate)}>{formatDatePill(viewedDate)}</time>
+      </button>
+
+      {open && <DatePicker viewedDate={viewedDate} today={now} onSelect={selectDate} onClose={close} />}
+    </div>
   )
 }
 

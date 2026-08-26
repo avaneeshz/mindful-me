@@ -19,8 +19,9 @@ import { createSeedActivities } from './seed'
 import { slotIndexFromDate } from '@/domain/slots'
 import { deriveSyncIntents, runSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
-import { localDayRange } from '@/lib/localTime'
+import { isSameLocalDay, localDayRange } from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
+import type { ScheduledActivity } from '@/domain/types'
 
 interface BoardContextValue {
   state: BoardState
@@ -29,6 +30,16 @@ interface BoardContextValue {
   now: Date
   /** Slot index containing the real current time. */
   nowSlot: number
+  /**
+   * The calendar day the board is currently showing — "today" until the
+   * user picks a different date from the header's date picker (BL-2).
+   * Always a local-midnight instant (see `localDayRange`).
+   */
+  viewedDate: Date
+  /** True exactly when `viewedDate` is the real current day. */
+  isViewingToday: boolean
+  /** Switch the whole board (timeline + editor) to a different day's schedule. */
+  setViewedDate: (date: Date) => void
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -52,6 +63,19 @@ function useDeviceClock(fixed?: Date): Date {
   return fixed ?? tick
 }
 
+/**
+ * The activities to show for `date` — local-first (rule 6), never the
+ * network. Demo seed content is a first-ever-run "today" concept only: any
+ * OTHER date with nothing in local storage (past, future, or "today" again
+ * after storage was cleared on some other day) starts genuinely empty, never
+ * silently reseeded with the demo schedule.
+ */
+function loadActivitiesForDate(date: Date, now: Date): ScheduledActivity[] {
+  const local = loadLocalActivities(date)
+  if (local) return local
+  return isSameLocalDay(date, now) ? createSeedActivities() : []
+}
+
 export interface BoardProviderProps {
   children: ReactNode
   /**
@@ -71,15 +95,22 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   const isTest = fixedNow !== undefined
   const now = useDeviceClock(fixedNow)
 
+  // BL-2: the day being VIEWED, independent of the real current instant
+  // above. Defaults to today, exactly as the board always has — see
+  // `isViewingToday`/`setViewedDate` below for how navigating away from it
+  // works. Always normalized to local midnight so it can be compared and
+  // used as a local-storage/fetch-range key the same way everywhere.
+  const [viewedDate, setViewedDateState] = useState<Date>(() => localDayRange(now).start)
+
   // Phase 1 -> Phase 2 persistence boundary: an in-memory-only board used to
   // be seeded fresh on every load. Now the FIRST render prefers whatever was
   // last written to this device (rule 6's "instant local" side of local-
   // first) so a reload never loses today's board while a background fetch
   // reconciles against the server. Only a genuinely first-ever run (nothing
-  // in local storage yet) falls back to the demo seed content.
+  // in local storage yet, viewing today) falls back to the demo seed content.
   const [state, dispatch] = useReducer(boardReducer, undefined, () => {
-    const local = isTest ? null : loadLocalActivities(now)
-    return createInitialState(local ?? createSeedActivities(), now)
+    const activities = isTest ? createSeedActivities() : loadActivitiesForDate(viewedDate, now)
+    return createInitialState(activities, now)
   })
 
   // Tracks the most recently dispatched action so the effect below can derive
@@ -99,7 +130,10 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // Local-first write + background sync (rule 6). Runs after every action
   // that actually changed state — persisting is unconditional (any change to
   // `activities` must survive a reload), sync intents are whatever
-  // `deriveSyncIntents` finds for the action that just ran.
+  // `deriveSyncIntents` finds for the action that just ran. Scoped to
+  // `viewedDate` (BL-2) — never `now` — because `state.activities` describes
+  // whichever day is currently being viewed, which may not be today (rule
+  // 12: editing a past day is always allowed).
   useEffect(() => {
     const prev = prevStateRef.current
     const action = lastActionRef.current
@@ -107,26 +141,31 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     lastActionRef.current = null
     if (state === prev) return
 
-    if (!isTest) saveLocalActivities(now, state.activities)
+    if (!isTest) saveLocalActivities(viewedDate, state.activities)
     if (!isTest && action) {
       const intents = deriveSyncIntents(action, prev, state)
-      if (intents.length > 0) runSyncIntents(intents, now)
+      if (intents.length > 0) runSyncIntents(intents, viewedDate)
     }
-  }, [state, now, isTest])
+  }, [state, viewedDate, isTest])
 
-  // Cold-load reconciliation: replace the board with the server's
-  // authoritative view of today (rule 8 — bounded to today's window, never
-  // the full history). `BoardProvider` only ever mounts once the app-level
-  // auth gate (`App.tsx`) has already resolved to a real signed-in session
-  // (or Supabase isn't configured at all, in which case `apiListScheduledActivities`
-  // itself is a no-op) — so there is no sign-in step to do here any more. A
-  // failure at any step simply leaves the locally seeded/cached board in
-  // place; the app already works from that alone.
+  // Cold-load / date-switch reconciliation: replace the board with the
+  // server's authoritative view of whichever day is being viewed (rule 8 —
+  // bounded to that one day's window, never the full history). `BoardProvider`
+  // only ever mounts once the app-level auth gate (`App.tsx`) has already
+  // resolved to a real signed-in session (or Supabase isn't configured at
+  // all, in which case `apiListScheduledActivities` itself is a no-op) — so
+  // there is no sign-in step to do here any more. A failure at any step
+  // simply leaves the locally seeded/cached board in place; the app already
+  // works from that alone. Re-runs on every `viewedDate` change (BL-2), not
+  // just at mount, so navigating the date picker reconciles the newly viewed
+  // day the exact same way the initial "today" load always has — and this
+  // never depends on the backend being connected (`server` is `null` when
+  // Supabase isn't configured, so local-only mode keeps working unchanged).
   useEffect(() => {
     if (isTest) return
     let cancelled = false
     ;(async () => {
-      const { start, end } = localDayRange(now)
+      const { start, end } = localDayRange(viewedDate)
       const server = await apiListScheduledActivities(start, end)
       if (!cancelled && server !== null) {
         dispatch({ type: 'hydrate', activities: server })
@@ -135,16 +174,39 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     return () => {
       cancelled = true
     }
-    // Intentionally runs once per mount, not on every clock tick — refetching
-    // "today" every 30s would defeat the point of an instant local read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTest])
+  }, [isTest, viewedDate])
 
   const nowSlot = useMemo(() => slotIndexFromDate(now), [now])
+  const isViewingToday = useMemo(() => isSameLocalDay(viewedDate, now), [viewedDate, now])
+
+  /**
+   * Switches the whole board (timeline + editor) to a different calendar
+   * day's schedule. Loads that day's local-first data synchronously — same
+   * instant feel as every other write in this app (rule 6) — and replaces
+   * `state.activities` via the same `hydrate` action the server-reconcile
+   * effect above uses, which also clears any staged pick (it belonged to the
+   * old day) and any pending removal. The reconciliation effect then fires
+   * for the new `viewedDate` on its own, exactly like a fresh mount would.
+   */
+  function setViewedDate(date: Date): void {
+    if (isTest) return
+    const normalized = localDayRange(date).start
+    setViewedDateState(normalized)
+    trackedDispatch({ type: 'hydrate', activities: loadActivitiesForDate(normalized, now) })
+  }
 
   const value = useMemo(
-    () => ({ state, dispatch: trackedDispatch, now, nowSlot }),
-    [state, now, nowSlot],
+    () => ({
+      state,
+      dispatch: trackedDispatch,
+      now,
+      nowSlot,
+      viewedDate,
+      isViewingToday,
+      setViewedDate,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state, now, nowSlot, viewedDate, isViewingToday],
   )
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
