@@ -93,13 +93,13 @@ export function StagingPane({
       </div>
 
       {/*
-        The stepper, manual entry, quick-add and the ceiling message are ONE
-        group, not peers a full gap apart: the message explains all three
-        controls' shared limit, so binding it tight underneath is both the
-        correct reading order and the exact state where vertical space is
-        tightest (Acceptance Criterion 13 — a second activity in a
-        partially-filled slot is what pushes the primary action toward the
-        fold on iPad landscape).
+        The stepper, quick-add and the ceiling message are ONE group, not
+        peers a full gap apart: the message explains both controls' shared
+        limit, so binding it tight underneath is both the correct reading
+        order and the exact state where vertical space is tightest
+        (Acceptance Criterion 13 — a second activity in a partially-filled
+        slot is what pushes the primary action toward the fold on iPad
+        landscape).
       */}
       <div className="flex flex-col gap-md">
         <DurationStepper
@@ -107,9 +107,8 @@ export function StagingPane({
           maxDuration={maxDuration}
           atCeiling={atCeiling}
           onStep={onStep}
+          onSetDuration={onSetDuration}
         />
-
-        <ManualDurationInput duration={staging.durationMinutes} onSetDuration={onSetDuration} />
 
         <QuickAddButtons
           duration={staging.durationMinutes}
@@ -142,16 +141,31 @@ export function StagingPane({
   )
 }
 
+const DURATION_INPUT_ID = 'duration-input'
+
+/**
+ * `[-] [editable number] [+]`, one row, centered (BL-1). The number in the
+ * middle is both the stepper's live readout AND the exact-minute entry field
+ * that used to be a separate "Set exact minutes" box below it — click (or
+ * tab) into it and type an exact value, same as that box did, through the
+ * exact same `onSetDuration` -> `setDuration` reducer path (clamps only to
+ * [1 minute, continuous-block ceiling], never snaps to the stepper's 5-minute
+ * grid). A local "draft" string keeps the field editable (empty, mid-typed)
+ * without fighting the committed value while focused; unfocused, it shows
+ * the same formatted duration the old read-only `<output>` did.
+ */
 function DurationStepper({
   duration,
   maxDuration,
   atCeiling,
   onStep,
+  onSetDuration,
 }: {
   duration: number
   maxDuration: number
   atCeiling: boolean
   onStep: (delta: number) => void
+  onSetDuration: (minutes: number) => void
 }) {
   // The stepper's floor is a clean multiple of DURATION_STEP_MINUTES (5),
   // never the domain-wide 1-minute floor manual entry uses — otherwise
@@ -159,6 +173,27 @@ function DurationStepper({
   // 6, 11, 16... instead of landing back on 5, 10, 15...
   const canDecrease = duration > STEPPER_MIN_DURATION_MINUTES
   const canIncrease = duration < maxDuration
+
+  const [draft, setDraft] = useState(String(duration))
+  const [focused, setFocused] = useState(false)
+
+  // Stay in sync with duration changes from the +/-5 buttons, quick-add
+  // buttons, or switching the staged activity — but never while the user is
+  // actively typing, or every keystroke's dispatch would overwrite what
+  // they're mid-way through entering.
+  useEffect(() => {
+    if (!focused) setDraft(String(duration))
+  }, [duration, focused])
+
+  function commitDraft() {
+    const parsed = Number.parseInt(draft, 10)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      onSetDuration(parsed)
+    } else {
+      // Not a valid whole positive number — revert rather than commit garbage.
+      setDraft(String(duration))
+    }
+  }
 
   const stepButton =
     'flex size-stepper items-center justify-center rounded-full border border-line bg-white text-forest transition-colors hover:border-forest-light disabled:opacity-40 disabled:hover:border-line'
@@ -168,7 +203,7 @@ function DurationStepper({
       <p id="duration-label" className="mb-sm text-caption font-semibold text-muted">
         Duration
       </p>
-      <div className="flex items-center gap-lg">
+      <div className="flex items-center justify-center gap-lg">
         <button
           type="button"
           onClick={() => onStep(-DURATION_STEP_MINUTES)}
@@ -179,12 +214,36 @@ function DurationStepper({
           <Minus aria-hidden="true" className="size-[18px]" />
         </button>
 
-        <output
+        <input
+          id={DURATION_INPUT_ID}
+          type="text"
+          inputMode="numeric"
           aria-labelledby="duration-label"
-          className="min-w-[64px] text-center font-display text-stepper font-semibold text-charcoal"
-        >
-          {formatDuration(duration)}
-        </output>
+          aria-describedby={atCeiling ? CAPACITY_MESSAGE_ID : undefined}
+          value={focused ? draft : formatDuration(duration)}
+          onFocus={(event) => {
+            setFocused(true)
+            setDraft(String(duration))
+            event.currentTarget.select()
+          }}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft(event.target.value)}
+          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commitDraft()
+              event.currentTarget.blur()
+            } else if (event.key === 'Escape') {
+              event.preventDefault()
+              setDraft(String(duration))
+              event.currentTarget.blur()
+            }
+          }}
+          onBlur={() => {
+            setFocused(false)
+            commitDraft()
+          }}
+          className="min-w-[64px] max-w-[96px] rounded-sm border-0 bg-transparent text-center font-display text-stepper font-semibold text-charcoal transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+        />
 
         {/*
           At the ceiling the + button stays visibly present rather than
@@ -202,83 +261,6 @@ function DurationStepper({
           <Plus aria-hidden="true" className="size-[18px]" />
         </button>
       </div>
-    </div>
-  )
-}
-
-const MANUAL_DURATION_INPUT_ID = 'duration-manual-input'
-
-/**
- * Free-form exact-minute entry (Acceptance Criterion R2.3). The typed value
- * commits exactly as entered — no snapping to the stepper's 5-minute grid —
- * via the same `onSetDuration` -> `setDuration` reducer path that clamps
- * only to [1 minute, continuous-block ceiling]. A local "draft" string keeps
- * the field editable (empty, mid-typed) without fighting the committed
- * value; it commits on blur or Enter and reverts to the last committed
- * value on anything that isn't a valid whole positive number.
- */
-function ManualDurationInput({
-  duration,
-  onSetDuration,
-}: {
-  duration: number
-  onSetDuration: (minutes: number) => void
-}) {
-  const [draft, setDraft] = useState(String(duration))
-  const [focused, setFocused] = useState(false)
-
-  // Stay in sync with duration changes from the stepper, quick-add buttons,
-  // or switching the staged activity — but never while the user is actively
-  // typing, or every keystroke's dispatch would overwrite what they're mid-
-  // way through entering.
-  useEffect(() => {
-    if (!focused) setDraft(String(duration))
-  }, [duration, focused])
-
-  function commitDraft() {
-    const parsed = Number.parseInt(draft, 10)
-    if (Number.isFinite(parsed) && parsed > 0) {
-      onSetDuration(parsed)
-    } else {
-      // Not a valid whole positive number — revert rather than commit garbage.
-      setDraft(String(duration))
-    }
-  }
-
-  function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    setDraft(event.target.value)
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      commitDraft()
-      event.currentTarget.blur()
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-sm">
-      <label htmlFor={MANUAL_DURATION_INPUT_ID} className="text-caption font-semibold text-muted">
-        Set exact minutes
-      </label>
-      <input
-        id={MANUAL_DURATION_INPUT_ID}
-        type="number"
-        inputMode="numeric"
-        min={1}
-        step={1}
-        value={draft}
-        onFocus={() => setFocused(true)}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onBlur={() => {
-          setFocused(false)
-          commitDraft()
-        }}
-        className="h-control w-[76px] rounded-md border border-line bg-white px-md text-body font-semibold text-charcoal transition-colors hover:border-forest-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
-      />
-      <span className="text-caption text-muted">minutes</span>
     </div>
   )
 }

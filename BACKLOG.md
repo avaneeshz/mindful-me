@@ -4,38 +4,22 @@ Confirmed requirements that are **not being implemented right now**. Ask "give m
 
 This file is additive: when something here starts implementation, move it out (note it as in progress / link its PR); when a new requirement is confirmed but deferred, add it here rather than losing it in chat history.
 
-## Current priority (tracked separately, not part of this backlog)
+## Recently completed
 
-**Backend persistence + real login.** The app currently has zero real users and zero saved rows in production — verified directly against the live database (`scheduled_activities`: 0 rows, `auth.users`: 0 users). Anonymous auth was never enabled and/or the deployed app was never connected to Supabase, so everything today is still running local-only, exactly like before Phase 2. This is being scoped as its own active requirement, not listed as a backlog item here.
+**Backend persistence + real login.** Email/password auth via Supabase, no email verification, anonymous-auth bootstrap removed. Implemented and pushed — **PR #6**, not yet merged. RLS re-verified directly against the live database; the live sign-up → session → data-persists flow still needs a real click-test on the deployed site before this is fully closed out (see PR #6 description).
 
-Open question not yet answered: sign-in method — email/password, magic link, or an OAuth provider (Google, etc.).
+**BL-1, BL-2, BL-3.** Implemented and pushed as three separate commits on the same branch as PR #6 (`claude/mindful-me-backend-arch-m3ny6q`), so they land in that same open PR:
+
+- **BL-1** — the duration stepper's own number is now directly click-to-edit (the separate "Set exact minutes" box is gone); `[−] [editable number] [+]`, centered; quick-add buttons unchanged. Verified live in a headless browser.
+- **BL-2** — the header date pill opens a real month-grid date picker (any past/future date); introduced an explicit `viewedDate` concept in `BoardContext`, separate from real `now`; local-first load/save, sync, and the bounded-window server reconciliation all key off `viewedDate`, so editing a past day works and saves against that day. The NOW marker/line and the SlotEditor "Now" badge only render when `viewedDate` is the real current day — resolves the backlog's open question this way; **flagged for confirmation** in case a different behavior was actually wanted. Local-only mode (no Supabase) unaffected. Verified live across desktop/tablet/mobile, including a real bug fix (Prev/Next month fighting a reactive effect) and a mobile popover-overflow fix caught during that verification.
+- **BL-3** — real `navigator.geolocation` + Open-Meteo temperature + BigDataCloud reverse-geocode (city only, falling back to IP-based `ipapi.co` — including its coordinates for temperature — when geolocation is denied/unavailable/empty). Full loading/partial/unavailable UX states. The resolution chain is unit-tested against injected fakes; this sandbox blocks egress to all three of those hosts (like it already does for `supabase.co`), so the GRANTED-permission path with a real response could only be verified against mocks here — **a real-browser check of the live Open-Meteo/BigDataCloud/ipapi.co response shapes is still needed**.
 
 ---
 
 ## Backlog
 
-### BL-1 — Merge the two duration controls into one
-The duration stepper currently shows two separate controls: the `− 30 min +` stepper, and a second "Set exact minutes" text box below it. Wanted instead:
-- Remove the "Set exact minutes" box entirely.
-- Make the stepper's own number directly click-to-edit via keyboard (type an exact value), in addition to keeping the existing ±5 buttons on either side.
-- Single row: `[−] [editable number] [+]`, centered.
-- Assumption to confirm when this is picked up: the `+30min` / `+1hr` / `+2hr` quick-add buttons stay as-is.
-
-### BL-2 — Make the header date pill a real date picker
-The date shown top-right is currently today's date, display-only. Wanted instead:
-- Clickable — opens a date picker on click.
-- Any past or future date selectable.
-- Selecting a date switches the whole screen (timeline + editor) to that date's schedule instead of always "today."
-- Open question: should the "NOW" marker/line only render when viewing the real current day (not on a past/future date)? Very likely yes, not yet confirmed explicitly.
-
-### BL-3 — Real weather + city-only location
-The weather pill is currently placeholder data. Wanted instead:
-- Real device location + a real free weather API for current temperature.
-- Display **only the city name** (e.g. "Hyderabad," "Mumbai," "Vellore," "Chennai") — no full address, no coordinates.
-- Open question: browser geolocation (permission prompt, more accurate) vs. IP-based location (no prompt, less precise) — not yet decided.
-
 ### Phase 4 — Insights & aggregation
-Daily/weekly time-per-category totals, planned-vs-actual, free/occupied time analysis, activity trends. Depends on real accounts (current priority above) to be meaningful per-user data rather than a single shared anonymous bucket.
+Daily/weekly time-per-category totals, planned-vs-actual, free/occupied time analysis, activity trends. Depends on real accounts (now implemented, see "Recently completed" above) to be meaningful per-user data rather than a single shared anonymous bucket.
 
 ### Phase 5 — Sync hardening
-Offline write queue, multi-device conflict handling (last-write-wins + kept history, per the original architecture decisions), full local-first resilience. The "accounts" piece of this phase is being pulled forward into the current priority; the remaining offline/conflict mechanics stay here.
+Offline write queue, multi-device conflict handling (last-write-wins + kept history, per the original architecture decisions), full local-first resilience. The "accounts" piece of this phase has already shipped as part of the login work above; the remaining offline/conflict mechanics stay here.

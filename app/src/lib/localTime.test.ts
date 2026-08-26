@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateFromLocalMinutes, localDateISO, localDayRange, localMinutesOf } from './localTime'
+import { dateFromLocalMinutes, isSameLocalDay, localDateISO, localDayRange, localMinutesOf } from './localTime'
 
 describe('dateFromLocalMinutes', () => {
   it('anchors the given minutes to the reference date, in local time', () => {
@@ -43,5 +43,25 @@ describe('localDayRange', () => {
     expect(end.getDate()).toBe(26)
     expect(end.getHours()).toBe(0)
     expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000)
+  })
+})
+
+describe('isSameLocalDay', () => {
+  it('is true for two instants on the same calendar day, any time of day', () => {
+    expect(isSameLocalDay(new Date(2026, 7, 25, 0, 1), new Date(2026, 7, 25, 23, 59))).toBe(true)
+  })
+
+  it('is true for the exact same instant', () => {
+    const date = new Date(2026, 7, 25, 12, 0)
+    expect(isSameLocalDay(date, date)).toBe(true)
+  })
+
+  it('is false across a day boundary, even one minute apart', () => {
+    expect(isSameLocalDay(new Date(2026, 7, 25, 23, 59), new Date(2026, 7, 26, 0, 0))).toBe(false)
+  })
+
+  it('is false for the same day-of-month in a different month or year', () => {
+    expect(isSameLocalDay(new Date(2026, 7, 25), new Date(2026, 8, 25))).toBe(false)
+    expect(isSameLocalDay(new Date(2026, 7, 25), new Date(2027, 7, 25))).toBe(false)
   })
 })
