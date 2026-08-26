@@ -103,18 +103,47 @@ describe('fetchCityFromCoords', () => {
 })
 
 describe('fetchIpLocation', () => {
-  it('extracts city and coordinates from a successful ipapi.co response', async () => {
+  it('extracts city and coordinates from a successful geojs.io response, converting its string lat/long', async () => {
+    // GeoJS's real response shape: latitude/longitude are STRINGS, unlike
+    // Open-Meteo/BigDataCloud's numeric fields — this is the exact bug that
+    // motivated swapping providers being guarded against regressing.
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ city: 'Chennai', latitude: 13.08, longitude: 80.27 }))
+      .mockResolvedValue(jsonResponse({ city: 'Chennai', latitude: '13.08', longitude: '80.27' }))
     await expect(fetchIpLocation(fetchImpl)).resolves.toEqual({
       city: 'Chennai',
       coords: { latitude: 13.08, longitude: 80.27 },
     })
   })
 
-  it('treats ipapi.co\'s own in-body error signal as failure, even with a 200 status', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ error: true, reason: 'RateLimited' }))
+  it('still accepts numeric lat/long directly, not just strings', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ city: 'Chennai', latitude: 13.08, longitude: 80.27 }))
+    await expect(fetchIpLocation(fetchImpl)).resolves.toEqual({
+      city: 'Chennai',
+      coords: { latitude: 13.08, longitude: 80.27 },
+    })
+  })
+
+  it('returns null coords (not a thrown error) when lat/long are missing or unparseable', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ city: 'Chennai' }))
+    await expect(fetchIpLocation(fetchImpl)).resolves.toEqual({ city: 'Chennai', coords: null })
+
+    const badFetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ city: 'Chennai', latitude: 'not-a-number', longitude: '80.27' }))
+    await expect(fetchIpLocation(badFetchImpl)).resolves.toEqual({ city: 'Chennai', coords: null })
+  })
+
+  it('returns city null (not a thrown error) when the field is missing or blank', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ city: '', latitude: '13.08', longitude: '80.27' }))
+    await expect(fetchIpLocation(fetchImpl)).resolves.toEqual({
+      city: null,
+      coords: { latitude: 13.08, longitude: 80.27 },
+    })
+  })
+
+  it('returns null on a non-ok HTTP response', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, false))
     await expect(fetchIpLocation(fetchImpl)).resolves.toBeNull()
   })
 
@@ -140,8 +169,8 @@ describe('resolveWeather', () => {
       city: 'Hyderabad',
       temperatureC: 30,
     })
-    // ipapi.co must never be called on the happy path.
-    expect(fetchImpl).not.toHaveBeenCalledWith(expect.stringContaining('ipapi.co'))
+    // geojs.io must never be called on the happy path.
+    expect(fetchImpl).not.toHaveBeenCalledWith(expect.stringContaining('geojs.io'))
   })
 
   it('falls back to IP location when geolocation permission is denied', async () => {
@@ -151,7 +180,7 @@ describe('resolveWeather', () => {
       },
     }
     const fetchImpl = vi.fn((url: string) => {
-      if (url.includes('ipapi.co')) return Promise.resolve(jsonResponse({ city: 'Mumbai', latitude: 19.07, longitude: 72.87 }))
+      if (url.includes('geojs.io')) return Promise.resolve(jsonResponse({ city: 'Mumbai', latitude: 19.07, longitude: 72.87 }))
       if (url.includes('open-meteo')) return Promise.resolve(jsonResponse({ current: { temperature_2m: 31 } }))
       throw new Error(`unexpected fetch: ${url}`)
     }) as unknown as typeof fetch
@@ -164,7 +193,7 @@ describe('resolveWeather', () => {
 
   it('falls back to IP location when geolocation is unavailable (no navigator.geolocation)', async () => {
     const fetchImpl = vi.fn((url: string) => {
-      if (url.includes('ipapi.co')) return Promise.resolve(jsonResponse({ city: 'Vellore', latitude: 12.92, longitude: 79.13 }))
+      if (url.includes('geojs.io')) return Promise.resolve(jsonResponse({ city: 'Vellore', latitude: 12.92, longitude: 79.13 }))
       if (url.includes('open-meteo')) return Promise.resolve(jsonResponse({ current: { temperature_2m: 27 } }))
       throw new Error(`unexpected fetch: ${url}`)
     }) as unknown as typeof fetch
@@ -183,7 +212,7 @@ describe('resolveWeather', () => {
     }
     const fetchImpl = vi.fn((url: string) => {
       if (url.includes('open-meteo') || url.includes('bigdatacloud')) return Promise.resolve(jsonResponse({}, false))
-      if (url.includes('ipapi.co')) return Promise.resolve(jsonResponse({ city: 'Chennai', latitude: 13.08, longitude: 80.27 }))
+      if (url.includes('geojs.io')) return Promise.resolve(jsonResponse({ city: 'Chennai', latitude: 13.08, longitude: 80.27 }))
       throw new Error(`unexpected fetch: ${url}`)
     }) as unknown as typeof fetch
 

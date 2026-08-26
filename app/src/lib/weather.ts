@@ -10,10 +10,13 @@
  *      - Granted: Open-Meteo (temperature) + BigDataCloud (city) in
  *        parallel, both keyless.
  *   2. Denied, unavailable, or (2) both came back empty: IP-based lookup
- *      (ipapi.co, keyless) for a city name — it also returns coordinates,
+ *      (GeoJS, keyless) for a city name — it also returns coordinates,
  *      which are reused for the SAME Open-Meteo temperature call so a denied
  *      prompt still gets a real (if less precise) temperature rather than
- *      none at all.
+ *      none at all. (ipapi.co was the original choice here; swapped after a
+ *      real-browser check showed it failing — its free-tier CORS support for
+ *      direct client-side fetch is not reliable. GeoJS is built for exactly
+ *      this no-key, browser-side use case.)
  *   3. Every path failed: `null` — the caller renders a sensible
  *      empty/unavailable state, never blocks on this, never crashes.
  */
@@ -107,15 +110,30 @@ interface IpLocation {
   coords: Coordinates | null
 }
 
-/** ipapi.co — city name AND coordinates, no key required, used as the whole-chain fallback. */
+/**
+ * GeoJS — city name AND coordinates from IP, no key required, used as the
+ * whole-chain fallback. Note GeoJS returns latitude/longitude as STRINGS,
+ * unlike Open-Meteo/BigDataCloud's numeric fields — `Number(...)` handles
+ * both that and a plain numeric value uniformly.
+ */
 export async function fetchIpLocation(fetchImpl: typeof fetch): Promise<IpLocation | null> {
-  const data = (await fetchJson(fetchImpl, 'https://ipapi.co/json/')) as Record<string, unknown> | null
-  if (!data || data.error) return null
+  const data = (await fetchJson(fetchImpl, 'https://get.geojs.io/v1/ip/geo.json')) as Record<
+    string,
+    unknown
+  > | null
+  if (!data) return null
   const city = typeof data.city === 'string' && data.city.trim() ? data.city.trim() : null
-  const latitude = typeof data.latitude === 'number' ? data.latitude : null
-  const longitude = typeof data.longitude === 'number' ? data.longitude : null
+  const latitude = toFiniteNumber(data.latitude)
+  const longitude = toFiniteNumber(data.longitude)
   const coords = latitude !== null && longitude !== null ? { latitude, longitude } : null
   return { city, coords }
+}
+
+/** Accepts a number or a numeric string (GeoJS's coordinate fields are strings); rejects anything else. */
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
 export interface WeatherDeps {
