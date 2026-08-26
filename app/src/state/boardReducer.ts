@@ -75,6 +75,7 @@ export type BoardAction =
   | { type: 'dismissRemoval'; id: string }
   | { type: 'toggleFlag'; flag: FlagId }
   | { type: 'dropCard'; cardName: string; slot: number }
+  | { type: 'hydrate'; activities: ScheduledActivity[] }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -319,6 +320,20 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       const selected = boardReducer(state, { type: 'selectSlot', slot: action.slot })
       return boardReducer(selected, { type: 'pickCard', cardName: action.cardName })
     }
+
+    /**
+     * Replaces `activities` wholesale with the server's authoritative view —
+     * the one-time reconciliation `BoardContext` performs after a cold load
+     * signs in and fetches "today" (rule 8's bounded window). Deliberately
+     * NOT a general merge: Phase 2's local-first write is "instant local,
+     * background sync"; reconciling a genuinely concurrent local edit made
+     * while this fetch was in flight against the server's answer is Phase
+     * 5's last-write-wins hardening (rule 7), out of scope here. Clears any
+     * staged pick and pending removal, since both reference activities by id
+     * that this swap may have just invalidated.
+     */
+    case 'hydrate':
+      return { ...state, activities: action.activities, staging: EMPTY_STAGING, removal: null }
 
     default:
       return state
