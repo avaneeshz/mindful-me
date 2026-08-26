@@ -52,6 +52,21 @@ export function mapAuthErrorMessage(rawMessage: string | null | undefined): stri
 
   if (!normalized) return 'Something went wrong. Please try again.'
 
+  // supabase-js does not always let a network failure surface as a thrown
+  // exception (which `isNetworkFailure`/the callers' `catch` blocks handle) —
+  // it frequently catches the underlying `fetch` rejection itself and returns
+  // it as a normal `{ error }` result instead, so this same "can't reach the
+  // server" case has to be recognized here too. Confirmed against a real
+  // browser hitting a blocked network: Chromium's `fetch` throws
+  // "Failed to fetch"; Firefox and Safari word it differently, so match all
+  // three rather than one exact string.
+  const looksLikeNetworkFailure =
+    lower.includes('failed to fetch') ||
+    lower.includes('load failed') ||
+    lower.includes('networkerror') ||
+    lower === 'network request failed'
+  if (looksLikeNetworkFailure) return NETWORK_ERROR_MESSAGE
+
   if (lower.includes('invalid login credentials') || lower.includes('invalid credentials')) {
     return "That email or password isn't right. Double-check and try again."
   }

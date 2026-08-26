@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapAuthErrorMessage, MIN_PASSWORD_LENGTH, validateEmail, validatePassword } from './auth'
+import { mapAuthErrorMessage, MIN_PASSWORD_LENGTH, NETWORK_ERROR_MESSAGE, validateEmail, validatePassword } from './auth'
 
 describe('validateEmail', () => {
   it('rejects an empty or whitespace-only value', () => {
@@ -85,6 +85,18 @@ describe('mapAuthErrorMessage', () => {
     expect(mapAuthErrorMessage('Unable to validate email address: invalid format')).toBe(
       'Enter a valid email address.',
     )
+  })
+
+  it('maps a network failure returned AS an error result (not thrown) to the friendly message', () => {
+    // Regression test: confirmed live against a real blocked network that
+    // supabase-js returns this as `{ error }` rather than throwing, so it
+    // never reaches the `catch`/`isNetworkFailure` path in signIn/signUp —
+    // mapAuthErrorMessage has to recognize it directly. Chromium's own
+    // wording; Firefox/Safari phrase the underlying fetch failure differently.
+    expect(mapAuthErrorMessage('Failed to fetch')).toBe(NETWORK_ERROR_MESSAGE)
+    expect(mapAuthErrorMessage('TypeError: Failed to fetch')).toBe(NETWORK_ERROR_MESSAGE)
+    expect(mapAuthErrorMessage('NetworkError when attempting to fetch resource.')).toBe(NETWORK_ERROR_MESSAGE)
+    expect(mapAuthErrorMessage('Load failed')).toBe(NETWORK_ERROR_MESSAGE)
   })
 
   it('falls back to the original message for anything unrecognized', () => {
