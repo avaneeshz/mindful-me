@@ -14,7 +14,7 @@ import {
   type BoardAction,
   type BoardState,
 } from './boardReducer'
-import { createSeedEntries } from './seed'
+import { createSeedActivities } from './seed'
 import { slotIndexFromDate } from '@/domain/slots'
 
 interface BoardContextValue {
@@ -72,7 +72,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // minting a second `new Date()` — the two could otherwise straddle a slot
   // boundary and disagree about which slot is current.
   const [state, dispatch] = useReducer(boardReducer, undefined, () =>
-    createInitialState(createSeedEntries(), now),
+    createInitialState(createSeedActivities(), now),
   )
 
   const nowSlot = useMemo(() => slotIndexFromDate(now), [now])

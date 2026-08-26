@@ -4,8 +4,8 @@ import {
   MIDNIGHT_TICK_POSITION,
   SLOT_MINUTES,
   SLOTS_PER_ROW,
-  activityAtSlot,
-  entryAt,
+  activitiesTouchingSlot,
+  flagMarkerAt,
   formatSlotRange,
   nowMarker,
   periodOfSlot,
@@ -15,7 +15,7 @@ import {
   rowTickLabels,
 } from '@/domain/slots'
 import { PERIOD_ICONS } from '@/data/periods'
-import type { Period, SlotEntries, SlotEntry } from '@/domain/types'
+import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
 const FLAG_ICONS = Object.fromEntries(FLAGS.map((f) => [f.id, f.icon]))
@@ -28,26 +28,23 @@ function prefersReducedMotion(): boolean {
 }
 
 /** Spoken description of a slot — never relies on colour to convey state. */
-function describeSlot(slot: number, entry: SlotEntry): string {
+function describeSlot(slot: number, touching: ScheduledActivity[], flags: readonly FlagId[]): string {
   const parts: string[] = [formatSlotRange(slot)]
-  if (entry.activities.length === 0) {
+  if (touching.length === 0) {
     parts.push('empty')
   } else {
     parts.push(
-      entry.activities
-        .map(
-          (a) =>
-            `${a.name}${a.path.length ? ` ${a.path.join(' ')}` : ''}, ${a.duration} minutes`,
-        )
+      touching
+        .map((a) => `${a.name}${a.path.length ? ` ${a.path.join(' ')}` : ''}, ${a.durationMinutes} minutes`)
         .join('; '),
     )
   }
-  if (entry.flags.length > 0) parts.push(`flagged ${entry.flags.join(', ')}`)
+  if (flags.length > 0) parts.push(`flagged ${flags.join(', ')}`)
   return parts.join('. ')
 }
 
 interface TimelineProps {
-  entries: SlotEntries
+  activities: ActivityList
   selectedSlot: number
   now: Date
   /** Bumped by the period navigator to request a scroll + pulse. */
@@ -57,7 +54,7 @@ interface TimelineProps {
 }
 
 export function Timeline({
-  entries,
+  activities,
   selectedSlot,
   now,
   jump,
@@ -168,7 +165,7 @@ export function Timeline({
               rowRefs.current[period] = el
             }}
             period={period}
-            entries={entries}
+            activities={activities}
             selectedSlot={selectedSlot}
             focusedSlot={focusedSlot}
             marker={marker.period === period ? marker.ratio : null}
@@ -187,7 +184,7 @@ export function Timeline({
 interface TimelineRowProps {
   ref: (el: HTMLDivElement | null) => void
   period: Period
-  entries: SlotEntries
+  activities: ActivityList
   selectedSlot: number
   /** Last slot the user focused, on either row. Drives the roving tab stop. */
   focusedSlot: number | null
@@ -203,7 +200,7 @@ interface TimelineRowProps {
 function TimelineRow({
   ref,
   period,
-  entries,
+  activities,
   selectedSlot,
   focusedSlot,
   marker,
@@ -306,8 +303,8 @@ function TimelineRow({
           )}
         >
           {indices.map((slot) => {
-            const entry = entryAt(entries, slot)
-            const occupied = activityAtSlot(entries, slot)
+            const touching = activitiesTouchingSlot(activities, slot)
+            const flags = flagMarkerAt(activities, slot)?.flags ?? []
             const isSelected = slot === selectedSlot
             const isDragOver = dragOverSlot === slot
 
@@ -318,7 +315,7 @@ function TimelineRow({
                 data-slot={slot}
                 tabIndex={slot === rovingSlot ? 0 : -1}
                 aria-current={isSelected ? 'true' : undefined}
-                aria-label={`${describeSlot(slot, occupied ? entryAt(entries, occupied.startSlot) : entry)}${isSelected ? ', selected slot' : ''}`}
+                aria-label={`${describeSlot(slot, touching, flags)}${isSelected ? ', selected slot' : ''}`}
                 onClick={() => onSelectSlot(slot)}
                 onFocus={() => onFocusSlot(slot)}
                 onKeyDown={(event) => onKeyDown(event, slot)}
@@ -344,14 +341,14 @@ function TimelineRow({
                     'z-[4] outline outline-2.5 -outline-offset-2.5 outline-gold brightness-105',
                 )}
               >
-                {entry.flags.length > 0 && (
+                {flags.length > 0 && (
                   // Stacked VERTICALLY — a deliberate prior bug fix; horizontal
                   // flags bled into neighbouring slots.
                   <span
                     aria-hidden="true"
                     className="absolute left-1/2 top-1/2 z-[3] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px"
                   >
-                    {entry.flags.map((flag) => {
+                    {flags.map((flag) => {
                       const FlagIcon = FLAG_ICONS[flag]
                       return FlagIcon ? (
                         <FlagIcon key={flag} className="size-[8px] text-forest" strokeWidth={3} />
@@ -363,24 +360,18 @@ function TimelineRow({
             )
           })}
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1]">
-            {rowActivitySegments(entries, period).map((segment) => {
-              // Nudged right by any spillover this cell is already carrying
-              // from an EARLIER anchor, so the two never paint on top of
-              // each other — see `leadingOffsetMinutes`.
-              const leftCells = segment.startPosition + segment.leadingOffsetMinutes / SLOT_MINUTES
-              return (
-                <span
-                  key={`${segment.anchorSlot}-${segment.activityIndex}-${segment.startPosition}`}
-                  data-activity-span={`${segment.anchorSlot}-${segment.activityIndex}`}
-                  className="absolute inset-y-0"
-                  style={{
-                    left: `${(leftCells / SLOTS_PER_ROW) * 100}%`,
-                    width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
-                    background: categoryOf(segment.activity.name).light,
-                  }}
-                />
-              )
-            })}
+            {rowActivitySegments(activities, period).map((segment) => (
+              <span
+                key={`${segment.activity.id}-${segment.startPosition}`}
+                data-activity-span={segment.activity.id}
+                className="absolute inset-y-0"
+                style={{
+                  left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
+                  width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
+                  background: categoryOf(segment.activity.name ?? '').light,
+                }}
+              />
+            ))}
           </div>
         </div>
         {/*

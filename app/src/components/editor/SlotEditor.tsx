@@ -1,16 +1,17 @@
 import { useEffect } from 'react'
 import {
-  entryAt,
+  activitiesTouchingSlot,
+  flagMarkerAt,
   formatSlotRange,
-  isSlotFullAt,
-  maxScheduleDuration,
-  spilloverActivity,
-  usedMinutes,
+  minutesInSlot,
+  slotMinuteRange,
+  SLOT_MINUTES,
 } from '@/domain/slots'
+import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { Button } from '@/components/ui/button'
 import { ActivityPicker } from './ActivityPicker'
-import { CapacityMeter } from './CapacityMeter'
+import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { FlagsRow } from './FlagsRow'
 import { SlotActivityList } from './SlotActivityList'
 import { primaryActionLabel, StagingPane } from './StagingPane'
@@ -34,46 +35,34 @@ interface SlotEditorProps {
  * clears the staged-but-not-yet-added pick only.
  */
 export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
-  const { entries, selectedSlot, staging, removal } = state
-  const entry = entryAt(entries, selectedSlot)
-  // The portion (if any) of an earlier anchor's longer activity spilling
-  // into THIS slot. There is only ever one copy of that activity — it stays
-  // at its own anchor — this is a read-only view for the meter and the "In
-  // this slot" list; see `spilloverActivity`.
-  const spillover = spilloverActivity(entries, selectedSlot)
+  const { activities, selectedSlot, staging, removal } = state
+  const { start: slotStart } = slotMinuteRange(selectedSlot)
+  const touching = activitiesTouchingSlot(activities, selectedSlot)
+  const flags = flagMarkerAt(activities, selectedSlot)?.flags ?? []
 
-  const used = usedMinutes(entry)
-  // The slot a staged edit actually applies to. Normally `selectedSlot`
-  // itself (adding new, or editing one of ITS own rows) — but editing a
-  // spillover row's activity in place (see `onEditSpillover` below) targets
-  // that activity's real anchor without moving `selectedSlot` there, so the
-  // stepper's ceiling has to be computed against the real anchor too.
-  const editSlot = staging.editingSlot ?? selectedSlot
-  const maxDuration = maxScheduleDuration(entries, editSlot, staging.editingIndex)
-  // Spillover-aware: a slot only reads as "full" once its own capacity, net
-  // of any earlier anchor's activity spilling into it, is actually exhausted.
-  const atCapacity = isSlotFullAt(entries, selectedSlot) && staging.cardName === null
+  const usedMinutes = touching.reduce((sum, a) => sum + minutesInSlot(a, selectedSlot), 0)
+  const meterSegments: CapacityMeterSegment[] = touching
+    .slice()
+    .sort((a, b) => a.startMinutes - b.startMinutes)
+    .map((a) => ({ id: a.id, minutes: minutesInSlot(a, selectedSlot) }))
+
+  const maxDuration = staging.cardName
+    ? maxContiguousDuration(activities, staging.startMinutes, staging.editingId)
+    : 0
+  // A slot reads as "full" once nothing new could start anywhere within it —
+  // never while merely configuring something already staged for it.
+  const atCapacity = isWindowFull(activities, slotStart, SLOT_MINUTES) && staging.cardName === null
   const isNow = selectedSlot === nowSlot
-  // Which row (if any) currently on screen is the one loaded into the
-  // stepper below — a NATIVE row only when the edit target IS this slot, the
-  // spillover row when it's the activity spilling in from an earlier anchor.
-  const editingNativeIndex = staging.editingSlot === selectedSlot ? staging.editingIndex : null
-  const spilloverIsEditing =
-    spillover !== null &&
-    staging.editingSlot === spillover.anchorSlot &&
-    staging.editingIndex === spillover.index
 
   // The undo affordance expires on its own; nothing else clears it.
   useEffect(() => {
     if (!removal) return
     const id = window.setTimeout(
-      () => dispatch({ type: 'dismissRemoval', id: removal.id }),
+      () => dispatch({ type: 'dismissRemoval', id: removal.activity.id }),
       UNDO_WINDOW_MS,
     )
     return () => window.clearTimeout(id)
   }, [removal, dispatch])
-
-  const slotRemoval = removal && removal.slot === selectedSlot ? removal : null
 
   // Computed ONCE and passed down. The desktop button in StagingPane used to
   // derive its own enabled state from `isStagingComplete(staging)` alone, which
@@ -105,41 +94,22 @@ export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
               </span>
             )}
           </div>
-          <CapacityMeter activities={entry.activities} spillover={spillover?.minutesHere ?? 0} />
+          <CapacityMeter segments={meterSegments} />
         </div>
 
         <FlagsRow
-          activeFlags={entry.flags}
+          activeFlags={flags}
           onToggle={(flag) => dispatch({ type: 'toggleFlag', flag })}
         />
       </header>
 
       <SlotActivityList
-        activities={entry.activities}
-        spillover={spillover}
-        spilloverIsEditing={spilloverIsEditing}
-        removal={slotRemoval}
-        editingIndex={editingNativeIndex}
-        onEdit={(index) => dispatch({ type: 'editActivity', index })}
-        onRemove={(index) => dispatch({ type: 'removeActivity', index })}
-        // Edit on a spillover row loads the one real activity — which lives
-        // at its anchor slot — into the SAME stepper below, IN PLACE: it
-        // does not move `selectedSlot`, so the user stays looking at the
-        // slot they clicked Edit from and sees the result land there once
-        // they save (e.g. trimming a 60-minute activity down to 45 frees the
-        // tail of THIS slot immediately, no navigation required). Remove is
-        // more disruptive — the row here would vanish either way, and the
-        // Undo affordance is anchor-scoped — so it still jumps to the anchor
-        // the way it already did, where Undo remains reachable.
-        onEditSpillover={() => {
-          if (!spillover) return
-          dispatch({ type: 'editActivity', index: spillover.index, slot: spillover.anchorSlot })
-        }}
-        onRemoveSpillover={() => {
-          if (!spillover) return
-          dispatch({ type: 'selectSlot', slot: spillover.anchorSlot })
-          dispatch({ type: 'removeActivity', index: spillover.index })
-        }}
+        touching={touching}
+        selectedSlot={selectedSlot}
+        removal={removal}
+        editingId={staging.editingId}
+        onEdit={(id) => dispatch({ type: 'editActivity', id })}
+        onRemove={(id) => dispatch({ type: 'removeActivity', id })}
         onUndo={() => dispatch({ type: 'undoRemoval' })}
       />
 
@@ -149,13 +119,8 @@ export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
             <ActivityPicker
               staging={staging}
               atCapacity={atCapacity}
-              // Includes the spillover row so the "this slot is full" count
-              // and total agree with what "In this slot" (and the meter)
-              // just showed above — a fully spillover-consumed slot has 0
-              // NATIVE activities of its own, but is not describable as "0
-              // activities totalling 0 minutes".
-              activityCount={entry.activities.length + (spillover ? 1 : 0)}
-              usedMinutes={used + (spillover?.minutesHere ?? 0)}
+              activityCount={touching.length}
+              usedMinutes={usedMinutes}
               onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
               onPickOption={(level, value) => dispatch({ type: 'pickOption', level, value })}
               onBack={() => dispatch({ type: 'crumbBack' })}
@@ -178,7 +143,7 @@ export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
         <div className="fixed inset-x-0 bottom-0 z-10 hidden border-t border-line bg-white px-lg pt-md shadow-elevation-1-up safe-bottom mobile:block">
           <div className="mb-sm flex items-center justify-between text-meta font-semibold text-muted">
             <span className="truncate text-charcoal">{staging.cardName}</span>
-            <span>{staging.duration} min</span>
+            <span>{staging.durationMinutes} min</span>
           </div>
           <Button block disabled={!canCommit} onClick={() => dispatch({ type: 'commit' })}>
             {primaryActionLabel(staging)}

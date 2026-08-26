@@ -37,29 +37,56 @@ export interface ActivityCard {
   third?: Record<string, string[]>
 }
 
-/** A whole-slot marker. Carries no duration and consumes no slot capacity. */
+/** A whole-slot marker. Carries no duration and consumes no schedule room. */
 export type FlagId = 'Trauma response' | 'Stress response' | 'Fear response'
 
-export interface PlacedActivity {
-  name: string
-  /** Drill-down path, e.g. ["Oiling", "Body"]. Empty for flat cards. */
-  path: string[]
-  /** Minutes. Always a multiple of 15, extending from the start slot. */
-  duration: number
-}
+export type ScheduleStatus = 'planned' | 'completed'
 
 /**
- * Read-only by contract. `entryAt` hands back one shared frozen instance for
- * every empty slot, so a stray `entry.activities.push(...)` anywhere would
- * otherwise corrupt every empty slot at once. Mutation happens on an explicit
- * clone inside the reducer, never on an entry read out of state.
+ * One logical activity instance, anchored to a real wall-clock start time —
+ * the atomic unit of the activity-centric model (see the Target Architecture
+ * in the full-stack-engineer agent definition). Replaces the old slot-indexed
+ * `PlacedActivity` + `SlotEntries` pair: there is no 30-minute step, no
+ * per-slot capacity, and no spillover bookkeeping — an activity simply has a
+ * real start time and a real duration, and the ONLY placement rule is "no two
+ * activities may overlap" (`domain/scheduling.ts`).
+ *
+ * A "flag marker" (see `domain/scheduling.ts` `flagMarkerAt`) is represented
+ * as a `ScheduledActivity` with `name: null` and `durationMinutes: 0` —
+ * exactly mirroring the DB shape (`scheduled_activities.activity_id` NULL,
+ * `duration_minutes` 0), which is why it never participates in the overlap
+ * check (a zero-length range overlaps nothing) and never consumes schedule
+ * room, preserving the product's original "whole-slot marker, no capacity
+ * cost" behaviour for flags.
  */
-export interface SlotEntry {
-  readonly activities: readonly PlacedActivity[]
-  readonly flags: readonly FlagId[]
+export interface ScheduledActivity {
+  /** Stable id — a client-generated UUID until synced, then the server row id. */
+  id: string
+  /** Catalog card name, or null for a flag-only marker. */
+  name: string | null
+  /** Drill-down path, e.g. ["Oiling", "Body"]. Empty for flat cards or markers. */
+  path: string[]
+  /**
+   * Minutes since local midnight of the calendar day this activity was
+   * scheduled on (0–1439). This is the WALL-CLOCK time the user saw at
+   * creation, locked in — never recomputed from a stored UTC instant, and
+   * never shifted by a later timezone change or DST transition (rule 3).
+   */
+  startMinutes: number
+  /**
+   * Arbitrary minutes, never snapped to any step. 0 only for a flag marker.
+   * May carry the activity's end past 1440 — a genuine midnight-crossing
+   * activity is still ONE row (rule 2); see `splitMinutesAcrossDays` in
+   * `domain/scheduling.ts` for how its minutes are attributed across the two
+   * calendar days it touches.
+   */
+  durationMinutes: number
+  flags: FlagId[]
+  status: ScheduleStatus
+  /** IANA zone the user was in when this was scheduled — locks the wall clock. */
+  timezone: string
 }
 
-/** Slot index (0–47) -> entry. Sparse: absent means an empty slot. */
-export type SlotEntries = Record<number, SlotEntry>
+export type ActivityList = readonly ScheduledActivity[]
 
 export type Period = 'day' | 'night'
