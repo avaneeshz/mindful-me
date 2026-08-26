@@ -9,7 +9,7 @@ export function TodayPage() {
   const { user, signOut } = useAuth()
 
   return (
-    <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+    <>
       <HeaderBar
         now={now}
         viewedDate={viewedDate}
@@ -45,6 +45,6 @@ export function TodayPage() {
           nowSlot={isViewingToday ? nowSlot : -1}
         />
       </div>
-    </div>
+    </>
   )
 }

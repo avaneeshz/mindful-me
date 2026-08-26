@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
@@ -12,6 +12,14 @@ interface AppProps {
   /** Pins "now" for deterministic tests. Omitted in the real app. */
   now?: Date
 }
+
+/**
+ * Code-split: Recharts is a genuinely heavy dependency, and most sessions
+ * only ever touch "Today". Nothing about this changes what renders — only
+ * when its JS is fetched (on first navigation to `/insights`, not on the
+ * initial app load).
+ */
+const InsightsPage = lazy(() => import('@/routes/InsightsPage').then((m) => ({ default: m.InsightsPage })))
 
 /** Ignore sub-pixel rounding; only a real remainder counts as "more below". */
 const SCROLL_EPSILON = 4
@@ -85,6 +93,15 @@ function AuthGate({ now }: { now?: Date }) {
   return <AuthedApp now={now} />
 }
 
+function RouteLoading() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center" role="status" aria-live="polite">
+      <Loader2 aria-hidden="true" className="size-[24px] animate-spin text-forest" />
+      <span className="sr-only">Loading…</span>
+    </div>
+  )
+}
+
 function AuthedApp({ now }: { now?: Date }) {
   const mainRef = useRef<HTMLElement>(null)
   const hasContentBelow = useHasContentBelow(mainRef)
@@ -106,21 +123,31 @@ function AuthedApp({ now }: { now?: Date }) {
             className="min-h-0 flex-1 overflow-y-auto mobile:overflow-visible"
           >
             {/*
-              SHELL NOTE for whoever adds the second screen: the page shell
-              (max-width, horizontal padding, HeaderBar) currently lives inside
-              TodayPage, not here. That is fine while "Today" is the only route,
-              but do NOT copy-paste it into the new route — hoist it to this
-              level first, so both screens share one shell instead of two that
-              drift apart.
+              The shared page shell (max-width, horizontal padding) — hoisted
+              here per the note that used to live in this spot, so every route
+              shares one shell instead of each one carrying its own copy.
+              Route-specific chrome (HeaderBar on Today, the granularity/date
+              nav on Insights) stays inside each page.
             */}
-            <Routes>
-              <Route path="/" element={<TodayPage />} />
-              {/*
-                "Today" is the only built screen. The remaining sidebar entries
-                are placeholders with no destination, exactly as they are today.
-              */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+              <Routes>
+                <Route path="/" element={<TodayPage />} />
+                <Route
+                  path="/insights"
+                  element={
+                    <Suspense fallback={<RouteLoading />}>
+                      <InsightsPage />
+                    </Suspense>
+                  }
+                />
+                {/*
+                  "Today" and "Insights" are the only built screens. The
+                  remaining sidebar entries are placeholders with no
+                  destination, exactly as they are today.
+                */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </div>
           </main>
 
           {/*

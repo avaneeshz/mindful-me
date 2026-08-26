@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addMonths, buildMonthGrid, daysInMonth, startOfMonth } from './calendar'
+import { addDays, addMonths, buildMonthGrid, daysInMonth, startOfMonth, startOfWeek } from './calendar'
 
 describe('startOfMonth', () => {
   it('returns the 1st of the same month/year regardless of the day given', () => {
@@ -94,5 +94,59 @@ describe('buildMonthGrid', () => {
     const grid = buildMonthGrid(monthStart)
     const last = grid[41]
     expect(last.getMonth()).not.toBe(1)
+  })
+})
+
+describe('addDays', () => {
+  it('shifts forward within a month', () => {
+    const result = addDays(new Date(2026, 7, 10), 5)
+    expect(result.getFullYear()).toBe(2026)
+    expect(result.getMonth()).toBe(7)
+    expect(result.getDate()).toBe(15)
+  })
+
+  it('rolls the month forward across a month boundary', () => {
+    const result = addDays(new Date(2026, 7, 30), 3)
+    expect(result.getMonth()).toBe(8)
+    expect(result.getDate()).toBe(2)
+  })
+
+  it('rolls the year backward across January 1st with a negative delta', () => {
+    const result = addDays(new Date(2026, 0, 1), -1)
+    expect(result.getFullYear()).toBe(2025)
+    expect(result.getMonth()).toBe(11)
+    expect(result.getDate()).toBe(31)
+  })
+
+  it('a zero delta returns the same calendar day', () => {
+    const result = addDays(new Date(2026, 7, 10), 0)
+    expect(result.getTime()).toBe(new Date(2026, 7, 10).getTime())
+  })
+})
+
+describe('startOfWeek', () => {
+  it('returns the same local midnight when given a Sunday', () => {
+    const sunday = new Date(2026, 7, 23) // a Sunday
+    expect(startOfWeek(sunday).getTime()).toBe(new Date(2026, 7, 23).getTime())
+  })
+
+  it('rolls back to the preceding Sunday for every other day of the week', () => {
+    for (let offset = 1; offset <= 6; offset += 1) {
+      const date = addDays(new Date(2026, 7, 23), offset)
+      expect(startOfWeek(date).getTime()).toBe(new Date(2026, 7, 23).getTime())
+    }
+  })
+
+  it('strips any time-of-day component', () => {
+    const result = startOfWeek(new Date(2026, 7, 25, 16, 45, 30))
+    expect(result.getHours()).toBe(0)
+    expect(result.getMinutes()).toBe(0)
+    expect(result.getSeconds()).toBe(0)
+  })
+
+  it('rolls the month/year backward when the Sunday falls in the previous month', () => {
+    // Sept 1, 2026 is a Tuesday; its week starts Sunday Aug 30.
+    const result = startOfWeek(new Date(2026, 8, 1))
+    expect(result).toEqual(new Date(2026, 7, 30))
   })
 })

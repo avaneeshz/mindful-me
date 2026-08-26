@@ -9,6 +9,21 @@ export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
+/** `date` shifted by `delta` whole days — rolls the month/year in either direction. */
+export function addDays(date: Date, delta: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta)
+}
+
+/**
+ * Local midnight of the Sunday on or before `date` — Sunday-first, matching
+ * `DatePicker`'s own week layout (`WEEKDAY_LABELS` starts 'Su'), so a "week"
+ * means the same seven days everywhere in the product.
+ */
+export function startOfWeek(date: Date): Date {
+  const midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return addDays(midnight, -midnight.getDay())
+}
+
 /** `date`'s month shifted by `delta` whole months — rolls the year in either direction. */
 export function addMonths(date: Date, delta: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + delta, 1)
