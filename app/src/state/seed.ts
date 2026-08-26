@@ -1,50 +1,76 @@
-import type { SlotEntries } from '@/domain/types'
+import type { FlagId, ScheduledActivity } from '@/domain/types'
+
+const TIMEZONE =
+  typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
+
+let seedId = 0
+/** Deterministic ids for seed content — stable across renders/tests. */
+function nextId(): string {
+  seedId += 1
+  return `seed-${seedId}`
+}
+
+function activity(
+  name: string,
+  path: string[],
+  startMinutes: number,
+  durationMinutes: number,
+): ScheduledActivity {
+  return {
+    id: nextId(),
+    name,
+    path,
+    startMinutes,
+    durationMinutes,
+    flags: [],
+    status: 'planned',
+    timezone: TIMEZONE,
+  }
+}
+
+/** A whole-slot marker: no catalog activity, no duration, no schedule cost. */
+function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
+  return {
+    id: nextId(),
+    name: null,
+    path: [],
+    startMinutes,
+    durationMinutes: 0,
+    flags,
+    status: 'planned',
+    timezone: TIMEZONE,
+  }
+}
 
 /**
- * Initial in-memory board, ported from the prototype's `entries` object.
+ * Initial in-memory board, ported from the prototype's `entries` object —
+ * now as one row per logical activity with a real start time and duration,
+ * rather than one row per occupied 30-minute slot. The one true multi-hour
+ * activity this exposes cleanly that the old model could not: eight hours of
+ * Night Sleep is now genuinely ONE activity (00:00, 480 minutes), not sixteen
+ * separate 30-minute entries that merely happened to sit next to each other.
  *
- * There is no backend and no persistence in this pass, so this is seed content
- * rather than loaded data — it resets on reload, exactly as the prototype did.
- * When persistence lands this is the shape a fetch would return.
+ * There is no backend and no persistence in this pass, so this is seed
+ * content rather than loaded data — it resets on reload, exactly as the
+ * prototype did. When persistence lands (Phase 2) this is the shape a fetch
+ * would return.
  */
-export function createSeedEntries(): SlotEntries {
-  const entries: SlotEntries = {}
-
-  // 00:00 – 08:00 asleep.
-  for (let slot = 0; slot < 16; slot += 1) {
-    entries[slot] = {
-      activities: [{ name: 'Night Sleep', path: [], duration: 30 }],
-      flags: [],
-    }
-  }
-
-  entries[16] = {
-    activities: [{ name: 'Nature connect', path: ['Sunlight'], duration: 30 }],
-    flags: [],
-  }
-  entries[17] = { activities: [{ name: 'Vipassana', path: [], duration: 30 }], flags: [] }
-  entries[20] = { activities: [{ name: 'Vipassana', path: [], duration: 30 }], flags: [] }
-  entries[22] = {
-    activities: [{ name: 'Spiritual Care', path: ['Prayer'], duration: 30 }],
-    flags: ['Trauma response'],
-  }
-  entries[24] = { activities: [{ name: 'Meal Prep', path: [], duration: 30 }], flags: [] }
-  entries[27] = {
-    activities: [{ name: 'Sports or Exercise', path: ['HIIT'], duration: 30 }],
-    flags: [],
-  }
-  entries[29] = {
-    activities: [
-      { name: 'Body care', path: ['Oiling', 'Body'], duration: 15 },
-      { name: 'Supplements', path: ['Magnesium'], duration: 15 },
-    ],
-    flags: ['Stress response'],
-  }
-  entries[30] = { activities: [{ name: 'Errand time', path: [], duration: 30 }], flags: [] }
-  entries[31] = {
-    activities: [{ name: 'Homework', path: [], duration: 30 }],
-    flags: ['Fear response'],
-  }
-
-  return entries
+export function createSeedActivities(): ScheduledActivity[] {
+  seedId = 0
+  return [
+    activity('Night Sleep', [], 0, 8 * 60),
+    activity('Nature connect', ['Sunlight'], 8 * 60, 30),
+    activity('Vipassana', [], 8 * 60 + 30, 30),
+    activity('Vipassana', [], 10 * 60, 30),
+    activity('Spiritual Care', ['Prayer'], 11 * 60, 30),
+    flagMarker(11 * 60, ['Trauma response']),
+    activity('Meal Prep', [], 12 * 60, 30),
+    activity('Sports or Exercise', ['HIIT'], 13 * 60 + 30, 30),
+    activity('Body care', ['Oiling', 'Body'], 14 * 60 + 30, 15),
+    activity('Supplements', ['Magnesium'], 14 * 60 + 45, 15),
+    flagMarker(14 * 60 + 30, ['Stress response']),
+    activity('Errand time', [], 15 * 60, 30),
+    activity('Homework', [], 15 * 60 + 30, 30),
+    flagMarker(15 * 60 + 30, ['Fear response']),
+  ]
 }

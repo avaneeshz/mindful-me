@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
 import { describeSlotContents } from '@/components/editor/ActivityPicker'
+import { PERIOD_LABELS } from '@/data/periods'
 
 /**
  * A mount smoke test: renders the whole screen and asserts the structural
@@ -10,13 +11,12 @@ import { describeSlotContents } from '@/components/editor/ActivityPicker'
  * review, but it does prove the tree renders and that the deleted surfaces are
  * genuinely gone rather than merely hidden.
  *
- * THE CLOCK IS PINNED, ALWAYS. This suite used to render against real device
- * time, so which slot was "now" — and therefore what the editor showed and what
- * its capacity meter contained — changed by the hour. It passed in the morning
- * and failed the rest of the day. Every render here must pass a fixed Date.
+ * THE CLOCK IS PINNED, ALWAYS. Every render here must pass a fixed Date, or
+ * which grid cell is "now" — and therefore what the editor shows — changes by
+ * the hour the suite happens to run.
  */
 
-/** 10:15 on a fixed date -> slot 20, which the seed fills with one 30-min entry. */
+/** 10:15 on a fixed date -> grid cell 20 (10:00-10:30), which the seed fills with one 30-min Vipassana entry. */
 const AT_10_15AM = new Date(2026, 7, 25, 10, 15)
 
 function render(now: Date = AT_10_15AM): string {
@@ -46,8 +46,6 @@ describe('Today screen', () => {
     expect(html).not.toMatch(/Recent Activity/i)
     expect(html).not.toMatch(/Overall progress/i)
     expect(html).not.toMatch(/vs yesterday/i)
-    // The old score-band labels. "Building" alone is not tested: it legitimately
-    // appears in the "Building & Rebuilding" activity card.
     expect(html).not.toMatch(/Just started/)
     expect(html).not.toMatch(/slots marked<\/|Excellent/)
   })
@@ -57,13 +55,13 @@ describe('Today screen', () => {
   })
 
   it('renders both period segments and both timeline rows', () => {
-    expect(html).toContain('Day · 6a–6p')
-    expect(html).toContain('Night · 6p–6a')
+    expect(html).toContain(PERIOD_LABELS.day)
+    expect(html).toContain(PERIOD_LABELS.night)
     expect(html).toContain('Day timeline, 6am to 6pm')
     expect(html).toContain('Night timeline, 6pm to 6am')
   })
 
-  it('renders all 48 slots as real buttons across the two rows', () => {
+  it('renders all 48 grid cells as real buttons across the two rows', () => {
     const slotButtons = html.match(/data-slot="\d+"/g) ?? []
     expect(slotButtons).toHaveLength(48)
     const indices = new Set(slotButtons.map((s) => Number(s.match(/\d+/)![0])))
@@ -78,13 +76,22 @@ describe('Today screen', () => {
     expect(html).not.toContain('slots marked today')
   })
 
-  it('renders one anchored visual span per activity in a two-activity slot', () => {
-    // Seed slot 29 holds 15 min Body care + 15 min Supplements.
-    expect(html.match(/data-activity-span="29-\d"/g) ?? []).toHaveLength(2)
+  it('renders one anchored visual span per real seeded activity — no 2-activity-per-cell cap', () => {
+    // The seed's 11 real activities (flag markers render no span of their
+    // own), plus ONE extra span: Night Sleep is now genuinely one 8-hour
+    // activity (00:00-08:00) rather than sixteen artificially separate
+    // 30-minute entries, and it legitimately crosses the Night/Day row
+    // boundary at 06:00 — correctly rendered as two segments, one per row.
+    expect(html.match(/data-activity-span="[^"]+"/g) ?? []).toHaveLength(12)
+    // Two of them — Body care and Supplements — legitimately share one grid
+    // cell without overlapping, which the old capacity rule specifically
+    // disallowed beyond a hardcoded pair.
+    expect(html).toContain('Body care')
+    expect(html).toContain('Supplements')
   })
 
   it('renders flags inside their slot, stacked vertically', () => {
-    // Seed slot 22 carries a Trauma response flag.
+    // Seed slot 22 (11:00) carries a Trauma response flag marker.
     const slot22 = html.split('data-slot="22"')[1]?.split('data-slot=')[0] ?? ''
     expect(slot22).toContain('flex-col')
   })
@@ -105,30 +112,18 @@ describe('Today screen', () => {
     expect(html).toContain('aria-label="Fear response"')
   })
 
-  /*
-   * The staging pane used to render a "Choose an activity" placeholder while
-   * idle — a column of reserved space restating what the tile grid beside it
-   * already says. The pane now renders nothing until a card is staged.
-   */
   it('renders no idle placeholder in the staging pane', () => {
     expect(html).not.toContain('Choose an activity')
   })
 
-  /*
-   * The notice copy used to be a hardcoded sentence asserting "2 activities",
-   * which a slot holding one 30-minute entry contradicts. It is now derived —
-   * see describeSlotContents, unit-tested below — so the only thing this smoke
-   * test can usefully guard is that the old literal never comes back.
-   */
-  it('no longer hardcodes the slot-full sentence', () => {
+  it('no longer hardcodes a fixed 2-activity slot-full sentence', () => {
     expect(html).not.toContain('full — 2 activities totalling 30 minutes. Remove one')
   })
 
-  it('draws one capacity fill per activity, sized by its own duration', () => {
+  it('draws one capacity fill for the pinned slot’s single seeded activity', () => {
     const meter = html.split('aria-label="Slot capacity"')[1]?.split('</div>')[0] ?? ''
     const fills = meter.match(/left:calc\(/g) ?? []
-    // Slot 20 (the pinned now-slot) holds a single 30-minute Vipassana entry:
-    // one fill, full width.
+    // Grid cell 20 (the pinned now-slot) holds a single 30-minute Vipassana entry.
     expect(fills).toHaveLength(1)
     expect(meter).toContain('width:calc(100% - 2px)')
   })
@@ -146,11 +141,6 @@ describe('Today screen', () => {
     expect(html).toContain('(not yet available)')
   })
 
-  /*
-   * The sidebar footer CTA was a bare <span> styled exactly like a working
-   * button: not focusable, no handler, no disabled affordance — the one element
-   * that broke the honest-placeholder pattern the six nav items above it use.
-   */
   it('makes the sidebar footer CTA an honestly disabled button', () => {
     const cta = html.split('View Tips')[0]
     expect(cta.endsWith('</span>')).toBe(false)
@@ -160,10 +150,9 @@ describe('Today screen', () => {
 })
 
 /*
- * Guards bug #3: the suite used to render against `new Date()` and its result
- * changed by the hour. Any assertion that depends on which slot is "now" must
- * hold at every hour of the day, so this renders across the whole 24 and checks
- * the invariants that should never move.
+ * Guards bug #3 from the original redesign: the suite used to render against
+ * `new Date()` and its result changed by the hour. Any assertion that depends
+ * on which cell is "now" must hold at every hour of the day.
  */
 describe('rendering is independent of the wall clock', () => {
   const everyHalfHour = Array.from(
@@ -175,20 +164,18 @@ describe('rendering is independent of the wall clock', () => {
     for (const now of everyHalfHour) {
       const at = render(now)
       expect(at).toMatch(/<h1[^>]*>30-Minute Slotting<\/h1>/)
-      // Exactly one current-time marker, on exactly one of the two rows.
       expect(at.match(/>NOW</g) ?? []).toHaveLength(1)
       expect(at.match(/data-slot="\d+"/g) ?? []).toHaveLength(48)
-      expect(at).toContain('25 of 48 slots marked today')
     }
   })
 })
 
 describe('slot-full notice copy', () => {
   it('reports the slot’s real entry count and real total', () => {
-    // A slot is full at 2 activities OR at 30 booked minutes, so one 30-minute
-    // entry fills it just as a 15 + 15 pair does.
     expect(describeSlotContents(1, 30)).toBe('1 activity totalling 30 minutes')
     expect(describeSlotContents(2, 30)).toBe('2 activities totalling 30 minutes')
+    // Now legitimately reachable — no more hardcoded 2-activity ceiling.
+    expect(describeSlotContents(3, 30)).toBe('3 activities totalling 30 minutes')
   })
 
   it('agrees in number with both the count and the total', () => {

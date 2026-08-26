@@ -1,116 +1,62 @@
-import { Pencil, X } from 'lucide-react'
+import { CheckCircle2, Circle, Pencil, X } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
-import { formatSlotStart, SLOT_MINUTES } from '@/domain/slots'
-import type { PlacedActivity } from '@/domain/types'
+import { formatMinutes, minutesInSlot, startsInSlot } from '@/domain/slots'
+import type { ScheduledActivity } from '@/domain/types'
 import type { RemovalRecord } from '@/state/boardReducer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { CategoryIconChip } from './CategoryIconChip'
 
-/**
- * A slot's read-only share of an activity that is really anchored earlier —
- * the exact shape `domain/slots`' `spilloverActivity` returns, so callers can
- * pass it straight through.
- */
-export interface SpilloverRow {
-  activity: PlacedActivity
-  /** Minutes of THIS slot the activity occupies — never the raw total. */
-  minutesHere: number
-  /** Where the real record lives; Edit/Remove here act on it there. */
-  anchorSlot: number
-  index: number
-}
-
 interface SlotActivityListProps {
-  activities: readonly PlacedActivity[]
-  /**
-   * The portion (if any) of an earlier anchor's longer activity spilling
-   * into this slot. Rendered first — chronologically it started before
-   * anything native to this slot. There is only ever one copy of the real
-   * activity: Edit loads it into the SAME stepper below IN PLACE (this row's
-   * slot stays selected); Remove is more disruptive and still jumps to the
-   * anchor, where the Undo affordance for it lives.
-   */
-  spillover: SpilloverRow | null
-  /** True while the stepper below is showing the SPILLOVER row's activity. */
-  spilloverIsEditing: boolean
-  /** Non-null only while an undo affordance is live for THIS slot. */
+  /** Real activities overlapping the selected slot, in start-time order. */
+  touching: ScheduledActivity[]
+  selectedSlot: number
+  /** Shown inline only while it overlaps the selected slot's window. */
   removal: RemovalRecord | null
-  /**
-   * Index of the row currently loaded into the editor, or null when adding a
-   * new activity, OR when the row being edited is the spillover one (see
-   * `spilloverIsEditing`) — with two activities in a slot, nothing else on
-   * screen says WHICH one the staging pane is showing.
-   */
-  editingIndex: number | null
-  onEdit: (index: number) => void
-  onRemove: (index: number) => void
-  onEditSpillover: () => void
-  onRemoveSpillover: () => void
+  /** Id of the activity currently loaded into the stepper below, if any. */
+  editingId: string | null
+  onEdit: (id: string) => void
+  onRemove: (id: string) => void
+  onToggleComplete: (id: string) => void
   onUndo: () => void
 }
 
 export function SlotActivityList({
-  activities,
-  spillover,
-  spilloverIsEditing,
+  touching,
+  selectedSlot,
   removal,
-  editingIndex,
+  editingId,
   onEdit,
   onRemove,
-  onEditSpillover,
-  onRemoveSpillover,
+  onToggleComplete,
   onUndo,
 }: SlotActivityListProps) {
-  // Empty slot: the list is omitted entirely (existing behaviour). The
-  // exceptions are an in-flight undo, and a slot that is nothing BUT
-  // someone else's spillover — both must still be reachable/visible.
-  if (activities.length === 0 && !removal && !spillover) return null
+  const removalHere = removal && minutesInSlot(removal.activity, selectedSlot) > 0 ? removal : null
 
-  const undoPosition = removal ? Math.min(removal.index, activities.length) : -1
-
-  const rows = activities.map((activity, index) => (
-    <ActivityRow
-      key={`${activity.name}-${index}`}
-      activity={activity}
-      // A slot's own activities never show more than their share of THIS
-      // 30-minute cell — the one case that otherwise wouldn't hold is the
-      // sole activity anchored here whose real duration runs past 30 minutes
-      // into later slots (see `spilloverActivity` for the mirror case).
-      displayDuration={Math.min(activity.duration, SLOT_MINUTES)}
-      isEditing={index === editingIndex}
-      onEdit={() => onEdit(index)}
-      onRemove={() => onRemove(index)}
-    />
-  ))
-
-  if (spillover) {
-    rows.unshift(
-      <ActivityRow
-        key={`spillover-${spillover.anchorSlot}-${spillover.index}`}
-        activity={spillover.activity}
-        displayDuration={spillover.minutesHere}
-        isEditing={spilloverIsEditing}
-        continuedFrom={spillover.anchorSlot}
-        editIsInPlace
-        onEdit={onEditSpillover}
-        onRemove={onRemoveSpillover}
-      />,
-    )
-  }
-
-  if (removal) {
-    rows.splice(
-      spillover ? undoPosition + 1 : undoPosition,
-      0,
-      <UndoRow key={`undo-${removal.id}`} name={removal.activity.name} onUndo={onUndo} />,
-    )
-  }
+  // Empty slot: the list is omitted entirely. The exception is an in-flight
+  // undo for an activity that used to overlap this exact slot.
+  if (touching.length === 0 && !removalHere) return null
 
   return (
     <div className="mt-2xl ipad-land:mt-md">
       <h3 className="mb-sm text-nano font-bold uppercase tracking-tag text-muted">In this slot</h3>
-      <ul className="flex flex-col gap-sm">{rows}</ul>
+      <ul className="flex flex-col gap-sm">
+        {touching.map((activity) => (
+          <ActivityRow
+            key={activity.id}
+            activity={activity}
+            displayDuration={minutesInSlot(activity, selectedSlot)}
+            isEditing={activity.id === editingId}
+            continuedFrom={startsInSlot(activity, selectedSlot) ? null : activity.startMinutes}
+            onEdit={() => onEdit(activity.id)}
+            onRemove={() => onRemove(activity.id)}
+            onToggleComplete={() => onToggleComplete(activity.id)}
+          />
+        ))}
+        {removalHere && (
+          <UndoRow key={`undo-${removalHere.activity.id}`} name={removalHere.activity.name ?? 'Activity'} onUndo={onUndo} />
+        )}
+      </ul>
     </div>
   )
 }
@@ -120,34 +66,26 @@ function ActivityRow({
   displayDuration,
   isEditing,
   continuedFrom,
-  editIsInPlace,
   onEdit,
   onRemove,
+  onToggleComplete,
 }: {
-  activity: PlacedActivity
-  /** What to show as this row's duration — may differ from `activity.duration`. */
+  activity: ScheduledActivity
+  /** This row's real share of the SELECTED slot — may differ from the activity's full duration. */
   displayDuration: number
   isEditing: boolean
-  /**
-   * Set only for a spillover row: the slot this activity is really anchored
-   * at. Both actions act on the real record there, but only Remove actually
-   * navigates there (see `editIsInPlace`) — the label wording differs to
-   * match what each button is actually about to do.
-   */
-  continuedFrom?: number
-  /**
-   * True for a spillover row's Edit: it loads the real activity into the
-   * stepper right here, without navigating away — so its label states where
-   * the activity CONTINUES from rather than where Edit is "in" (it isn't).
-   */
-  editIsInPlace?: boolean
+  /** Set only when the activity started before this slot and merely continues through it. */
+  continuedFrom: number | null
   onEdit: () => void
   onRemove: () => void
+  onToggleComplete: () => void
 }) {
-  const card = findCard(activity.name)
-  const category = categoryOf(activity.name)
+  const name = activity.name ?? 'Activity'
+  const card = findCard(name)
+  const category = categoryOf(name)
   const pathLabel = activity.path.length > 0 ? activity.path.join(' · ') : null
-  const continuedFromLabel = continuedFrom !== undefined ? formatSlotStart(continuedFrom) : null
+  const continuedFromLabel = continuedFrom !== null ? formatMinutes(continuedFrom) : null
+  const isCompleted = activity.status === 'completed'
 
   return (
     <li
@@ -160,12 +98,42 @@ function ActivityRow({
         isEditing && 'outline outline-1.5 -outline-offset-1.5 outline-forest',
       )}
     >
+      {/*
+        Planned vs. actual (Phase 3). A real checkbox semantic, not a bare
+        icon button — assistive tech announces "checked"/"not checked", never
+        colour alone. Placed first: this is the one control that changes the
+        row's own identity (completed or not), ahead of the actions that act
+        ON the row.
+      */}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isCompleted}
+        aria-label={isCompleted ? `Mark ${name} not completed` : `Mark ${name} completed`}
+        onClick={onToggleComplete}
+        className={cn(
+          'flex size-[22px] shrink-0 items-center justify-center rounded-full transition-colors',
+          isCompleted ? 'text-forest' : 'text-line hover:text-forest-light',
+        )}
+      >
+        {isCompleted ? (
+          <CheckCircle2 aria-hidden="true" className="size-[20px]" fill="currentColor" stroke="white" />
+        ) : (
+          <Circle aria-hidden="true" className="size-[20px]" strokeWidth={1.75} />
+        )}
+      </button>
+
       <CategoryIconChip category={category} icon={card?.icon} />
 
       <span className="min-w-0 flex-1">
         {/* Row hover changes the underline only — no background shift. */}
-        <span className="text-body font-semibold text-charcoal group-hover:underline group-hover:underline-offset-2">
-          {activity.name}
+        <span
+          className={cn(
+            'text-body font-semibold text-charcoal group-hover:underline group-hover:underline-offset-2',
+            isCompleted && 'text-muted line-through decoration-1',
+          )}
+        >
+          {name}
         </span>
         {pathLabel && (
           <span className="text-caption font-medium text-muted"> · {pathLabel}</span>
@@ -179,9 +147,16 @@ function ActivityRow({
       </span>
 
       {/*
-        The outline alone would carry this state by colour only. The tag states
-        it in words as well — same pill treatment as the editor's NOW badge.
+        The outline/strikethrough alone would carry state by appearance only.
+        Both tags state it in words too — same pill treatment as the editor's
+        NOW badge, and they can legitimately coexist (editing a completed
+        activity, e.g. to fix its time after the fact — rule 4).
       */}
+      {isCompleted && (
+        <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
+          Completed
+        </span>
+      )}
       {isEditing && (
         <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
           Editing
@@ -190,17 +165,16 @@ function ActivityRow({
 
       <span className="text-meta font-semibold text-muted">{displayDuration} min</span>
 
-      {/* Both actions are always icon + text, never icon-only. */}
+      {/* Both actions are always icon + text, never icon-only. Editing/removing
+          always acts on the one real activity directly, wherever it starts —
+          there is no more "jump to the anchor first" step, since ids replace
+          the old slot-anchored index entirely. */}
       <Button
         variant="accent"
         size="inline"
         onClick={onEdit}
         aria-label={
-          continuedFromLabel
-            ? editIsInPlace
-              ? `Edit ${activity.name}, continuing from its ${continuedFromLabel} slot`
-              : `Edit ${activity.name}, in its ${continuedFromLabel} slot`
-            : `Edit ${activity.name}`
+          continuedFromLabel ? `Edit ${name}, continuing from its ${continuedFromLabel} slot` : `Edit ${name}`
         }
       >
         <Pencil aria-hidden="true" className="size-[13px]" />
@@ -212,8 +186,8 @@ function ActivityRow({
         onClick={onRemove}
         aria-label={
           continuedFromLabel
-            ? `Remove ${activity.name}, anchored in its ${continuedFromLabel} slot`
-            : `Remove ${activity.name}`
+            ? `Remove ${name}, anchored in its ${continuedFromLabel} slot`
+            : `Remove ${name}`
         }
       >
         <X aria-hidden="true" className="size-[13px]" />

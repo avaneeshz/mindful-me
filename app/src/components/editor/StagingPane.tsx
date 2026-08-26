@@ -1,6 +1,6 @@
 import { Minus, Plus } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
-import { DURATION_STEP, MIN_DURATION } from '@/domain/slots'
+import { DURATION_STEP_MINUTES, MIN_DURATION_MINUTES } from '@/domain/scheduling'
 import { type StagingState } from '@/state/boardReducer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -25,7 +25,7 @@ interface StagingPaneProps {
 export const CAPACITY_MESSAGE_ID = 'staging-capacity-message'
 
 export function primaryActionLabel(staging: StagingState): string {
-  return staging.editingIndex !== null ? 'Save changes' : 'Add to slot'
+  return staging.editingId !== null ? 'Save changes' : 'Add to slot'
 }
 
 function formatDuration(minutes: number): string {
@@ -56,7 +56,7 @@ export function StagingPane({
 
   const card = findCard(staging.cardName)
   const category = categoryOf(staging.cardName)
-  const atCeiling = staging.duration >= maxDuration
+  const atCeiling = staging.durationMinutes >= maxDuration
 
   return (
     // `ipad-land:gap-md` is the same short-landscape density adaptation used
@@ -85,7 +85,7 @@ export function StagingPane({
       */}
       <div className="flex flex-col gap-sm">
         <DurationStepper
-          duration={staging.duration}
+          duration={staging.durationMinutes}
           maxDuration={maxDuration}
           atCeiling={atCeiling}
           onStep={onStep}
@@ -127,7 +127,7 @@ function DurationStepper({
   atCeiling: boolean
   onStep: (delta: number) => void
 }) {
-  const canDecrease = duration > MIN_DURATION
+  const canDecrease = duration > MIN_DURATION_MINUTES
   const canIncrease = duration < maxDuration
 
   const stepButton =
@@ -141,9 +141,9 @@ function DurationStepper({
       <div className="flex items-center gap-lg">
         <button
           type="button"
-          onClick={() => onStep(-DURATION_STEP)}
+          onClick={() => onStep(-DURATION_STEP_MINUTES)}
           disabled={!canDecrease}
-          aria-label={`Decrease duration by ${DURATION_STEP} minutes`}
+          aria-label={`Decrease duration by ${DURATION_STEP_MINUTES} minutes`}
           className={stepButton}
         >
           <Minus aria-hidden="true" className="size-[18px]" />
@@ -163,10 +163,10 @@ function DurationStepper({
         */}
         <button
           type="button"
-          onClick={() => canIncrease && onStep(DURATION_STEP)}
+          onClick={() => canIncrease && onStep(DURATION_STEP_MINUTES)}
           disabled={!canIncrease}
           aria-describedby={atCeiling ? CAPACITY_MESSAGE_ID : undefined}
-          aria-label={`Increase duration by ${DURATION_STEP} minutes`}
+          aria-label={`Increase duration by ${DURATION_STEP_MINUTES} minutes`}
           className={cn(stepButton, !canIncrease && 'cursor-not-allowed')}
         >
           <Plus aria-hidden="true" className="size-[18px]" />

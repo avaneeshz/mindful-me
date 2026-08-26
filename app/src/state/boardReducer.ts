@@ -1,56 +1,44 @@
 import { findCard } from '@/data/activities'
+import { flagMarkerAt, periodOfSlot, slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
-  MAX_ACTIVITIES_PER_SLOT,
-  SLOT_MINUTES,
   clampDuration,
-  entryAt,
-  maxScheduleDuration,
-  normalizeSlot,
-  periodOfSlot,
-  slotIndexFromDate,
-  usedMinutes,
-} from '@/domain/slots'
-import type { FlagId, Period, PlacedActivity, SlotEntries, SlotEntry } from '@/domain/types'
+  commitSchedule,
+  computeCandidateSchedule,
+  generateId,
+  maxContiguousDuration,
+  validateSchedule,
+  type CandidateSchedule,
+} from '@/domain/scheduling'
+import type { FlagId, Period, ScheduledActivity } from '@/domain/types'
 
 /**
  * What is currently staged in the right-hand pane but not yet committed.
- * Nothing here has touched `entries` — Add/Save is the only commit point.
+ * Nothing here has touched `activities` — Add/Save is the only commit point.
  */
 export interface StagingState {
   cardName: string | null
   /** Drill-down path so far, e.g. ["Oiling"] then ["Oiling", "Body"]. */
   path: string[]
-  duration: number
+  /** The real wall-clock anchor this placement would commit at. */
+  startMinutes: number
+  durationMinutes: number
   /**
-   * Index of the activity being edited in place, or null when adding a new one.
-   * Saving replaces that entry rather than appending a duplicate.
+   * Id of the activity being edited in place, or null when adding a new one.
+   * Saving replaces that activity rather than appending a duplicate. Because
+   * every activity now carries a stable id, editing no longer needs to track
+   * a separate "which slot is this really anchored at" field the way the old
+   * slot-indexed model did — the id alone finds it, wherever it starts.
    */
-  editingIndex: number | null
-  /**
-   * The slot `editingIndex` actually indexes into — i.e. the activity's real
-   * anchor. Always set together with `editingIndex` (both null, or both set).
-   *
-   * This is deliberately NOT always `selectedSlot`: editing a multi-slot
-   * activity from a slot it merely spills into (see `SlotActivityList`'s
-   * spillover row) edits the one real record at its anchor WITHOUT moving
-   * `selectedSlot` away from the slot the user is looking at — otherwise
-   * trimming e.g. a 60-minute activity down to 45 from its 7:00 spillover row
-   * forced a jump back to its 6:30 anchor to see the result, which read as
-   * "I can't edit this slot" even though the edit itself worked.
-   */
-  editingSlot: number | null
+  editingId: string | null
 }
 
 /** A just-removed activity, held briefly so it can be undone. */
 export interface RemovalRecord {
-  id: number
-  slot: number
-  index: number
-  activity: PlacedActivity
+  activity: ScheduledActivity
 }
 
 export interface BoardState {
-  entries: SlotEntries
+  activities: ScheduledActivity[]
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
@@ -62,19 +50,14 @@ export interface BoardState {
   focusedPeriod: Period
   /** Bumped on every period jump so the target row can replay its pulse. */
   jump: { period: Period; token: number } | null
-  /**
-   * Monotonic source of `RemovalRecord.id`. Lives in state so the reducer stays
-   * pure — it previously called `Date.now()`, the one impure line in here.
-   */
-  nextRemovalId: number
 }
 
 export const EMPTY_STAGING: StagingState = {
   cardName: null,
   path: [],
-  duration: 0,
-  editingIndex: null,
-  editingSlot: null,
+  startMinutes: 0,
+  durationMinutes: 0,
+  editingId: null,
 }
 
 export type BoardAction =
@@ -86,56 +69,14 @@ export type BoardAction =
   | { type: 'cancelStaging' }
   | { type: 'stepDuration'; delta: number }
   | { type: 'commit' }
-  | { type: 'editActivity'; index: number; slot?: number }
-  | { type: 'removeActivity'; index: number }
+  | { type: 'editActivity'; id: string }
+  | { type: 'removeActivity'; id: string }
   | { type: 'undoRemoval' }
-  | { type: 'dismissRemoval'; id: number }
+  | { type: 'dismissRemoval'; id: string }
   | { type: 'toggleFlag'; flag: FlagId }
   | { type: 'dropCard'; cardName: string; slot: number }
-
-/**
- * A working copy of a slot entry. `SlotEntry`'s own arrays are `readonly` (they
- * are shared, and the empty entry is frozen), so mutation happens here and the
- * result is written back through `withEntry`.
- */
-interface DraftSlotEntry {
-  activities: PlacedActivity[]
-  flags: FlagId[]
-}
-
-function cloneEntry(entry: SlotEntry | undefined): DraftSlotEntry {
-  return {
-    activities: entry ? entry.activities.map((a) => ({ ...a, path: [...a.path] })) : [],
-    flags: entry ? [...entry.flags] : [],
-  }
-}
-
-/**
- * Invalidate a pending undo once the slot it belongs to has been written again.
- *
- * Without this, Undo could re-insert an activity into a slot that has since been
- * refilled — remove one of two entries, add a different one into the freed
- * minutes, then Undo — producing 3 activities / 45 minutes in a 30-minute slot.
- * Dropping the stale record makes Undo unavailable rather than corrupting state,
- * which is the honest outcome: the thing it would undo no longer exists.
- */
-function removalAfterWrite(
-  removal: RemovalRecord | null,
-  slot: number,
-): RemovalRecord | null {
-  return removal && removal.slot === slot ? null : removal
-}
-
-/** Drop slots that hold neither activities nor flags, keeping `entries` sparse. */
-function withEntry(entries: SlotEntries, slot: number, entry: SlotEntry): SlotEntries {
-  const next = { ...entries }
-  if (entry.activities.length === 0 && entry.flags.length === 0) {
-    delete next[slot]
-  } else {
-    next[slot] = entry
-  }
-  return next
-}
+  | { type: 'hydrate'; activities: ScheduledActivity[] }
+  | { type: 'toggleComplete'; id: string }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -161,30 +102,36 @@ export function stagingOptions(staging: StagingState): { options: string[]; leve
   return null
 }
 
-export function createInitialState(entries: SlotEntries, now: Date): BoardState {
+export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {
   const selectedSlot = slotIndexFromDate(now)
   return {
-    entries,
+    activities,
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
     focusedPeriod: periodOfSlot(selectedSlot),
     jump: null,
-    nextRemovalId: 1,
+  }
+}
+
+function stageFrom(
+  cardName: string,
+  path: string[],
+  candidate: CandidateSchedule,
+): StagingState {
+  return {
+    cardName,
+    path,
+    startMinutes: candidate.startMinutes,
+    durationMinutes: candidate.durationMinutes,
+    editingId: candidate.id,
   }
 }
 
 export function boardReducer(state: BoardState, action: BoardAction): BoardState {
   switch (action.type) {
     case 'selectSlot': {
-      const slot = normalizeSlot(action.slot)
-      // Every 30-minute cell is independently selectable/editable, including
-      // one entirely covered by an earlier anchor's longer activity spilling
-      // into it — it still has its own capacity meter, its own share of that
-      // activity to view, and (via `SlotActivityList`'s spillover row) a way
-      // to reach that activity's real Edit/Remove. This USED to redirect
-      // selection to the covering activity's anchor slot instead, which made
-      // a fully-covered slot un-openable outright.
+      const slot = ((action.slot % 48) + 48) % 48
       if (slot === state.selectedSlot) return state
       // Selecting a different slot abandons anything staged for the old one —
       // staged picks are scoped to a slot and were never committed.
@@ -203,18 +150,15 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'pickCard': {
       const card = findCard(action.cardName)
       if (!card) return state
-      const max = maxScheduleDuration(state.entries, state.selectedSlot, null)
-      if (max <= 0) return state
-      return {
-        ...state,
-        staging: {
-          cardName: card.name,
-          path: [],
-          duration: clampDuration(Math.min(SLOT_MINUTES, max), max),
-          editingIndex: null,
-          editingSlot: null,
-        },
-      }
+      const { start, end } = slotMinuteRange(state.selectedSlot)
+      const candidate = computeCandidateSchedule({ name: card.name, path: [] }, start, state.activities)
+      // Refuse rather than silently anchoring somewhere past this grid cell's
+      // own window — "add to THIS slot" must never land the activity in a
+      // different, later cell just because the resolved free instant wandered
+      // past it (`isWindowFull` in `SlotEditor` gates the picker UI on the
+      // same condition, so the two never disagree).
+      if (candidate.durationMinutes <= 0 || candidate.startMinutes >= end) return state
+      return { ...state, staging: stageFrom(card.name, [], candidate) }
     }
 
     case 'pickOption': {
@@ -234,160 +178,178 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     }
 
     case 'cancelStaging':
-      // Clears the not-yet-added pick only. Never touches committed entries.
+      // Clears the not-yet-added pick only. Never touches committed activities.
       return { ...state, staging: EMPTY_STAGING }
 
     case 'stepDuration': {
       if (!state.staging.cardName) return state
-      // The slot the staged edit actually applies to — the activity's real
-      // anchor when editing (possibly not `selectedSlot`, see `editingSlot`),
-      // otherwise wherever a NEW pick is being added (`selectedSlot` itself).
-      const editSlot = state.staging.editingSlot ?? state.selectedSlot
-      const max = maxScheduleDuration(state.entries, editSlot, state.staging.editingIndex)
-      const next = clampDuration(state.staging.duration + action.delta, max)
-      if (next === state.staging.duration) return state
-      return { ...state, staging: { ...state.staging, duration: next } }
+      const ceiling = maxContiguousDuration(
+        state.activities,
+        state.staging.startMinutes,
+        state.staging.editingId,
+      )
+      const next = clampDuration(state.staging.durationMinutes + action.delta, ceiling)
+      if (next === state.staging.durationMinutes) return state
+      return { ...state, staging: { ...state.staging, durationMinutes: next } }
     }
 
     case 'commit': {
-      const { staging, selectedSlot } = state
+      const { staging } = state
       if (!staging.cardName || !isStagingComplete(staging)) return state
-      // See `stepDuration` — commits to the real anchor, not necessarily the
-      // slot currently on screen.
-      const editSlot = staging.editingSlot ?? selectedSlot
-      const entry = cloneEntry(state.entries[editSlot])
-      const max = maxScheduleDuration(state.entries, editSlot, staging.editingIndex)
-      const duration = clampDuration(staging.duration, max)
-      if (duration <= 0) return state
 
-      const activity: PlacedActivity = {
-        name: staging.cardName,
-        path: [...staging.path],
-        duration,
+      const candidate: CandidateSchedule = {
+        id: staging.editingId,
+        activity: { name: staging.cardName, path: [...staging.path] },
+        startMinutes: staging.startMinutes,
+        durationMinutes: staging.durationMinutes,
       }
+      const validation = validateSchedule(candidate, state.activities)
+      if (!validation.ok) return state
 
-      if (staging.editingIndex !== null && entry.activities[staging.editingIndex]) {
-        entry.activities[staging.editingIndex] = activity
-      } else {
-        entry.activities.push(activity)
-      }
+      const prior = staging.editingId
+        ? state.activities.find((a) => a.id === staging.editingId)
+        : undefined
 
-      return {
-        ...state,
-        entries: withEntry(state.entries, editSlot, entry),
-        staging: EMPTY_STAGING,
-        removal: removalAfterWrite(state.removal, editSlot),
-      }
+      // Rule 4: editing time/duration never silently clears completion — the
+      // prior status, flags and timezone always carry forward untouched.
+      const committed = commitSchedule(candidate, {
+        id: prior?.id,
+        flags: prior?.flags ?? [],
+        status: prior?.status ?? 'planned',
+        timezone: prior?.timezone,
+      })
+
+      const activities = prior
+        ? state.activities.map((a) => (a.id === committed.id ? committed : a))
+        : [...state.activities, committed]
+
+      return { ...state, activities, staging: EMPTY_STAGING }
     }
 
     case 'editActivity': {
-      // `slot` lets a spillover row (see `SlotActivityList`) load the ONE
-      // real activity at its actual anchor for editing — in place, without
-      // moving `selectedSlot` there. Omitted, it defaults to `selectedSlot`,
-      // exactly the prior behaviour for a slot's own native rows.
-      const slot = action.slot !== undefined ? normalizeSlot(action.slot) : state.selectedSlot
-      const entry = entryAt(state.entries, slot)
-      const activity = entry.activities[action.index]
-      if (!activity) return state
+      const activity = state.activities.find((a) => a.id === action.id)
+      if (!activity || activity.name === null) return state
       return {
         ...state,
         staging: {
           cardName: activity.name,
           path: [...activity.path],
-          duration: activity.duration,
-          editingIndex: action.index,
-          editingSlot: slot,
+          startMinutes: activity.startMinutes,
+          durationMinutes: activity.durationMinutes,
+          editingId: activity.id,
         },
       }
     }
 
     case 'removeActivity': {
-      const entry = cloneEntry(state.entries[state.selectedSlot])
-      const [activity] = entry.activities.splice(action.index, 1)
+      const activity = state.activities.find((a) => a.id === action.id)
       if (!activity) return state
       return {
         ...state,
-        entries: withEntry(state.entries, state.selectedSlot, entry),
-        // Editing the removed row (or a row whose index just shifted) is no
-        // longer meaningful, so drop the staged edit.
-        staging:
-          state.staging.editingIndex === null ? state.staging : EMPTY_STAGING,
-        removal: {
-          id: state.nextRemovalId,
-          slot: state.selectedSlot,
-          index: action.index,
-          activity,
-        },
-        nextRemovalId: state.nextRemovalId + 1,
+        activities: state.activities.filter((a) => a.id !== action.id),
+        // Editing the removed activity is no longer meaningful.
+        staging: state.staging.editingId === action.id ? EMPTY_STAGING : state.staging,
+        removal: { activity },
       }
     }
 
     case 'undoRemoval': {
       const { removal } = state
       if (!removal) return state
-      const entry = cloneEntry(state.entries[removal.slot])
+      const { activity } = removal
 
-      // Belt and braces alongside `removalAfterWrite`: restoring must never be
-      // the one path that can breach the <=2 activities / <=30 minutes rule
-      // every other path enforces. A restore that no longer fits is discarded,
-      // not applied.
-      const exceedsCount = entry.activities.length + 1 > MAX_ACTIVITIES_PER_SLOT
-      const exceedsMinutes = usedMinutes(entry) + removal.activity.duration > SLOT_MINUTES
-      if (exceedsCount || exceedsMinutes) {
+      // Belt and braces: restoring must never be the one path that can
+      // reintroduce an overlap every other path forbids. If something has
+      // since taken this activity's exact time range, the restore is
+      // discarded rather than applied — the honest outcome, since the thing
+      // it would undo no longer has room.
+      const candidate: CandidateSchedule = {
+        id: null,
+        activity: activity.name !== null ? { name: activity.name, path: activity.path } : null,
+        startMinutes: activity.startMinutes,
+        durationMinutes: activity.durationMinutes,
+      }
+      if (!validateSchedule(candidate, state.activities).ok) {
         return { ...state, removal: null }
       }
 
-      const index = Math.min(removal.index, entry.activities.length)
-      entry.activities.splice(index, 0, removal.activity)
-      return {
-        ...state,
-        entries: withEntry(state.entries, removal.slot, entry),
-        removal: null,
-      }
+      return { ...state, activities: [...state.activities, activity], removal: null }
     }
 
     case 'dismissRemoval':
-      if (state.removal?.id !== action.id) return state
+      if (state.removal?.activity.id !== action.id) return state
       return { ...state, removal: null }
 
     case 'toggleFlag': {
-      const entry = cloneEntry(state.entries[state.selectedSlot])
-      const index = entry.flags.indexOf(action.flag)
-      if (index > -1) entry.flags.splice(index, 1)
-      else entry.flags.push(action.flag)
-      return { ...state, entries: withEntry(state.entries, state.selectedSlot, entry) }
+      const marker = flagMarkerAt(state.activities, state.selectedSlot)
+      if (marker) {
+        const flags = marker.flags.includes(action.flag)
+          ? marker.flags.filter((f) => f !== action.flag)
+          : [...marker.flags, action.flag]
+        if (flags.length === 0) {
+          return { ...state, activities: state.activities.filter((a) => a.id !== marker.id) }
+        }
+        return {
+          ...state,
+          activities: state.activities.map((a) => (a.id === marker.id ? { ...a, flags } : a)),
+        }
+      }
+      const { start } = slotMinuteRange(state.selectedSlot)
+      const newMarker: ScheduledActivity = {
+        id: generateId(),
+        name: null,
+        path: [],
+        startMinutes: start,
+        durationMinutes: 0,
+        flags: [action.flag],
+        status: 'planned',
+        timezone:
+          typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
+      }
+      return { ...state, activities: [...state.activities, newMarker] }
     }
 
     /**
      * A DROP NEVER COMMITS.
      *
-     * Dropping a card used to place a flat card straight into the slot at an
-     * assumed 30 minutes, so the duration stepper, the capacity ceiling message
-     * and the explicit "Add to slot" confirmation were all bypassed on the drag
-     * path only — two different ways to place an activity, with two different
-     * sets of rules.
-     *
-     * It is now defined as exactly what the manual flow does: select the
-     * dropped slot, then pick that card. Not "the same behaviour" — literally
-     * the same two reducer cases, so the drop inherits slot resolution, the
-     * default duration, the 2-activity / 30-minute capacity rules and the
+     * Defined as exactly what the manual flow does: select the dropped slot,
+     * then pick that card — so the drop inherits slot resolution, the
+     * default duration, the overlap/continuous-ceiling rules and the
      * conflict handling verbatim, and can never drift from them.
-     *
-     * Consequences that fall out of the delegation, all intended:
-     *  - dropping onto a slot already covered by a longer activity selects
-     *    that literal slot (not the covering activity's anchor — every cell
-     *    is independently selectable, see `selectSlot`), same as clicking it;
-     *  - dropping onto a full slot (whether full on its own activities, or
-     *    entirely covered by an earlier anchor's spillover) selects it and
-     *    stages nothing, so the editor's at-capacity banner explains why
-     *    (`pickCard` no-ops at max 0);
-     *  - a card with sub-options opens its sub-picker; a flat card is staged
-     *    complete and needs only the confirm. Neither is written to `entries`
-     *    until the user presses Add to slot.
      */
     case 'dropCard': {
       const selected = boardReducer(state, { type: 'selectSlot', slot: action.slot })
       return boardReducer(selected, { type: 'pickCard', cardName: action.cardName })
+    }
+
+    /**
+     * Replaces `activities` wholesale with the server's authoritative view —
+     * the one-time reconciliation `BoardContext` performs after a cold load
+     * signs in and fetches "today" (rule 8's bounded window). Deliberately
+     * NOT a general merge: Phase 2's local-first write is "instant local,
+     * background sync"; reconciling a genuinely concurrent local edit made
+     * while this fetch was in flight against the server's answer is Phase
+     * 5's last-write-wins hardening (rule 7), out of scope here. Clears any
+     * staged pick and pending removal, since both reference activities by id
+     * that this swap may have just invalidated.
+     */
+    case 'hydrate':
+      return { ...state, activities: action.activities, staging: EMPTY_STAGING, removal: null }
+
+    /**
+     * Phase 3 — planned vs. actual. Toggling completion NEVER touches
+     * start/duration/path/flags (the mirror image of rule 4: a status change
+     * must be just as surgical as a reschedule is required to be), so it is
+     * deliberately its own action rather than routed through `commit`.
+     */
+    case 'toggleComplete': {
+      const activity = state.activities.find((a) => a.id === action.id)
+      if (!activity || activity.name === null) return state
+      const status = activity.status === 'completed' ? 'planned' : 'completed'
+      return {
+        ...state,
+        activities: state.activities.map((a) => (a.id === action.id ? { ...a, status } : a)),
+      }
     }
 
     default:
