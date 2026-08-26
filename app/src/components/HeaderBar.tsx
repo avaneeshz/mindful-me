@@ -1,23 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, Sun, User } from 'lucide-react'
-import { Chip, chipVariants } from '@/components/ui/chip'
+import { CalendarDays, User } from 'lucide-react'
+import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
+import { WeatherPill } from '@/components/WeatherPill'
 import type { AuthUser } from '@/state/AuthContext'
 import { cn } from '@/lib/utils'
-
-/* ---------------------------------------------------------------------------
- * ⚠ PLACEHOLDER DATA — NOT REAL, NOT COMPUTED.
- *
- * There is no weather provider wired up. These values are hardcoded exactly as
- * they were in the prototype and are pending backend integration. Do not treat
- * them as live data, and do not add derived UI (advice, warnings, trends) on
- * top of them until a real source exists.
- * ------------------------------------------------------------------------- */
-const PLACEHOLDER_WEATHER = {
-  isPlaceholder: true as const,
-  temperatureLabel: '28°C',
-  location: 'Hyderabad',
-}
 
 /**
  * `YYYY-MM-DD` in the DEVICE's timezone, for the <time> element's machine-
@@ -72,12 +59,7 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: He
       */}
       <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
 
-      <Chip size="sm" className="font-semibold mobile:hidden">
-        <Sun aria-hidden="true" className="size-[14px] text-muted" />
-        <span>{PLACEHOLDER_WEATHER.temperatureLabel}</span>
-        <span className="text-muted">{PLACEHOLDER_WEATHER.location}</span>
-        <span className="sr-only">(placeholder weather, not live data)</span>
-      </Chip>
+      <WeatherPill className="mobile:hidden" />
 
       {user ? (
         <AccountMenu user={user} onSignOut={onSignOut} />

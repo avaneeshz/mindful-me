@@ -97,8 +97,11 @@ describe('Today screen', () => {
     expect(slot22).toContain('flex-col')
   })
 
-  it('marks the weather pill as placeholder data', () => {
-    expect(html).toContain('placeholder weather, not live data')
+  it('renders the weather pill in its loading state (no network happens during SSR)', () => {
+    // BL-3: real geolocation + weather resolve asynchronously in an effect,
+    // which never runs under `renderToStaticMarkup` — the pill must render
+    // its honest loading state rather than crash or show stale/fake data.
+    expect(html).toContain('Loading weather')
   })
 
   it('renders all 24 activity cards as tiles', () => {
