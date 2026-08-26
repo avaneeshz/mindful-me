@@ -1,7 +1,8 @@
 import { findCard } from '@/data/activities'
-import { flagMarkerAt, periodOfSlot, slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
+import { flagMarkerAt, slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
+  clampStepDuration,
   commitSchedule,
   computeCandidateSchedule,
   generateId,
@@ -9,7 +10,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { FlagId, Period, ScheduledActivity } from '@/domain/types'
+import type { FlagId, ScheduledActivity } from '@/domain/types'
 
 /**
  * What is currently staged in the right-hand pane but not yet committed.
@@ -42,14 +43,6 @@ export interface BoardState {
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
-  /**
-   * Which segment of the period navigator is focused. This is presentation
-   * only: it NEVER hides, dims or disables the other timeline row, and it is
-   * independent of `selectedSlot`.
-   */
-  focusedPeriod: Period
-  /** Bumped on every period jump so the target row can replay its pulse. */
-  jump: { period: Period; token: number } | null
 }
 
 export const EMPTY_STAGING: StagingState = {
@@ -62,12 +55,18 @@ export const EMPTY_STAGING: StagingState = {
 
 export type BoardAction =
   | { type: 'selectSlot'; slot: number }
-  | { type: 'focusPeriod'; period: Period }
   | { type: 'pickCard'; cardName: string }
   | { type: 'pickOption'; level: number; value: string }
   | { type: 'crumbBack' }
   | { type: 'cancelStaging' }
   | { type: 'stepDuration'; delta: number }
+  /**
+   * An exact duration from free-form entry or a quick-add button. Unlike
+   * `stepDuration`, this never snaps to the stepper's 5-minute grid — it
+   * clamps only to [MIN_DURATION_MINUTES, ceiling] (rule 13), then flows
+   * through the same `commit` pipeline as every other staged duration.
+   */
+  | { type: 'setDuration'; minutes: number }
   | { type: 'commit' }
   | { type: 'editActivity'; id: string }
   | { type: 'removeActivity'; id: string }
@@ -109,8 +108,6 @@ export function createInitialState(activities: ScheduledActivity[], now: Date): 
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
-    focusedPeriod: periodOfSlot(selectedSlot),
-    jump: null,
   }
 }
 
@@ -136,15 +133,6 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       // Selecting a different slot abandons anything staged for the old one —
       // staged picks are scoped to a slot and were never committed.
       return { ...state, selectedSlot: slot, staging: EMPTY_STAGING }
-    }
-
-    case 'focusPeriod': {
-      // Presentation-only. Deliberately does not touch selectedSlot.
-      return {
-        ...state,
-        focusedPeriod: action.period,
-        jump: { period: action.period, token: (state.jump?.token ?? 0) + 1 },
-      }
     }
 
     case 'pickCard': {
@@ -188,7 +176,29 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         state.staging.startMinutes,
         state.staging.editingId,
       )
-      const next = clampDuration(state.staging.durationMinutes + action.delta, ceiling)
+      // The stepper's own floor (DURATION_STEP_MINUTES, 5) — never the
+      // domain-wide MIN_DURATION_MINUTES (1) that free-form entry uses — so
+      // every +/-5 click lands back on a multiple of 5. See `clampStepDuration`.
+      const next = clampStepDuration(state.staging.durationMinutes + action.delta, ceiling)
+      if (next === state.staging.durationMinutes) return state
+      return { ...state, staging: { ...state.staging, durationMinutes: next } }
+    }
+
+    /**
+     * R2.3/R2.4 — free-form manual entry and the additive quick-add buttons
+     * both land here with the exact target minutes; the general `clampDuration`
+     * (floor 1, no grid snapping) is what makes the typed value commit exactly
+     * as entered rather than rounding to the stepper's 5-minute grid, while
+     * still respecting the same overlap/continuous-block ceiling.
+     */
+    case 'setDuration': {
+      if (!state.staging.cardName) return state
+      const ceiling = maxContiguousDuration(
+        state.activities,
+        state.staging.startMinutes,
+        state.staging.editingId,
+      )
+      const next = clampDuration(action.minutes, ceiling)
       if (next === state.staging.durationMinutes) return state
       return { ...state, staging: { ...state.staging, durationMinutes: next } }
     }

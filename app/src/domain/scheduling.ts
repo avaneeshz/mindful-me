@@ -144,6 +144,20 @@ export function clampDuration(desired: number, ceiling: number): number {
   return Math.min(ceiling, Math.max(MIN_DURATION_MINUTES, Math.round(desired)))
 }
 
+/**
+ * Clamp a desired duration for the STEPPER specifically. The floor here is
+ * `DURATION_STEP_MINUTES` (5) itself, not the domain-wide `MIN_DURATION_MINUTES`
+ * (1) that `clampDuration` uses for free-form/manual entry: the stepper only
+ * ever moves in +/-5 increments, so its own floor has to be a multiple of 5,
+ * or repeatedly stepping down bottoms out at 1 and stepping back up from
+ * there drifts onto 6, 11, 16... instead of 5, 10, 15... — every subsequent
+ * +/-5 click has to land back on the grid.
+ */
+export function clampStepDuration(desired: number, ceiling: number): number {
+  if (ceiling < MIN_DURATION_MINUTES) return 0
+  return Math.min(ceiling, Math.max(DURATION_STEP_MINUTES, Math.round(desired)))
+}
+
 /** True when nothing may be newly placed starting within [start, start+windowMinutes). */
 export function isWindowFull(existing: ActivityList, start: number, windowMinutes: number): boolean {
   return nextFreeStart(existing, start) >= start + windowMinutes

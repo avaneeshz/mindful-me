@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampDuration,
+  clampStepDuration,
   commitSchedule,
   computeCandidateSchedule,
   DEFAULT_DURATION_MINUTES,
@@ -184,6 +185,51 @@ describe('clampDuration', () => {
   it('never snaps to any step — any exact minute is a legal duration', () => {
     expect(clampDuration(47, 90)).toBe(47)
   })
+})
+
+describe('clampStepDuration — the stepper-only clamp (R2.2 regression)', () => {
+  it('floors at DURATION_STEP_MINUTES (5), never at MIN_DURATION_MINUTES (1)', () => {
+    expect(clampStepDuration(0, 300)).toBe(DURATION_STEP_MINUTES)
+    expect(clampStepDuration(-5, 300)).toBe(DURATION_STEP_MINUTES)
+    expect(clampStepDuration(1, 300)).toBe(DURATION_STEP_MINUTES)
+  })
+
+  it('clamps into [DURATION_STEP_MINUTES, ceiling] otherwise exactly like clampDuration', () => {
+    expect(clampStepDuration(45, 60)).toBe(45)
+    expect(clampStepDuration(90, 60)).toBe(60)
+  })
+
+  it('returns 0 when the ceiling itself is below the minimum', () => {
+    expect(clampStepDuration(30, 0)).toBe(0)
+  })
+
+  it(
+    'stepping down to the floor and back up never drifts off the 5-minute grid ' +
+      '(the reported bug: bottoming out at 1, then climbing 6, 11, 16... instead of 5, 10, 15...)',
+    () => {
+      const ceiling = 300 // plenty of room — never the binding constraint here
+      let duration = DEFAULT_DURATION_MINUTES // 30
+
+      // Step down past the floor several times over — every intermediate
+      // value must already be a clean multiple of 5, and it must never go
+      // below the floor.
+      for (let i = 0; i < 10; i += 1) {
+        duration = clampStepDuration(duration - DURATION_STEP_MINUTES, ceiling)
+        expect(duration % DURATION_STEP_MINUTES).toBe(0)
+        expect(duration).toBeGreaterThanOrEqual(DURATION_STEP_MINUTES)
+      }
+      expect(duration).toBe(DURATION_STEP_MINUTES) // bottomed out at 5, not 1
+
+      // Now step back up from the floor — every intermediate value must land
+      // exactly on 5, 10, 15, 20... never 6, 11, 16, 21...
+      const expected = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+      for (const target of expected) {
+        duration = clampStepDuration(duration + DURATION_STEP_MINUTES, ceiling)
+        expect(duration % DURATION_STEP_MINUTES).toBe(0)
+        expect(duration).toBe(target)
+      }
+    },
+  )
 })
 
 describe('isWindowFull', () => {

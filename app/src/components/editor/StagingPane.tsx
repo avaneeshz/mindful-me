@@ -1,6 +1,7 @@
+import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
-import { DURATION_STEP_MINUTES, MIN_DURATION_MINUTES } from '@/domain/scheduling'
+import { DURATION_STEP_MINUTES } from '@/domain/scheduling'
 import { type StagingState } from '@/state/boardReducer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -18,11 +19,26 @@ interface StagingPaneProps {
    */
   canCommit: boolean
   onStep: (delta: number) => void
+  /**
+   * Set an exact duration — from the manual entry field or a quick-add
+   * button. Goes through the same reducer clamp (overlap + continuous-block
+   * ceiling) as `onStep`, just without snapping to the 5-minute grid.
+   */
+  onSetDuration: (minutes: number) => void
   onCommit: () => void
   onCancel: () => void
 }
 
 export const CAPACITY_MESSAGE_ID = 'staging-capacity-message'
+
+/** The stepper's own floor — see `clampStepDuration` in domain/scheduling.ts. */
+const STEPPER_MIN_DURATION_MINUTES = DURATION_STEP_MINUTES
+
+const QUICK_ADD_OPTIONS: Array<{ label: string; minutes: number; description: string }> = [
+  { label: '30min', minutes: 30, description: 'Add 30 minutes to duration' },
+  { label: '1hr', minutes: 60, description: 'Add 1 hour to duration' },
+  { label: '2hr', minutes: 120, description: 'Add 2 hours to duration' },
+]
 
 export function primaryActionLabel(staging: StagingState): string {
   return staging.editingId !== null ? 'Save changes' : 'Add to slot'
@@ -45,6 +61,7 @@ export function StagingPane({
   maxDuration,
   canCommit,
   onStep,
+  onSetDuration,
   onCommit,
   onCancel,
 }: StagingPaneProps) {
@@ -76,19 +93,28 @@ export function StagingPane({
       </div>
 
       {/*
-        The stepper and its ceiling message are ONE group, not two peers a full
-        gap apart: the message explains the stepper's limit, so binding it tight
-        underneath is both the correct reading order and the exact state where
-        vertical space is tightest (Acceptance Criterion 13 — a second activity
-        in a partially-filled slot is what pushes the primary action toward the
+        The stepper, manual entry, quick-add and the ceiling message are ONE
+        group, not peers a full gap apart: the message explains all three
+        controls' shared limit, so binding it tight underneath is both the
+        correct reading order and the exact state where vertical space is
+        tightest (Acceptance Criterion 13 — a second activity in a
+        partially-filled slot is what pushes the primary action toward the
         fold on iPad landscape).
       */}
-      <div className="flex flex-col gap-sm">
+      <div className="flex flex-col gap-md">
         <DurationStepper
           duration={staging.durationMinutes}
           maxDuration={maxDuration}
           atCeiling={atCeiling}
           onStep={onStep}
+        />
+
+        <ManualDurationInput duration={staging.durationMinutes} onSetDuration={onSetDuration} />
+
+        <QuickAddButtons
+          duration={staging.durationMinutes}
+          maxDuration={maxDuration}
+          onSetDuration={onSetDuration}
         />
 
         {/*
@@ -127,7 +153,11 @@ function DurationStepper({
   atCeiling: boolean
   onStep: (delta: number) => void
 }) {
-  const canDecrease = duration > MIN_DURATION_MINUTES
+  // The stepper's floor is a clean multiple of DURATION_STEP_MINUTES (5),
+  // never the domain-wide 1-minute floor manual entry uses — otherwise
+  // repeatedly decreasing bottoms out at 1 and the next +5 click drifts onto
+  // 6, 11, 16... instead of landing back on 5, 10, 15...
+  const canDecrease = duration > STEPPER_MIN_DURATION_MINUTES
   const canIncrease = duration < maxDuration
 
   const stepButton =
@@ -172,6 +202,118 @@ function DurationStepper({
           <Plus aria-hidden="true" className="size-[18px]" />
         </button>
       </div>
+    </div>
+  )
+}
+
+const MANUAL_DURATION_INPUT_ID = 'duration-manual-input'
+
+/**
+ * Free-form exact-minute entry (Acceptance Criterion R2.3). The typed value
+ * commits exactly as entered — no snapping to the stepper's 5-minute grid —
+ * via the same `onSetDuration` -> `setDuration` reducer path that clamps
+ * only to [1 minute, continuous-block ceiling]. A local "draft" string keeps
+ * the field editable (empty, mid-typed) without fighting the committed
+ * value; it commits on blur or Enter and reverts to the last committed
+ * value on anything that isn't a valid whole positive number.
+ */
+function ManualDurationInput({
+  duration,
+  onSetDuration,
+}: {
+  duration: number
+  onSetDuration: (minutes: number) => void
+}) {
+  const [draft, setDraft] = useState(String(duration))
+  const [focused, setFocused] = useState(false)
+
+  // Stay in sync with duration changes from the stepper, quick-add buttons,
+  // or switching the staged activity — but never while the user is actively
+  // typing, or every keystroke's dispatch would overwrite what they're mid-
+  // way through entering.
+  useEffect(() => {
+    if (!focused) setDraft(String(duration))
+  }, [duration, focused])
+
+  function commitDraft() {
+    const parsed = Number.parseInt(draft, 10)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      onSetDuration(parsed)
+    } else {
+      // Not a valid whole positive number — revert rather than commit garbage.
+      setDraft(String(duration))
+    }
+  }
+
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    setDraft(event.target.value)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitDraft()
+      event.currentTarget.blur()
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-sm">
+      <label htmlFor={MANUAL_DURATION_INPUT_ID} className="text-caption font-semibold text-muted">
+        Set exact minutes
+      </label>
+      <input
+        id={MANUAL_DURATION_INPUT_ID}
+        type="number"
+        inputMode="numeric"
+        min={1}
+        step={1}
+        value={draft}
+        onFocus={() => setFocused(true)}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          setFocused(false)
+          commitDraft()
+        }}
+        className="h-control w-[76px] rounded-md border border-line bg-white px-md text-body font-semibold text-charcoal transition-colors hover:border-forest-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+      />
+      <span className="text-caption text-muted">minutes</span>
+    </div>
+  )
+}
+
+/**
+ * R2.4 — additive quick-add buttons. Each adds its labeled amount to
+ * whatever duration is currently staged (never sets it outright), through
+ * the same clamp `onSetDuration` already applies.
+ */
+function QuickAddButtons({
+  duration,
+  maxDuration,
+  onSetDuration,
+}: {
+  duration: number
+  maxDuration: number
+  onSetDuration: (minutes: number) => void
+}) {
+  return (
+    <div role="group" aria-label="Add time to duration" className="flex flex-wrap gap-sm">
+      {QUICK_ADD_OPTIONS.map((option) => {
+        const disabled = duration >= maxDuration
+        return (
+          <button
+            key={option.label}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSetDuration(duration + option.minutes)}
+            aria-label={option.description}
+            className="rounded-full border border-line bg-white px-md py-xs text-caption font-semibold text-forest transition-colors hover:border-forest-light hover:bg-bg disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-white"
+          >
+            +{option.label}
+          </button>
+        )
+      })}
     </div>
   )
 }

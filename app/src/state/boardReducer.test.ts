@@ -39,8 +39,6 @@ function assertNoOverlaps(state: BoardState, context: string): void {
 describe('initial state', () => {
   it('selects the slot containing the real current time', () => {
     expect(start().selectedSlot).toBe(32)
-    expect(start().focusedPeriod).toBe('day')
-    expect(createInitialState([], new Date(2026, 7, 25, 22, 0)).focusedPeriod).toBe('night')
   })
 
   it('starts with no activities and no staging', () => {
@@ -510,18 +508,103 @@ describe('an activity spanning three or more grid cells', () => {
   })
 })
 
-describe('period navigation', () => {
-  it('never changes which slot is selected', () => {
-    const state = boardReducer(start(), { type: 'focusPeriod', period: 'night' })
-    expect(state.focusedPeriod).toBe('night')
-    expect(state.selectedSlot).toBe(32)
-    expect(state.jump?.period).toBe('night')
+describe('stepDuration — R2.2 regression: floor must be a multiple of 5, never 1', () => {
+  it('bottoms out at 5, and stepping back up lands on 5, 10, 15... never 6, 11, 16...', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' }) // 30
+
+    // Step down well past the old broken floor of 1.
+    for (let i = 0; i < 10; i += 1) {
+      state = boardReducer(state, { type: 'stepDuration', delta: -5 })
+      expect(state.staging.durationMinutes % 5).toBe(0)
+      expect(state.staging.durationMinutes).toBeGreaterThanOrEqual(5)
+    }
+    expect(state.staging.durationMinutes).toBe(5) // floor is 5, not 1
+
+    // One more step down is a no-op at the floor — never goes to 0 or below.
+    state = boardReducer(state, { type: 'stepDuration', delta: -5 })
+    expect(state.staging.durationMinutes).toBe(5)
+
+    // Step back up: every value must be an exact multiple of 5.
+    const expected = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+    for (const target of expected) {
+      state = boardReducer(state, { type: 'stepDuration', delta: 5 })
+      expect(state.staging.durationMinutes).toBe(target)
+    }
+  })
+})
+
+describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
+  it('commits an exact typed value with no snapping to the 5-minute grid', () => {
+    const state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'setDuration', minutes: 37 },
+    )
+    expect(state.staging.durationMinutes).toBe(37)
   })
 
-  it('re-issues a jump token so a repeat tap pulses again', () => {
-    let state = boardReducer(start(), { type: 'focusPeriod', period: 'night' })
-    const first = state.jump?.token
-    state = boardReducer(state, { type: 'focusPeriod', period: 'night' })
-    expect(state.jump?.token).not.toBe(first)
+  it('clamps a typed value down to the same continuous-block ceiling the stepper respects', () => {
+    // Something else starts 50 minutes after 16:00 (the pinned "now" slot).
+    const occupied = start([
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], status: 'planned', timezone: 'UTC' },
+    ])
+    const state = run(
+      occupied,
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'setDuration', minutes: 500 },
+    )
+    expect(state.staging.durationMinutes).toBe(50)
+    const committed = boardReducer(state, { type: 'commit' })
+    assertNoOverlaps(committed, 'setDuration clamped to the ceiling')
+  })
+
+  it('floors at 1 whole positive minute — never 0 or negative — regardless of what was typed', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'setDuration', minutes: 0 })
+    expect(state.staging.durationMinutes).toBe(1)
+    state = boardReducer(state, { type: 'setDuration', minutes: -20 })
+    expect(state.staging.durationMinutes).toBe(1)
+  })
+
+  it('quick-add is additive — it adds to whatever is already staged, never sets outright', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }) // 30
+    // "+30min": component dispatches current + 30.
+    state = boardReducer(state, { type: 'setDuration', minutes: state.staging.durationMinutes + 30 })
+    expect(state.staging.durationMinutes).toBe(60)
+    // "+1hr" on top of that.
+    state = boardReducer(state, { type: 'setDuration', minutes: state.staging.durationMinutes + 60 })
+    expect(state.staging.durationMinutes).toBe(120)
+    // "+2hr" on top of that.
+    state = boardReducer(state, { type: 'setDuration', minutes: state.staging.durationMinutes + 120 })
+    expect(state.staging.durationMinutes).toBe(240)
+  })
+
+  it('quick-add also clamps to the ceiling rather than creating an overlap', () => {
+    const occupied = start([
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], status: 'planned', timezone: 'UTC' },
+    ])
+    let state = run(occupied, { type: 'pickCard', cardName: 'Homework' }) // clamped to 30 already? verify below
+    // Add a full 2 hours — far more than the 40-minute ceiling allows.
+    state = boardReducer(state, { type: 'setDuration', minutes: state.staging.durationMinutes + 120 })
+    expect(state.staging.durationMinutes).toBe(40)
+    const committed = boardReducer(state, { type: 'commit' })
+    assertNoOverlaps(committed, 'quick-add clamped to the ceiling')
+  })
+
+  it('goes through the same validate/commit pipeline as the stepper — rule 4 still holds', () => {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'setDuration', minutes: 37 },
+      { type: 'commit' },
+    )
+    const id = real(state)[0].id
+    state = { ...state, activities: state.activities.map((a) => (a.id === id ? { ...a, status: 'completed' } : a)) }
+
+    state = boardReducer(state, { type: 'editActivity', id })
+    state = boardReducer(state, { type: 'setDuration', minutes: 52 })
+    state = boardReducer(state, { type: 'commit' })
+
+    expect(byId(state, id)?.status).toBe('completed')
+    expect(byId(state, id)?.durationMinutes).toBe(52)
   })
 })
