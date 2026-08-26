@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { categoryOf, FLAGS } from '@/data/activities'
 import {
   MIDNIGHT_TICK_POSITION,
@@ -20,13 +20,6 @@ import { cn } from '@/lib/utils'
 
 const FLAG_ICONS = Object.fromEntries(FLAGS.map((f) => [f.id, f.icon]))
 
-/** Must match the `row-pulse` animation duration in tailwind.config.js. */
-const ROW_PULSE_MS = 700
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-}
-
 /** Spoken description of a slot — never relies on colour to convey state. */
 function describeSlot(slot: number, touching: ScheduledActivity[], flags: readonly FlagId[]): string {
   const parts: string[] = [formatSlotRange(slot)]
@@ -47,8 +40,6 @@ interface TimelineProps {
   activities: ActivityList
   selectedSlot: number
   now: Date
-  /** Bumped by the period navigator to request a scroll + pulse. */
-  jump: { period: Period; token: number } | null
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
 }
@@ -57,13 +48,10 @@ export function Timeline({
   activities,
   selectedSlot,
   now,
-  jump,
   onSelectSlot,
   onDropCard,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
-  const rowRefs = useRef<Record<Period, HTMLDivElement | null>>({ day: null, night: null })
-  const [pulsing, setPulsing] = useState<Period | null>(null)
   /**
    * Last slot the user actually focused. The roving tab stop follows this, not
    * only `selectedSlot` — arrow keys move focus WITHOUT selecting (deliberately,
@@ -73,33 +61,6 @@ export function Timeline({
   const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
 
   const marker = nowMarker(now)
-
-  // Period jump: scroll the target row into view and pulse it. The other row is
-  // untouched — it is never hidden, dimmed or disabled.
-  useEffect(() => {
-    if (!jump) return
-    const row = rowRefs.current[jump.period]
-    if (!row) return
-
-    row.scrollIntoView({
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-      block: 'nearest',
-    })
-
-    // Drop the class first and re-add it on the next frame. A repeat tap on the
-    // same segment would otherwise leave the class already applied, and a CSS
-    // animation only replays when it is re-applied.
-    setPulsing(null)
-    let timeout = 0
-    const frame = window.requestAnimationFrame(() => {
-      setPulsing(jump.period)
-      timeout = window.setTimeout(() => setPulsing(null), ROW_PULSE_MS)
-    })
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.clearTimeout(timeout)
-    }
-  }, [jump])
 
   function focusSlot(slot: number) {
     const target = containerRef.current?.querySelector<HTMLButtonElement>(
@@ -161,15 +122,11 @@ export function Timeline({
         {(['day', 'night'] as const).map((period) => (
           <TimelineRow
             key={period}
-            ref={(el) => {
-              rowRefs.current[period] = el
-            }}
             period={period}
             activities={activities}
             selectedSlot={selectedSlot}
             focusedSlot={focusedSlot}
             marker={marker.period === period ? marker.ratio : null}
-            pulsing={pulsing === period}
             onFocusSlot={setFocusedSlot}
             onSelectSlot={onSelectSlot}
             onDropCard={onDropCard}
@@ -182,7 +139,6 @@ export function Timeline({
 }
 
 interface TimelineRowProps {
-  ref: (el: HTMLDivElement | null) => void
   period: Period
   activities: ActivityList
   selectedSlot: number
@@ -190,7 +146,6 @@ interface TimelineRowProps {
   focusedSlot: number | null
   /** 0–1 position of the current-time marker, or null if it is on the other row. */
   marker: number | null
-  pulsing: boolean
   onFocusSlot: (slot: number) => void
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
@@ -198,13 +153,11 @@ interface TimelineRowProps {
 }
 
 function TimelineRow({
-  ref,
   period,
   activities,
   selectedSlot,
   focusedSlot,
   marker,
-  pulsing,
   onFocusSlot,
   onSelectSlot,
   onDropCard,
@@ -288,7 +241,6 @@ function TimelineRow({
         */}
         <div className="relative min-w-full mobile:w-[720px] mobile:min-w-[720px]">
         <div
-          ref={ref}
           role="group"
           aria-label={`${period === 'day' ? 'Day' : 'Night'} timeline, ${
             period === 'day' ? '6am to 6pm' : '6pm to 6am'
@@ -296,10 +248,6 @@ function TimelineRow({
           className={cn(
             'timeline-row relative flex h-timeline-row w-full overflow-hidden rounded-lg mobile:h-timeline-row-sm ipad-land:h-timeline-row-md',
             period === 'day' ? 'bg-strip' : 'bg-night-strip',
-            // `row-pulse` supplies the outline base; `animate-row-pulse` is the
-            // real Tailwind utility, and is what makes the @keyframes reach the
-            // built CSS at all. Both are required — see styles/index.css.
-            pulsing && 'row-pulse animate-row-pulse',
           )}
         >
           {indices.map((slot) => {

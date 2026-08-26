@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
 import { describeSlotContents } from '@/components/editor/ActivityPicker'
-import { PERIOD_LABELS } from '@/data/periods'
 
 /**
  * A mount smoke test: renders the whole screen and asserts the structural
@@ -54,11 +53,13 @@ describe('Today screen', () => {
     expect(html).not.toMatch(/notification/i)
   })
 
-  it('renders both period segments and both timeline rows', () => {
-    expect(html).toContain(PERIOD_LABELS.day)
-    expect(html).toContain(PERIOD_LABELS.night)
+  it('renders both timeline rows, with no Day/Night jump toggle above them', () => {
     expect(html).toContain('Day timeline, 6am to 6pm')
     expect(html).toContain('Night timeline, 6pm to 6am')
+    // R3: the segmented "Day · 6a–6p" / "Night · 6p–6a" control is gone —
+    // both rows are always visible, so it only duplicated what they show.
+    expect(html).not.toMatch(/Day\s*·\s*6a[–-]6p/)
+    expect(html).not.toMatch(/Night\s*·\s*6p[–-]6a/)
   })
 
   it('renders all 48 grid cells as real buttons across the two rows', () => {
@@ -128,10 +129,16 @@ describe('Today screen', () => {
     expect(meter).toContain('width:calc(100% - 2px)')
   })
 
-  it('rules both timeline rows with hour ticks, not just the midnight one', () => {
-    for (const label of ['06', '08', '10', '12', '14', '16', '18', '20', '22', '00']) {
+  it('rules both timeline rows with exactly 3 hour ticks apiece — start, midpoint, end', () => {
+    // Day: 6a, 12p, 6p. Night: 6p, 12a, 6a — "6p" and "6a" each appear once
+    // per row, so 2 occurrences of each across the whole page.
+    for (const label of ['6a', '12p', '6p', '12a']) {
       expect(html).toContain('>' + label + '</span>')
     }
+    expect(html.match(/>6a<\/span>/g) ?? []).toHaveLength(2)
+    expect(html.match(/>6p<\/span>/g) ?? []).toHaveLength(2)
+    expect(html.match(/>12p<\/span>/g) ?? []).toHaveLength(1)
+    expect(html.match(/>12a<\/span>/g) ?? []).toHaveLength(1)
   })
 
   it('keeps the sidebar with Today active and the rest as placeholders', () => {

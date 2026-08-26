@@ -169,17 +169,6 @@ export default {
         'out-soft': 'cubic-bezier(0.22, 0.61, 0.36, 1)',
       },
       keyframes: {
-        // Gold (#D4A857) confirmation pulse on the timeline row a period jump
-        // landed on. It has to carry the entire "the view moved here" signal on
-        // viewports where both rows already fit and nothing scrolls, so it
-        // rises fast, HOLDS at full strength, then releases — a single 400ms
-        // fade was too brief to register even when it did fire.
-        'row-pulse': {
-          '0%': { outlineColor: 'rgba(212,168,87,0)', boxShadow: '0 0 0 0 rgba(212,168,87,0.45)' },
-          '12%': { outlineColor: 'rgba(212,168,87,1)', boxShadow: '0 0 0 3px rgba(212,168,87,0.32)' },
-          '55%': { outlineColor: 'rgba(212,168,87,1)', boxShadow: '0 0 0 7px rgba(212,168,87,0.12)' },
-          '100%': { outlineColor: 'rgba(212,168,87,0)', boxShadow: '0 0 0 11px rgba(212,168,87,0)' },
-        },
         'undo-fade': {
           '0%': { opacity: '1' },
           '92%': { opacity: '1' },
@@ -187,8 +176,6 @@ export default {
         },
       },
       animation: {
-        // Keep ROW_PULSE_MS in components/Timeline.tsx in step with this.
-        'row-pulse': 'row-pulse 700ms cubic-bezier(0.22, 0.61, 0.36, 1) 1',
         'undo-fade': 'undo-fade 4000ms linear 1 forwards',
       },
     },
