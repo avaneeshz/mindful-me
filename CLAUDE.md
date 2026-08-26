@@ -127,18 +127,9 @@ Do not modify API contracts, payloads or business behavior merely to simplify fr
 
 ## Agent Workflow
 
-For substantial features, follow this sequence:
+There is a single agent for this project: **full-stack-engineer** (`.claude/agents/full-stack-engineer.md`). It owns frontend, backend, and database work end-to-end — there is no separate design, QA, or review agent.
 
-1. Product Owner validates the requirement.
-2. Product Designer validates information architecture and user flow.
-3. UI Designer validates the visual solution.
-4. Frontend Engineer implements the solution.
-5. QA Engineer validates functional behavior.
-6. UI Reviewer evaluates visual quality.
-7. UX Reviewer evaluates usability.
-8. Product Owner performs final product acceptance.
-
-Do not skip design review for major user-facing features.
+Product philosophy, the design system, and every rule in this file still apply in full to everything that agent builds — a single implementer does not mean lighter standards. The agent's own file carries the project-specific architecture, the decided backend/database model, and the non-negotiable product rules for scheduling; read it alongside this file before implementing anything substantial.
 
 ## Quality Standard
 
