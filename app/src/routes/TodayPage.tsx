@@ -1,14 +1,16 @@
 import { HeaderBar } from '@/components/HeaderBar'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
+import { useAuth } from '@/state/AuthContext'
 import { useBoard } from '@/state/BoardContext'
 
 export function TodayPage() {
   const { state, dispatch, now, nowSlot } = useBoard()
+  const { user, signOut } = useAuth()
 
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
-      <HeaderBar now={now} />
+      <HeaderBar now={now} user={user} onSignOut={signOut} />
 
       <div className="mt-xl ipad-land:mt-md">
         <Timeline

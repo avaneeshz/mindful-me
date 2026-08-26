@@ -1,7 +1,10 @@
+import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
+import { AuthScreen } from '@/components/auth/AuthScreen'
 import { TodayPage } from '@/routes/TodayPage'
+import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider } from '@/state/BoardContext'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +50,42 @@ function useHasContentBelow(ref: React.RefObject<HTMLElement | null>): boolean {
 }
 
 export default function App({ now }: AppProps = {}) {
+  return (
+    <AuthProvider>
+      <AuthGate now={now} />
+    </AuthProvider>
+  )
+}
+
+/**
+ * The app-level auth gate: a Supabase project not being configured at all
+ * (`resolveGateView`, `state/AuthContext.tsx`) falls straight through to the
+ * product exactly as it always has — local-only, no login required (rule 6).
+ * Otherwise this is what stands between "unauthenticated" and the real
+ * timeline/editor experience, which is rendered completely unchanged once
+ * signed in.
+ */
+function AuthGate({ now }: { now?: Date }) {
+  const { configured, status } = useAuth()
+  const view = resolveGateView(configured, status)
+
+  if (view === 'loading') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <Loader2 aria-hidden="true" className="size-[28px] animate-spin text-forest" />
+        <span className="sr-only">Loading…</span>
+      </div>
+    )
+  }
+
+  if (view === 'authScreen') {
+    return <AuthScreen />
+  }
+
+  return <AuthedApp now={now} />
+}
+
+function AuthedApp({ now }: { now?: Date }) {
   const mainRef = useRef<HTMLElement>(null)
   const hasContentBelow = useHasContentBelow(mainRef)
 

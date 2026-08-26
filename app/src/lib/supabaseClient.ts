@@ -30,35 +30,8 @@ if (!supabaseConfigured && import.meta.env.DEV) {
   )
 }
 
-let signInAttempted = false
-
-/**
- * Ensures a signed-in Supabase session exists before any RPC is attempted.
- *
- * The product has no login screen (out of scope for the migration phases
- * given to build this) — this app is single-user, personal, local-first
- * software, so an anonymous Supabase auth session (a real `auth.uid()`,
- * just not tied to an email/password) is what every RLS policy and the
- * `no_overlapping_activities` constraint key off of. Attempted once per
- * page load; a failure (e.g. Anonymous Sign-ins not enabled for this
- * project yet) is caught and logged, never thrown — sync simply stays off
- * and the app keeps working from local storage alone.
- */
-export async function ensureSignedIn(): Promise<boolean> {
-  if (!supabase) return false
-  const { data } = await supabase.auth.getSession()
-  if (data.session) return true
-  if (signInAttempted) return false
-  signInAttempted = true
-  const { error } = await supabase.auth.signInAnonymously()
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[supabase] Anonymous sign-in failed — staying local-only this session.',
-      '(Enable Authentication -> Sign In / Providers -> Anonymous Sign-ins in the Supabase dashboard.)',
-      error.message,
-    )
-    return false
-  }
-  return true
-}
+// Real email/password auth lives in `lib/auth.ts` (sign up / sign in / sign
+// out) and `state/AuthContext.tsx` (session state + the app-level gate).
+// There is no anonymous-auth bootstrap any more — every `auth.uid()` RLS
+// policy and the `no_overlapping_activities` constraint key off a real,
+// authenticated user's session instead.
