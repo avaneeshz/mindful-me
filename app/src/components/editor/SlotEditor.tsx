@@ -133,6 +133,7 @@ export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
             maxDuration={maxDuration}
             canCommit={canCommit}
             onStep={(delta) => dispatch({ type: 'stepDuration', delta })}
+            onSetDuration={(minutes) => dispatch({ type: 'setDuration', minutes })}
             onCommit={() => dispatch({ type: 'commit' })}
             onCancel={() => dispatch({ type: 'cancelStaging' })}
           />

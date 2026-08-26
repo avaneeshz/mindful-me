@@ -66,13 +66,14 @@ export function positionInRow(slot: number): number {
 export const MIDNIGHT_TICK_POSITION = SLOTS_PER_ROW / 2
 
 /* ------------------------------------------------------------------ *
- * Hour tick labels beneath each row: 7 labels at 2-hour (4-cell) intervals,
- * inclusive of both row edges.
- *   day   -> 6a  8a  10a 12p 2p  4p  6p
- *   night -> 6p  8p  10p 12a 2a  4a  6a
+ * Hour tick labels beneath each row: exactly 3 labels — start, midpoint,
+ * end — in the 12-hour lowercase format (`6a`, `12p`, ...).
+ *   day   -> 6a  12p  6p
+ *   night -> 6p  12a  6a
  * ------------------------------------------------------------------ */
 
-export const TICK_STEP_SLOTS = 4
+/** Half the row: the offset (in grid cells) from a row's start to its midpoint. */
+export const TICK_STEP_SLOTS = SLOTS_PER_ROW / 2
 
 /** e.g. 0 -> "12a", 13 -> "1p". */
 export function formatHourTick(hour24: number): string {
@@ -82,13 +83,11 @@ export function formatHourTick(hour24: number): string {
   return `${h12}${suffix}`
 }
 
-/** The 7 tick labels for a row, left to right. */
+/** The 3 tick labels for a row (start, midpoint, end), left to right. */
 export function rowTickLabels(period: Period): string[] {
   const startSlot = period === 'day' ? DAY_ROW_START_SLOT : NIGHT_ROW_START_SLOT
-  const count = SLOTS_PER_ROW / TICK_STEP_SLOTS + 1
-  return Array.from({ length: count }, (_, i) =>
-    String(((startSlot + i * TICK_STEP_SLOTS) / 2) % 24).padStart(2, '0'),
-  )
+  const offsets = [0, TICK_STEP_SLOTS, SLOTS_PER_ROW]
+  return offsets.map((offset) => formatHourTick((startSlot + offset) / 2))
 }
 
 export function normalizeSlot(slot: number): number {

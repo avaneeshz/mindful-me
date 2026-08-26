@@ -46,7 +46,11 @@ const navItemClass =
   'flex items-center gap-md rounded-md px-md py-md text-left text-btn font-medium text-sidebar-muted'
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+  // Collapsed by default on every viewport (desktop, tablet, mobile) — the
+  // hamburger toggle still expands/collapses it identically, only the
+  // initial state changed. The mobile drawer's own open/closed state
+  // (`mobileOpen`) is separate and already starts closed.
+  const [collapsed, setCollapsed] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)

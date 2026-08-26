@@ -104,28 +104,6 @@
       0 0 1px rgba(27, 59, 50, 0.9);
   }
 
-  /* -------------------------------------------------------------------------
-     The Gold outline pulse played on a timeline row when the period navigator
-     jumps to it.
-
-     THIS WAS DEAD CODE. `animation: row-pulse` was declared here while the
-     matching @keyframes lived in tailwind.config.js's theme — and Tailwind only
-     emits a @keyframes block when the `animate-*` utility that owns it is
-     actually found by the content scanner. Nothing used `animate-row-pulse`, so
-     no keyframe was ever emitted (confirmed absent from the built CSS) and the
-     row silently never pulsed. That is the whole visible feedback for the
-     Day/Night jump on viewports where both rows already fit, so the control
-     read as broken.
-
-     Fix: this class now supplies the outline base only, and Timeline.tsx applies
-     Tailwind's real `animate-row-pulse` utility alongside it, which forces the
-     keyframes into the build. tailwind.config.js stays the single source of
-     truth for the animation itself.
-     ---------------------------------------------------------------------- */
-  .row-pulse {
-    outline: 2.5px solid transparent;
-    outline-offset: 3px;
-  }
 }
 
 @layer utilities {
