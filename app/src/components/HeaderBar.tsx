@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, User } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
+import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { WeatherPill } from '@/components/WeatherPill'
 import type { AuthUser } from '@/state/AuthContext'
+import type { SyncStatus } from '@/state/syncEngine'
 import { cn } from '@/lib/utils'
 
 /**
@@ -39,9 +41,20 @@ export interface HeaderBarProps {
   /** The signed-in user, or `null` in local-only mode (no backend configured). */
   user: AuthUser | null
   onSignOut: () => void
+  /** Phase 5 — background sync state. Renders nothing while all is well. */
+  syncStatus: SyncStatus
+  onRetrySync: () => void
 }
 
-export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: HeaderBarProps) {
+export function HeaderBar({
+  now,
+  viewedDate,
+  onSelectDate,
+  user,
+  onSignOut,
+  syncStatus,
+  onRetrySync,
+}: HeaderBarProps) {
   return (
     <header className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
       <h1 className="pl-0 font-display text-h1 font-semibold text-forest mobile:pl-[52px] mobile:text-h1-sm">
@@ -57,6 +70,14 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: He
         narrow header has room to keep alongside the title and the account
         control).
       */}
+      {/*
+        Sync state stays visible at every width — unlike weather, "these
+        changes haven't left this device yet" is exactly the thing a phone
+        used on a patchy connection most needs to be able to see. It renders
+        nothing at all when everything is synced.
+      */}
+      <SyncStatusPill status={syncStatus} onRetry={onRetrySync} />
+
       <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
 
       <WeatherPill className="mobile:hidden" />

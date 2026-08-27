@@ -5,7 +5,17 @@ import { useAuth } from '@/state/AuthContext'
 import { useBoard } from '@/state/BoardContext'
 
 export function TodayPage() {
-  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate } = useBoard()
+  const {
+    state,
+    dispatch,
+    now,
+    nowSlot,
+    viewedDate,
+    isViewingToday,
+    setViewedDate,
+    syncStatus,
+    retrySync,
+  } = useBoard()
   const { user, signOut } = useAuth()
 
   return (
@@ -16,6 +26,8 @@ export function TodayPage() {
         onSelectDate={setViewedDate}
         user={user}
         onSignOut={signOut}
+        syncStatus={syncStatus}
+        onRetrySync={retrySync}
       />
 
       <div className="mt-xl ipad-land:mt-md">
