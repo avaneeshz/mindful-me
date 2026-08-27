@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { localDateISO } from '@/lib/localTime'
-import { fetchServerDayRange, loadLocalDayRange, type DayActivities } from './insightsData'
+import {
+  fetchServerDayRange,
+  loadLocalDayRange,
+  mergeUnsyncedLocalEdits,
+  type DayActivities,
+} from './insightsData'
+import { useBoard } from './BoardContext'
 
 export interface UseInsightsDaysResult {
   /** Local data instantly, silently upgraded to the server's view once it resolves. */
@@ -20,6 +26,9 @@ export interface UseInsightsDaysResult {
  */
 export function useInsightsDays(days: Date[]): UseInsightsDaysResult {
   const key = days.map(localDateISO).join(',')
+  // Phase 5: writes still sitting in the offline queue are part of the truth
+  // for this window, even though the server has not seen them yet.
+  const { pendingSyncEdits } = useBoard()
   const [local, setLocal] = useState<DayActivities[]>(() => loadLocalDayRange(days))
   const [server, setServer] = useState<DayActivities[] | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -29,7 +38,8 @@ export function useInsightsDays(days: Date[]): UseInsightsDaysResult {
 
   useEffect(() => {
     currentKeyRef.current = key
-    setLocal(loadLocalDayRange(days))
+    const localDays = loadLocalDayRange(days)
+    setLocal(localDays)
     setServer(null)
     setSyncFailed(false)
     setSyncing(true)
@@ -38,7 +48,7 @@ export function useInsightsDays(days: Date[]): UseInsightsDaysResult {
     fetchServerDayRange(days).then((result) => {
       if (cancelled || currentKeyRef.current !== key) return
       setSyncing(false)
-      if (result) setServer(result)
+      if (result) setServer(mergeUnsyncedLocalEdits(result, localDays, pendingSyncEdits()))
       else setSyncFailed(true)
     })
 

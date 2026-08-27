@@ -1,6 +1,7 @@
 import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
 import { supabase } from '@/lib/supabaseClient'
 import type { FlagId, ScheduleStatus, ScheduledActivity } from '@/domain/types'
+import type { LosingEditRecord } from '@/state/sync'
 import { catalogIdForName, nameForCatalogId } from './catalog'
 
 /** The shape `public.scheduled_activity_dto` (see the Phase 2 migrations) hands back. */
@@ -30,6 +31,10 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     flags: (dto.flags ?? []) as FlagId[],
     status: (dto.status as ScheduleStatus) ?? 'planned',
     timezone: dto.timezone,
+    // Phase 5, rule 7: the server's own "when did this row last change",
+    // carried through to the client so `state/reconcile.ts` can compare it
+    // against a queued local edit's device-clock stamp. Never derived here.
+    updatedAt: dto.updated_at,
   }
 }
 
@@ -120,5 +125,50 @@ export async function apiSoftDeleteScheduledActivity(id: string): Promise<void> 
 export async function apiRestoreScheduledActivity(id: string): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('restore_scheduled_activity', { p_id: id })
+  if (error) throw error
+}
+
+/**
+ * Rule 7 — writes the LOSING side of a last-write-wins resolution into
+ * `activity_events`, so it is kept rather than silently discarded. See
+ * `supabase/migrations/20260827090000_local_edit_conflicts.sql` for why this
+ * needs its own narrow RPC (the table has no client insert policy at all).
+ *
+ * In local-only mode (no Supabase configured) this resolves without doing
+ * anything — but the record is NOT lost: it stays in the persisted sync
+ * queue, which is itself on the device, until there is somewhere to send it.
+ */
+export async function apiRecordLocalEditConflict(
+  activityId: string | null,
+  record: LosingEditRecord,
+): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('record_local_edit_conflict', {
+    p_scheduled_activity_id: activityId,
+    p_event_type: record.reason === 'superseded' ? 'superseded_local_edit' : 'rejected_local_edit',
+    p_payload: {
+      lost_intent: record.intent,
+      edited_at: record.editedAt,
+      local_date: record.dayISO,
+      server_updated_at: record.serverUpdatedAt ?? null,
+      server_error: record.serverError ?? null,
+      // The losing edit verbatim. Deliberately excludes `flags`, which are
+      // sensitive (rule 10) and are only ever stored encrypted — a conflict
+      // note is not a back door around that. What is kept is enough to see
+      // exactly what was lost and to re-enter it by hand.
+      activity: record.activity
+        ? {
+            id: record.activity.id,
+            name: record.activity.name,
+            path: record.activity.path,
+            start_minute: record.activity.startMinutes,
+            duration_minutes: record.activity.durationMinutes,
+            status: record.activity.status,
+            timezone: record.activity.timezone,
+            flag_count: record.activity.flags.length,
+          }
+        : null,
+    },
+  })
   if (error) throw error
 }

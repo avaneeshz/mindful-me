@@ -85,6 +85,17 @@ export interface ScheduledActivity {
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string
+  /**
+   * The SERVER's `updated_at` for this row, when it came from the server.
+   * Undefined for anything that has never made the round trip (a brand-new
+   * local activity, seed content, a locally cached row from before Phase 5).
+   *
+   * Never set from the device's own clock: this is one half of the rule-7
+   * last-write-wins comparison in `state/reconcile.ts`, and its whole value
+   * is that it says when the SERVER last changed — the other half comes from
+   * the queued local edit's own device-clock stamp.
+   */
+  updatedAt?: string
 }
 
 export type ActivityList = readonly ScheduledActivity[]

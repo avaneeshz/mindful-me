@@ -3,6 +3,7 @@ import type { ScheduledActivity } from '@/domain/types'
 import type { BoardAction, BoardState } from './boardReducer'
 import {
   apiCreateScheduledActivity,
+  apiRecordLocalEditConflict,
   apiRescheduleScheduledActivity,
   apiRestoreScheduledActivity,
   apiSetScheduledActivityFlags,
@@ -14,8 +15,11 @@ import {
  * What a dispatched action implies should happen on the server, derived
  * PURELY from the action and the reducer's before/after state — no network
  * call happens in here, which is what keeps this testable without mocking
- * anything. `BoardContext` is the one caller that turns an intent into an
- * actual (best-effort, non-blocking) API call — see `runSyncIntents` below.
+ * anything. Phase 5 turned the "fire and forget" side of this into a real,
+ * persisted outbox: `state/syncQueue.ts` decides WHEN each intent runs (and
+ * whether a failure retries or is a genuine conflict), `state/syncEngine.ts`
+ * runs it, and `performSyncIntent` below is the one place an intent becomes
+ * an actual API call.
  */
 export type SyncIntent =
   | { kind: 'create'; activity: ScheduledActivity }
@@ -24,12 +28,63 @@ export type SyncIntent =
   | { kind: 'status'; activity: ScheduledActivity }
   | { kind: 'delete'; id: string }
   | { kind: 'restore'; id: string }
+  /**
+   * Rule 7 — the edit that LOST a last-write-wins resolution, on its way to
+   * `activity_events` so it is kept rather than silently discarded. Recorded
+   * as an intent (not written straight out) so it inherits the same offline
+   * durability as every other write: a loser detected while the network is
+   * down still reaches the audit trail once connectivity returns.
+   */
+  | { kind: 'conflict'; activityId: string | null; record: LosingEditRecord }
+
+export type ConflictReason =
+  /** A newer edit from another device was already on the server when we read it. */
+  | 'superseded'
+  /** The server refused this write outright (its time is taken, or the row is gone). */
+  | 'rejected'
+
+/** The losing edit itself, preserved verbatim. */
+export interface LosingEditRecord {
+  reason: ConflictReason
+  /** Which write was lost. */
+  intent: Exclude<SyncIntent['kind'], 'conflict'>
+  /** The local activity as it stood, when the lost write had a full row. */
+  activity: ScheduledActivity | null
+  /** Device-clock time of the local edit. */
+  editedAt: string
+  /** Calendar day (YYYY-MM-DD) the edit's wall-clock minutes were anchored to. */
+  dayISO: string
+  /** The winning server row's `updated_at`, for a 'superseded' loss. */
+  serverUpdatedAt?: string
+  /** The server's own refusal message, for a 'rejected' loss. */
+  serverError?: string
+}
+
+/**
+ * Which activity an intent concerns, or `null` when it concerns none (a
+ * conflict record is an append-only note, never coalesced with anything).
+ * The queue's coalescing rules are all keyed off this.
+ */
+export function activityIdOf(intent: SyncIntent): string | null {
+  switch (intent.kind) {
+    case 'create':
+    case 'reschedule':
+    case 'flags':
+    case 'status':
+      return intent.activity.id
+    case 'delete':
+    case 'restore':
+      return intent.id
+    case 'conflict':
+      return null
+  }
+}
 
 /**
  * Every write lands locally first, instantly (rule 6) — the reducer has
  * already committed to `nextState` by the time this runs, and this only
  * decides what (if anything) the BACKGROUND sync should additionally do.
- * Deliberately narrow: only the four action types that ever touch
+ * Deliberately narrow: only the action types that ever touch
  * `state.activities` produce an intent; everything else (selection,
  * staging, navigation) is presentation-only and never reaches the network.
  */
@@ -82,34 +137,32 @@ export function deriveSyncIntents(
 }
 
 /**
- * Fires each intent's matching API call, best-effort. A failure is logged,
- * never thrown into the UI — the local write already happened (rule 6), and
- * full offline-queue retry hardening is Phase 5, deliberately out of scope
- * here. The next successful sync of the SAME activity (any later edit, or a
- * fresh page load's reconciliation) naturally catches it back up.
+ * Turns one queued intent into its API call and AWAITS it, so the engine can
+ * tell success from failure (the pre-Phase-5 version fired and forgot, which
+ * is exactly why a write made while offline never came back). Throws on
+ * failure — `classifySyncFailure` in `state/syncQueue.ts` decides whether
+ * that means "retry later" or "the server has genuinely refused this".
+ *
+ * `reference` is the calendar day the intent's wall-clock minutes belong to,
+ * carried on the queue entry itself rather than read from live state — a
+ * queued write must still be anchored to the day it was made on when it
+ * finally flushes, possibly days later on a different `viewedDate`.
  */
-export function runSyncIntents(intents: SyncIntent[], reference: Date): void {
-  for (const intent of intents) {
-    const task = (async () => {
-      switch (intent.kind) {
-        case 'create':
-          return apiCreateScheduledActivity(intent.activity, reference)
-        case 'reschedule':
-          return apiRescheduleScheduledActivity(intent.activity, reference)
-        case 'flags':
-          return apiSetScheduledActivityFlags(intent.activity.id, intent.activity.flags)
-        case 'status':
-          return apiSetScheduledActivityStatus(intent.activity.id, intent.activity.status)
-        case 'delete':
-          return apiSoftDeleteScheduledActivity(intent.id)
-        case 'restore':
-          return apiRestoreScheduledActivity(intent.id)
-      }
-    })()
-
-    task.catch((error: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn(`[sync] ${intent.kind} failed — local state is still correct, will retry on next sync`, error)
-    })
+export async function performSyncIntent(intent: SyncIntent, reference: Date): Promise<void> {
+  switch (intent.kind) {
+    case 'create':
+      return apiCreateScheduledActivity(intent.activity, reference)
+    case 'reschedule':
+      return apiRescheduleScheduledActivity(intent.activity, reference)
+    case 'flags':
+      return apiSetScheduledActivityFlags(intent.activity.id, intent.activity.flags)
+    case 'status':
+      return apiSetScheduledActivityStatus(intent.activity.id, intent.activity.status)
+    case 'delete':
+      return apiSoftDeleteScheduledActivity(intent.id)
+    case 'restore':
+      return apiRestoreScheduledActivity(intent.id)
+    case 'conflict':
+      return apiRecordLocalEditConflict(intent.activityId, intent.record)
   }
 }

@@ -45,6 +45,22 @@ export function localDateISO(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * The inverse of `localDateISO` — local midnight of the calendar day
+ * `YYYY-MM-DD` names. Parsed by hand rather than via `new Date(iso)`, which
+ * treats a bare date string as UTC midnight and so lands on the PREVIOUS day
+ * for any timezone behind UTC.
+ *
+ * Phase 5 needs this because a queued write carries the calendar day it was
+ * anchored to as a string (it has to survive being written to storage and
+ * reloaded, possibly days later), and flushing it means turning that day back
+ * into the same real instants the write originally meant.
+ */
+export function localDateFromISO(iso: string): Date {
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, (month ?? 1) - 1, day ?? 1)
+}
+
 /** Minutes since local midnight for a real Date already known to fall on `reference`'s day. */
 export function localMinutesOf(date: Date): number {
   return date.getHours() * 60 + date.getMinutes()

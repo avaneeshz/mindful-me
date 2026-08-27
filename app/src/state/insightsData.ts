@@ -17,7 +17,9 @@ import type { CategoryId, ScheduledActivity } from '@/domain/types'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { loadLocalActivities } from './localPersistence'
-import { localDayRange } from '@/lib/localTime'
+import { localDateISO, localDayRange } from '@/lib/localTime'
+import { reconcileActivities } from './reconcile'
+import type { PendingEdit } from './syncQueue'
 
 /** Local-first read for a run of calendar days — synchronous, never blocks (rule 6). */
 export function loadLocalDayRange(days: Date[]): DayActivities[] {
@@ -57,6 +59,35 @@ export async function fetchServerDayRange(days: Date[]): Promise<DayActivities[]
     })
     return { date, activities }
   })
+}
+
+/**
+ * Phase 5 — the same rule-7 resolution the board applies, for the read-only
+ * Insights window. Without it, a day you logged offline (or whose edit is
+ * still queued) would be silently under-reported the moment the server's own
+ * answer arrived: `fetchServerDayRange` knows nothing about writes that have
+ * not left the device yet.
+ *
+ * Conflicts are deliberately DISCARDED here rather than recorded. Insights is
+ * a read surface; recording a losing edit is the board's job (it owns the
+ * queue those edits live in), and doing it from two places would write the
+ * same conflict twice.
+ */
+export function mergeUnsyncedLocalEdits(
+  serverDays: DayActivities[],
+  localDays: DayActivities[],
+  pending: ReadonlyMap<string, PendingEdit>,
+): DayActivities[] {
+  if (pending.size === 0) return serverDays
+  const localByDate = new Map(localDays.map((day) => [localDateISO(day.date), day.activities]))
+  return serverDays.map((day) => ({
+    date: day.date,
+    activities: reconcileActivities({
+      local: localByDate.get(localDateISO(day.date)) ?? [],
+      server: day.activities,
+      pending,
+    }).activities,
+  }))
 }
 
 export type InsightsView =
