@@ -6,6 +6,17 @@ This file is additive: when something here starts implementation, move it out (n
 
 ## Recently completed
 
+> **On the "merged" claims below.** GitHub's own `merged` API field reads `false` for every PR in this repo, because each merge happened via a direct `git merge` + push rather than GitHub's merge button. Verified instead with `git merge-base --is-ancestor <pr-head-sha> origin/main`, which confirms PRs #1–#7 are all genuinely in `origin/main` — every merge claim in this file is accurate as written (checked 2026-08-27). Phase 4 and Phase 5 are on `claude/mindful-me-backend-arch-m3ny6q` only, with no PR opened, exactly as their entries say.
+
+**Phase 5 — Sync hardening.** The offline write queue, multi-device conflict handling, and the local-first resilience gaps Phase 2 left open. Implemented and pushed on `claude/mindful-me-backend-arch-m3ny6q`, no PR opened yet.
+
+- **Offline write queue.** `state/syncQueue.ts` (pure: coalescing, strict-FIFO ordering, exponential backoff capped at 5 minutes, permanent-vs-retryable failure classification), `state/syncQueueStorage.ts` (per-user, versioned, fail-closed `localStorage` persistence) and `state/syncEngine.ts` (the thin injected-dependency shell that runs it). Replaces Phase 2's fire-and-forget `runSyncIntents`, which attempted each write exactly once and silently gave up. A write now survives no connectivity, repeated failure, and the tab being closed and reopened.
+- **Conflict handling (rule 7).** `state/reconcile.ts` resolves last-write-wins per activity by comparing a queued edit's device-clock stamp against the server row's `updated_at` (now carried through to the client). The loser is never discarded: migration `20260827090000_local_edit_conflicts.sql` adds `superseded_local_edit` / `rejected_local_edit` to `activity_events` plus a narrow `record_local_edit_conflict` RPC, and the losing edit is queued to it with the same offline durability as any other write. `BoardContext`'s cold-load reconcile is no longer a blind "replace with whatever the server says" — that would have wiped every queued offline write on the next reload.
+- **Sync-status indicator.** `components/SyncStatusPill.tsx` in the header. Silent when healthy; offline / syncing / can't-sync (with a real retry button) / "updated from another device" otherwise.
+- **Insights included.** `useInsightsDays` now merges unsent local writes into the server's answer, so a day logged offline is not under-reported on the Insights screen.
+
+Verified live in a headless browser using this sandbox's blocked egress to `*.supabase.co` as a genuine offline condition, and the conflict half verified against the live database via SQL. Still needs a real two-device check in the wild (this sandbox can never complete a successful sync), and a real-world check that a completed drain leaves the board correct.
+
 **Backend persistence + real login.** Email/password auth via Supabase, no email verification, anonymous-auth bootstrap removed. Implemented and merged — **PR #6**. RLS re-verified directly against the live database; the live sign-up → session → data-persists flow still needs a real click-test on the deployed site before this is fully closed out (see PR #6 description).
 
 **BL-1, BL-2, BL-3.** Implemented and merged — **PR #7**:
@@ -20,5 +31,9 @@ This file is additive: when something here starts implementation, move it out (n
 
 ## Backlog
 
-### Phase 5 — Sync hardening
-Offline write queue, multi-device conflict handling (last-write-wins + kept history, per the original architecture decisions), full local-first resilience. The "accounts" piece of this phase has already shipped as part of the login work above; the remaining offline/conflict mechanics stay here.
+_Nothing outstanding._ Phase 5 was the last item; it moved to "Recently completed" above.
+
+Known follow-ups that are **not** yet confirmed requirements — raise them before implementing:
+
+- **Surfacing a lost edit to the user.** A superseded/rejected local edit is preserved in `activity_events` and readable via `list_local_edit_conflicts`, and the header pill says "Updated from another device" — but there is no screen that shows *what* the lost edit was, or offers to re-apply it. That is a deliberate scope line, not an oversight.
+- **Clock skew.** Last-write-wins compares a device clock against the server clock. A badly wrong device clock can win or lose incorrectly; the losing edit is kept either way, which is why this is acceptable rather than invisible.
