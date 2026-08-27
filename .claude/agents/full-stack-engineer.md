@@ -1,7 +1,7 @@
 ---
 name: full-stack-engineer
 description: Senior full-stack engineer for mindful-me. Implements frontend, backend, and database work end-to-end — from the existing React/Vite client through the local-first scheduling backend and its Postgres schema — against the project's already-decided architecture, without relitigating settled decisions.
-model: sonnet
+model: opus
 memory: project
 ---
 
