@@ -84,10 +84,10 @@ describe('Today screen', () => {
     // 30-minute entries, and it legitimately crosses the Night/Day row
     // boundary at 06:00 — correctly rendered as two segments, one per row.
     expect(html.match(/data-activity-span="[^"]+"/g) ?? []).toHaveLength(12)
-    // Two of them — Body care and Supplements — legitimately share one grid
-    // cell without overlapping, which the old capacity rule specifically
-    // disallowed beyond a hardcoded pair.
-    expect(html).toContain('Body care')
+    // Two of them — Body Care (self) and Supplements — legitimately share
+    // one grid cell without overlapping, which the old capacity rule
+    // specifically disallowed beyond a hardcoded pair.
+    expect(html).toContain('Body Care (self)')
     expect(html).toContain('Supplements')
   })
 
@@ -104,9 +104,23 @@ describe('Today screen', () => {
     expect(html).toContain('Loading weather')
   })
 
-  it('renders all 24 activity cards as tiles', () => {
-    for (const name of ['Night Sleep', 'Body care', 'Miscellaneous', 'GEOM / HOSS / HECOLL']) {
-      expect(html).toContain(name)
+  it('renders all 9 top-level tiles on the picker’s main screen', () => {
+    // Tile Redesign: the flat 24/53-card grid is gone — the picker's ALWAYS-
+    // rendered surface is the 9 top-level tiles; the 53 leaf items live one
+    // level deeper, behind a tile, and aren't in the initial markup at all.
+    // `renderToStaticMarkup` HTML-escapes "&" to "&amp;".
+    for (const label of [
+      'Sleep &amp; Rest',
+      'Food &amp; Nourishment',
+      'Personal Care',
+      'Downtime &amp; Errands',
+      'Movement &amp; Body Therapy',
+      'Work &amp; Projects',
+      'Nature &amp; Spirit',
+      'Growth &amp; Connection',
+      'Home &amp; Chores',
+    ]) {
+      expect(html).toContain(label)
     }
   })
 

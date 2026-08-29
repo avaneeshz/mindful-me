@@ -9,6 +9,7 @@ import {
 } from '@/domain/slots'
 import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
+import { useDismissedActivities } from '@/state/dismissedActivities'
 import { Button } from '@/components/ui/button'
 import { ActivityPicker } from './ActivityPicker'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
@@ -23,6 +24,15 @@ interface SlotEditorProps {
   state: BoardState
   dispatch: (action: BoardAction) => void
   nowSlot: number
+  /**
+   * The calendar day currently being viewed — keys the manual "mark done"
+   * state (Tile Redesign §5), which is scoped per day and reset at local
+   * midnight (`state/dismissedActivities.ts`). Deliberately required, not a
+   * `new Date()`-on-every-render default: that would hand
+   * `useDismissedActivities` a new object identity on every re-render and
+   * re-trigger its load effect continuously.
+   */
+  viewedDate: Date
 }
 
 /**
@@ -34,11 +44,12 @@ interface SlotEditorProps {
  * instantly. There is no batch save, and no confirmation dialog. "Cancel"
  * clears the staged-but-not-yet-added pick only.
  */
-export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
+export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorProps) {
   const { activities, selectedSlot, staging, removal } = state
   const { start: slotStart } = slotMinuteRange(selectedSlot)
   const touching = activitiesTouchingSlot(activities, selectedSlot)
   const flags = flagMarkerAt(activities, selectedSlot)?.flags ?? []
+  const { dismissed, toggleDismissed } = useDismissedActivities(viewedDate)
 
   const usedMinutes = touching.reduce((sum, a) => sum + minutesInSlot(a, selectedSlot), 0)
   const meterSegments: CapacityMeterSegment[] = touching
@@ -122,8 +133,11 @@ export function SlotEditor({ state, dispatch, nowSlot }: SlotEditorProps) {
               atCapacity={atCapacity}
               activityCount={touching.length}
               usedMinutes={usedMinutes}
+              activities={activities}
+              dismissed={dismissed}
               onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
               onPickOption={(level, value) => dispatch({ type: 'pickOption', level, value })}
+              onToggleDismiss={toggleDismissed}
               onBack={() => dispatch({ type: 'crumbBack' })}
             />
           </div>

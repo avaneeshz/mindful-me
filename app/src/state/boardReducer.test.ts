@@ -72,6 +72,7 @@ describe('picking and committing a flat card', () => {
       { type: 'stepDuration', delta: -20 },
       { type: 'commit' },
       { type: 'pickCard', cardName: 'Meal Prep' },
+      { type: 'pickOption', level: 0, value: 'Breakfast' },
       { type: 'stepDuration', delta: -20 },
       { type: 'commit' },
     )
@@ -90,14 +91,14 @@ describe('drill-down', () => {
   it('requires a leaf before the activity can be committed', () => {
     let state = boardReducer(start(), { type: 'pickCard', cardName: 'Supplements' })
     expect(isStagingComplete(state.staging)).toBe(false)
-    expect(stagingOptions(state.staging)?.options).toContain('Magnesium')
+    expect(stagingOptions(state.staging)?.options).toContain('Magnesium (post-dinner)')
 
-    state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Magnesium' })
+    state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Magnesium (post-dinner)' })
     expect(isStagingComplete(state.staging)).toBe(true)
   })
 
-  it('goes three levels deep for Body care only', () => {
-    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Body care' })
+  it('goes three levels deep for Body Care (self) only', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Body Care (self)' })
     state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Oiling' })
     expect(isStagingComplete(state.staging)).toBe(false)
     expect(stagingOptions(state.staging)).toEqual({ options: ['Face', 'Body', 'Hair'], level: 1 })
@@ -112,7 +113,7 @@ describe('drill-down', () => {
   it('steps back one level at a time, then clears the card', () => {
     let state = run(
       start(),
-      { type: 'pickCard', cardName: 'Body care' },
+      { type: 'pickCard', cardName: 'Body Care (self)' },
       { type: 'pickOption', level: 0, value: 'Mask' },
       { type: 'pickOption', level: 1, value: 'Face' },
     )
@@ -130,7 +131,7 @@ describe('editing an existing activity', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Supplements' },
-      { type: 'pickOption', level: 0, value: 'Omega' },
+      { type: 'pickOption', level: 0, value: 'Omega (post-lunch)' },
       { type: 'commit' },
     )
     expect(real(state)).toHaveLength(1)
@@ -138,14 +139,14 @@ describe('editing an existing activity', () => {
 
     state = boardReducer(state, { type: 'editActivity', id })
     expect(state.staging.editingId).toBe(id)
-    expect(state.staging.path).toEqual(['Omega'])
+    expect(state.staging.path).toEqual(['Omega (post-lunch)'])
 
-    state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Zinc' })
+    state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Zinc (post-breakfast)' })
     state = boardReducer(state, { type: 'commit' })
 
     expect(real(state)).toHaveLength(1)
     expect(real(state)[0].id).toBe(id) // same activity, not a new one
-    expect(real(state)[0].path).toEqual(['Zinc'])
+    expect(real(state)[0].path).toEqual(['Zinc (post-breakfast)'])
   })
 
   it('lets an edit reclaim its own time range and grow past the old ceiling', () => {
@@ -232,7 +233,12 @@ describe('remove and undo', () => {
     state = boardReducer(state, { type: 'removeActivity', id: removedId })
     expect(state.removal).not.toBeNull()
 
-    state = run(state, { type: 'pickCard', cardName: 'Meal Prep' }, { type: 'commit' }) // refills 16:00-16:30
+    state = run(
+      state,
+      { type: 'pickCard', cardName: 'Meal Prep' },
+      { type: 'pickOption', level: 0, value: 'Breakfast' },
+      { type: 'commit' }, // refills 16:00-16:30
+    )
     state = boardReducer(state, { type: 'undoRemoval' })
 
     expect(real(state)).toHaveLength(1)
@@ -375,9 +381,9 @@ describe('drag and drop', () => {
   })
 
   it('opens the sub-picker instead of guessing a sub-option', () => {
-    const state = boardReducer(start(), { type: 'dropCard', cardName: 'Nature connect', slot: 20 })
+    const state = boardReducer(start(), { type: 'dropCard', cardName: 'Supplements', slot: 20 })
     expect(state.activities).toEqual([])
-    expect(state.staging.cardName).toBe('Nature connect')
+    expect(state.staging.cardName).toBe('Supplements')
     expect(isStagingComplete(state.staging)).toBe(false)
   })
 

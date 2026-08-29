@@ -29,19 +29,33 @@
     --day-accent: color-mix(in srgb, var(--forest) 35%, var(--strip));
     --night-accent: var(--forest);
 
-    /* Category DEEP tones — picker tiles and list-row icon chips only. */
-    --cat-mind-deep: #6b8f82;
-    --cat-body-deep: #c9b48a;
-    --cat-sports-deep: #e8845c;
-    --cat-nature-deep: #4f7d6c;
-    --cat-focus-deep: #1b3b32;
+    /* Category (9-tile) DEEP tones — the main 3x3 tile grid and list-row
+       icon chips only. Every real activity's own timeline-strip fill now
+       comes from its ITEM colour (data/activities.ts `ActivityCard.color`),
+       not from these — see that file's colour-system comment block. */
+    --cat-sleep-deep: #3e5c76;
+    --cat-food-deep: #ca9b5d;
+    --cat-care-deep: #7faf97;
+    --cat-downtime-deep: #aca299;
+    --cat-movement-deep: #a65d5d;
+    --cat-work-deep: #3e7a7a;
+    --cat-nature-deep: #bfa050;
+    --cat-growth-deep: #7c6a96;
+    --cat-home-deep: #9aa5b2;
 
-    /* Category LIGHT tones — reserved exclusively for timeline strip fill. */
-    --cat-mind-light: #bfd9c9;
-    --cat-body-light: #eddfc0;
-    --cat-sports-light: #f5c7ae;
-    --cat-nature-light: #cfe3c2;
-    --cat-focus-light: #c7d6d8;
+    /* Category LIGHT tones — a lighter tint of each tile's own DEEP hue,
+       reserved for category-level chrome with no single item to carry its
+       own colour (e.g. a flag marker's fallback). Never the timeline strip
+       fill any more — see `itemFillColor` in data/activities.ts. */
+    --cat-sleep-light: #b6c1cb;
+    --cat-food-light: #ebd9c1;
+    --cat-care-light: #cee1d7;
+    --cat-downtime-light: #dfdcd8;
+    --cat-movement-light: #ddc1c1;
+    --cat-work-light: #b6cccc;
+    --cat-nature-light: #e7dbbd;
+    --cat-growth-light: #cdc6d7;
+    --cat-home-light: #d9dde2;
   }
 
   html,
@@ -79,24 +93,23 @@
 
 @layer components {
   /* -------------------------------------------------------------------------
-     ACCESSIBILITY MITIGATION — Mind & Rest label legibility.
+     ACCESSIBILITY MITIGATION — reserve class, currently unused.
 
-     Measured WCAG 2.1 contrast against the Mind & Rest DEEP fill #6B8F82
-     (relative luminance 0.2482):
-         white    #FFFFFF -> 3.52:1
-         charcoal #3D3A35 -> 3.21:1
-     White is the better of the two and is what the tile uses, but neither
-     reaches the 4.5:1 AA threshold for text at this size. The category token
-     itself is the real defect and changing a brand colour is a design-level
-     decision, so this is a mitigation, not a fix: a Deep Forest shadow is laid
-     directly behind the glyphs, darkening the few pixels a reader actually
-     resolves an edge against and lifting effective legibility well past the
-     bare 3.52:1 the flat pairing gives.
+     Applied to label TEXT sitting on a DEEP (tile) or item `color` fill,
+     for the rare case where neither white nor charcoal reaches the 4.5:1 AA
+     text minimum even after nudging the fill's lightness (never its hue —
+     see the measured-contrast methodology in data/activities.ts). A Deep
+     Forest shadow is laid directly behind the glyphs, darkening the few
+     pixels a reader actually resolves an edge against.
 
-     Icons are unaffected — 3.52:1 already clears the 3:1 non-text minimum.
+     The Tile Redesign catalog (9 tiles, 53 items) re-measured every fill
+     against this same 4.5:1 bar and every one cleared it with a lightness
+     nudge alone — so nothing currently uses this class. Left in place as the
+     documented fallback for the next colour that doesn't nudge cleanly,
+     rather than re-deriving the mitigation from scratch then.
 
-     TODO (design): re-tone the Mind & Rest DEEP token so white clears 4.5:1
-     natively; this class should then be deleted, not kept as decoration.
+     Icons are unaffected by a fill missing 4.5:1 — the WCAG non-text minimum
+     is only 3:1, which every fill in this catalog clears.
      ---------------------------------------------------------------------- */
   .label-contrast-boost {
     text-shadow:
@@ -279,6 +292,21 @@
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* The main screen — a fixed 3x3 grid of the 9 top-level tiles (Tile
+   Redesign §1). Unlike `.picker-grid` above (sized for up to 53 leaf items,
+   deliberately filling its container across many columns), 9 tiles at
+   `aspect-square` stretched across the SAME wide editor column would blow up
+   into ~400px squares — the `max-width` below keeps each tile a sane,
+   restrained size (CLAUDE.md) regardless of how wide `.picker-column` is,
+   while `repeat(3, minmax(0, 1fr))` still lets them shrink together on a
+   narrow mobile viewport. */
+.picker-grid-main {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 420px;
 }
 
 /* iPad portrait and anything narrower than a comfortable two-up split keeps

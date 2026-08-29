@@ -1,21 +1,43 @@
 import type { LucideIcon } from 'lucide-react'
 
-export type CategoryId = 'mind' | 'body' | 'sports' | 'nature' | 'focus'
+/**
+ * The 9 top-level picker tiles (Tile Redesign — see the full-stack-engineer
+ * agent definition's Phase 1 scope). Each tile is also the activity catalog's
+ * grouping key: every `ActivityCard.categoryId` names the one tile it drills
+ * down from.
+ */
+export type CategoryId =
+  | 'sleep'
+  | 'food'
+  | 'care'
+  | 'downtime'
+  | 'movement'
+  | 'work'
+  | 'nature'
+  | 'growth'
+  | 'home'
+
+export type ContrastForeground = 'text-white' | 'text-charcoal'
 
 export interface Category {
   id: CategoryId
   /** Canonical display name — taxonomy terminology, do not paraphrase. */
   label: string
-  /** DEEP tone. Picker tiles and list-row icon chips only. */
+  /** DEEP tone. The main 3x3 tile grid, and list-row icon chips, only. */
   deep: string
-  /** LIGHT pastel tone. Timeline strip fill ONLY. */
+  /**
+   * LIGHT pastel tone. Reserved for category-level chrome that still falls
+   * back to it — a flag marker, or any other spot with no single ITEM to
+   * carry its own colour (see `ActivityCard.color`, which owns the timeline
+   * strip fill for every real activity now that items carry their own hue).
+   */
   light: string
   /**
    * Foreground utility class for content sitting on the DEEP fill, chosen for
    * WCAG contrast rather than per-tile guesswork. See CATEGORIES for the
    * measured ratios behind each choice.
    */
-  onDeep: 'text-white' | 'text-charcoal'
+  onDeep: ContrastForeground
   /**
    * Set only where NEITHER foreground reaches WCAG AA 4.5:1 on the DEEP fill.
    * Names the `.label-contrast-boost` mitigation class (see index.css) which is
@@ -26,15 +48,46 @@ export interface Category {
   icon: LucideIcon
 }
 
-/** A top-level draggable/tappable activity. 24 of these, "Flags" excluded. */
+/**
+ * When an item locks/disappears for the rest of the LOCAL calendar day it is
+ * being viewed on (never persisted across days — see `domain/disappear.ts`):
+ *   - `auto`   locks once the item has been scheduled `limit` times today.
+ *   - `manual` never locks on its own; the user marks it done via the small
+ *     checkmark control on the item's own chip.
+ */
+export type DisappearRule = { mode: 'auto'; limit: number } | { mode: 'manual' }
+
+/**
+ * A top-level pickable activity — the leaf of the picker's 3-level drill-down
+ * (9 tiles -> this item -> an optional sub/third choice). 53 of these,
+ * "Flags" excluded.
+ */
 export interface ActivityCard {
   name: string
   categoryId: CategoryId
   icon: LucideIcon
   /** Second-level options, if this card has any. */
   sub?: string[]
-  /** Third level — only "Body care" goes this deep. */
+  /** Third level — only "Body Care (self)" goes this deep. */
   third?: Record<string, string[]>
+  /**
+   * This item's own flat, accessible solid colour. Used in exactly two
+   * places (Tile Redesign §4): this item's own chip in the drill-down view,
+   * and its fill in the timeline strip. The 9 main tiles never take on a
+   * child's colour — they keep `Category.deep` so the top screen stays calm.
+   */
+  color: string
+  /** Foreground for content on `color`, chosen by measured WCAG contrast. */
+  onColor: ContrastForeground
+  /** Same `.label-contrast-boost` mitigation `Category.onDeepBoost` uses. */
+  onColorBoost?: 'label-contrast-boost'
+  /**
+   * A hairline border for a fill close enough to white that it would
+   * otherwise blend into the page background. Cosmetic only — independent of
+   * `onColor`'s text-contrast measurement.
+   */
+  hairline?: boolean
+  disappear: DisappearRule
 }
 
 /** A whole-slot marker. Carries no duration and consumes no schedule room. */

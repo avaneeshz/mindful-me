@@ -26,7 +26,9 @@ function applyFrom(state: BoardState, ...actions: BoardAction[]): BoardState {
 }
 
 function renderEditor(state: BoardState): string {
-  return renderToStaticMarkup(<SlotEditor state={state} dispatch={() => {}} nowSlot={32} />)
+  return renderToStaticMarkup(
+    <SlotEditor state={state} dispatch={() => {}} nowSlot={32} viewedDate={AT_4PM} />,
+  )
 }
 
 function realId(state: BoardState, index = 0): string {
