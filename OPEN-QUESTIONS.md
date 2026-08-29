@@ -150,16 +150,3 @@ No email verification means anyone can sign up with an email address they don't 
 
 ### Priority
 P2
-
----
-
-## 10. "Progress" vs. "Insights" — one screen or two?
-
-### Question
-The sidebar has always had two separate placeholder nav items — "Progress" and "Insights." All four Insights features (category totals, completion, free/occupied, trends) were consolidated into the "Insights" screen alone, leaving "Progress" still an empty placeholder. Was that the right split, or should something distinct live under "Progress"?
-
-### Current behavior
-"Insights" is a real screen; "Progress" remains a disabled placeholder.
-
-### Priority
-P3

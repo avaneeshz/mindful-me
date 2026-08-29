@@ -24,15 +24,9 @@ The interaction model as actually built. For the visual language, see `UI-DESIGN
 
 Collapsed by default on every device — desktop, tablet, and mobile alike. The hamburger control expands and collapses it identically everywhere; only the starting state changed from the product's earlier default.
 
-## Sync & offline
+## Sync
 
-**The interface never waits on the network.** Every add, edit, or completion saves to the device instantly, whether or not a backend is even configured, and whether or not the device is actually online. A background sync-status indicator in the header stays silent when everything's healthy, and only speaks up when there's something to say: offline, syncing, unable to sync (with a real retry action), or "updated from another device" when a conflict resolved somewhere else.
-
-**A conflict never loses your work outright.** If two devices edit the same activity, the newer edit wins on the board — but the one that lost is never discarded; it's preserved and remains recoverable, even though there's currently no dedicated screen for browsing lost edits directly (see `ROADMAP.md`).
-
-## Insights
-
-Reached from the sidebar's "Insights" item. A Day/Week toggle plus the same date picker used on the timeline; four sections — category time totals, completion (of what was planned, how much got done), free-vs-occupied time for the visible window, and a 14-day/8-week trend with per-category filter chips. Loads instantly from local data, then quietly reconciles with the server in the background, exactly like the timeline. An empty day shows a plain, honest empty state rather than a chart full of zeros.
+**The interface never waits on the network.** Every add, edit, or completion saves to the device instantly, whether or not a backend is even configured, and syncs to the server in the background. Stronger offline resilience (a durable write queue, multi-device conflict handling) is in progress but not yet merged — see `BACKLOG.md`.
 
 ## Accessibility & responsiveness baseline
 

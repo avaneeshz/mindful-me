@@ -1,10 +1,6 @@
 # Features — mindful-me
 
-What's actually built, grounded in the real implementation — not aspirational. Status markers:
-
-- ✅ **Shipped** — merged to `main`, live in production.
-- 🟡 **Implemented, pending merge** — built, tested, and independently verified, sitting on a feature branch (`claude/mindful-me-backend-arch-m3ny6q`) with no PR yet.
-- See [`BACKLOG.md`](./BACKLOG.md) for anything confirmed but not yet started, and [`OPEN-QUESTIONS.md`](./OPEN-QUESTIONS.md) for things nobody's decided on yet.
+What's actually built and merged to `main` — not aspirational. See [`BACKLOG.md`](./BACKLOG.md) for what's confirmed but not yet shipped, and [`OPEN-QUESTIONS.md`](./OPEN-QUESTIONS.md) for things nobody's decided on yet.
 
 ## The timeline
 
@@ -23,12 +19,7 @@ What's actually built, grounded in the real implementation — not aspirational.
 
 - ✅ **Real email/password accounts** via Supabase — no email verification (a deliberate product decision, not an oversight), replacing the app's earlier anonymous-session bootstrap.
 - ✅ **Row-level security** on every table, scoped to the authenticated user — independently verified directly against the live database, not just assumed from the code.
-- ✅ **Local-first writes.** Every add/edit saves to the device instantly; sync to the server happens in the background and the interface never waits on it. The app is fully usable with zero backend configured at all (a graceful "local-only" mode), and equally usable when genuinely offline.
-- 🟡 **Durable offline write queue + multi-device conflict resolution.** A write made while offline survives a closed-and-reopened tab and retries with real exponential backoff once connectivity returns. A conflicting edit from two devices resolves last-write-wins, with the losing edit always preserved in an append-only audit trail rather than silently discarded. A restrained sync-status indicator in the header (silent when healthy).
-
-## Insights
-
-- 🟡 **Daily/weekly time-per-category totals**, **completion tracking** (of what was scheduled, how much got marked done), **free-vs-occupied time**, and **activity trends** (last 14 days / 8 weeks) — all computed client-side from the same data the timeline already reads, no separate analytics tables. A dedicated "Insights" screen, reached from the sidebar.
+- ✅ **Local-first writes.** Every add/edit saves to the device instantly; sync to the server happens in the background and the interface never waits on it. The app is fully usable with zero backend configured at all (a graceful "local-only" mode).
 
 ## Navigation & shell
 
@@ -36,5 +27,7 @@ What's actually built, grounded in the real implementation — not aspirational.
 - ✅ Responsive across desktop, tablet (iPad landscape), and mobile — not merely a shrunk desktop layout.
 
 ## Not yet built
+
+Insights/analytics and stronger offline resilience are both in the backlog (see `BACKLOG.md` for status).
 
 Real, named gaps against comparable products (see the product's own competitive read, folded into `ROADMAP.md`): no recurring/repeating activities, no external calendar sync, no reminders or notifications, no native mobile app, no AI-assisted scheduling. None of these are secretly half-built — they're plainly not started. See `BACKLOG.md` and `OPEN-QUESTIONS.md` for what's actually been discussed as a candidate versus what's just an honest gap.

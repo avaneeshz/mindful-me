@@ -1,6 +1,6 @@
 # mindful-me
 
-A personal time and activity tracking application — a visual, day-and-night timeline for planning and logging how you actually spend your time, built as a real product rather than a prototype: a React client backed by a Postgres database (Supabase), with real accounts, offline-resilient sync, and honest insights into where your time goes.
+A personal time and activity tracking application — a visual, day-and-night timeline for planning and logging how you actually spend your time, built as a real product rather than a prototype: a React client backed by a Postgres database (Supabase), with real accounts and local-first sync.
 
 ## What it is
 
@@ -10,7 +10,7 @@ Two ways to schedule something — dragging an activity onto the timeline, or se
 
 ## Current state
 
-Implemented and running: real email/password accounts, a Postgres backend with row-level security, local-first writes (every change saves instantly to the device and syncs in the background — the app never waits on the network), an offline write queue with multi-device conflict resolution, a real date picker for any past or future day, real weather + city-based location, and an Insights screen (category time totals, completion tracking, free-vs-occupied time, trends).
+Implemented and running: real email/password accounts, a Postgres backend with row-level security, local-first writes (every change saves instantly to the device and syncs in the background — the app never waits on the network), a real date picker for any past or future day, and real weather + city-based location.
 
 See [`BACKLOG.md`](./BACKLOG.md) for exactly what's shipped, what's mid-flight, and what's next — it's kept current and is the fastest way to get oriented.
 
@@ -42,4 +42,4 @@ The app runs fully offline/local-only with zero setup — no backend required to
 
 ## Stack
 
-React 19 + TypeScript + Vite, Tailwind CSS + shadcn/ui-style components + Radix primitives, Lucide icons, Recharts for charts. Backend: Supabase (Postgres, row-level security, real-time-capable, email/password auth). Deployed on Vercel.
+React 19 + TypeScript + Vite, Tailwind CSS + shadcn/ui-style components + Radix primitives, Lucide icons. Backend: Supabase (Postgres, row-level security, real-time-capable, email/password auth). Deployed on Vercel.

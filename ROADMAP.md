@@ -18,14 +18,9 @@ The **history** below is factual — what was actually built, in order. The **ah
 
 **Further UI/UX round (BL-1/2/3).** The two separate duration controls merged into one click-to-edit stepper; the header date pill became a real date picker for any past/future day; the weather pill became real (device location + Open-Meteo temperature + city-only display, with a provider swap after a live check found the first IP-location choice unreliable).
 
-**Insights (Phase 4).** A real Insights screen: category time totals, completion tracking, free-vs-occupied time, and activity trends — all derived client-side from existing data, no new backend surface.
-
-**Sync hardening (Phase 5).** The local-first foundation's real gaps closed: an offline write queue that survives a closed tab and retries with backoff instead of failing silently once, and genuine multi-device conflict resolution (last-write-wins, loser always preserved) — replacing a blind "replace with whatever the server says" reconcile that could previously discard an offline write on the next reload.
-
 ## Ahead
 
-**Confirmed, not yet started** (see `BACKLOG.md`'s own "known follow-ups" for the exact current list):
-- Surfacing a lost/superseded edit to the user directly (today it's preserved in the audit trail and readable via API, but there's no screen showing *what* was lost or offering to re-apply it).
+**In progress, not yet merged** — see `BACKLOG.md` for current status: an Insights/analytics screen and stronger offline sync resilience both have a first-pass implementation on a branch, held back deliberately while the requirement gets more clearly defined (expect more UI work here before either merges).
 
 **Named gaps, not yet confirmed as requirements** — real, honest absences relative to comparable products, worth deciding on deliberately rather than assuming:
 - Recurring/repeating activities.

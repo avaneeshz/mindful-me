@@ -55,4 +55,4 @@ These apply to every feature, and are treated as hard constraints, not defaults 
 
 ## Adjacent project — do not confuse
 
-"LifeLog" is a separate, unrelated product referenced during mindful-me's early design conversations as an inspiration point (and briefly as a same-Vercel-account neighbor). It has its own weighted A/B/C scoring system, its own data model, and no shared code or backend with mindful-me. The two must not be conflated — mindful-me deliberately has no scoring/points system; its "score," where one exists at all (see Insights), is a plain completion percentage, never a weighted behavioral score.
+"LifeLog" is a separate, unrelated product referenced during mindful-me's early design conversations as an inspiration point (and briefly as a same-Vercel-account neighbor). It has its own weighted A/B/C scoring system, its own data model, and no shared code or backend with mindful-me. The two must not be conflated — mindful-me deliberately has no scoring/points system; wherever a completion measure exists, it's a plain percentage, never a weighted behavioral score.
