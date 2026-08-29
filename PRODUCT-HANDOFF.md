@@ -1,13 +1,23 @@
 # Daily Ritual Board — Engineering Handoff
 
+> ## ⚠ Status: historical — superseded
+>
+> This document specifies the **original single-file HTML/CSS/JS prototype** — no backend, no persistence, no accounts, a fixed 48-slot-per-day data model with no date attached. **None of that describes the current product.** The prototype was rebuilt in React + TypeScript, and now runs on a real Postgres backend (Supabase) with real accounts, activity-centric storage (arbitrary duration, real timestamps, not 48 fixed slots), row-level security, and offline-resilient sync.
+>
+> For current, accurate information, use:
+> - [`README.md`](./README.md) — start here
+> - [`PRODUCT.md`](./PRODUCT.md), [`FEATURES.md`](./FEATURES.md), [`UX.md`](./UX.md), [`UI-DESIGN.md`](./UI-DESIGN.md) — current product/design docs
+> - [`BACKLOG.md`](./BACKLOG.md) — what's shipped, what's next
+> - [`.claude/agents/full-stack-engineer.md`](./.claude/agents/full-stack-engineer.md) — the current architecture and its non-negotiable rules
+>
+> Everything below is preserved as **historical record** — original client intent, the design-language evolution, and the activity taxonomy's rationale are still genuinely useful context. Don't treat any technical/architectural claim below (data model, "no backend," slot mechanics) as current fact.
+
 **Daily Ritual Board**  
 Engineering & Product Handoff Document
 
 *Prepared for: incoming engineering team (Claude Code handoff) | Source: HTML/CSS/JS interactive prototype + design conversation log*
 
-**This document is a complete, standalone specification of the Daily Ritual Board product as it exists in the current interactive HTML prototype. It captures every product, UX, UI, and functional decision made across the design conversation, cross-referenced against the actual prototype code — not just what was discussed, but what was actually built. A team with no access to the original conversation should be able to read this document and the accompanying prototype file and continue development without guessing at intent.**
-
-Companion artifact: the working HTML prototype (single file, vanilla JS, no build step) should be handed off alongside this document. Every UI decision described below is directly traceable to that file.
+**This document is a complete, standalone specification of the Daily Ritual Board product as it existed in the original interactive HTML prototype.** It captures every product, UX, UI, and functional decision made across that phase of the design conversation, cross-referenced against the prototype code as it was at the time — not just what was discussed, but what was actually built, *then*. It is kept for historical traceability, not as current guidance — see the status note above.
 
 ---
 
