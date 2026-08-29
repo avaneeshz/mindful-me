@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
-import { describeSlotContents } from '@/components/editor/ActivityPicker'
+import { describeSlotContents } from '@/components/editor/TileRow'
 
 /**
  * A mount smoke test: renders the whole screen and asserts the structural
@@ -124,10 +124,14 @@ describe('Today screen', () => {
     }
   })
 
-  it('renders the three flag toggles with accessible names', () => {
-    expect(html).toContain('aria-label="Trauma response"')
-    expect(html).toContain('aria-label="Stress response"')
-    expect(html).toContain('aria-label="Fear response"')
+  // Modal Redesign §E: flags no longer live in the always-visible slot
+  // header (that whole-slot `FlagsRow` is retired) — they're single-select
+  // chips inside `LogActivityModal`, only rendered while a card is staged.
+  // Nothing is staged on this fixed-clock initial render, so the modal's
+  // content isn't in this page's markup at all; `FlagPicker`'s own render
+  // (all 4 flags + None) is covered directly in its component test instead.
+  it('renders no flag toggle in the default, nothing-staged page state', () => {
+    expect(html).not.toContain('aria-label="Trauma response"')
   })
 
   it('renders no idle placeholder in the staging pane', () => {

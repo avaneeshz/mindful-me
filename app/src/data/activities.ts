@@ -1,12 +1,15 @@
 import {
   Activity,
   AlertTriangle,
+  Angry,
   Bath,
+  BatteryLow,
   BedDouble,
   BedSingle,
   Briefcase,
   Building2,
   CircleDashed,
+  CloudRain,
   Coffee,
   Droplet,
   Droplets,
@@ -19,6 +22,7 @@ import {
   HandHeart,
   HeartCrack,
   HeartHandshake,
+  HeartPulse,
   Headphones,
   Home,
   Image,
@@ -31,6 +35,7 @@ import {
   Scissors,
   ShieldPlus,
   ShoppingCart,
+  Shuffle,
   Soup,
   Sparkle,
   Sparkles,
@@ -42,6 +47,7 @@ import {
   TrainFront,
   Trees,
   TreePine,
+  TrendingUp,
   Tv,
   Users,
   Utensils,
@@ -52,7 +58,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActivityCard, Category, CategoryId, FlagId } from '@/domain/types'
+import type { ActivityCard, ActivityQuality, Category, CategoryId, FlagId } from '@/domain/types'
 
 /* ------------------------------------------------------------------ *
  * Colour system (Tile Redesign — see the full-stack-engineer agent
@@ -515,4 +521,25 @@ export const FLAGS: FlagDefinition[] = [
   { id: 'Trauma response', shortLabel: 'Trauma', icon: HeartCrack },
   { id: 'Stress response', shortLabel: 'Stress', icon: Zap },
   { id: 'Fear response', shortLabel: 'Fear', icon: AlertTriangle },
+  // Appended, not reordered in among the existing three (Modal Redesign §E).
+  { id: 'Anger response', shortLabel: 'Anger', icon: Angry },
+]
+
+/* ------------------------------------------------------------------ *
+ * "How did it feel?" (Modal Redesign §D) — a single-select, optional
+ * reflection on a logged activity. Icon choices are a judgement call (none
+ * were prescribed) — flagged in the PR description, cheap to swap later.
+ * ------------------------------------------------------------------ */
+
+export interface QualityDefinition {
+  id: ActivityQuality
+  icon: LucideIcon
+}
+
+export const QUALITIES: QualityDefinition[] = [
+  { id: 'Nourishing', icon: HeartPulse },
+  { id: 'Productive', icon: TrendingUp },
+  { id: 'Straining', icon: CloudRain },
+  { id: 'Draining', icon: BatteryLow },
+  { id: 'Dysregulated', icon: Shuffle },
 ]

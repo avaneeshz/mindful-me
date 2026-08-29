@@ -12,6 +12,7 @@ function activity(name: string | null, overrides: Partial<ScheduledActivity> = {
     startMinutes: 0,
     durationMinutes: 30,
     flags: [],
+    quality: null,
     status: 'planned',
     timezone: 'UTC',
     ...overrides,

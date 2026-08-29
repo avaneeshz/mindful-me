@@ -1,4 +1,3 @@
-import { flagMarkerAt } from '@/domain/slots'
 import type { ScheduledActivity } from '@/domain/types'
 import type { BoardAction, BoardState } from './boardReducer'
 import {
@@ -47,10 +46,24 @@ export function deriveSyncIntents(
       const editingId = prevState.staging.editingId
       if (editingId) {
         const activity = nextState.activities.find((a) => a.id === editingId)
-        return activity ? [{ kind: 'reschedule', activity }] : []
+        if (!activity) return []
+        // Quality rides along inside `reschedule` (see the migration/API
+        // comments) — flags deliberately don't, so an edit that changed
+        // flags needs its OWN intent alongside the reschedule. Comparing
+        // against the PRE-edit activity (not just "does it have a flag")
+        // means an edit that leaves flags untouched never fires a redundant
+        // extra call.
+        const prior = prevState.activities.find((a) => a.id === editingId)
+        const flagsChanged = (prior?.flags[0] ?? null) !== (activity.flags[0] ?? null)
+        return flagsChanged
+          ? [{ kind: 'reschedule', activity }, { kind: 'flags', activity }]
+          : [{ kind: 'reschedule', activity }]
       }
       const prevIds = new Set(prevState.activities.map((a) => a.id))
       const created = nextState.activities.find((a) => !prevIds.has(a.id))
+      // A brand-new activity's flags AND quality are both already bundled
+      // into `create_scheduled_activity` (`apiCreateScheduledActivity` sends
+      // both), so one intent covers it — no separate 'flags' intent needed.
       return created ? [{ kind: 'create', activity: created }] : []
     }
 
@@ -65,15 +78,6 @@ export function deriveSyncIntents(
     case 'toggleComplete': {
       const activity = nextState.activities.find((a) => a.id === action.id)
       return activity ? [{ kind: 'status', activity }] : []
-    }
-
-    case 'toggleFlag': {
-      const before = flagMarkerAt(prevState.activities, prevState.selectedSlot)
-      const after = flagMarkerAt(nextState.activities, nextState.selectedSlot)
-      if (after && !before) return [{ kind: 'create', activity: after }]
-      if (after && before && after.id === before.id) return [{ kind: 'flags', activity: after }]
-      if (!after && before) return [{ kind: 'delete', id: before.id }]
-      return []
     }
 
     default:

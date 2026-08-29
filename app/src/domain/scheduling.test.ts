@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampDuration,
+  clampMove,
+  clampResizeStart,
   clampStepDuration,
   commitSchedule,
   computeCandidateSchedule,
@@ -11,7 +13,9 @@ import {
   MIN_DURATION_MINUTES,
   maxContiguousDuration,
   MINUTES_PER_DAY,
+  moveBounds,
   nextFreeStart,
+  resizeStartBounds,
   splitMinutesAcrossDays,
   validateSchedule,
   type CandidateSchedule,
@@ -30,6 +34,7 @@ function make(
     startMinutes,
     durationMinutes,
     flags: [],
+    quality: null,
     status: 'planned',
     timezone: 'UTC',
     ...overrides,
@@ -322,5 +327,70 @@ describe('commitSchedule', () => {
 describe('the stepper increment', () => {
   it('is a real, positive number of minutes, never a 15-minute-locked step', () => {
     expect(DURATION_STEP_MINUTES).toBeGreaterThan(0)
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * Duration drag-block (Modal Redesign §C) — moving the whole pill and
+ * resizing from its start edge. Same rule 1 as everywhere else in this file,
+ * just phrased as a two-edge range instead of "duration from a fixed start".
+ * ------------------------------------------------------------------------- */
+describe('moveBounds / clampMove', () => {
+  it('spans the whole day when nothing else is scheduled', () => {
+    expect(moveBounds([], 600, 30)).toEqual({ min: 0, max: MINUTES_PER_DAY - 30 })
+  })
+
+  it('is bounded below by the end of the immediately preceding activity', () => {
+    const existing = [make(540, 30)] // 9:00-9:30
+    expect(moveBounds(existing, 600, 30)).toEqual({ min: 570, max: MINUTES_PER_DAY - 30 })
+  })
+
+  it('is bounded above by the start of the immediately following activity, minus duration', () => {
+    const existing = [make(660, 30)] // 11:00-11:30
+    expect(moveBounds(existing, 600, 30)).toEqual({ min: 0, max: 630 })
+  })
+
+  it('is bounded on both sides at once — the exact gap the block currently sits in', () => {
+    const existing = [make(540, 30), make(660, 30)] // 9:00-9:30, 11:00-11:30
+    expect(moveBounds(existing, 600, 30)).toEqual({ min: 570, max: 630 })
+  })
+
+  it('excludes the block being moved from its own bounds', () => {
+    const self = make(600, 30, { id: 'self' })
+    expect(moveBounds([self], 600, 30, 'self')).toEqual({ min: 0, max: MINUTES_PER_DAY - 30 })
+  })
+
+  it('a flag marker (zero duration) never constrains the range', () => {
+    const marker = make(600, 0, { name: null })
+    expect(moveBounds([marker], 300, 30)).toEqual({ min: 0, max: MINUTES_PER_DAY - 30 })
+  })
+
+  it('clampMove hard-stops at the boundary rather than jumping past it', () => {
+    const existing = [make(660, 30)] // 11:00-11:30
+    expect(clampMove(existing, 600, 30, 615)).toBe(615) // still inside, unaffected
+    expect(clampMove(existing, 600, 30, 700)).toBe(630) // clamped to the max
+    expect(clampMove(existing, 600, 30, -50)).toBe(0) // clamped to the day start
+  })
+})
+
+describe('resizeStartBounds / clampResizeStart', () => {
+  it('the end stays put — bounded above by end minus the 1-minute floor', () => {
+    expect(resizeStartBounds([], 600, 630)).toEqual({ min: 0, max: 629 })
+  })
+
+  it('is bounded below by the end of the preceding activity', () => {
+    const existing = [make(540, 30)] // 9:00-9:30
+    expect(resizeStartBounds(existing, 600, 630)).toEqual({ min: 570, max: 629 })
+  })
+
+  it('excludes the block being resized from its own bounds', () => {
+    const self = make(600, 30, { id: 'self' })
+    expect(resizeStartBounds([self], 600, 630, 'self')).toEqual({ min: 0, max: 629 })
+  })
+
+  it('clampResizeStart hard-stops rather than shrinking to nothing or past a neighbour', () => {
+    const existing = [make(540, 30)] // 9:00-9:30
+    expect(clampResizeStart(existing, 600, 630, 560)).toBe(570) // clamped to the neighbour's end
+    expect(clampResizeStart(existing, 600, 630, 640)).toBe(629) // clamped to end - 1
   })
 })

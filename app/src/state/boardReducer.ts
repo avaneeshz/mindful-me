@@ -1,20 +1,21 @@
 import { findCard } from '@/data/activities'
-import { flagMarkerAt, slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
+import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
+  clampMove,
+  clampResizeStart,
   clampStepDuration,
   commitSchedule,
   computeCandidateSchedule,
-  generateId,
   maxContiguousDuration,
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { FlagId, ScheduledActivity } from '@/domain/types'
+import type { ActivityQuality, FlagId, ScheduledActivity } from '@/domain/types'
 
 /**
- * What is currently staged in the right-hand pane but not yet committed.
- * Nothing here has touched `activities` — Add/Save is the only commit point.
+ * What is currently staged in the modal but not yet committed. Nothing here
+ * has touched `activities` — Save is the only commit point.
  */
 export interface StagingState {
   cardName: string | null
@@ -23,6 +24,13 @@ export interface StagingState {
   /** The real wall-clock anchor this placement would commit at. */
   startMinutes: number
   durationMinutes: number
+  /**
+   * Modal Redesign §E — single-select, "None" (null) the explicit default.
+   * At most one, enforced entirely client-side (see `ScheduledActivity.flags`).
+   */
+  flag: FlagId | null
+  /** Modal Redesign §D — "How did it feel?", optional single-select. */
+  quality: ActivityQuality | null
   /**
    * Id of the activity being edited in place, or null when adding a new one.
    * Saving replaces that activity rather than appending a duplicate. Because
@@ -50,6 +58,8 @@ export const EMPTY_STAGING: StagingState = {
   path: [],
   startMinutes: 0,
   durationMinutes: 0,
+  flag: null,
+  quality: null,
   editingId: null,
 }
 
@@ -67,12 +77,28 @@ export type BoardAction =
    * through the same `commit` pipeline as every other staged duration.
    */
   | { type: 'setDuration'; minutes: number }
+  /**
+   * Duration drag-block — moving the whole pill: an absolute target start,
+   * duration held fixed, clamped to `moveBounds` (rule 1's hard-stop). Used
+   * identically by pointer drag (target computed from the total pixel delta
+   * since the drag began) and by the pill's own keyboard arrows (target =
+   * current +/- the 5-minute step) — one action, two input methods.
+   */
+  | { type: 'setStagingStart'; minutes: number }
+  /**
+   * Duration drag-block — resizing from the START handle: the END stays
+   * fixed, the start (and therefore duration) changes, clamped to
+   * `resizeStartBounds`. The END handle needs no new action — it's exactly
+   * `setDuration`/`stepDuration` (start fixed, duration changes), reused.
+   */
+  | { type: 'resizeStagingStart'; minutes: number }
+  | { type: 'setStagingFlag'; flag: FlagId | null }
+  | { type: 'setStagingQuality'; quality: ActivityQuality | null }
   | { type: 'commit' }
   | { type: 'editActivity'; id: string }
   | { type: 'removeActivity'; id: string }
   | { type: 'undoRemoval' }
   | { type: 'dismissRemoval'; id: string }
-  | { type: 'toggleFlag'; flag: FlagId }
   | { type: 'dropCard'; cardName: string; slot: number }
   | { type: 'hydrate'; activities: ScheduledActivity[] }
   | { type: 'toggleComplete'; id: string }
@@ -121,6 +147,8 @@ function stageFrom(
     path,
     startMinutes: candidate.startMinutes,
     durationMinutes: candidate.durationMinutes,
+    flag: null,
+    quality: null,
     editingId: candidate.id,
   }
 }
@@ -203,6 +231,48 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, durationMinutes: next } }
     }
 
+    case 'setStagingStart': {
+      if (!state.staging.cardName) return state
+      const next = clampMove(
+        state.activities,
+        state.staging.startMinutes,
+        state.staging.durationMinutes,
+        action.minutes,
+        state.staging.editingId,
+      )
+      if (next === state.staging.startMinutes) return state
+      return { ...state, staging: { ...state.staging, startMinutes: next } }
+    }
+
+    case 'resizeStagingStart': {
+      if (!state.staging.cardName) return state
+      const currentEnd = state.staging.startMinutes + state.staging.durationMinutes
+      const next = clampResizeStart(
+        state.activities,
+        state.staging.startMinutes,
+        currentEnd,
+        action.minutes,
+        state.staging.editingId,
+      )
+      if (next === state.staging.startMinutes) return state
+      return {
+        ...state,
+        staging: { ...state.staging, startMinutes: next, durationMinutes: currentEnd - next },
+      }
+    }
+
+    case 'setStagingFlag': {
+      if (!state.staging.cardName) return state
+      if (state.staging.flag === action.flag) return state
+      return { ...state, staging: { ...state.staging, flag: action.flag } }
+    }
+
+    case 'setStagingQuality': {
+      if (!state.staging.cardName) return state
+      if (state.staging.quality === action.quality) return state
+      return { ...state, staging: { ...state.staging, quality: action.quality } }
+    }
+
     case 'commit': {
       const { staging } = state
       if (!staging.cardName || !isStagingComplete(staging)) return state
@@ -221,10 +291,15 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         : undefined
 
       // Rule 4: editing time/duration never silently clears completion — the
-      // prior status, flags and timezone always carry forward untouched.
+      // prior status and timezone always carry forward untouched. Flags and
+      // quality, unlike status, ARE editable from this same modal (Modal
+      // Redesign §B/§D/§E) — staging.flag/staging.quality are what the user
+      // just set there (defaulted from the prior activity's own values by
+      // `editActivity` below, so "didn't touch it" round-trips unchanged).
       const committed = commitSchedule(candidate, {
         id: prior?.id,
-        flags: prior?.flags ?? [],
+        flags: staging.flag ? [staging.flag] : [],
+        quality: staging.quality,
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
@@ -246,6 +321,12 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           path: [...activity.path],
           startMinutes: activity.startMinutes,
           durationMinutes: activity.durationMinutes,
+          // At most one flag is ever staged (single-select) even if a
+          // pre-existing row somehow carries more (see the ScheduledActivity
+          // `flags` doc comment) — the first is kept, the rest are dropped
+          // only if the user goes on to Save; Cancel leaves the row untouched.
+          flag: activity.flags[0] ?? null,
+          quality: activity.quality,
           editingId: activity.id,
         },
       }
@@ -289,35 +370,6 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'dismissRemoval':
       if (state.removal?.activity.id !== action.id) return state
       return { ...state, removal: null }
-
-    case 'toggleFlag': {
-      const marker = flagMarkerAt(state.activities, state.selectedSlot)
-      if (marker) {
-        const flags = marker.flags.includes(action.flag)
-          ? marker.flags.filter((f) => f !== action.flag)
-          : [...marker.flags, action.flag]
-        if (flags.length === 0) {
-          return { ...state, activities: state.activities.filter((a) => a.id !== marker.id) }
-        }
-        return {
-          ...state,
-          activities: state.activities.map((a) => (a.id === marker.id ? { ...a, flags } : a)),
-        }
-      }
-      const { start } = slotMinuteRange(state.selectedSlot)
-      const newMarker: ScheduledActivity = {
-        id: generateId(),
-        name: null,
-        path: [],
-        startMinutes: start,
-        durationMinutes: 0,
-        flags: [action.flag],
-        status: 'planned',
-        timezone:
-          typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
-      }
-      return { ...state, activities: [...state.activities, newMarker] }
-    }
 
     /**
      * A DROP NEVER COMMITS.

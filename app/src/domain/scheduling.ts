@@ -23,7 +23,7 @@
  * does not fit contiguously, the candidate is clamped to the longest
  * contiguous run available from its start, never split into two ranges.
  */
-import type { ActivityList, FlagId, ScheduledActivity, ScheduleStatus } from './types'
+import type { ActivityList, ActivityQuality, FlagId, ScheduledActivity, ScheduleStatus } from './types'
 
 export const MIN_DURATION_MINUTES = 1
 /**
@@ -138,6 +138,81 @@ export function maxContiguousDuration(
   return Math.max(0, ceiling)
 }
 
+/**
+ * The valid MOVE range for a fixed-duration block currently anchored at
+ * `anchorStart` (Duration drag-block — moving the whole pill keeps its
+ * duration fixed and only changes where it starts). Bounded by the immediate
+ * neighbours either side of the gap `anchorStart` already sits in — the same
+ * rule 1 no-overlap check `maxContiguousDuration` already enforces, just
+ * generalized to a range with two edges instead of one. This is a NEW UI
+ * (drag/keyboard move) for the EXISTING rule, not a new placement rule.
+ */
+export function moveBounds(
+  existing: ActivityList,
+  anchorStart: number,
+  durationMinutes: number,
+  excludeId: string | null = null,
+): { min: number; max: number } {
+  let min = 0
+  let max = MINUTES_PER_DAY - durationMinutes
+  for (const a of existing) {
+    if (a.id === excludeId || !isReal(a)) continue
+    const aEnd = a.startMinutes + a.durationMinutes
+    if (aEnd <= anchorStart && aEnd > min) min = aEnd
+    if (a.startMinutes >= anchorStart && a.startMinutes - durationMinutes < max) {
+      max = a.startMinutes - durationMinutes
+    }
+  }
+  return { min, max: Math.max(min, max) }
+}
+
+/** Clamp a desired start into `moveBounds`'s range — the drag-block's hard-stop. */
+export function clampMove(
+  existing: ActivityList,
+  anchorStart: number,
+  durationMinutes: number,
+  desiredStart: number,
+  excludeId: string | null = null,
+): number {
+  const { min, max } = moveBounds(existing, anchorStart, durationMinutes, excludeId)
+  return Math.min(max, Math.max(min, Math.round(desiredStart)))
+}
+
+/**
+ * The valid range for the LEFT edge of a duration block whose END
+ * (`currentEnd`) stays fixed while its start moves (Duration drag-block —
+ * resizing from the start handle). Bounded below by the nearest preceding
+ * activity's end, and above by `currentEnd - MIN_DURATION_MINUTES` (a block
+ * can shrink to 1 minute, never to nothing). Same rule 1, new UI.
+ */
+export function resizeStartBounds(
+  existing: ActivityList,
+  currentStart: number,
+  currentEnd: number,
+  excludeId: string | null = null,
+): { min: number; max: number } {
+  let min = 0
+  for (const a of existing) {
+    if (a.id === excludeId || !isReal(a)) continue
+    const aEnd = a.startMinutes + a.durationMinutes
+    if (aEnd <= currentStart && aEnd > min) min = aEnd
+  }
+  const max = Math.max(min, currentEnd - MIN_DURATION_MINUTES)
+  return { min, max }
+}
+
+/** Clamp a desired new start (end fixed) into `resizeStartBounds`'s range. */
+export function clampResizeStart(
+  existing: ActivityList,
+  currentStart: number,
+  currentEnd: number,
+  desiredStart: number,
+  excludeId: string | null = null,
+): number {
+  const { min, max } = resizeStartBounds(existing, currentStart, currentEnd, excludeId)
+  return Math.min(max, Math.max(min, Math.round(desiredStart)))
+}
+
 /** Clamp a desired duration into the legal range for a given ceiling. */
 export function clampDuration(desired: number, ceiling: number): number {
   if (ceiling < MIN_DURATION_MINUTES) return 0
@@ -208,6 +283,8 @@ export function validateSchedule(
 
 export interface CommitContext {
   flags?: FlagId[]
+  /** "How did it feel?" — optional, single-select (see domain/types.ts). */
+  quality?: ActivityQuality | null
   status?: ScheduleStatus
   timezone?: string
   id?: string
@@ -237,6 +314,7 @@ export function commitSchedule(
     startMinutes: candidate.startMinutes,
     durationMinutes: candidate.durationMinutes,
     flags: context.flags ?? [],
+    quality: context.quality ?? null,
     status: context.status ?? 'planned',
     timezone:
       context.timezone ??

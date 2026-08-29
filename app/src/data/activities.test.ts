@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ACTIVITY_CARDS, CATEGORIES, CATEGORY_ORDER, cardsForCategory, findCard, itemFillColor } from './activities'
+import { ACTIVITY_CARDS, CATEGORIES, CATEGORY_ORDER, cardsForCategory, findCard, FLAGS, itemFillColor, QUALITIES } from './activities'
 
 /** Tile Redesign §3 — the per-tile item counts, in on-screen order. */
 const EXPECTED_TILE_COUNTS: Record<string, number> = {
@@ -102,5 +102,39 @@ describe('itemFillColor', () => {
 
   it('falls back the same way for null (defensive — flags never reach this path in practice)', () => {
     expect(itemFillColor(null)).toBe('var(--cat-sleep-light)')
+  })
+})
+
+describe('FLAGS (Modal Redesign §E)', () => {
+  it('has exactly 4 flags, Anger response appended last', () => {
+    expect(FLAGS.map((f) => f.id)).toEqual([
+      'Trauma response',
+      'Stress response',
+      'Fear response',
+      'Anger response',
+    ])
+  })
+
+  it('every flag has a distinct id and a short label', () => {
+    const ids = FLAGS.map((f) => f.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const flag of FLAGS) expect(flag.shortLabel.length).toBeGreaterThan(0)
+  })
+})
+
+describe('QUALITIES ("how did it feel?", Modal Redesign §D)', () => {
+  it('has exactly the 5 specified values, in spec order', () => {
+    expect(QUALITIES.map((q) => q.id)).toEqual([
+      'Nourishing',
+      'Productive',
+      'Straining',
+      'Draining',
+      'Dysregulated',
+    ])
+  })
+
+  it('every quality has a distinct icon assigned', () => {
+    const icons = QUALITIES.map((q) => q.icon)
+    expect(new Set(icons).size).toBe(icons.length)
   })
 })

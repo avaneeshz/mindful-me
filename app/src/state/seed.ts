@@ -23,12 +23,18 @@ function activity(
     startMinutes,
     durationMinutes,
     flags: [],
+    quality: null,
     status: 'planned',
     timezone: TIMEZONE,
   }
 }
 
-/** A whole-slot marker: no catalog activity, no duration, no schedule cost. */
+/**
+ * A whole-slot marker: no catalog activity, no duration, no schedule cost.
+ * Legacy shape only — the client no longer creates these (Modal Redesign
+ * §E), but the seed keeps demonstrating that OLD rows still render, exactly
+ * like any pre-existing data would.
+ */
 function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
   return {
     id: nextId(),
@@ -37,6 +43,7 @@ function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
     startMinutes,
     durationMinutes: 0,
     flags,
+    quality: null,
     status: 'planned',
     timezone: TIMEZONE,
   }

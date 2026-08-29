@@ -90,8 +90,23 @@ export interface ActivityCard {
   disappear: DisappearRule
 }
 
-/** A whole-slot marker. Carries no duration and consumes no schedule room. */
-export type FlagId = 'Trauma response' | 'Stress response' | 'Fear response'
+/**
+ * A whole-slot marker. Legacy-only going forward: the client no longer
+ * creates flag-only markers (Modal Redesign §E) — flags now attach to the
+ * real activity being logged instead (see `ScheduledActivity.flags` below).
+ * Old zero-duration marker rows, if any exist, keep rendering exactly as
+ * before (`domain/slots.ts` `flagMarkerAt` is untouched) — this union just
+ * grows a 4th member so both the legacy path and the new per-activity path
+ * can express it.
+ */
+export type FlagId = 'Trauma response' | 'Stress response' | 'Fear response' | 'Anger response'
+
+/**
+ * A single-select, optional reflection on how a logged activity felt —
+ * "How did it feel?" (Modal Redesign §D). Nullable: logging an activity must
+ * never require answering this.
+ */
+export type ActivityQuality = 'Nourishing' | 'Productive' | 'Straining' | 'Draining' | 'Dysregulated'
 
 export type ScheduleStatus = 'planned' | 'completed'
 
@@ -134,7 +149,19 @@ export interface ScheduledActivity {
    * calendar days it touches.
    */
   durationMinutes: number
+  /**
+   * At most ONE element (Modal Redesign §E — single-select, "None" is the
+   * explicit default). The wire shape stays `text[]`/`FlagId[]` deliberately
+   * (an approved decision not to churn `flags_encrypted`'s array column or
+   * its encrypt/decrypt functions) — enforcing "at most one" is entirely a
+   * client-layer contract, never a DB constraint. A pre-existing legacy
+   * marker row could in principle carry more than one (nothing in the old
+   * model prevented it); the new single-select modal simply keeps only the
+   * first if it ever encounters that.
+   */
   flags: FlagId[]
+  /** "How did it feel?" — optional, single-select. Never required to log an activity. */
+  quality: ActivityQuality | null
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string

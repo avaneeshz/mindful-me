@@ -277,89 +277,29 @@
   container-name: editor;
 }
 
-.editor-split {
+/* Modal Redesign §1 — the picker is now a single horizontal tile row plus
+   an expand panel below it (never a side-by-side split, never a grid — both
+   `.editor-split`'s two-column layout and `.picker-grid`/`.picker-grid-main`
+   are retired along with `StagingPane`/the old 3x3 tile grid; duration/
+   quality/flags now live in `LogActivityModal`, an overlay, not a column).
+
+   `.tile-row` and `.item-chip-row` share the SAME horizontal-scroll
+   treatment `.timeline-scroll-region` already established: only the
+   scrollbar is hidden (`overflow-x` stays `auto`), so touch/trackpad/
+   programmatic scrolling all keep working, at every breakpoint down to
+   mobile — there is no separate stacked-vs-row layout to switch between. */
+.tile-row,
+.item-chip-row {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.staging-pane {
-  border-top: 1px solid theme('colors.line');
-  padding-top: 24px;
-}
-
-.picker-grid {
-  display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* The main screen — a fixed 3x3 grid of the 9 top-level tiles (Tile
-   Redesign §1). Unlike `.picker-grid` above (sized for up to 53 leaf items,
-   deliberately filling its container across many columns), 9 tiles at
-   `aspect-square` stretched across the SAME wide editor column would blow up
-   into ~400px squares — the `max-width` below keeps each tile a sane,
-   restrained size (CLAUDE.md) regardless of how wide `.picker-column` is,
-   while `repeat(3, minmax(0, 1fr))` still lets them shrink together on a
-   narrow mobile viewport. */
-.picker-grid-main {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-width: 420px;
-}
-
-/* iPad portrait and anything narrower than a comfortable two-up split keeps
-   the stacked layout above; these steps only widen the picker grid. */
-@container editor (min-width: 460px) {
-  .picker-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
-@container editor (min-width: 620px) {
-  .picker-grid {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-}
-
-/* Wide enough for picker + persistent staging pane side by side. */
-@container editor (min-width: 860px) {
-  .editor-split {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-
-  .picker-column {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .staging-pane {
-    width: 280px;
-    flex-shrink: 0;
-    border-top: 0;
-    border-left: 1px solid theme('colors.line');
-    padding-top: 0;
-    padding-left: 24px;
-  }
-
-  .picker-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
-}
-
-/*
-  iPad landscape. The approved spec asked for ~10 picker columns; rendered at
-  1194x834 that produced 45px tiles whose labels truncated to 2-3 characters
-  ("Nig…", "Bru…", "Clo…") while saving nothing vertically — 24 tiles wrap to
-  3 rows at both 8 and 10 columns. 8 columns keeps the same 3 rows, widens each
-  tile to ~60px, and restores readable label stems. Flagged for design sign-off.
-*/
-@media (orientation: landscape) and (min-width: 900px) and (max-height: 900px) {
-  .picker-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
+.tile-row::-webkit-scrollbar,
+.item-chip-row::-webkit-scrollbar {
+  display: none;
 }
 
 /* Respect reduced-motion for every motion the redesign introduces: the smooth

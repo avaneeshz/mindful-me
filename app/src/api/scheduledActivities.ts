@@ -1,9 +1,9 @@
 import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
 import { supabase } from '@/lib/supabaseClient'
-import type { FlagId, ScheduleStatus, ScheduledActivity } from '@/domain/types'
+import type { ActivityQuality, FlagId, ScheduleStatus, ScheduledActivity } from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
 
-/** The shape `public.scheduled_activity_dto` (see the Phase 2 migrations) hands back. */
+/** The shape `public.scheduled_activity_dto` (see the Phase 2/quality migrations) hands back. */
 interface ScheduledActivityDto {
   id: string
   activity_id: string | null
@@ -14,6 +14,7 @@ interface ScheduledActivityDto {
   start_minute: number
   timezone: string
   flags: string[] | null
+  quality: string | null
   status: string
   created_at: string
   updated_at: string
@@ -28,6 +29,7 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     startMinutes: dto.start_minute,
     durationMinutes: dto.duration_minutes,
     flags: (dto.flags ?? []) as FlagId[],
+    quality: (dto.quality as ActivityQuality | null) ?? null,
     status: (dto.status as ScheduleStatus) ?? 'planned',
     timezone: dto.timezone,
   }
@@ -84,6 +86,7 @@ export async function apiCreateScheduledActivity(activity: ScheduledActivity, re
     ...params,
     p_flags: activity.flags,
     p_id: activity.id,
+    p_quality: activity.quality,
   })
   if (error) throw error
 }
@@ -94,7 +97,15 @@ export async function apiRescheduleScheduledActivity(
 ): Promise<void> {
   if (!supabase) return
   const params = await scheduleParams(activity, reference)
-  const { error } = await supabase.rpc('reschedule_scheduled_activity', { p_id: activity.id, ...params })
+  // Quality is bundled into reschedule too (unlike flags, kept deliberately
+  // separate — see the migration's own comment): the client always sends the
+  // full CURRENT quality on every reschedule, never omitted, and the RPC
+  // unconditionally overwrites it, same contract every other column has.
+  const { error } = await supabase.rpc('reschedule_scheduled_activity', {
+    p_id: activity.id,
+    ...params,
+    p_quality: activity.quality,
+  })
   if (error) throw error
 }
 
@@ -107,6 +118,13 @@ export async function apiSetScheduledActivityStatus(id: string, status: Schedule
 export async function apiSetScheduledActivityFlags(id: string, flags: FlagId[]): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('set_scheduled_activity_flags', { p_id: id, p_flags: flags })
+  if (error) throw error
+}
+
+/** Parity with `apiSetScheduledActivityFlags` — a quality-only edit with no accompanying time change. */
+export async function apiSetScheduledActivityQuality(id: string, quality: ActivityQuality | null): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('set_scheduled_activity_quality', { p_id: id, p_quality: quality })
   if (error) throw error
 }
 

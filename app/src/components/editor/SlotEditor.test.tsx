@@ -47,9 +47,9 @@ describe('dropping an activity onto a slot', () => {
     expect(html).not.toContain(formatSlotRange(32))
   })
 
-  it('pre-populates the panel with the dropped activity', () => {
+  it('pre-populates the modal with the dropped activity', () => {
     expect(html).toContain('Errand time')
-    expect(html).toContain('Activity selection')
+    expect(html).toContain('role="dialog"')
     expect(html).not.toContain('Night Sleep')
   })
 
@@ -58,14 +58,14 @@ describe('dropping an activity onto a slot', () => {
   })
 
   it('waits for an explicit confirmation rather than auto-committing', () => {
-    expect(html).toContain('Add to slot')
+    expect(html).toContain('Save entry')
     expect(run(DROP).activities).toEqual([])
   })
 
   it('offers a cancel that discards the pending drop', () => {
     expect(html).toContain('Cancel')
     const cancelled = run(DROP, { type: 'cancelStaging' })
-    expect(renderEditor(cancelled)).not.toContain('Add to slot')
+    expect(renderEditor(cancelled)).not.toContain('Save entry')
     expect(cancelled.activities).toEqual([])
   })
 
@@ -74,7 +74,7 @@ describe('dropping an activity onto a slot', () => {
     const confirmed = renderEditor(committed)
     expect(committed.activities).toMatchObject([{ name: 'Errand time', startMinutes: 600, durationMinutes: 30 }])
     expect(confirmed).toContain('Errand time')
-    expect(confirmed).not.toContain('Add to slot')
+    expect(confirmed).not.toContain('Save entry')
   })
 })
 

@@ -1,33 +1,16 @@
 import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { categoryOf, findCard } from '@/data/activities'
 import { DURATION_STEP_MINUTES } from '@/domain/scheduling'
-import { type StagingState } from '@/state/boardReducer'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { CategoryIconChip } from './CategoryIconChip'
 
-interface StagingPaneProps {
-  staging: StagingState
-  /** Largest committable duration right now, after the capacity rules. */
-  maxDuration: number
-  /**
-   * Whether `commit` would actually place something. Computed ONCE by SlotEditor
-   * and passed to both this button and the mobile sticky bar — the two used to
-   * derive it separately with different rules, so the desktop button could be
-   * enabled while commit silently no-oped.
-   */
-  canCommit: boolean
-  onStep: (delta: number) => void
-  /**
-   * Set an exact duration — from the manual entry field or a quick-add
-   * button. Goes through the same reducer clamp (overlap + continuous-block
-   * ceiling) as `onStep`, just without snapping to the 5-minute grid.
-   */
-  onSetDuration: (minutes: number) => void
-  onCommit: () => void
-  onCancel: () => void
-}
+/**
+ * The numeric +/- stepper and quick-add buttons, extracted verbatim from the
+ * retired `StagingPane.tsx` side panel. Debug/comparison fallback only —
+ * gated behind `SHOW_DURATION_STEPPER_FALLBACK` (see `lib/featureFlags.ts`),
+ * mutually exclusive with `DurationDragBlock`. Dispatches through the exact
+ * same `stepDuration`/`setDuration` reducer actions the drag-block uses —
+ * no duplicate duration logic between the two.
+ */
 
 export const CAPACITY_MESSAGE_ID = 'staging-capacity-message'
 
@@ -40,10 +23,6 @@ const QUICK_ADD_OPTIONS: Array<{ label: string; minutes: number; description: st
   { label: '2hr', minutes: 120, description: 'Add 2 hours to duration' },
 ]
 
-export function primaryActionLabel(staging: StagingState): string {
-  return staging.editingId !== null ? 'Save changes' : 'Add to slot'
-}
-
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
   const hours = Math.floor(minutes / 60)
@@ -51,92 +30,33 @@ function formatDuration(minutes: number): string {
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`
 }
 
-/**
- * A flat panel on the page background, separated by a single hairline — NOT a
- * white card. The editor is already an elevation-1 surface, and nesting a card
- * inside a card is the "excessive rounded containers" anti-pattern.
- */
-export function StagingPane({
-  staging,
+export function DurationStepperFallback({
+  duration,
   maxDuration,
-  canCommit,
   onStep,
   onSetDuration,
-  onCommit,
-  onCancel,
-}: StagingPaneProps) {
-  // No staged pick, no pane. The "Choose an activity" placeholder that used to
-  // stand here restated what the tile grid beside it already makes obvious, and
-  // reserved a column of empty space to say it. The pane now appears only once
-  // there is something to configure, and the picker reflows into the space.
-  if (!staging.cardName) return null
-
-  const card = findCard(staging.cardName)
-  const category = categoryOf(staging.cardName)
-  const atCeiling = staging.durationMinutes >= maxDuration
-
+}: {
+  duration: number
+  maxDuration: number
+  onStep: (delta: number) => void
+  onSetDuration: (minutes: number) => void
+}) {
+  const atCeiling = duration >= maxDuration
   return (
-    // `ipad-land:gap-md` is the same short-landscape density adaptation used
-    // throughout this screen, not a structural change — see Acceptance
-    // Criterion 13. It applies where vertical room is scarcest.
-    <div className="staging-pane flex flex-col gap-lg ipad-land:gap-md">
-      <div className="flex items-start gap-md">
-        <CategoryIconChip category={category} icon={card?.icon} />
-        <div className="min-w-0">
-          <p className="text-entry-name font-semibold text-charcoal">{staging.cardName}</p>
-          {staging.path.length > 0 && (
-            <p className="mt-xs text-caption font-medium text-muted">
-              {staging.path.join(' · ')}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/*
-        The stepper, quick-add and the ceiling message are ONE group, not
-        peers a full gap apart: the message explains both controls' shared
-        limit, so binding it tight underneath is both the correct reading
-        order and the exact state where vertical space is tightest
-        (Acceptance Criterion 13 — a second activity in a partially-filled
-        slot is what pushes the primary action toward the fold on iPad
-        landscape).
-      */}
-      <div className="flex flex-col gap-md">
-        <DurationStepper
-          duration={staging.durationMinutes}
-          maxDuration={maxDuration}
-          atCeiling={atCeiling}
-          onStep={onStep}
-          onSetDuration={onSetDuration}
-        />
-
-        <QuickAddButtons
-          duration={staging.durationMinutes}
-          maxDuration={maxDuration}
-          onSetDuration={onSetDuration}
-        />
-
-        {/*
-          Acceptance Criterion 9: the ceiling is stated, not silently applied.
-          Gold is the informational/limiting tone; Terracotta stays reserved for
-          destructive actions.
-        */}
-        {atCeiling && (
-          <p id={CAPACITY_MESSAGE_ID} role="status" className="text-note font-medium text-gold">
-            Capped at {formatDuration(maxDuration)} — the next activity begins there.
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-sm">
-        {/* On mobile the primary action lives in the sticky bottom bar instead. */}
-        <Button block disabled={!canCommit} onClick={onCommit} className="mobile:hidden">
-          {primaryActionLabel(staging)}
-        </Button>
-        <Button variant="ghost" size="control" block onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+    <div className="flex flex-col gap-md">
+      <DurationStepper
+        duration={duration}
+        maxDuration={maxDuration}
+        atCeiling={atCeiling}
+        onStep={onStep}
+        onSetDuration={onSetDuration}
+      />
+      <QuickAddButtons duration={duration} maxDuration={maxDuration} onSetDuration={onSetDuration} />
+      {atCeiling && (
+        <p id={CAPACITY_MESSAGE_ID} role="status" className="text-note font-medium text-gold">
+          Capped at {formatDuration(maxDuration)} — the next activity begins there.
+        </p>
+      )}
     </div>
   )
 }
@@ -144,15 +64,13 @@ export function StagingPane({
 const DURATION_INPUT_ID = 'duration-input'
 
 /**
- * `[-] [editable number] [+]`, one row, centered (BL-1). The number in the
- * middle is both the stepper's live readout AND the exact-minute entry field
- * that used to be a separate "Set exact minutes" box below it — click (or
- * tab) into it and type an exact value, same as that box did, through the
- * exact same `onSetDuration` -> `setDuration` reducer path (clamps only to
- * [1 minute, continuous-block ceiling], never snaps to the stepper's 5-minute
- * grid). A local "draft" string keeps the field editable (empty, mid-typed)
- * without fighting the committed value while focused; unfocused, it shows
- * the same formatted duration the old read-only `<output>` did.
+ * `[-] [editable number] [+]`, one row, centered. The number in the middle is
+ * both the stepper's live readout AND the exact-minute entry field — click
+ * (or tab) into it and type an exact value, through the same `onSetDuration`
+ * -> `setDuration` reducer path (clamps only to [1 minute, continuous-block
+ * ceiling], never snaps to the stepper's 5-minute grid). A local "draft"
+ * string keeps the field editable without fighting the committed value while
+ * focused; unfocused, it shows the same formatted duration.
  */
 function DurationStepper({
   duration,
@@ -266,9 +184,9 @@ function DurationStepper({
 }
 
 /**
- * R2.4 — additive quick-add buttons. Each adds its labeled amount to
- * whatever duration is currently staged (never sets it outright), through
- * the same clamp `onSetDuration` already applies.
+ * Additive quick-add buttons. Each adds its labeled amount to whatever
+ * duration is currently staged (never sets it outright), through the same
+ * clamp `onSetDuration` already applies.
  */
 function QuickAddButtons({
   duration,
