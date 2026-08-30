@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { itemFillColor } from '@/data/activities'
+import { findCard, itemFillColor } from '@/data/activities'
 import { formatMinutes } from '@/domain/slots'
 import {
   clampMove,
@@ -31,6 +31,11 @@ import { cn } from '@/lib/utils'
  * proposes (drag or keyboard) is clamped into the valid range by the SAME
  * `clampMove`/`clampResizeStart`/duration-ceiling functions the reducer
  * itself uses (`domain/scheduling.ts`) — rule 1, just a new UI for it.
+ *
+ * The pill carries no text of its own — the modal's own header already
+ * names the activity — and instead two live time labels float ABOVE the
+ * track, each anchored over its own edge and sliding with it as the pill
+ * moves/resizes (approved mockup).
  */
 
 /** Half the visible ruler window, in minutes either side of the anchor. */
@@ -159,24 +164,37 @@ export function DurationDragBlock({
       a.startMinutes + a.durationMinutes > windowStart,
   )
 
+  const pillLeft = Math.max(0, pctFor(startMinutes))
+  const pillRight = Math.min(100, pctFor(startMinutes + durationMinutes))
+
   return (
     <div className="flex flex-col gap-xs">
       <p id="duration-drag-label" className="text-caption font-semibold text-muted">
         Duration
       </p>
-      <div
-        ref={trackRef}
-        className="relative h-[52px] w-full overflow-hidden rounded-md bg-bg"
-      >
+      {/* Live edge time labels float above the track, anchored directly over
+          the pill's own left/right edge, sliding with it as it's
+          dragged/resized/keyboard-moved. */}
+      <div className="relative h-[26px] w-full">
+        <EdgeTimeLabel leftPct={pillLeft} minutes={startMinutes} />
+        <EdgeTimeLabel leftPct={pillRight} minutes={startMinutes + durationMinutes} />
+      </div>
+      <div ref={trackRef} className="relative h-[40px] w-full overflow-hidden rounded-md bg-bg">
         {neighbors.map((a) => {
           const left = Math.max(0, pctFor(a.startMinutes))
           const right = Math.min(100, pctFor(a.startMinutes + a.durationMinutes))
           if (right <= left) return null
+          const onColor = findCard(a.name ?? '')?.onColor ?? 'text-charcoal'
           return (
             <div
               key={a.id}
               aria-hidden="true"
-              className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm px-xs text-nano font-semibold text-charcoal/70"
+              // Square corners — flush against the pill or against each
+              // other, so the strip reads as one continuous timeline.
+              className={cn(
+                'absolute inset-y-0 flex items-center overflow-hidden px-xs text-nano font-semibold',
+                onColor,
+              )}
               style={{ left: `${left}%`, width: `${right - left}%`, background: itemFillColor(a.name), opacity: 0.45 }}
             >
               <span className="truncate">{a.name}</span>
@@ -184,13 +202,11 @@ export function DurationDragBlock({
           )
         })}
 
-        {/* The staged pill itself. */}
+        {/* The staged pill — no text inside; the modal header already names
+            the activity, and the edge labels above carry the times. */}
         <div
-          className="absolute inset-y-[6px] rounded-md shadow-elevation-1"
-          style={{
-            left: `${Math.max(0, pctFor(startMinutes))}%`,
-            width: `${Math.min(100, pctFor(startMinutes + durationMinutes)) - Math.max(0, pctFor(startMinutes))}%`,
-          }}
+          className="absolute inset-y-[4px] rounded-md shadow-elevation-1"
+          style={{ left: `${pillLeft}%`, width: `${pillRight - pillLeft}%` }}
         >
           <div
             role="slider"
@@ -205,15 +221,13 @@ export function DurationDragBlock({
             onPointerDown={(event) => beginDrag('move', event)}
             onKeyDown={onMoveKeyDown}
             className={cn(
-              'flex h-full w-full cursor-grab items-center justify-center truncate rounded-md px-md text-micro font-semibold text-white',
-              'bg-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal',
+              'h-full w-full cursor-grab rounded-md bg-forest',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal',
               dragKind === 'move' && 'cursor-grabbing',
             )}
-          >
-            {cardName} · {formatMinutes(startMinutes)}–{formatMinutes(startMinutes + durationMinutes)}
-          </div>
+          />
 
-          {/* Left (start) resize handle. */}
+          {/* Left (start) resize handle — a short grip straddling the edge. */}
           <div
             role="slider"
             tabIndex={0}
@@ -232,7 +246,7 @@ export function DurationDragBlock({
               event.stopPropagation()
               onResizeStartKeyDown(event)
             }}
-            className="absolute inset-y-0 left-0 w-[10px] -translate-x-1/2 cursor-ew-resize rounded-full bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal"
+            className="absolute left-0 top-1/2 h-[24px] w-[10px] -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal"
           />
 
           {/* Right (end) resize handle — reuses setDuration, nothing new. */}
@@ -253,7 +267,7 @@ export function DurationDragBlock({
               event.stopPropagation()
               onResizeEndKeyDown(event)
             }}
-            className="absolute inset-y-0 right-0 w-[10px] translate-x-1/2 cursor-ew-resize rounded-full bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal"
+            className="absolute right-0 top-1/2 h-[24px] w-[10px] translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal"
           />
         </div>
       </div>
@@ -266,6 +280,22 @@ export function DurationDragBlock({
           Capped — a neighbouring activity (or the end of the day) starts right there.
         </p>
       )}
+    </div>
+  )
+}
+
+/** A time badge anchored above its own edge of the track, with a short connecting tick down to it. */
+function EdgeTimeLabel({ leftPct, minutes }: { leftPct: number; minutes: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
+      style={{ left: `${leftPct}%` }}
+    >
+      <span className="whitespace-nowrap rounded-full border border-line bg-white px-sm py-px text-nano font-extrabold text-forest">
+        {formatMinutes(minutes)}
+      </span>
+      <span className="mt-px h-[6px] w-px bg-line" />
     </div>
   )
 }

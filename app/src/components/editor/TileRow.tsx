@@ -1,9 +1,24 @@
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, Circle, Info } from 'lucide-react'
 import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
 import type { ActivityCard, ActivityList, Category, CategoryId } from '@/domain/types'
 import { cn } from '@/lib/utils'
+
+/**
+ * One shared accent for all 9 tiles (approved mockup direction) — the tiles
+ * no longer each carry their own `Category.deep` colour; that per-category
+ * palette still exists (`Category.deep`/`onDeep`) but is no longer read by
+ * this component. Scoped to the top-level tile row only — the 53 item
+ * colours inside the expand panel are unchanged.
+ *
+ * The colour itself lives in exactly one place, `--tile-accent`
+ * (styles/index.css, mirrored into Tailwind as the `tile-accent` theme
+ * colour) — never as a literal here. Static usages below reach it through
+ * ordinary `tile-accent` utility classes; only the water-fill tint, a
+ * genuinely computed `color-mix()`, needs the CSS var directly.
+ */
+const TILE_FILL_COLOR = 'color-mix(in srgb, var(--tile-accent) 74%, white)'
 
 /** e.g. "1 activity totalling 30 minutes", "2 activities totalling 30 minutes". */
 export function describeSlotContents(activityCount: number, usedMinutes: number): string {
@@ -128,8 +143,7 @@ function PanelHeader({ category, progress }: { category: Category; progress: Til
           scrolled the tile itself out of easy reach. */}
       <span
         aria-hidden="true"
-        className="flex size-[28px] shrink-0 items-center justify-center rounded-full text-white"
-        style={{ background: category.deep }}
+        className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-tile-accent text-white"
       >
         <Icon className="size-[15px]" />
       </span>
@@ -158,9 +172,11 @@ function Tile({
 }) {
   const Icon = category.icon
   const locked = isTileLocked(progress)
+  // A real proportional gauge — done/total, not a fixed decorative height.
+  const fillPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
-    <div className="relative shrink-0">
+    <div className="relative flex-1 min-w-0">
       <button
         type="button"
         tabIndex={hiddenFromAT ? -1 : undefined}
@@ -169,46 +185,55 @@ function Tile({
         onClick={onToggle}
         aria-label={`${category.label}, ${describeProgress(progress)}`}
         className={cn(
-          'relative flex aspect-square w-[104px] shrink-0 cursor-pointer flex-col items-center justify-end gap-xs overflow-hidden',
-          'rounded-lg p-sm transition-shadow',
+          'relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end gap-xs overflow-hidden',
+          'rounded-lg bg-white p-sm shadow-elevation-1 transition-shadow',
           'hover:shadow-elevation-2',
-          // Active state: the tile's OWN accent as a ring + a subtle lift —
-          // never a full colour swap, keeping the row calm (CLAUDE.md).
-          isActive ? 'shadow-elevation-2 ring-2 ring-offset-2' : 'ring-0',
-          locked && 'saturate-[0.35] opacity-80',
+          // Active: the shared accent as an outline (replaces the resting
+          // hairline border, never a fill swap) + a stronger lift. A fully
+          // filled tile already reads as "done" from the gauge alone, so it
+          // gets no separate dimming treatment any more (that instinct was
+          // for the old flat-colour tile, not this water-fill one).
+          isActive
+            ? 'shadow-elevation-2 outline outline-2 outline-offset-2 outline-tile-accent'
+            : 'border border-line',
         )}
-        style={{
-          background: category.deep,
-          // The ring colour tracks the tile's own accent — inline since it's
-          // a per-tile design token, not a fixed Tailwind color.
-          ...(isActive ? ({ '--tw-ring-color': category.deep } as CSSProperties) : {}),
-        }}
       >
-        {/* Subtle wave motif — the same visual language TimelineScenery
-            already uses elsewhere, kept purely decorative and low-contrast
-            so it never fights the icon/label sitting on top of it. */}
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 104 40"
-          preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-[40%] w-full opacity-25"
-        >
-          <path d="M0 20 Q 13 8 26 20 T 52 20 T 78 20 T 104 20 V40 H0 Z" fill="white" />
-        </svg>
+        {fillPct > 0 && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-0"
+            style={{ height: `${fillPct}%`, background: TILE_FILL_COLOR }}
+          >
+            {/* The wave-crest texture only makes sense on a partial fill —
+                a fully submerged tile has no waterline left to show. */}
+            {fillPct < 100 && (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 104 14"
+                preserveAspectRatio="none"
+                className="absolute -top-[9px] left-0 h-[14px] w-full"
+              >
+                <path d="M0 10 C 21 4 43 4 64 8 C 85 12 107 5 104 9 L104 14 L0 14 Z" fill={TILE_FILL_COLOR} />
+              </svg>
+            )}
+          </div>
+        )}
 
-        <Icon aria-hidden="true" className={cn('relative z-[1] size-[20px] shrink-0', category.onDeep)} />
+        <Icon
+          aria-hidden="true"
+          className={cn('relative z-[1] size-[20px] shrink-0', fillPct === 100 ? 'text-white' : 'text-tile-accent')}
+        />
         <span
           aria-hidden="true"
           className={cn(
-            'relative z-[1] line-clamp-2 w-full px-xs text-center text-micro font-semibold leading-tight',
-            category.onDeep,
-            category.onDeepBoost,
+            'relative z-[1] line-clamp-2 w-full px-xs text-center text-micro leading-tight',
+            fillPct === 100 ? 'text-white font-semibold' : isActive ? 'text-forest font-bold' : 'text-charcoal font-semibold',
           )}
         >
           {category.label}
         </span>
 
-        {/* Done-count, pinned to the tile's own bottom edge. */}
+        {/* Done-count, sitting on top of the fill. */}
         <span
           aria-hidden="true"
           className="relative z-[1] rounded-full bg-white/90 px-sm py-px text-nano font-extrabold text-charcoal"
@@ -226,14 +251,12 @@ function Tile({
         )}
       </button>
 
-      {/* The chevron connector — sits on the tile itself so it scrolls WITH
-          it, rather than trying to track scroll position on a separately
-          positioned element. */}
+      {/* The chevron connector — sits on the tile itself so it stays under
+          it regardless of layout, rather than tracking position separately. */}
       {isActive && (
         <span
           aria-hidden="true"
-          className="absolute -bottom-[9px] left-1/2 size-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent"
-          style={{ borderTopColor: category.deep }}
+          className="absolute -bottom-[9px] left-1/2 size-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent border-t-tile-accent"
         />
       )}
     </div>

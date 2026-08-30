@@ -73,6 +73,12 @@ export default {
       'day-accent': 'var(--day-accent)',
       'night-accent': 'var(--night-accent)',
 
+      // The 9-tile row's single shared accent (Tile Redesign, approved
+      // mockup) — one deliberate new brand-adjacent blue, replacing the old
+      // per-category `deep` colour on that row only. Declared once in
+      // index.css; every component reaches it through this token.
+      'tile-accent': 'var(--tile-accent)',
+
       // Sidebar-only surface tints (ported as-is from the prototype).
       'sidebar-text': '#EAF1EC',
       'sidebar-muted': '#B9CBC2',

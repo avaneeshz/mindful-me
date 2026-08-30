@@ -43,9 +43,19 @@ describe('the modal only exists while a card is staged', () => {
     expect(html).toContain('role="slider"') // the duration drag-block
     expect(html).toContain('How did it feel?')
     expect(html).toContain('Nourishing')
-    expect(html).toContain('Explore states')
+    expect(html).toContain('Deep log')
     expect(html).toContain('Save entry')
     expect(html).toContain('Cancel')
+  })
+
+  it('names the activity’s own tile as a subtitle under its title', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    expect(html).toContain('Sleep &amp; Rest')
+  })
+
+  it('is a wide sheet (760px reference width), not the old narrow side panel', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    expect(html).toContain('md:w-[min(760px,92vw)]')
   })
 
   it('shows "Save changes" instead of "Save entry" while editing an existing activity', () => {
@@ -58,19 +68,29 @@ describe('the modal only exists while a card is staged', () => {
 })
 
 describe('sub-option drill-down (same staging mechanism, relocated into the modal)', () => {
-  it('shows sub-option chips instead of duration/quality/flag while mid-drill', () => {
+  it('shows sub-option chips TOGETHER with duration/quality/flag, not a separate step', () => {
     const html = renderModal({
       staging: { ...EMPTY_STAGING, cardName: 'Supplements' },
     })
     expect(html).toContain('Zinc (post-breakfast)')
-    expect(html).not.toContain('role="slider"')
-    expect(html).not.toContain('How did it feel?')
+    expect(html).toContain('role="slider"')
+    expect(html).toContain('How did it feel?')
   })
 
-  it('shows duration/quality/flag once the drill-down reaches a leaf', () => {
+  it('keeps showing both at a deeper (third) level too, for a card that has one', () => {
+    const html = renderModal({
+      staging: { ...EMPTY_STAGING, cardName: 'Body Care (self)', path: ['Oiling'] },
+    })
+    expect(html).toContain('Face') // the third-level chip row
+    expect(html).toContain('role="slider"')
+    expect(html).toContain('How did it feel?')
+  })
+
+  it('a leaf with nothing further to pick shows no chip row, only duration/quality/flag', () => {
     const html = renderModal({
       staging: { ...EMPTY_STAGING, cardName: 'Supplements', path: ['Omega (post-lunch)'] },
     })
+    expect(html).not.toContain('Zinc (post-breakfast)')
     expect(html).toContain('role="slider"')
     expect(html).toContain('How did it feel?')
   })

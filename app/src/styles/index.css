@@ -10,6 +10,14 @@
     --forest: #1b3b32;
     --strip: #f1ede2;
 
+    /* The 9-tile row's single shared accent (approved mockup direction,
+       replacing each tile's old per-category `--cat-*-deep` colour). A
+       genuinely new, deliberate value — declared here, the one place
+       runtime-interpolated hex belongs, and mirrored into Tailwind's theme
+       as `tile-accent` (tailwind.config.js) so components reach it through
+       ordinary utility classes and never repeat the literal. */
+    --tile-accent: #2f6fe0;
+
     /* Night row surface: a computed Deep Forest tint over the same day-row
        base — deliberately NOT a new standalone hex value.
 
@@ -283,12 +291,19 @@
    are retired along with `StagingPane`/the old 3x3 tile grid; duration/
    quality/flags now live in `LogActivityModal`, an overlay, not a column).
 
-   `.tile-row` and `.item-chip-row` share the SAME horizontal-scroll
-   treatment `.timeline-scroll-region` already established: only the
-   scrollbar is hidden (`overflow-x` stays `auto`), so touch/trackpad/
-   programmatic scrolling all keep working, at every breakpoint down to
-   mobile — there is no separate stacked-vs-row layout to switch between. */
-.tile-row,
+   `.tile-row`: the 9 tiles fill the row edge-to-edge (each tile is
+   `flex-1 min-w-0` in TileRow.tsx) — never scrolls, at any breakpoint.
+
+   `.item-chip-row` (the expand panel's 5-7 item chips) keeps the SAME
+   horizontal-scroll treatment `.timeline-scroll-region` already established
+   — only the scrollbar is hidden (`overflow-x` stays `auto`), so touch/
+   trackpad/programmatic scrolling all keep working. This is the one place
+   that behaviour still applies; the top-level row above no longer scrolls. */
+.tile-row {
+  display: flex;
+  gap: 12px;
+}
+
 .item-chip-row {
   display: flex;
   gap: 12px;
@@ -297,7 +312,6 @@
   -ms-overflow-style: none;
 }
 
-.tile-row::-webkit-scrollbar,
 .item-chip-row::-webkit-scrollbar {
   display: none;
 }
