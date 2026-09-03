@@ -68,27 +68,48 @@ describe('deriveSyncIntents', () => {
     expect(intents).toEqual([{ kind: 'restore', id }])
   })
 
-  it('produces a create intent for a brand-new flag marker', () => {
-    const state = start()
-    const { intents, next } = step(state, { type: 'toggleFlag', flag: 'Fear response' })
-    const marker = next.activities[0]
-    expect(intents).toEqual([{ kind: 'create', activity: marker }])
+  it('a brand-new activity with a staged flag needs only ONE intent — flags ride along inside create', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    const { next, intents } = step(state, { type: 'commit' })
+
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({ kind: 'create' })
+    expect(next.activities[0].flags).toEqual(['Fear response'])
   })
 
-  it('produces a flags intent when toggling a SECOND flag on an existing marker', () => {
+  it('editing an activity to CHANGE its flag produces reschedule + flags, not reschedule alone', () => {
     let state = start()
-    state = boardReducer(state, { type: 'toggleFlag', flag: 'Fear response' })
-    const { intents, next } = step(state, { type: 'toggleFlag', flag: 'Stress response' })
-    const marker = next.activities[0]
-    expect(intents).toEqual([{ kind: 'flags', activity: marker }])
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+
+    state = boardReducer(state, { type: 'editActivity', id })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Stress response' })
+    const { intents, next } = step(state, { type: 'commit' })
+
+    expect(intents).toEqual([
+      { kind: 'reschedule', activity: next.activities[0] },
+      { kind: 'flags', activity: next.activities[0] },
+    ])
+    expect(next.activities[0].flags).toEqual(['Stress response'])
   })
 
-  it('produces a delete intent when the last flag is toggled off', () => {
+  it('editing an activity WITHOUT touching its flag produces only reschedule — no redundant flags call', () => {
     let state = start()
-    state = boardReducer(state, { type: 'toggleFlag', flag: 'Fear response' })
-    const markerId = state.activities[0].id
-    const { intents } = step(state, { type: 'toggleFlag', flag: 'Fear response' })
-    expect(intents).toEqual([{ kind: 'delete', id: markerId }])
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+
+    state = boardReducer(state, { type: 'editActivity', id })
+    state = boardReducer(state, { type: 'stepDuration', delta: 5 })
+    const { intents, next } = step(state, { type: 'commit' })
+
+    expect(intents).toEqual([{ kind: 'reschedule', activity: next.activities[0] }])
+    expect(next.activities[0].flags).toEqual(['Fear response']) // unchanged
   })
 
   it('produces a status intent when completion is toggled', () => {

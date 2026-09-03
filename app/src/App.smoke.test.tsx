@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
-import { describeSlotContents } from '@/components/editor/ActivityPicker'
+import { describeSlotContents } from '@/components/editor/TileRow'
 
 /**
  * A mount smoke test: renders the whole screen and asserts the structural
@@ -84,10 +84,10 @@ describe('Today screen', () => {
     // 30-minute entries, and it legitimately crosses the Night/Day row
     // boundary at 06:00 — correctly rendered as two segments, one per row.
     expect(html.match(/data-activity-span="[^"]+"/g) ?? []).toHaveLength(12)
-    // Two of them — Body care and Supplements — legitimately share one grid
-    // cell without overlapping, which the old capacity rule specifically
-    // disallowed beyond a hardcoded pair.
-    expect(html).toContain('Body care')
+    // Two of them — Body Care (self) and Supplements — legitimately share
+    // one grid cell without overlapping, which the old capacity rule
+    // specifically disallowed beyond a hardcoded pair.
+    expect(html).toContain('Body Care (self)')
     expect(html).toContain('Supplements')
   })
 
@@ -104,16 +104,34 @@ describe('Today screen', () => {
     expect(html).toContain('Loading weather')
   })
 
-  it('renders all 24 activity cards as tiles', () => {
-    for (const name of ['Night Sleep', 'Body care', 'Miscellaneous', 'GEOM / HOSS / HECOLL']) {
-      expect(html).toContain(name)
+  it('renders all 9 top-level tiles on the picker’s main screen', () => {
+    // Tile Redesign: the flat 24/53-card grid is gone — the picker's ALWAYS-
+    // rendered surface is the 9 top-level tiles; the 53 leaf items live one
+    // level deeper, behind a tile, and aren't in the initial markup at all.
+    // `renderToStaticMarkup` HTML-escapes "&" to "&amp;".
+    for (const label of [
+      'Sleep &amp; Rest',
+      'Food &amp; Nourishment',
+      'Personal Care',
+      'Downtime &amp; Errands',
+      'Movement &amp; Body Therapy',
+      'Work &amp; Projects',
+      'Nature &amp; Spirit',
+      'Growth &amp; Connection',
+      'Home &amp; Chores',
+    ]) {
+      expect(html).toContain(label)
     }
   })
 
-  it('renders the three flag toggles with accessible names', () => {
-    expect(html).toContain('aria-label="Trauma response"')
-    expect(html).toContain('aria-label="Stress response"')
-    expect(html).toContain('aria-label="Fear response"')
+  // Modal Redesign §E: flags no longer live in the always-visible slot
+  // header (that whole-slot `FlagsRow` is retired) — they're single-select
+  // chips inside `LogActivityModal`, only rendered while a card is staged.
+  // Nothing is staged on this fixed-clock initial render, so the modal's
+  // content isn't in this page's markup at all; `FlagPicker`'s own render
+  // (all 4 flags + None) is covered directly in its component test instead.
+  it('renders no flag toggle in the default, nothing-staged page state', () => {
+    expect(html).not.toContain('aria-label="Trauma response"')
   })
 
   it('renders no idle placeholder in the staging pane', () => {

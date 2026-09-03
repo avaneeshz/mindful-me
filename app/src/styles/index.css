@@ -10,6 +10,14 @@
     --forest: #1b3b32;
     --strip: #f1ede2;
 
+    /* The 9-tile row's single shared accent (approved mockup direction,
+       replacing each tile's old per-category `--cat-*-deep` colour). A
+       genuinely new, deliberate value — declared here, the one place
+       runtime-interpolated hex belongs, and mirrored into Tailwind's theme
+       as `tile-accent` (tailwind.config.js) so components reach it through
+       ordinary utility classes and never repeat the literal. */
+    --tile-accent: #2f6fe0;
+
     /* Night row surface: a computed Deep Forest tint over the same day-row
        base — deliberately NOT a new standalone hex value.
 
@@ -29,19 +37,33 @@
     --day-accent: color-mix(in srgb, var(--forest) 35%, var(--strip));
     --night-accent: var(--forest);
 
-    /* Category DEEP tones — picker tiles and list-row icon chips only. */
-    --cat-mind-deep: #6b8f82;
-    --cat-body-deep: #c9b48a;
-    --cat-sports-deep: #e8845c;
-    --cat-nature-deep: #4f7d6c;
-    --cat-focus-deep: #1b3b32;
+    /* Category (9-tile) DEEP tones — the main 3x3 tile grid and list-row
+       icon chips only. Every real activity's own timeline-strip fill now
+       comes from its ITEM colour (data/activities.ts `ActivityCard.color`),
+       not from these — see that file's colour-system comment block. */
+    --cat-sleep-deep: #3e5c76;
+    --cat-food-deep: #ca9b5d;
+    --cat-care-deep: #7faf97;
+    --cat-downtime-deep: #aca299;
+    --cat-movement-deep: #a65d5d;
+    --cat-work-deep: #3e7a7a;
+    --cat-nature-deep: #bfa050;
+    --cat-growth-deep: #7c6a96;
+    --cat-home-deep: #9aa5b2;
 
-    /* Category LIGHT tones — reserved exclusively for timeline strip fill. */
-    --cat-mind-light: #bfd9c9;
-    --cat-body-light: #eddfc0;
-    --cat-sports-light: #f5c7ae;
-    --cat-nature-light: #cfe3c2;
-    --cat-focus-light: #c7d6d8;
+    /* Category LIGHT tones — a lighter tint of each tile's own DEEP hue,
+       reserved for category-level chrome with no single item to carry its
+       own colour (e.g. a flag marker's fallback). Never the timeline strip
+       fill any more — see `itemFillColor` in data/activities.ts. */
+    --cat-sleep-light: #b6c1cb;
+    --cat-food-light: #ebd9c1;
+    --cat-care-light: #cee1d7;
+    --cat-downtime-light: #dfdcd8;
+    --cat-movement-light: #ddc1c1;
+    --cat-work-light: #b6cccc;
+    --cat-nature-light: #e7dbbd;
+    --cat-growth-light: #cdc6d7;
+    --cat-home-light: #d9dde2;
   }
 
   html,
@@ -79,24 +101,23 @@
 
 @layer components {
   /* -------------------------------------------------------------------------
-     ACCESSIBILITY MITIGATION — Mind & Rest label legibility.
+     ACCESSIBILITY MITIGATION — reserve class, currently unused.
 
-     Measured WCAG 2.1 contrast against the Mind & Rest DEEP fill #6B8F82
-     (relative luminance 0.2482):
-         white    #FFFFFF -> 3.52:1
-         charcoal #3D3A35 -> 3.21:1
-     White is the better of the two and is what the tile uses, but neither
-     reaches the 4.5:1 AA threshold for text at this size. The category token
-     itself is the real defect and changing a brand colour is a design-level
-     decision, so this is a mitigation, not a fix: a Deep Forest shadow is laid
-     directly behind the glyphs, darkening the few pixels a reader actually
-     resolves an edge against and lifting effective legibility well past the
-     bare 3.52:1 the flat pairing gives.
+     Applied to label TEXT sitting on a DEEP (tile) or item `color` fill,
+     for the rare case where neither white nor charcoal reaches the 4.5:1 AA
+     text minimum even after nudging the fill's lightness (never its hue —
+     see the measured-contrast methodology in data/activities.ts). A Deep
+     Forest shadow is laid directly behind the glyphs, darkening the few
+     pixels a reader actually resolves an edge against.
 
-     Icons are unaffected — 3.52:1 already clears the 3:1 non-text minimum.
+     The Tile Redesign catalog (9 tiles, 53 items) re-measured every fill
+     against this same 4.5:1 bar and every one cleared it with a lightness
+     nudge alone — so nothing currently uses this class. Left in place as the
+     documented fallback for the next colour that doesn't nudge cleanly,
+     rather than re-deriving the mitigation from scratch then.
 
-     TODO (design): re-tone the Mind & Rest DEEP token so white clears 4.5:1
-     natively; this class should then be deleted, not kept as decoration.
+     Icons are unaffected by a fill missing 4.5:1 — the WCAG non-text minimum
+     is only 3:1, which every fill in this catalog clears.
      ---------------------------------------------------------------------- */
   .label-contrast-boost {
     text-shadow:
@@ -264,74 +285,35 @@
   container-name: editor;
 }
 
-.editor-split {
+/* Modal Redesign §1 — the picker is now a single horizontal tile row plus
+   an expand panel below it (never a side-by-side split, never a grid — both
+   `.editor-split`'s two-column layout and `.picker-grid`/`.picker-grid-main`
+   are retired along with `StagingPane`/the old 3x3 tile grid; duration/
+   quality/flags now live in `LogActivityModal`, an overlay, not a column).
+
+   `.tile-row`: the 9 tiles fill the row edge-to-edge (each tile is
+   `flex-1 min-w-0` in TileRow.tsx) — never scrolls, at any breakpoint.
+
+   `.item-chip-row` (the expand panel's 5-7 item chips) keeps the SAME
+   horizontal-scroll treatment `.timeline-scroll-region` already established
+   — only the scrollbar is hidden (`overflow-x` stays `auto`), so touch/
+   trackpad/programmatic scrolling all keep working. This is the one place
+   that behaviour still applies; the top-level row above no longer scrolls. */
+.tile-row {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.staging-pane {
-  border-top: 1px solid theme('colors.line');
-  padding-top: 24px;
-}
-
-.picker-grid {
-  display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* iPad portrait and anything narrower than a comfortable two-up split keeps
-   the stacked layout above; these steps only widen the picker grid. */
-@container editor (min-width: 460px) {
-  .picker-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
+.item-chip-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-@container editor (min-width: 620px) {
-  .picker-grid {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-}
-
-/* Wide enough for picker + persistent staging pane side by side. */
-@container editor (min-width: 860px) {
-  .editor-split {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-
-  .picker-column {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .staging-pane {
-    width: 280px;
-    flex-shrink: 0;
-    border-top: 0;
-    border-left: 1px solid theme('colors.line');
-    padding-top: 0;
-    padding-left: 24px;
-  }
-
-  .picker-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
-}
-
-/*
-  iPad landscape. The approved spec asked for ~10 picker columns; rendered at
-  1194x834 that produced 45px tiles whose labels truncated to 2-3 characters
-  ("Nig…", "Bru…", "Clo…") while saving nothing vertically — 24 tiles wrap to
-  3 rows at both 8 and 10 columns. 8 columns keeps the same 3 rows, widens each
-  tile to ~60px, and restores readable label stems. Flagged for design sign-off.
-*/
-@media (orientation: landscape) and (min-width: 900px) and (max-height: 900px) {
-  .picker-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
+.item-chip-row::-webkit-scrollbar {
+  display: none;
 }
 
 /* Respect reduced-motion for every motion the redesign introduces: the smooth

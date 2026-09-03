@@ -18,6 +18,10 @@ This file is additive: when something here starts implementation, move it out (n
 
 ## Backlog
 
+### Known issues
+
+**DB security advisory — `record_local_edit_conflict` callable by any authenticated user.** Found live on the Supabase project (not introduced by current work): `public.record_local_edit_conflict` is `SECURITY DEFINER` with no additional caller check, so any signed-in user can invoke it, not just the owner of the row it acts on. It's part of the Phase 5 "last-write-wins" conflict-tracking groundwork (`list_local_edit_conflicts` alongside it, plus two new `activity_events.event_type` values) — already applied to the live database under migration `20260827143623_local_edit_conflicts`, but **that migration file does not exist in `supabase/migrations/`** (repo and live DB have drifted; live has more migrations applied than the repo has files for). No client code references either function yet. Needs: (1) a real caller/ownership check added to `record_local_edit_conflict` (mirror the `user_id = auth.uid()` pattern the other RPCs already use), and (2) the missing migration file(s) written back into the repo so it matches live state. Not urgent (unused by the client today) but shouldn't ship wired up without the fix.
+
 ### Phase 4 — Insights & aggregation
 Daily/weekly time-per-category totals, planned-vs-actual, free/occupied time analysis, activity trends. Depends on real accounts (now implemented, see "Recently completed" above) to be meaningful per-user data rather than a single shared anonymous bucket.
 

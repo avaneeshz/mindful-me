@@ -23,12 +23,18 @@ function activity(
     startMinutes,
     durationMinutes,
     flags: [],
+    quality: null,
     status: 'planned',
     timezone: TIMEZONE,
   }
 }
 
-/** A whole-slot marker: no catalog activity, no duration, no schedule cost. */
+/**
+ * A whole-slot marker: no catalog activity, no duration, no schedule cost.
+ * Legacy shape only — the client no longer creates these (Modal Redesign
+ * §E), but the seed keeps demonstrating that OLD rows still render, exactly
+ * like any pre-existing data would.
+ */
 function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
   return {
     id: nextId(),
@@ -37,6 +43,7 @@ function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
     startMinutes,
     durationMinutes: 0,
     flags,
+    quality: null,
     status: 'planned',
     timezone: TIMEZONE,
   }
@@ -59,15 +66,19 @@ export function createSeedActivities(): ScheduledActivity[] {
   seedId = 0
   return [
     activity('Night Sleep', [], 0, 8 * 60),
-    activity('Nature connect', ['Sunlight'], 8 * 60, 30),
+    // "Nature connect" -> "Sunlight" is now the standalone "Daily Sunlight"
+    // item (Tile Redesign §3 — the old wrapper card is dissolved).
+    activity('Daily Sunlight', [], 8 * 60, 30),
     activity('Vipassana', [], 8 * 60 + 30, 30),
     activity('Vipassana', [], 10 * 60, 30),
     activity('Spiritual Care', ['Prayer'], 11 * 60, 30),
     flagMarker(11 * 60, ['Trauma response']),
     activity('Meal Prep', [], 12 * 60, 30),
     activity('Sports or Exercise', ['HIIT'], 13 * 60 + 30, 30),
-    activity('Body care', ['Oiling', 'Body'], 14 * 60 + 30, 15),
-    activity('Supplements', ['Magnesium'], 14 * 60 + 45, 15),
+    // "Body care" renamed to "Body Care (self)"; sub/third path kept verbatim.
+    activity('Body Care (self)', ['Oiling', 'Body'], 14 * 60 + 30, 15),
+    // "Supplements"' sub-list now names the dosing window explicitly.
+    activity('Supplements', ['Magnesium (post-dinner)'], 14 * 60 + 45, 15),
     flagMarker(14 * 60 + 30, ['Stress response']),
     activity('Errand time', [], 15 * 60, 30),
     activity('Homework', [], 15 * 60 + 30, 30),

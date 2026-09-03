@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { categoryOf, FLAGS } from '@/data/activities'
+import { FLAGS, itemFillColor } from '@/data/activities'
 import {
   MIDNIGHT_TICK_POSITION,
   SLOT_MINUTES,
@@ -363,11 +363,14 @@ function TimelineRow({
                 style={{
                   left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
                   width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
-                  background: categoryOf(segment.activity.name ?? '').light,
-                  // A subtle hairline, independent of the category hue itself
+                  // Tile Redesign §4: each real activity's own ITEM colour now
+                  // fills its strip segment (falls back to the tile's light
+                  // tone only for a stale/renamed catalog name).
+                  background: itemFillColor(segment.activity.name),
+                  // A subtle hairline, independent of the fill hue itself
                   // (that palette is out of scope here). The fill is already
                   // fully opaque so it was never blending with the scenery
-                  // behind it, but several category LIGHT tones are pale
+                  // behind it, but several item/category LIGHT tones are pale
                   // enough that, sitting directly beside the new gradient sky
                   // instead of the old flat strip, the segment's own edge —
                   // where it starts and ends — was harder to place at a

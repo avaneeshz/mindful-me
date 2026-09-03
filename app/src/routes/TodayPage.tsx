@@ -43,6 +43,7 @@ export function TodayPage() {
           // Same rule as the Timeline marker above: the "Now" badge on a
           // selected slot only means something while viewing today.
           nowSlot={isViewingToday ? nowSlot : -1}
+          viewedDate={viewedDate}
         />
       </div>
     </div>
