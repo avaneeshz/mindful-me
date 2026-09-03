@@ -8,7 +8,7 @@ The core mental model: your day is a physical span of time, not a stack of items
 
 ## Who it's for
 
-Someone who wants to understand their own patterns — where their time actually goes, across categories that matter to them (rest, body, movement, connection, growth) — and who wants that record to include the honest texture of a real day: naps that ran long, a 37-minute walk that wasn't quite 30 or 45, a day that included a flagged stress response worth remembering later. Not a project-management tool, not a corporate time tracker.
+Someone who wants to understand their own patterns — where their time actually goes, across categories that matter to them (sleep, personal care, movement, nature, growth) — and who wants that record to include the honest texture of a real day: naps that ran long, a 37-minute walk that wasn't quite 30 or 45, a day that included a flagged stress response worth remembering later. Not a project-management tool, not a corporate time tracker.
 
 ## Product philosophy
 
@@ -31,7 +31,7 @@ Do not add complexity merely because a feature is technically possible. When unc
 
 - **The full 24 hours, not just waking hours.** Sleep is a first-class tracked period on the same timeline as everything else, not an afterthought.
 - **Arbitrary duration, always.** An activity is however long it actually took — 8 minutes, 37 minutes, 2 hours 17 minutes — never rounded to fit a grid. The 30-minute grid you see is a visual ruler drawn *over* your real activities, never the unit they're stored in.
-- **Category- and state-first, not task-first.** Every activity belongs to a wellness category, and can optionally carry an emotional/somatic flag (Trauma response, Stress response, Fear response) — a trauma-informed layer most planning or habit apps don't have at all.
+- **Category- and state-first, not task-first.** Every activity belongs to one of nine wellness categories, can optionally carry an emotional/somatic flag (Trauma response, Stress response, Fear response, Anger response), and can optionally record how it felt (Nourishing, Productive, Straining, Draining, Dysregulated) — a trauma-informed layer most planning or habit apps don't have at all.
 - **One scheduling engine, two gestures.** Dragging an activity onto the timeline and selecting-a-slot-then-picking-an-activity are two entry points into the exact same underlying logic — they can never quietly diverge into different rules.
 - **Real accuracy over passive convenience.** Nothing is auto-tracked or guessed by an algorithm; everything is a deliberate, honest record of what you did, when, for how long — a trade of a little more upfront effort for data you can actually trust.
 

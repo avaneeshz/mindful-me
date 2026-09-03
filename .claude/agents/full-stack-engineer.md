@@ -24,16 +24,17 @@ Always, in this order:
 
 ## Current Frontend Architecture (as-built)
 
-Vite + React 19 + TypeScript SPA. One live route (`app/src/routes/TodayPage.tsx`). No backend today — everything below is in-memory, reset on reload.
+Vite + React 19 + TypeScript SPA. One live route (`app/src/routes/TodayPage.tsx`). Migration Phases 1–3 below are done and this section describes that built state, not the pre-Phase-1 slot-array model — see **Migration Phases** for exactly what's done versus still pending. Local-first still holds: the app is fully usable with zero backend configured (a graceful local-only mode), and every write lands on the device before any network round-trip.
 
 | Layer | File(s) | Role |
 |---|---|---|
-| State | `app/src/state/BoardContext.tsx` | One `useReducer(boardReducer)` in a context provider. Seeded once from `state/seed.ts`. |
-| Reducer | `app/src/state/boardReducer.ts` | Pure. Owns selection, a staged-but-uncommitted edit (`StagingState`), undo, and the committed board. Nothing writes to `entries` until the `commit` action. |
-| Domain | `app/src/domain/slots.ts`, `domain/types.ts` | Pure derivation only — no React, no state. Slot arithmetic, capacity rules, "spillover" (multi-slot activities), segment geometry for the grid. **This is the layer to extend, not replace** — its shape (anchor + duration → derived segments) is exactly what the target architecture generalizes. |
-| UI | `app/src/components/Timeline.tsx`, `components/editor/*` | Grid rendering + native HTML5 drag-and-drop (`Timeline.tsx`); activity picker + duration staging pane (`components/editor/`). Read/write only through `dispatch`. |
+| State | `app/src/state/BoardContext.tsx` | One `useReducer(boardReducer)` in a context provider, one calendar day at a time (`viewedDate`). Seeded from `state/seed.ts` locally; `state/localPersistence.ts` round-trips the committed board through `localStorage`, namespaced per calendar day, failing closed rather than throwing (rule 6). |
+| Reducer | `app/src/state/boardReducer.ts` | Pure. Owns selection, a staged-but-uncommitted edit (`StagingState` — cardName, path, start, duration, flag, quality), undo, and the committed activity list. Nothing writes to the committed list until the `commit` action. |
+| Domain | `app/src/domain/types.ts`, `domain/scheduling.ts`, `domain/slots.ts`, `domain/disappear.ts`, `domain/calendar.ts` | Pure derivation only — no React, no state. `scheduling.ts` is the shared scheduling module the Target Architecture below specifies (`computeCandidateSchedule`/`validateSchedule`/`commitSchedule`, plus `moveBounds`/`clampMove`/`resizeStartBounds`/`clampResizeStart` for the duration drag control), all built on real arbitrary-minute activities, not a slot array. `slots.ts` still derives the 30-minute grid's rendering segments from that real data — never the other way around. |
+| Sync | `app/src/state/sync.ts`, `app/src/api/*.ts` | Derives sync intents (create/reschedule/flags/quality/status/delete) from a reducer action and its prior state; `api/scheduledActivities.ts` and `api/catalog.ts` call the real Supabase RPCs. The UI never waits on any of this (rule 6) — see **Target Architecture** and Phase 2 below for the DB side. |
+| UI | `app/src/components/Timeline.tsx`, `components/editor/*` | Grid rendering + native HTML5 drag-and-drop (`Timeline.tsx`); `TileRow.tsx` (9-tile row + expand panel) and `LogActivityModal.tsx` (duration drag-block, quality picker, flag picker) replace the picker/editor surface (`components/editor/`). Read/write only through `dispatch`. |
 
-**Today's data shape** (about to change under Phase 1 — know it, don't assume it survives): `SlotEntries` keyed `0–47` (`domain/types.ts`); each `PlacedActivity { name, path, duration }` is anchored to a slot index, duration in 15-minute steps, multi-slot activities handled via a "spillover" walk into later empty slots (`maxScheduleDuration`, `spilloverActivity` in `domain/slots.ts`). The reducer's `dropCard` action already proves the pattern to generalize in Phase 1: it composes `selectSlot` + `pickCard` rather than having its own logic, and a drop never auto-commits.
+**Current data shape**: `ScheduledActivity { id, name, path, startMinutes, durationMinutes, flags, quality, status, ... }` (`domain/types.ts`) — `startMinutes`/`durationMinutes` are arbitrary minutes since local midnight, never snapped to any step; the 30-minute grid is computed from this at render time only, never stored. A midnight-crossing activity is still one row (rule 2). The reducer's `dropCard` action still proves the pattern `computeCandidateSchedule`/`validateSchedule` generalize: it composes `selectSlot` + `pickCard` rather than having its own logic, and a drop never auto-commits.
 
 ---
 
@@ -73,12 +74,12 @@ These were decided already — implement them as hard constraints, don't reopen 
 2. **An activity belongs to the calendar day it started on.** A midnight-crossing activity is one row; daily/weekly aggregation queries split its minutes across both calendar days.
 3. **Times are wall-clock, locked in at creation** — store the local time the user saw plus the IANA timezone it was logged in. A later timezone change or DST transition must never retroactively shift a past entry.
 4. **Editing time/duration never silently clears completion.** A completed activity stays completed unless the user explicitly un-marks it.
-5. **Drops snap to a friendly nearby time**, then the existing +/− duration stepper fine-tunes to the exact minute — never a fiddly pixel-exact drop target.
+5. **Drops snap to a friendly nearby time**, then the duration control fine-tunes to the exact minute — never a fiddly pixel-exact drop target. The drag-block (`DurationDragBlock.tsx`) is the default UI for this; the older numeric stepper (`DurationStepperFallback.tsx`) still exists behind an off-by-default flag as a debug/comparison fallback, never shown at the same time as the drag-block.
 6. **Every write lands locally first**, instantly, regardless of connectivity; sync to the server is a background concern the UI never waits on.
 7. **Conflicting edits from two devices: newest edit wins, the older one is kept** (in `activity_events`), never silently discarded.
 8. **Every read of "today" or "this week" is scoped to that window** — never load a user's full history to render one day. This is what keeps the app fast as history grows; don't regress it for convenience.
 9. **The Add button must guard against a double-submit** (disable on press until the write resolves) — this is a UI-layer responsibility, not a DB one.
-10. **Flags (`Trauma response` / `Stress response` / `Fear response`) and any similarly sensitive field are encrypted at rest**, sent only over HTTPS, and every query is scoped to the authenticated user — no cross-user reads, ever.
+10. **Flags (`Trauma response` / `Stress response` / `Fear response` / `Anger response`) and any similarly sensitive field (e.g. the "how did it feel" quality field) are encrypted at rest**, sent only over HTTPS, and every query is scoped to the authenticated user — no cross-user reads, ever.
 11. **Delete is immediate from the user's view, recoverable for 30 days, then purged.** Not a soft-hide forever, not an instant hard-delete.
 12. **Editing a past day is always allowed.** No locking of history — a report simply reflects the correction next time it's viewed.
 13. **Splitting one logical activity across two disjoint free gaps is not supported.** If the requested duration doesn't fit contiguously, offer the max contiguous duration (mirrors `maxScheduleDuration`'s existing behavior) — never auto-split into two time ranges under one activity. Two real sittings are two separate scheduled activities.
@@ -87,11 +88,11 @@ These were decided already — implement them as hard constraints, don't reopen 
 
 ## Migration Phases — implement in order, don't skip ahead
 
-1. **Generalize the client model — still no backend.** Replace slot-anchored `PlacedActivity`/`SlotEntries` with an activity list keyed by `startMinutes` (or a real `Date`) + arbitrary `duration`, still in `BoardContext`. Evolve `activityRowSegments` to work off real minutes. Build the shared scheduling module. Unlocks arbitrary durations with zero backend work — do this fully before touching a server.
-2. **Backend + database.** CRUD API mirroring the now-generalized client shape 1:1 (`activities`, `scheduled_activities`). Recommended default stack — confirm with the user before provisioning anything real: **Supabase** (Postgres + Auth + Realtime, a good fit for the local-first sync model and the append-only event table) for data/auth, deployed alongside the frontend on **Vercel**. Treat this as a strong default, not a mandate — flag it if a constraint makes it wrong.
-3. **Completion & history.** Status field + the `activity_events` audit trail. Planned-vs-actual becomes expressible.
-4. **Insights & aggregation.** Daily/weekly rollups, category totals, trends — queries over Phases 2–3's tables. Charts use Recharts per `CLAUDE.md`.
-5. **Local-first sync hardening.** Offline queue, background sync, the last-write-wins conflict rule from item 7 above, multi-device.
+1. ✅ **Done — generalize the client model.** Activity list keyed by `startMinutes` + arbitrary `durationMinutes`, in `BoardContext`/`domain/types.ts`. `domain/slots.ts` derives grid segments from real minutes. The shared scheduling module (`domain/scheduling.ts`) is built and is the one place both entry gestures (drag, and select-then-pick) resolve through.
+2. ✅ **Done — backend + database.** Real Supabase project (Postgres + Auth), `activities`/`scheduled_activities`/`activity_events` tables live, deployed alongside the frontend on **Vercel**. `state/sync.ts` + `api/*.ts` do the CRUD; the client stays fully usable with zero backend configured (graceful local-only mode) exactly as this phase intended.
+3. ✅ **Done — completion & history.** `ScheduledActivity.status`, the `activity_events` audit trail (`log_scheduled_activity_event`), plus flags and the "how did it feel" quality field (both encrypted at rest per rule 10) all shipped on top of this. Planned-vs-actual is expressible; nothing yet queries it (that's Phase 4).
+4. **Not yet merged to `main` — insights & aggregation.** Daily/weekly rollups, category totals, trends — queries over Phases 2–3's tables. Charts use Recharts per `CLAUDE.md`. A first-pass implementation exists on a branch, held back for the same reason as Phase 5 below — see `BACKLOG.md` for current status.
+5. **In progress — local-first sync hardening.** Local-first writes and background sync are real on `main` (`state/localPersistence.ts`, `state/sync.ts`); a durable offline write queue and multi-device conflict handling (last-write-wins per rule 7) have a first-pass implementation on the same held-back branch as Phase 4. Some DB-level groundwork (`record_local_edit_conflict`/`list_local_edit_conflicts`) is already live but unreferenced by any client code and has a known open security-advisor finding — see `BACKLOG.md` for current status.
 
 ---
 

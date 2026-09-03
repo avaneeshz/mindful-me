@@ -4,7 +4,7 @@ A personal time and activity tracking application — a visual, day-and-night ti
 
 ## What it is
 
-Your whole day, as two rows — Day (6a–6p) and Night (6p–6a) — with activities placed on a real timeline rather than a flat to-do list. Every activity carries an arbitrary duration (8 minutes, 37 minutes, 2 hours — never rounded to fit a grid), belongs to one of five wellness categories (Mind & Rest, Body & Domestic, Sports or Exercise, Nature & Connection, Focus & Growth), and can optionally carry an emotional/somatic flag (Trauma response, Stress response, Fear response) — encrypted at rest, visible only to you.
+Your whole day, as two rows — Day (6a–6p) and Night (6p–6a) — with activities placed on a real timeline rather than a flat to-do list. Every activity carries an arbitrary duration (8 minutes, 37 minutes, 2 hours — never rounded to fit a grid), belongs to one of nine wellness categories (Sleep & Rest, Food & Nourishment, Personal Care, Downtime & Errands, Movement & Body Therapy, Work & Projects, Nature & Spirit, Growth & Connection, Home & Chores), and can optionally carry an emotional/somatic flag (Trauma response, Stress response, Fear response, Anger response) — encrypted at rest, visible only to you.
 
 Two ways to schedule something — dragging an activity onto the timeline, or selecting a slot and picking an activity — go through the exact same underlying logic, so they can never drift into two different sets of rules.
 
