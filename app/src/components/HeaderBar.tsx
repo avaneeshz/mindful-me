@@ -41,13 +41,40 @@ export interface HeaderBarProps {
   onSignOut: () => void
 }
 
+/**
+ * The 5 new placeholder pills (Section E) — inert, same treatment as the
+ * "Deep log"/"Notes" stub pattern elsewhere: visually present, not wired to
+ * anything. Real behaviour for these is a separate, future product decision.
+ */
+const PLACEHOLDER_PILLS = ['Gifts', 'Chits', 'Opportunities', 'Learnings', 'Feedback']
+
 export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: HeaderBarProps) {
   return (
     <header className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
-      <h1 className="pl-0 font-display text-h1 font-semibold text-forest mobile:pl-[52px] mobile:text-h1-sm">
-        30-Minute Slotting
+      {/* Section E — the greeting heading, renamed from "30-Minute Slotting"
+          to "Consort". This is the greeting text specifically, not the
+          sidebar/sign-in brand mark ("Ritual Board"), which is unrelated. */}
+      <h1 className="pl-0 font-display text-h1 font-semibold text-ink mobile:pl-[52px] mobile:text-h1-sm">
+        Consort
       </h1>
+      {/* `flex-wrap` — the whole meta row, placeholder pills included, wraps
+          onto a second line if it runs out of horizontal space, rather than
+          overflowing. */}
       <div className="flex flex-wrap items-center justify-end gap-sm">
+      {/* Truly inert — a `<span>`, not a `<button>`: real button semantics
+          would put these in the tab order and announce them as actionable
+          to assistive tech, which would be misleading for something with no
+          behaviour behind it yet (same reasoning the "Deep log"/Notes stub
+          elsewhere in this app already follows). */}
+      {PLACEHOLDER_PILLS.map((label) => (
+        <span
+          key={label}
+          className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: false }), 'font-semibold')}
+        >
+          {label}
+        </span>
+      ))}
+
       {/*
         The date pill is a real navigation control now (BL-2), not display-
         only text, so — unlike the weather pill beside it — it stays visible
@@ -66,12 +93,14 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: He
       ) : (
         // No real session (local-only mode) — same non-interactive treatment
         // as before: there is no account menu behind it, so it carries no
-        // hover or focus state and is not focusable.
+        // hover or focus state and is not focusable. No colour any more
+        // (Section A) — the theme's own invert pair, same as everywhere
+        // else a "primary" mark shows up.
         <div
-          className="flex size-avatar cursor-default items-center justify-center rounded-full bg-[linear-gradient(150deg,theme(colors.gold),theme(colors.terracotta))]"
+          className="flex size-avatar cursor-default items-center justify-center rounded-full bg-inv-bg"
           aria-hidden="true"
         >
-          <User className="size-[16px] text-white" />
+          <User className="size-[16px] text-inv-ink" />
         </div>
       )}
       </div>
@@ -136,7 +165,7 @@ function DatePill({
         onClick={() => setOpen((value) => !value)}
         className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
       >
-        <CalendarDays aria-hidden="true" className="size-[14px] text-muted" />
+        <CalendarDays aria-hidden="true" className="size-[14px] text-ink-dim" />
         <time dateTime={machineDate(viewedDate)}>{formatDatePill(viewedDate)}</time>
       </button>
 
@@ -182,12 +211,11 @@ function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => voi
         aria-label={user.email ? `Account menu — signed in as ${user.email}` : 'Account menu'}
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          'flex size-avatar items-center justify-center rounded-full',
-          'bg-[linear-gradient(150deg,theme(colors.gold),theme(colors.terracotta))]',
+          'flex size-avatar items-center justify-center rounded-full bg-inv-bg',
           'transition-[filter] hover:brightness-105 active:brightness-95',
         )}
       >
-        <User aria-hidden="true" className="size-[16px] text-white" />
+        <User aria-hidden="true" className="size-[16px] text-inv-ink" />
       </button>
 
       {open && (
@@ -195,10 +223,10 @@ function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => voi
           ref={panelRef}
           role="menu"
           aria-label="Account"
-          className="absolute right-0 top-[calc(100%+8px)] z-30 w-[220px] rounded-md border border-line bg-white p-xs shadow-elevation-2"
+          className="absolute right-0 top-[calc(100%+8px)] z-30 w-[220px] rounded-md border border-line bg-surface p-xs shadow-elevation-2"
         >
           {user.email && (
-            <div className="truncate px-md py-sm text-caption text-muted" title={user.email}>
+            <div className="truncate px-md py-sm text-caption text-ink-dim" title={user.email}>
               {user.email}
             </div>
           )}
@@ -209,7 +237,7 @@ function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => voi
               setOpen(false)
               onSignOut()
             }}
-            className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-charcoal transition-colors hover:bg-bg"
+            className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-ink transition-colors hover:bg-bg"
           >
             Sign out
           </button>

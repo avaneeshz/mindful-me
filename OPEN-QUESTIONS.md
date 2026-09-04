@@ -13,6 +13,7 @@ Kept here briefly so the resolution is traceable, not silently dropped.
 - **Activity-level flags.** Resolved as a side effect of the data model change — flags now attach to an individual scheduled activity by construction (there is no longer a "slot" for them to attach to instead), so the old ambiguity ("which of two activities in a slot does this flag mean?") no longer exists.
 - **Day/Night jump control's visual metaphor.** Moot — the control itself was removed entirely as a later UX decision (it was found to be redundant, not just under-animated).
 - **Mind & Rest category color failing WCAG AA for tile labels.** Resolved, for two independent reasons that both came out of the same visual-redesign work: (1) the 9-tile/53-item catalog re-measured every fill against the same 4.5:1 AA bar during the retone, and every one — tiles and items alike — cleared it with a lightness nudge alone (verified directly in `data/activities.ts`'s and `index.css`'s own contrast-methodology comments, not just asserted); `.label-contrast-boost` is defined but currently unused by anything. (2) Independently, tile backgrounds no longer use a per-category color at all — all 9 tiles now share one fixed, already-AA-checked accent (`--tile-accent` + white text), so a per-category contrast failure on a tile label isn't structurally possible any more. "Mind & Rest" itself was also superseded by the current 9-category taxonomy.
+- **Avatar / account menu gradient visual treatment.** Resolved by a later, explicitly confirmed monochrome retheme — "no colour anywhere," applied app-wide. The gradient fill this question was about no longer exists at all: the avatar (and the sidebar/sign-in brand mark, which had the identical gradient) now uses the same `inv-bg`/`inv-ink` theme-invert pair every other "primary mark" in the product uses. The question "does the exception still make sense" is moot because the exception itself is gone, not because anyone made a case for keeping it.
 
 ---
 
@@ -109,20 +110,7 @@ P2
 
 ---
 
-## 7. Avatar / account menu visual treatment
-
-### Question
-The header avatar's gradient fill was left as a deliberate small exception when the rest of the product flattened to solid category fills. The avatar has since become functional (a real account menu with sign-out, not just a decorative mark) — does its visual treatment still make sense now that it does something?
-
-### Current behavior
-Unchanged gradient fill, now attached to real functionality.
-
-### Priority
-P3
-
----
-
-## 8. Sign-in method — is email/password the permanent answer?
+## 7. Sign-in method — is email/password the permanent answer?
 
 ### Question
 Real accounts currently support email/password only, with no email verification (a deliberate choice for now). Is a magic link or an OAuth provider (Google, etc.) wanted later, and should email verification be reconsidered once the user base is larger than "one person testing it"?
@@ -138,7 +126,7 @@ P2
 
 ---
 
-## 9. "Slow down"'s disappear rule was a judgment call, not a spec answer
+## 8. "Slow down"'s disappear rule was a judgment call, not a spec answer
 
 ### Question
 The source spec gave no explicit auto/manual disappear rule for the "Slow down" item (Sleep & Rest tile) the way it did for its column-mates. It currently defaults to `manual` (dismiss-only, never auto-locks after N times today) — is that the right permanent behavior, or should it be `auto:N` for some N like its neighbors?

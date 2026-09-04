@@ -119,7 +119,7 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
   }
 
   const navButton =
-    'flex size-stepper items-center justify-center rounded-full text-forest transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest'
+    'flex size-stepper items-center justify-center rounded-full text-ink transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
   return (
     <div
@@ -133,7 +133,7 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
       // left edge entirely. Below the `mobile` breakpoint it anchors from
       // the trigger's left edge instead, which comfortably fits open toward
       // the page's own centre.
-      className="absolute right-0 top-[calc(100%+8px)] z-30 w-[min(288px,calc(100vw-32px))] rounded-md border border-line bg-white p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
+      className="absolute right-0 top-[calc(100%+8px)] z-30 w-[min(288px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
     >
       <div className="mb-sm flex items-center justify-between">
         <button
@@ -144,7 +144,7 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
         >
           <ChevronLeft aria-hidden="true" className="size-[16px]" />
         </button>
-        <span className="text-body font-semibold text-charcoal" aria-live="polite">
+        <span className="text-body font-semibold text-ink" aria-live="polite">
           {formatMonthLabel(visibleMonth)}
         </span>
         <button
@@ -157,7 +157,7 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
         </button>
       </div>
 
-      <div className="mb-xs grid grid-cols-7 text-center text-nano font-semibold uppercase tracking-tag text-muted">
+      <div className="mb-xs grid grid-cols-7 text-center text-nano font-semibold uppercase tracking-tag text-ink-dim">
         {WEEKDAY_LABELS.map((label, index) => (
           <span key={`${label}-${index}`} className="py-xs">
             {label}
@@ -190,11 +190,11 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
               onClick={() => onSelect(date)}
               className={cn(
                 'flex aspect-square items-center justify-center rounded-full text-caption font-semibold transition-colors',
-                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest',
-                !inMonth && 'text-muted/50 hover:bg-bg',
-                inMonth && !isSelected && 'text-charcoal hover:bg-bg',
-                isSelected && 'bg-forest text-white hover:bg-forest',
-                !isSelected && isToday && 'ring-1 ring-inset ring-forest',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                !inMonth && 'text-ink-dim/50 hover:bg-bg',
+                inMonth && !isSelected && 'text-ink hover:bg-bg',
+                isSelected && 'bg-inv-bg text-inv-ink hover:bg-inv-bg',
+                !isSelected && isToday && 'ring-1 ring-inset ring-ink',
               )}
             >
               {date.getDate()}
@@ -207,7 +207,7 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
         <button
           type="button"
           onClick={() => onSelect(today)}
-          className="mt-sm w-full rounded-sm py-sm text-center text-caption font-semibold text-forest transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+          className="mt-sm w-full rounded-sm py-sm text-center text-caption font-semibold text-ink transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         >
           Jump to today
         </button>

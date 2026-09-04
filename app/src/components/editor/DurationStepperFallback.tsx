@@ -53,7 +53,7 @@ export function DurationStepperFallback({
       />
       <QuickAddButtons duration={duration} maxDuration={maxDuration} onSetDuration={onSetDuration} />
       {atCeiling && (
-        <p id={CAPACITY_MESSAGE_ID} role="status" className="text-note font-medium text-gold">
+        <p id={CAPACITY_MESSAGE_ID} role="status" className="text-note font-medium text-ink">
           Capped at {formatDuration(maxDuration)} — the next activity begins there.
         </p>
       )}
@@ -114,11 +114,11 @@ function DurationStepper({
   }
 
   const stepButton =
-    'flex size-stepper items-center justify-center rounded-full border border-line bg-white text-forest transition-colors hover:border-forest-light disabled:opacity-40 disabled:hover:border-line'
+    'flex size-stepper items-center justify-center rounded-full border border-line bg-surface text-ink transition-colors hover:border-ink disabled:opacity-40 disabled:hover:border-line'
 
   return (
     <div>
-      <p id="duration-label" className="mb-sm text-caption font-semibold text-muted">
+      <p id="duration-label" className="mb-sm text-caption font-semibold text-ink-dim">
         Duration
       </p>
       <div className="flex items-center justify-center gap-lg">
@@ -160,7 +160,7 @@ function DurationStepper({
             setFocused(false)
             commitDraft()
           }}
-          className="min-w-[64px] max-w-[96px] rounded-sm border-0 bg-transparent text-center font-display text-stepper font-semibold text-charcoal transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+          className="min-w-[64px] max-w-[96px] rounded-sm border-0 bg-transparent text-center font-display text-stepper font-semibold text-ink transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         />
 
         {/*
@@ -208,7 +208,7 @@ function QuickAddButtons({
             disabled={disabled}
             onClick={() => onSetDuration(duration + option.minutes)}
             aria-label={option.description}
-            className="rounded-full border border-line bg-white px-md py-xs text-caption font-semibold text-forest transition-colors hover:border-forest-light hover:bg-bg disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-white"
+            className="rounded-full border border-line bg-surface px-md py-xs text-caption font-semibold text-ink transition-colors hover:border-ink hover:bg-bg disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-surface"
           >
             +{option.label}
           </button>

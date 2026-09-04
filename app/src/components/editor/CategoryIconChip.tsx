@@ -3,14 +3,15 @@ import type { Category } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
 /**
- * 32px icon chip: the category's DEEP tone as the icon colour on a 15%-opacity
- * wash of the same tone.
- *
- * The DEEP tone is used here and on picker tiles only — the LIGHT pastel tone
- * stays reserved exclusively for timeline strip fill.
+ * 32px icon chip, shown beside each activity already logged in a slot's
+ * list. No colour any more (Section A) — a flat `surface-2` wash with an
+ * `ink` icon, the same theme-following pair everything else uses. `category`
+ * is still accepted (some callers pass it for the icon fallback below) but
+ * its `deep`/`light` tones are no longer read — see `data/activities.ts`'s
+ * colour-system comment for why they're kept as inert data.
  */
 export function CategoryIconChip({
-  category,
+  category: _category,
   icon: Icon,
   className,
 }: {
@@ -21,11 +22,7 @@ export function CategoryIconChip({
   return (
     <span
       aria-hidden="true"
-      className={cn('flex size-chip shrink-0 items-center justify-center rounded-sm', className)}
-      style={{
-        background: `color-mix(in srgb, ${category.deep} 15%, transparent)`,
-        color: category.deep,
-      }}
+      className={cn('flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink', className)}
     >
       {Icon ? <Icon className="size-[16px]" /> : null}
     </span>

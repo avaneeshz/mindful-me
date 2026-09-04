@@ -90,29 +90,31 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
   return (
     <section
       aria-labelledby="slot-editor-heading"
-      className="rounded-lg border border-line bg-white p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
+      className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
       <header className="flex flex-wrap items-start justify-between gap-lg">
         <div className="flex flex-col gap-md">
           <div className="flex flex-wrap items-center gap-md">
             <h2
               id="slot-editor-heading"
-              className="font-display text-slot-time font-semibold text-forest"
+              className="font-display text-slot-time font-semibold text-ink"
             >
               {formatSlotRange(selectedSlot)}
             </h2>
-            <span className="rounded-full border border-forest/20 bg-forest/5 px-sm py-xs text-micro font-bold text-forest">
+            <span className="rounded-full border border-line bg-bg px-sm py-xs text-micro font-bold text-ink">
               Selected slot
             </span>
             {isNow && (
-              <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
+              <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
                 Now
               </span>
             )}
             {/* Legacy whole-slot flag markers (pre-existing data only —
-                nothing creates these any more) still surface here, read-only. */}
+                nothing creates these any more) still surface here, read-only.
+                No separate colour any more (Section A) — distinguished from
+                the other pills by content alone, same monochrome treatment. */}
             {flags.length > 0 && (
-              <span className="rounded-full bg-terracotta/10 px-sm py-xs text-micro font-bold text-terracotta">
+              <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold text-ink">
                 {flags.join(', ')}
               </span>
             )}
@@ -156,6 +158,8 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
         onResizeStart={(minutes) => dispatch({ type: 'resizeStagingStart', minutes })}
         onSetFlag={(flag) => dispatch({ type: 'setStagingFlag', flag })}
         onSetQuality={(quality) => dispatch({ type: 'setStagingQuality', quality })}
+        onToggleSymptom={(symptom) => dispatch({ type: 'toggleStagingSymptom', symptom })}
+        onSetNotes={(notes) => dispatch({ type: 'setStagingNotes', notes })}
         onCommit={() => dispatch({ type: 'commit' })}
         onCancel={() => dispatch({ type: 'cancelStaging' })}
       />

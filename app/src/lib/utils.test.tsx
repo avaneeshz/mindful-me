@@ -30,19 +30,19 @@ function classesOf(markup: string): string[] {
 
 describe('cn keeps a text colour and a text size together', () => {
   it('does not drop either half, in either order', () => {
-    expect(cn('text-white', 'font-bold', 'text-btn').split(' ')).toEqual(
-      expect.arrayContaining(['text-white', 'text-btn']),
+    expect(cn('text-inv-ink', 'font-bold', 'text-btn').split(' ')).toEqual(
+      expect.arrayContaining(['text-inv-ink', 'text-btn']),
     )
-    expect(cn('text-nano', 'font-bold', 'text-muted').split(' ')).toEqual(
-      expect.arrayContaining(['text-nano', 'text-muted']),
+    expect(cn('text-nano', 'font-bold', 'text-ink-dim').split(' ')).toEqual(
+      expect.arrayContaining(['text-nano', 'text-ink-dim']),
     )
   })
 
   it('still resolves genuine conflicts — last colour and last size win', () => {
-    expect(cn('text-gold', 'text-terracotta')).toBe('text-terracotta')
+    expect(cn('text-ink', 'text-ink-dim')).toBe('text-ink-dim')
     expect(cn('text-body', 'text-caption')).toBe('text-caption')
-    expect(cn('text-gold text-body', 'text-terracotta text-caption')).toBe(
-      'text-terracotta text-caption',
+    expect(cn('text-ink text-body', 'text-ink-dim text-caption')).toBe(
+      'text-ink-dim text-caption',
     )
   })
 
@@ -65,8 +65,8 @@ describe('cn keeps outline-style alongside outline-width', () => {
    * Unfixed, the "In this slot" rows lost their focus-within ring entirely.
    */
   it('does not delete the bare `outline` that makes a ring paint', () => {
-    expect(cn('outline outline-2 outline-offset-2 outline-forest').split(' ')).toEqual(
-      expect.arrayContaining(['outline', 'outline-2', 'outline-offset-2', 'outline-forest']),
+    expect(cn('outline outline-2 outline-offset-2 outline-ink').split(' ')).toEqual(
+      expect.arrayContaining(['outline', 'outline-2', 'outline-offset-2', 'outline-ink']),
     )
     expect(cn('focus-within:outline focus-within:outline-2').split(' ')).toContain(
       'focus-within:outline',
@@ -79,37 +79,43 @@ describe('cn keeps outline-style alongside outline-width', () => {
 })
 
 describe('the primary action button', () => {
-  it('renders white text on the Deep Forest fill, at the button type size', () => {
+  it('renders the theme-invert fill, at the button type size (monochrome retheme)', () => {
     const classes = classesOf(renderToStaticMarkup(<Button>Add to slot</Button>))
-    // Both must survive. `text-white` on `bg-forest` is 12.2:1; charcoal on
-    // forest — what the bug produced — is 1.08:1.
-    expect(classes).toContain('text-white')
-    expect(classes).toContain('bg-forest')
+    // Both must survive. `text-inv-ink` on `bg-inv-bg` is the theme's own
+    // guaranteed-contrast pair (near-black on near-white, or the reverse) —
+    // no colour token is involved any more, but the same collision risk
+    // (a colour-like utility ahead of a size utility) still applies to it.
+    expect(classes).toContain('text-inv-ink')
+    expect(classes).toContain('bg-inv-bg')
     expect(classes).toContain('text-btn')
-    expect(classes).not.toContain('text-charcoal')
+    expect(classes).not.toContain('text-ink')
   })
 
-  it('keeps Edit gold and Remove terracotta, distinct from each other', () => {
+  it('keeps Edit and Remove distinguishable — by weight now, not colour', () => {
+    // No colour any more (Section A) — `accent` and `destructive` share the
+    // same `text-ink-dim` resting tone and are distinguished by weight
+    // (medium vs semibold) and, on hover, an underline. Still two genuinely
+    // different class lists, just not via a hue difference.
     const edit = classesOf(renderToStaticMarkup(<Button variant="accent">Edit</Button>))
     const remove = classesOf(
       renderToStaticMarkup(<Button variant="destructive">Remove</Button>),
     )
-    expect(edit).toContain('text-gold')
+    expect(edit).toContain('text-ink-dim')
     expect(edit).toContain('text-caption')
-    expect(remove).toContain('text-terracotta')
+    expect(remove).toContain('text-ink-dim')
     expect(remove).toContain('text-caption')
     expect(edit).not.toEqual(remove)
   })
 
-  it('keeps the ghost/Cancel action muted rather than untinted', () => {
+  it('keeps the ghost/Cancel action dim rather than untinted', () => {
     const ghost = classesOf(renderToStaticMarkup(<Button variant="ghost">Cancel</Button>))
-    expect(ghost).toContain('text-muted')
+    expect(ghost).toContain('text-ink-dim')
     expect(ghost).toContain('text-body')
   })
 })
 
 describe('the period navigator segments', () => {
-  it('renders the focused segment as white on Deep Forest', () => {
+  it('renders the focused segment with the theme-invert fill (monochrome retheme)', () => {
     const active = classesOf(
       renderToStaticMarkup(
         <Chip as="button" size="segment" tone="active" interactive>
@@ -117,8 +123,8 @@ describe('the period navigator segments', () => {
         </Chip>,
       ),
     )
-    expect(active).toContain('bg-forest')
-    expect(active).toContain('text-white')
+    expect(active).toContain('bg-inv-bg')
+    expect(active).toContain('text-inv-ink')
     expect(active).toContain('text-body')
 
     const bare = classesOf(
@@ -128,7 +134,7 @@ describe('the period navigator segments', () => {
         </Chip>,
       ),
     )
-    expect(bare).toContain('text-charcoal')
+    expect(bare).toContain('text-ink')
     expect(bare).toContain('text-body')
   })
 })

@@ -20,10 +20,11 @@ interface CapacityMeterProps {
  * "{used}/30 min used" plus a proportional bar — one fill per activity
  * actually touching this 30-minute grid cell, each sized by its own real
  * share of it (a 45-minute activity anchored one cell earlier shows only the
- * 15 minutes of THIS cell it actually reaches, never its full duration). The
- * fill turns Terracotta only at a genuine 30/30, so the colour carries
- * meaning rather than decoration, and the number is always shown, so
- * capacity is never communicated by colour alone.
+ * 15 minutes of THIS cell it actually reaches, never its full duration). No
+ * colour any more (Section A) — the fill goes from `ink-dim` to solid `ink`
+ * only at a genuine 30/30, an intensity step within the same neutral, not a
+ * hue change, and the number is always shown too, so capacity is never
+ * communicated by shade alone either.
  */
 export function CapacityMeter({ segments }: CapacityMeterProps) {
   let offset = 0
@@ -39,7 +40,7 @@ export function CapacityMeter({ segments }: CapacityMeterProps) {
 
   return (
     <div className="flex items-center gap-md">
-      <span className="whitespace-nowrap text-meta font-semibold text-charcoal">
+      <span className="whitespace-nowrap text-meta font-semibold text-ink">
         {used}/{SLOT_MINUTES} min used
       </span>
       <div
@@ -56,10 +57,7 @@ export function CapacityMeter({ segments }: CapacityMeterProps) {
         {fills.map((fill) => (
           <span
             key={fill.id}
-            className={cn(
-              'absolute inset-y-0 rounded-full',
-              isFull ? 'bg-terracotta' : 'bg-forest',
-            )}
+            className={cn('absolute inset-y-0 rounded-full', isFull ? 'bg-ink' : 'bg-ink-dim')}
             // The 1px inset on each side leaves a hairline of track showing
             // between adjacent fills, so two entries read as two.
             style={{

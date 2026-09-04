@@ -14,12 +14,12 @@ const chipVariants = cva(
   {
     variants: {
       tone: {
-        /** Resting: white surface, hairline border. */
-        surface: 'bg-white border-line text-charcoal',
-        /** Selected / focused: Deep Forest fill. */
-        active: 'bg-forest border-forest text-white',
-        /** Sits inside an already-white track, so it carries no border. */
-        bare: 'bg-transparent border-transparent text-charcoal',
+        /** Resting: the theme's own surface, hairline border. */
+        surface: 'bg-surface border-line text-ink',
+        /** Selected / focused: the theme's invert pair — never a new hue. */
+        active: 'bg-inv-bg border-inv-bg text-inv-ink',
+        /** Sits inside an already-surface-toned track, so it carries no border. */
+        bare: 'bg-transparent border-transparent text-ink',
       },
       size: {
         /** Header utility pills. */
@@ -35,7 +35,7 @@ const chipVariants = cva(
       },
     },
     compoundVariants: [
-      { tone: 'surface', interactive: true, class: 'hover:border-forest-light' },
+      { tone: 'surface', interactive: true, class: 'hover:border-ink' },
       { tone: 'bare', interactive: true, class: 'hover:bg-bg' },
     ],
     defaultVariants: { tone: 'surface', size: 'md', interactive: false },

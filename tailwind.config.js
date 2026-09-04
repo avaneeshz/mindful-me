@@ -1,8 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 
-// Design tokens are declared ONCE here (and mirrored as CSS custom properties in
-// app/src/styles/index.css for the few places that need runtime interpolation,
-// e.g. per-category colours). No raw hex values may appear in components.
+// Design tokens are declared ONCE here. Every colour is backed by a CSS custom
+// property in app/src/styles/index.css, which is what makes the light/dark
+// theme toggle possible — a component never touches a hex literal; it reaches
+// for `bg-surface`/`text-ink`/etc. and the CSS variable underneath resolves to
+// whichever theme is active. No raw hex values may appear in components.
 export default {
   content: ['./app/index.html', './app/src/**/*.{ts,tsx}'],
   theme: {
@@ -49,59 +51,45 @@ export default {
       nano: ['10px', { lineHeight: '1.2' }],
     },
 
+    // --- Monochrome theme system (confirmed product decision, replacing the
+    // old forest-green/warm-ivory palette AND the per-category/per-item
+    // colour systems entirely — "no colour anywhere", light and dark are
+    // both this same neutral pair, just inverted). Every token below is a
+    // CSS custom property (styles/index.css) so `[data-theme]` can actually
+    // swap the whole app's colours at runtime; there is no hardcoded hex
+    // left in this file for anything theme-facing. See index.css for the
+    // light/dark value pairs themselves — the ONE place they're declared. ---
     colors: {
       transparent: 'transparent',
       current: 'currentColor',
       inherit: 'inherit',
       white: '#FFFFFF',
+      black: '#000000',
 
-      bg: '#F7F5F0',
-      forest: '#1B3B32',
-      'forest-light': '#2C5147',
-      terracotta: '#E8845C',
-      gold: '#D4A857',
-      charcoal: '#3D3A35',
-      muted: '#8A8478',
-      line: '#EAE6DC',
+      bg: 'var(--bg)',
+      surface: 'var(--surface)',
+      'surface-2': 'var(--surface-2)',
+      ink: 'var(--ink)',
+      'ink-dim': 'var(--ink-dim)',
+      line: 'var(--line)',
+      'line-soft': 'var(--line-soft)',
+      // The "invert" pair — a selected/active/primary fill is the OTHER
+      // end of the theme (near-black on light, near-white on dark), never a
+      // new hue. This is what a "selected" chip, the primary button, and
+      // the NOW badge all reach for.
+      'inv-bg': 'var(--inv-bg)',
+      'inv-ink': 'var(--inv-ink)',
 
-      // Timeline row surfaces. `night-strip` is a *computed* 12% Deep Forest
-      // tint over the same base, not an independent hex — see index.css.
-      strip: '#F1EDE2',
-      'night-strip': 'var(--night-strip)',
-
-      // Row accent bars — also Deep Forest composites, not new brand colours.
-      'day-accent': 'var(--day-accent)',
-      'night-accent': 'var(--night-accent)',
-
-      // The 9-tile row's single shared accent (Tile Redesign, approved
-      // mockup) — one deliberate new brand-adjacent blue, replacing the old
-      // per-category `deep` colour on that row only. Declared once in
-      // index.css; every component reaches it through this token.
-      'tile-accent': 'var(--tile-accent)',
-
-      // Sidebar-only surface tints (ported as-is from the prototype).
-      'sidebar-text': '#EAF1EC',
-      'sidebar-muted': '#B9CBC2',
-      'sidebar-dim': '#9FB6AB',
-      'sidebar-tag': '#8FAA9E',
-
-      // Timeline strip SCENERY — decorative illustration only (Day/Night
-      // backdrop). Deliberately new hues: nothing in the palette above is a
-      // sky blue / indigo, and the brief calls for both explicitly. Chosen
-      // more saturated than every category LIGHT tone above so a scheduled
-      // activity's pastel fill still reads as a distinct flat chip against a
-      // busier backdrop, never blending into it.
-      'sky-day-from': '#A9D8EA',
-      'sky-day-to': '#E7A94E',
-      'sky-night-from': '#383B78',
-      'sky-night-to': '#0C0E24',
-      // Distant mountains (Day + Night) and moonlit pine silhouettes (Night).
-      // A classic near-black silhouette would nearly vanish against the deep
-      // Night sky above (~1.1:1) — this cooler, lighter tone reads clearly on
-      // both the light Day sky and the dark Night sky.
-      'scenery-cool': '#6E8CA0',
-      // Stars only.
-      starlight: '#F6EEDD',
+      // The Night timeline strip's one deliberate exception: a fixed grey,
+      // independent of the light/dark theme toggle (stays grey in both
+      // modes) — see index.css's `--night-strip-fixed` for why this is a
+      // literal, not theme-switched like everything else here. The two
+      // companion tokens are what stays legible drawn ON that fixed surface
+      // (the midnight tick, the Night row's own NOW marker) regardless of
+      // which theme the rest of the app is in.
+      'night-strip-fixed': 'var(--night-strip-fixed)',
+      'night-strip-fixed-ink': 'var(--night-strip-fixed-ink)',
+      'night-strip-fixed-line': 'var(--night-strip-fixed-line)',
     },
 
     extend: {

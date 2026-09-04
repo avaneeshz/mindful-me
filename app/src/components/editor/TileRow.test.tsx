@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TileRow } from './TileRow'
-import { CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
+import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
 import type { ActivityList } from '@/domain/types'
 
 const NO_ACTIVITIES: ActivityList = []
@@ -57,31 +57,36 @@ describe('the 9-tile row stays mounted regardless of slot capacity', () => {
   })
 })
 
-describe('the "x of y done" tile badge', () => {
-  it('reads 0/N when nothing is locked', () => {
+describe('tile progress — spoken via aria-label, no visible "x/y" badge any more', () => {
+  // Section B replaced the old visible "x/y" numeric badge with a flat
+  // progress bar (fill width = done/total) — the exact count is still
+  // announced to assistive tech through each tile's own aria-label, just no
+  // longer duplicated as visible text on the tile.
+  it('reads "0 of N done" when nothing is locked', () => {
     const html = renderRow()
     const sleepCount = cardsForCategory('sleep').length
-    expect(html).toContain(`0/${sleepCount}`)
     expect(html).toContain(`Sleep &amp; Rest, 0 of ${sleepCount} done`)
   })
 
   it('counts an auto-locked item once its scheduled-today count reaches its limit', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 480, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 480, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const html = renderRow({ activities })
-    expect(html).toContain(`1/${cardsForCategory('sleep').length}`)
+    expect(html).toContain(`Sleep &amp; Rest, 1 of ${cardsForCategory('sleep').length} done`)
   })
 
   it('counts a manually-dismissed item without any matching activity at all', () => {
     const html = renderRow({ dismissed: new Set(['Slow down']) })
-    expect(html).toContain(`1/${cardsForCategory('sleep').length}`)
+    expect(html).toContain(`Sleep &amp; Rest, 1 of ${cardsForCategory('sleep').length} done`)
   })
 
-  it('renders every tile’s badge with its own real item count', () => {
+  it('reports every tile’s own real item count', () => {
     const html = renderRow()
     for (const categoryId of CATEGORY_ORDER) {
-      expect(html).toContain(`0/${cardsForCategory(categoryId).length}`)
+      const label = CATEGORIES[categoryId].label.replace('&', '&amp;')
+      const count = cardsForCategory(categoryId).length
+      expect(html).toContain(`${label}, 0 of ${count} done`)
     }
   })
 })
@@ -89,23 +94,24 @@ describe('the "x of y done" tile badge', () => {
 describe('whole-tile lock treatment', () => {
   it('marks the whole tile locked once every one of its own items is locked', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const dismissed = new Set(['Supplements', 'Slow down'])
     const sleepCount = cardsForCategory('sleep').length
     const html = renderRow({ activities, dismissed })
-    expect(html).toContain(`${sleepCount}/${sleepCount}`)
+    expect(html).toContain(`Sleep &amp; Rest, ${sleepCount} of ${sleepCount} done`)
+    expect(html).toContain('width:100%')
   })
 
   it('stays inside the row rather than disappearing once fully locked', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const dismissed = new Set(['Supplements', 'Slow down'])
     const html = renderRow({ activities, dismissed })
@@ -121,16 +127,17 @@ describe('slot-full notice copy', () => {
   })
 })
 
-describe('one shared accent, fill-width row (approved mockup)', () => {
-  it('uses the single shared tile-accent token for every tile, not 9 different category colours', () => {
+describe('monochrome, flat-progress-bar tile row (Section A/B — no colour anywhere)', () => {
+  it('uses no colour anywhere — no per-category or tile-accent tokens, only ink/surface/line', () => {
     const html = renderRow()
-    // The colour itself lives in exactly one place (the `tile-accent` theme
-    // token, backed by `--tile-accent` in index.css) — components reach it
-    // through ordinary utility classes, never a repeated literal. None of
-    // the old per-category `--cat-*-deep` tokens are read here any more.
-    expect(html).toContain('text-tile-accent')
+    // The old shared-accent blue and every per-category token are both
+    // gone — tiles are plain ink-on-surface now, same as everything else
+    // in the monochrome theme.
+    expect(html).not.toContain('tile-accent')
     expect(html).not.toContain('--cat-sleep-deep')
     expect(html).not.toContain('#2F6FE0')
+    expect(html).not.toContain('#2f6fe0')
+    expect(html).toContain('text-ink')
   })
 
   it('tiles are flex-1/min-w-0 (fill the row edge-to-edge), not a fixed width', () => {
@@ -140,20 +147,32 @@ describe('one shared accent, fill-width row (approved mockup)', () => {
     expect(html).toContain('min-w-0')
   })
 
-  it('the fill height is a real done/total percentage, not a fixed decorative one', () => {
+  it('renders no separate numeric "x/y" badge on the tile — done/total is now spoken only, via aria-label', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+    ]
+    const html = renderRow({ activities })
+    // "1/5" (the old visible badge format) does not appear anywhere in the
+    // tile markup; the aria-label still carries the real count in words.
+    expect(html).not.toContain('>1/5<')
+    expect(html).toContain('Sleep &amp; Rest, 1 of 5 done')
+  })
+
+  it('the progress bar fill is a real done/total WIDTH percentage (Section B — replaces the old water-fill HEIGHT gauge)', () => {
+    const activities: ActivityList = [
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const html = renderRow({ activities }) // Sleep & Rest: 1 of 5 -> 20%
-    expect(html).toContain('height:20%')
+    expect(html).toContain('width:20%')
+    expect(html).not.toMatch(/height:\d+%/)
   })
 
-  it('an empty tile (0 done) renders no fill container at all', () => {
+  it('an empty tile (0 done) still renders the bar track, at 0% fill', () => {
     const html = renderRow()
-    expect(html).not.toContain('height:0%')
+    expect(html).toContain('width:0%')
   })
 
-  it('a fully-done tile fills to 100% and drops the old dimming treatment', () => {
+  it('a fully-done tile fills to 100% and carries no separate dimming treatment', () => {
     const cards = cardsForCategory('growth')
     const activities: ActivityList = cards
       .filter((c) => c.disappear.mode === 'auto')
@@ -164,15 +183,15 @@ describe('one shared accent, fill-width row (approved mockup)', () => {
         startMinutes: i * 30,
         durationMinutes: 15,
         flags: [],
-        quality: null,
+        quality: null, symptoms: [], notes: null,
         status: 'planned' as const,
         timezone: 'UTC',
       }))
     const dismissed = new Set(cards.filter((c) => c.disappear.mode === 'manual').map((c) => c.name))
     const html = renderRow({ activities, dismissed })
     const growthCount = cards.length
-    expect(html).toContain(`${growthCount}/${growthCount}`)
-    expect(html).toContain('height:100%')
+    expect(html).toContain(`Growth &amp; Connection, ${growthCount} of ${growthCount} done`)
+    expect(html).toContain('width:100%')
     expect(html).not.toContain('saturate')
     expect(html).not.toContain('opacity-80')
   })

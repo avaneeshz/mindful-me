@@ -1,24 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { CheckCircle2, Circle, Info } from 'lucide-react'
 import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
+import { computePanelGeometry, type PanelGeometry } from '@/domain/panelGeometry'
 import type { ActivityCard, ActivityList, Category, CategoryId } from '@/domain/types'
 import { cn } from '@/lib/utils'
-
-/**
- * One shared accent for all 9 tiles (approved mockup direction) — the tiles
- * no longer each carry their own `Category.deep` colour; that per-category
- * palette still exists (`Category.deep`/`onDeep`) but is no longer read by
- * this component. Scoped to the top-level tile row only — the 53 item
- * colours inside the expand panel are unchanged.
- *
- * The colour itself lives in exactly one place, `--tile-accent`
- * (styles/index.css, mirrored into Tailwind as the `tile-accent` theme
- * colour) — never as a literal here. Static usages below reach it through
- * ordinary `tile-accent` utility classes; only the water-fill tint, a
- * genuinely computed `color-mix()`, needs the CSS var directly.
- */
-const TILE_FILL_COLOR = 'color-mix(in srgb, var(--tile-accent) 74%, white)'
 
 /** e.g. "1 activity totalling 30 minutes", "2 activities totalling 30 minutes". */
 export function describeSlotContents(activityCount: number, usedMinutes: number): string {
@@ -46,12 +32,22 @@ interface TileRowProps {
 }
 
 /**
- * Tile row (Modal Redesign §1) — the 9 tiles as ONE horizontal scrollable
- * row (never a 3x3 grid; PR #9's grid is retired). Tapping a tile does NOT
- * replace the screen — it expands a panel directly below the row showing
- * that tile's 5-7 items as chips, and the row stays put underneath. Tapping
- * the same tile again collapses the panel; tapping a different tile swaps
- * the panel's content in place.
+ * Tile row (Modal Redesign §1, then Section B of the theme/panel round) —
+ * the 9 tiles as one fill-width horizontal row (never a 3x3 grid, never
+ * scrolling). Tapping a tile grows a panel directly below the row, IN REAL
+ * LAYOUT FLOW (`.panel-outer`'s `grid-template-rows` animation, styles/
+ * index.css) — never `position: absolute` — which is what guarantees it can
+ * never overlap anything: the container genuinely grows to contain it. The
+ * panel anchors to the tapped tile (left edge for tiles 1-4, centered under
+ * tile 5, right edge for tiles 6-9), sizes itself to exactly fit that
+ * category's own item count, and grows a chevron + scale-in animation
+ * anchored at the tapped tile's own x position — see `domain/panelGeometry.ts`
+ * for the actual placement math (measured pixel rects in, geometry out; that
+ * module is where this behaviour is actually unit-tested, the same way real
+ * pointer-drag math is tested at the pure-function layer elsewhere in this
+ * app, not through simulated DOM events this SSR-string test suite can't
+ * produce). Tapping the same tile again collapses the panel; tapping a
+ * different tile swaps the panel's content and re-anchors in place.
  */
 export function TileRow({
   atCapacity,
@@ -64,10 +60,37 @@ export function TileRow({
 }: TileRowProps) {
   const [draggingCard, setDraggingCard] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<CategoryId | null>(null)
+  const [geometry, setGeometry] = useState<PanelGeometry | null>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
 
   const openCards = openCategory ? cardsForCategory(openCategory) : null
   const openProgress = openCards ? tileProgress(openCards, activities, dismissed) : null
   const openCategoryDef = openCategory ? CATEGORIES[openCategory] : null
+
+  function toggleTile(categoryId: CategoryId, tileIndex: number, event: ReactMouseEvent<HTMLButtonElement>) {
+    if (openCategory === categoryId) {
+      setOpenCategory(null)
+      setGeometry(null)
+      return
+    }
+    const rowEl = rowRef.current
+    const tileEl = event.currentTarget
+    if (rowEl) {
+      const rowRect = rowEl.getBoundingClientRect()
+      const tileRect = tileEl.getBoundingClientRect()
+      setGeometry(
+        computePanelGeometry({
+          tileIndex,
+          tileCount: CATEGORY_ORDER.length,
+          tileLeft: tileRect.left - rowRect.left,
+          tileWidth: tileRect.width,
+          rowWidth: rowRect.width,
+          itemCount: cardsForCategory(categoryId).length,
+        }),
+      )
+    }
+    setOpenCategory(categoryId)
+  }
 
   return (
     <div>
@@ -80,9 +103,9 @@ export function TileRow({
       {atCapacity && (
         <p
           role="status"
-          className="mb-lg flex items-start gap-sm rounded-md bg-bg px-md py-sm text-note font-medium text-charcoal"
+          className="mb-lg flex items-start gap-sm rounded-md bg-bg px-md py-sm text-note font-medium text-ink"
         >
-          <Info aria-hidden="true" className="mt-px size-[14px] shrink-0 text-muted" />
+          <Info aria-hidden="true" className="mt-px size-[14px] shrink-0 text-ink-dim" />
           <span>
             This slot is full — {describeSlotContents(activityCount, usedMinutes)}.{' '}
             <span className="sr-only">The activity list above is unavailable until there is room. </span>
@@ -92,8 +115,8 @@ export function TileRow({
         </p>
       )}
 
-      <div className={cn('tile-row', atCapacity && 'opacity-40')}>
-        {CATEGORY_ORDER.map((categoryId) => {
+      <div ref={rowRef} className={cn('tile-row', atCapacity && 'opacity-40')}>
+        {CATEGORY_ORDER.map((categoryId, tileIndex) => {
           const category = CATEGORIES[categoryId]
           const progress = tileProgress(cardsForCategory(categoryId), activities, dismissed)
           const isActive = openCategory === categoryId
@@ -104,32 +127,54 @@ export function TileRow({
               progress={progress}
               isActive={isActive}
               hiddenFromAT={atCapacity}
-              onToggle={() => setOpenCategory(isActive ? null : categoryId)}
+              onToggle={(event) => toggleTile(categoryId, tileIndex, event)}
             />
           )
         })}
       </div>
 
-      {openCategory && openCards && openProgress && openCategoryDef && (
-        <div className="mt-md rounded-lg border border-line bg-bg p-md">
-          <PanelHeader category={openCategoryDef} progress={openProgress} />
-          <div className={cn('item-chip-row mt-md', atCapacity && 'opacity-40')}>
-            {openCards.map((card) => (
-              <ItemChip
-                key={card.name}
-                card={card}
-                locked={isCardLocked(card, activities, dismissed)}
-                atCapacity={atCapacity}
-                isDragging={draggingCard === card.name}
-                onPick={() => onPickCard(card.name)}
-                onToggleDismiss={() => onToggleDismiss(card.name)}
-                onDragStart={() => setDraggingCard(card.name)}
-                onDragEnd={() => setDraggingCard(null)}
+      {/* Real layout flow — see the doc comment above and `.panel-outer` in
+          index.css. Always mounted (never conditionally rendered) so the
+          grid-rows transition has something to animate; `.show` and the
+          geometry inline styles are what actually open/position it. */}
+      <div className={cn('panel-outer', openCategory && geometry && 'show')}>
+        <div className="panel-inner">
+          {openCategory && openCards && openProgress && openCategoryDef && geometry && (
+            <div
+              className="activity-panel mt-md rounded-lg border border-line bg-surface p-lg"
+              style={
+                {
+                  width: `${geometry.width}px`,
+                  marginLeft: `${geometry.marginLeft}px`,
+                  '--origin-x': `${geometry.chevronLeft}px`,
+                } as CSSProperties
+              }
+            >
+              <span
+                aria-hidden="true"
+                className="absolute -top-[7px] size-0 border-x-[7px] border-b-[7px] border-x-transparent border-b-surface"
+                style={{ left: `${geometry.chevronLeft}px` }}
               />
-            ))}
-          </div>
+              <PanelHeader category={openCategoryDef} progress={openProgress} />
+              <div className={cn('item-chip-row mt-md', atCapacity && 'opacity-40')}>
+                {openCards.map((card) => (
+                  <ItemChip
+                    key={card.name}
+                    card={card}
+                    locked={isCardLocked(card, activities, dismissed)}
+                    atCapacity={atCapacity}
+                    isDragging={draggingCard === card.name}
+                    onPick={() => onPickCard(card.name)}
+                    onToggleDismiss={() => onToggleDismiss(card.name)}
+                    onDragStart={() => setDraggingCard(card.name)}
+                    onDragEnd={() => setDraggingCard(null)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -138,18 +183,18 @@ function PanelHeader({ category, progress }: { category: Category; progress: Til
   const Icon = category.icon
   return (
     <div className="flex items-center gap-sm">
-      {/* The connector — repeats the active tile's own icon + accent colour,
-          so the panel unambiguously belongs to it even once the row has
-          scrolled the tile itself out of easy reach. */}
+      {/* The connector — repeats the active tile's own icon, so the panel
+          unambiguously belongs to it even once the row has scrolled the
+          tile itself out of easy reach. */}
       <span
         aria-hidden="true"
-        className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-tile-accent text-white"
+        className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-inv-bg text-inv-ink"
       >
         <Icon className="size-[15px]" />
       </span>
-      <h3 className="text-meta font-semibold text-forest">{category.label}</h3>
+      <h3 className="text-meta font-semibold text-ink">{category.label}</h3>
       {progress.done > 0 && (
-        <p role="status" className="text-note font-medium text-muted">
+        <p role="status" className="text-note font-medium text-ink-dim">
           {describeProgress(progress)} for today.
         </p>
       )}
@@ -168,11 +213,11 @@ function Tile({
   progress: TileProgress
   isActive: boolean
   hiddenFromAT: boolean
-  onToggle: () => void
+  onToggle: (event: ReactMouseEvent<HTMLButtonElement>) => void
 }) {
   const Icon = category.icon
   const locked = isTileLocked(progress)
-  // A real proportional gauge — done/total, not a fixed decorative height.
+  // A real proportional gauge — done/total, not a fixed decorative value.
   const fillPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
@@ -185,80 +230,38 @@ function Tile({
         onClick={onToggle}
         aria-label={`${category.label}, ${describeProgress(progress)}`}
         className={cn(
-          'relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end gap-xs overflow-hidden',
-          'rounded-lg bg-white p-sm shadow-elevation-1 transition-shadow',
-          'hover:shadow-elevation-2',
-          // Active: the shared accent as an outline (replaces the resting
-          // hairline border, never a fill swap) + a stronger lift. A fully
-          // filled tile already reads as "done" from the gauge alone, so it
-          // gets no separate dimming treatment any more (that instinct was
-          // for the old flat-colour tile, not this water-fill one).
-          isActive
-            ? 'shadow-elevation-2 outline outline-2 outline-offset-2 outline-tile-accent'
-            : 'border border-line',
+          'relative flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-sm overflow-hidden',
+          'rounded-lg border bg-bg p-sm transition-colors',
+          'hover:border-ink',
+          // Active: an ink ring, exactly the same treatment a selected chip
+          // uses elsewhere — no colour swap, no separate accent hue.
+          isActive ? 'border-ink shadow-[0_0_0_1px_var(--ink)]' : 'border-line',
         )}
       >
-        {fillPct > 0 && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-0"
-            style={{ height: `${fillPct}%`, background: TILE_FILL_COLOR }}
-          >
-            {/* The wave-crest texture only makes sense on a partial fill —
-                a fully submerged tile has no waterline left to show. */}
-            {fillPct < 100 && (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 104 14"
-                preserveAspectRatio="none"
-                className="absolute -top-[9px] left-0 h-[14px] w-full"
-              >
-                <path d="M0 10 C 21 4 43 4 64 8 C 85 12 107 5 104 9 L104 14 L0 14 Z" fill={TILE_FILL_COLOR} />
-              </svg>
-            )}
-          </div>
-        )}
-
-        <Icon
-          aria-hidden="true"
-          className={cn('relative z-[1] size-[20px] shrink-0', fillPct === 100 ? 'text-white' : 'text-tile-accent')}
-        />
+        <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
         <span
           aria-hidden="true"
-          className={cn(
-            'relative z-[1] line-clamp-2 w-full px-xs text-center text-micro leading-tight',
-            fillPct === 100 ? 'text-white font-semibold' : isActive ? 'text-forest font-bold' : 'text-charcoal font-semibold',
-          )}
+          className="w-full line-clamp-2 px-xs text-center text-micro font-bold leading-tight text-ink"
         >
           {category.label}
         </span>
 
-        {/* Done-count, sitting on top of the fill. */}
-        <span
-          aria-hidden="true"
-          className="relative z-[1] rounded-full bg-white/90 px-sm py-px text-nano font-extrabold text-charcoal"
-        >
-          {progress.done}/{progress.total}
+        {/* Section B — a flat progress bar (fill width = done/total)
+            replaces the old water-fill gauge. Always rendered, even at 0%,
+            matching the reference implementation's own track/fill pair. */}
+        <span aria-hidden="true" className="h-[4px] w-full overflow-hidden rounded-full bg-line">
+          <span className="block h-full rounded-full bg-ink" style={{ width: `${fillPct}%` }} />
         </span>
 
         {locked && (
           <span
             aria-hidden="true"
-            className="absolute left-xs top-xs z-[1] flex size-[16px] items-center justify-center rounded-full bg-white/90 text-forest"
+            className="absolute left-xs top-xs flex size-[16px] items-center justify-center rounded-full bg-surface text-ink"
           >
             <CheckCircle2 className="size-[13px]" strokeWidth={2.5} />
           </span>
         )}
       </button>
-
-      {/* The chevron connector — sits on the tile itself so it stays under
-          it regardless of layout, rather than tracking position separately. */}
-      {isActive && (
-        <span
-          aria-hidden="true"
-          className="absolute -bottom-[9px] left-1/2 size-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent border-t-tile-accent"
-        />
-      )}
     </div>
   )
 }
@@ -303,34 +306,32 @@ function ItemChip({
         aria-label={card.sub ? `${card.name}, ${card.sub.length} options` : card.name}
         className={cn(
           'relative flex aspect-square w-[92px] shrink-0 cursor-grab flex-col items-center justify-center gap-xs',
-          'rounded-lg p-xs transition-shadow',
-          'hover:shadow-elevation-2 active:cursor-grabbing disabled:cursor-not-allowed',
-          card.hairline && 'ring-1 ring-inset ring-line',
+          'rounded-lg border border-line bg-bg p-xs transition-colors',
+          'hover:border-ink active:cursor-grabbing disabled:cursor-not-allowed',
           isDragging && 'scale-[0.96] opacity-40',
-          locked && 'saturate-[0.3] opacity-70',
+          // No per-item colour any more (Section A) — a locked item dims via
+          // opacity alone, same as everywhere else "done" reads without a
+          // colour swap.
+          locked && 'opacity-40',
         )}
-        style={{ background: card.color }}
       >
-        <Icon aria-hidden="true" className={cn('size-[20px] shrink-0', card.onColor)} />
-        <span
-          aria-hidden="true"
-          className={cn('w-full truncate px-px text-center text-micro font-semibold', card.onColor, card.onColorBoost)}
-        >
+        <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
+        <span aria-hidden="true" className="w-full truncate px-px text-center text-micro font-semibold text-ink">
           {card.name}
         </span>
 
         {card.sub && (
           <span
             aria-hidden="true"
-            className="absolute right-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-white/90 text-nano font-extrabold text-charcoal"
+            className="absolute right-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-surface text-nano font-extrabold text-ink"
           >
             {card.sub.length}
           </span>
         )}
 
         {locked && (
-          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/50">
-            <CheckCircle2 className="size-[24px] text-forest" strokeWidth={2.25} />
+          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-lg bg-surface/60">
+            <CheckCircle2 className="size-[24px] text-ink" strokeWidth={2.25} />
           </span>
         )}
       </button>
@@ -345,7 +346,7 @@ function ItemChip({
             onToggleDismiss()
           }}
           aria-label={`Mark ${card.name} done for today`}
-          className="absolute left-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-white/90 text-muted transition-colors hover:text-forest"
+          className="absolute left-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-surface text-ink-dim transition-colors hover:text-ink"
         >
           <Circle aria-hidden="true" className="size-[12px]" strokeWidth={2.5} />
         </button>

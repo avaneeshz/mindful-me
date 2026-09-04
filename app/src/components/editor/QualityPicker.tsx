@@ -3,11 +3,12 @@ import type { ActivityQuality } from '@/domain/types'
 import { Chip } from '@/components/ui/chip'
 
 /**
- * "How did it feel?" (Modal Redesign §D) — single-select, optional. Mirrors
- * `FlagPicker`'s visual pattern deliberately (same "pick one of a small set
- * of labeled icon chips" vocabulary across both single-select rows in this
- * modal), including an explicit clear affordance: re-selecting the active
- * chip clears it back to null, same as tapping "None" does for flags.
+ * "Activity quality" (formerly "How did it feel?", relabeled this round) —
+ * single-select, optional. Mirrors `FlagPicker`'s visual pattern deliberately
+ * (same "pick one of a small set of labeled icon chips" vocabulary across
+ * both single-select rows in this modal), including an explicit clear
+ * affordance: re-selecting the active chip clears it back to null, same as
+ * tapping "None" does for the protective-response picker.
  */
 export function QualityPicker({
   selected,
@@ -18,8 +19,8 @@ export function QualityPicker({
 }) {
   return (
     <fieldset className="flex flex-col gap-sm">
-      <legend className="text-caption font-semibold text-muted">How did it feel?</legend>
-      <div role="radiogroup" aria-label="How did it feel?" className="flex flex-wrap gap-sm">
+      <legend className="text-caption font-semibold text-ink-dim">Activity quality</legend>
+      <div role="radiogroup" aria-label="Activity quality" className="flex flex-wrap gap-sm">
         {QUALITIES.map((quality) => {
           const isSelected = selected === quality.id
           const Icon = quality.icon

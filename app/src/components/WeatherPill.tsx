@@ -41,19 +41,19 @@ export function WeatherPill({ className }: { className?: string }) {
 
   return (
     <Chip size="sm" className={cn('font-semibold', className)} aria-live="polite">
-      <Sun aria-hidden="true" className="size-[14px] text-muted" />
+      <Sun aria-hidden="true" className="size-[14px] text-ink-dim" />
       {state.status === 'loading' && (
         <>
           <span className="sr-only">Loading weather…</span>
           <span aria-hidden="true" className="h-[12px] w-[64px] animate-pulse rounded-sm bg-line" />
         </>
       )}
-      {state.status === 'unavailable' && <span className="text-muted">Weather unavailable</span>}
+      {state.status === 'unavailable' && <span className="text-ink-dim">Weather unavailable</span>}
       {state.status === 'ready' && (
         <>
           {state.reading.temperatureC !== null && <span>{formatTemperature(state.reading.temperatureC)}</span>}
           {state.reading.city !== null && (
-            <span className={state.reading.temperatureC !== null ? 'text-muted' : undefined}>
+            <span className={state.reading.temperatureC !== null ? 'text-ink-dim' : undefined}>
               {state.reading.city}
             </span>
           )}

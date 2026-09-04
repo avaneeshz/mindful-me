@@ -6,6 +6,7 @@ import { AuthScreen } from '@/components/auth/AuthScreen'
 import { TodayPage } from '@/routes/TodayPage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider } from '@/state/BoardContext'
+import { ThemeProvider } from '@/state/ThemeContext'
 import { cn } from '@/lib/utils'
 
 interface AppProps {
@@ -51,9 +52,11 @@ function useHasContentBelow(ref: React.RefObject<HTMLElement | null>): boolean {
 
 export default function App({ now }: AppProps = {}) {
   return (
-    <AuthProvider>
-      <AuthGate now={now} />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AuthGate now={now} />
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 
@@ -72,7 +75,7 @@ function AuthGate({ now }: { now?: Date }) {
   if (view === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg">
-        <Loader2 aria-hidden="true" className="size-[28px] animate-spin text-forest" />
+        <Loader2 aria-hidden="true" className="size-[28px] animate-spin text-ink" />
         <span className="sr-only">Loading…</span>
       </div>
     )
