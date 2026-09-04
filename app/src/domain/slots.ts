@@ -66,28 +66,46 @@ export function positionInRow(slot: number): number {
 export const MIDNIGHT_TICK_POSITION = SLOTS_PER_ROW / 2
 
 /* ------------------------------------------------------------------ *
- * Hour tick labels beneath each row: exactly 3 labels — start, midpoint,
- * end — in the 12-hour lowercase format (`6a`, `12p`, ...).
- *   day   -> 6a  12p  6p
- *   night -> 6p  12a  6a
+ * Hour tick labels beneath each row — every hour, not just start/midpoint/
+ * end (a later, confirmed revision of the original 3-label ruler): 13
+ * labels, one per hour boundary across the row's 12 hours.
+ *   day   -> 6AM  7  8  9  10  11  12  1  2  3  4  5  6PM
+ *   night -> 6PM  7  8  9  10  11  12  1  2  3  4  5  6AM
+ * AM/PM suffix appears ONLY on the first and last label of each row; every
+ * label in between is a bare number — exactly the artifact's own format.
  * ------------------------------------------------------------------ */
 
-/** Half the row: the offset (in grid cells) from a row's start to its midpoint. */
-export const TICK_STEP_SLOTS = SLOTS_PER_ROW / 2
+/** One row spans exactly 12 hours -> 13 hour-boundary ticks (0..12 inclusive). */
+export const TICKS_PER_ROW = SLOTS_PER_ROW / 2 + 1
 
-/** e.g. 0 -> "12a", 13 -> "1p". */
-export function formatHourTick(hour24: number): string {
+/** e.g. (0, {first:true}) -> "12AM", (13, {}) -> "1", (18, {last:true}) -> "6PM". */
+export function formatHourTickLabel(hour24: number, edge: { first?: boolean; last?: boolean }): string {
   const h = ((hour24 % 24) + 24) % 24
-  const suffix = h < 12 ? 'a' : 'p'
   const h12 = h % 12 === 0 ? 12 : h % 12
+  if (!edge.first && !edge.last) return String(h12)
+  const suffix = h < 12 ? 'AM' : 'PM'
   return `${h12}${suffix}`
 }
 
-/** The 3 tick labels for a row (start, midpoint, end), left to right. */
-export function rowTickLabels(period: Period): string[] {
+/**
+ * The 13 tick labels for a row, left to right, one per hour boundary. Pair
+ * with `tickLabelPositions` for each label's `left%` — evenly spaced in
+ * TIME (every row spans a fixed 12 real hours), but never assume evenly
+ * spaced in PIXELS: label text width varies ("6AM" vs "7"), so only an
+ * explicit `left%` — never flexbox `justify-between` — places each one
+ * where it actually belongs.
+ */
+export function rowHourTickLabels(period: Period): string[] {
   const startSlot = period === 'day' ? DAY_ROW_START_SLOT : NIGHT_ROW_START_SLOT
-  const offsets = [0, TICK_STEP_SLOTS, SLOTS_PER_ROW]
-  return offsets.map((offset) => formatHourTick((startSlot + offset) / 2))
+  const startHour = startSlot / 2
+  return Array.from({ length: TICKS_PER_ROW }, (_, i) =>
+    formatHourTickLabel(startHour + i, { first: i === 0, last: i === TICKS_PER_ROW - 1 }),
+  )
+}
+
+/** The `left%` position for each of `rowHourTickLabels`'s 13 labels, in the same order. */
+export function tickLabelPositions(): number[] {
+  return Array.from({ length: TICKS_PER_ROW }, (_, i) => (i / (TICKS_PER_ROW - 1)) * 100)
 }
 
 export function normalizeSlot(slot: number): number {

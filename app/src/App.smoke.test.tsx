@@ -29,9 +29,10 @@ function render(now: Date = AT_10_15AM): string {
 describe('Today screen', () => {
   const html = render()
 
-  it('uses "30-Minute Slotting" as the primary heading', () => {
-    expect(html).toContain('30-Minute Slotting')
-    expect(html).toMatch(/<h1[^>]*>30-Minute Slotting<\/h1>/)
+  it('uses "Consort" as the primary heading (renamed from "30-Minute Slotting")', () => {
+    expect(html).toContain('Consort')
+    expect(html).toMatch(/<h1[^>]*>Consort<\/h1>/)
+    expect(html).not.toContain('30-Minute Slotting')
   })
 
   it('has no greeting and no hardcoded streak line', () => {
@@ -150,16 +151,17 @@ describe('Today screen', () => {
     expect(meter).toContain('width:calc(100% - 2px)')
   })
 
-  it('rules both timeline rows with exactly 3 hour ticks apiece — start, midpoint, end', () => {
-    // Day: 6a, 12p, 6p. Night: 6p, 12a, 6a — "6p" and "6a" each appear once
-    // per row, so 2 occurrences of each across the whole page.
-    for (const label of ['6a', '12p', '6p', '12a']) {
+  it('rules both timeline rows with every hour — 13 ticks apiece, AM/PM only at the row edges', () => {
+    // Day: 6AM,7,8,9,10,11,12,1,2,3,4,5,6PM. Night: 6PM,7,8,9,10,11,12,1,2,3,4,5,6AM.
+    // Every one of the 13 distinct label values shows up in both rows, so
+    // each appears exactly twice across the whole page.
+    const labels = ['6AM', '7', '8', '9', '10', '11', '12', '1', '2', '3', '4', '5', '6PM']
+    for (const label of labels) {
       expect(html).toContain('>' + label + '</span>')
     }
-    expect(html.match(/>6a<\/span>/g) ?? []).toHaveLength(2)
-    expect(html.match(/>6p<\/span>/g) ?? []).toHaveLength(2)
-    expect(html.match(/>12p<\/span>/g) ?? []).toHaveLength(1)
-    expect(html.match(/>12a<\/span>/g) ?? []).toHaveLength(1)
+    for (const label of labels) {
+      expect(html.match(new RegExp(`>${label}</span>`, 'g')) ?? []).toHaveLength(2)
+    }
   })
 
   it('keeps the sidebar with Today active and the rest as placeholders', () => {
@@ -191,7 +193,7 @@ describe('rendering is independent of the wall clock', () => {
   it('renders the same structure at every slot of the day', () => {
     for (const now of everyHalfHour) {
       const at = render(now)
-      expect(at).toMatch(/<h1[^>]*>30-Minute Slotting<\/h1>/)
+      expect(at).toMatch(/<h1[^>]*>Consort<\/h1>/)
       expect(at.match(/>NOW</g) ?? []).toHaveLength(1)
       expect(at.match(/data-slot="\d+"/g) ?? []).toHaveLength(48)
     }

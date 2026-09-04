@@ -6,6 +6,8 @@ import {
   BatteryLow,
   BedDouble,
   BedSingle,
+  Bone,
+  Brain,
   Briefcase,
   Building2,
   CircleDashed,
@@ -14,6 +16,7 @@ import {
   Droplet,
   Droplets,
   Dumbbell,
+  Flame,
   Flower2,
   Footprints,
   FlaskConical,
@@ -43,6 +46,7 @@ import {
   Sun,
   Syringe,
   Table2,
+  Thermometer,
   Timer,
   TrainFront,
   Trees,
@@ -58,71 +62,29 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActivityCard, ActivityQuality, Category, CategoryId, FlagId } from '@/domain/types'
+import type { ActivityCard, ActivityQuality, Category, CategoryId, FlagId, Symptom } from '@/domain/types'
 
 /* ------------------------------------------------------------------ *
- * Colour system (Tile Redesign — see the full-stack-engineer agent
- * definition, "45/53-item catalog"). NOTE: the catalog is 53 items, not the
- * 45 the original brief's summary line said — that was an arithmetic slip,
- * confirmed against the per-tile enumeration (5+7+5+5+7+5+7+7+5 = 53), which
- * is the real, deliberate content.
+ * Colour system — SUPERSEDED, kept as inert data only.
  *
- * This file used to carry a comment REJECTING per-card colour outright, on
- * the grounds that 24 competing per-tile GRADIENTS is exactly the decorative-
- * gradient anti-pattern CLAUDE.md forbids. That objection was about
- * gradients specifically, not about colour ownership — this redesign is a
- * deliberate, approved narrowing of the old "flat CATEGORY fill only" rule:
+ * Everything below (`Category.deep`/`light`/`onDeep`/`onDeepBoost` and
+ * `ActivityCard.color`/`onColor`/`onColorBoost`/`hairline`) was the real,
+ * measured-for-WCAG-contrast per-tile/per-item colour system the Tile
+ * Redesign shipped. A later, explicitly confirmed product round replaced it
+ * outright with a monochrome light/dark theme — "no colour anywhere,
+ * no per-item palette, no per-category tile colours" — so none of these
+ * fields are read by any component's render path any more (see
+ * `TileRow.tsx`, `CategoryIconChip.tsx`, `Timeline.tsx`,
+ * `DurationDragBlock.tsx`, all now purely `ink`/`surface`/`line`-based).
  *
- *   - The 9 main tiles keep ONE muted, flat CATEGORY colour each (`deep`
- *     below) — the top screen stays calm, exactly as before.
- *   - Each of the 53 ITEMS gets its own flat, accessible SOLID colour
- *     (`ActivityCard.color`), used in exactly two places: that item's own
- *     chip in the drill-down view, and its fill in the timeline strip. Never
- *     a gradient, never used anywhere else.
- *
- * Every `deep` (tile) and `color` (item) foreground pairing below was
- * measured, not eyeballed: relative luminance -> contrast ratio against both
- * `#FFFFFF` and the design system's `charcoal` (`#3D3A35`), picking whichever
- * clears more, per WCAG 2.1. Where the better of the two still missed the
- * 4.5:1 AA text minimum, the FILL was nudged a touch lighter/darker (same
- * hue, same saturation — HSL lightness only, never a hue swap) until it
- * cleared 4.5:1 with its chosen foreground; only if that nudge still could
- * not reach 4.5:1 would `.label-contrast-boost` (see index.css) be added, the
- * same mitigation the old `mind` category needed. As it happened, every one
- * of the measured-fail colours below reached AA with a lightness nudge alone
- * — nothing in this catalog needs the boost class this pass:
- *
- *   TILES nudged (charcoal foreground):
- *     Food & Nourishment      #C99A5B -> #CA9B5D  (4.45 -> 4.51)
- *     Downtime & Errands      #9B8F85 -> #ACA299  (3.59 -> 4.52)
- *     Nature & Spirit         #A98B3E -> #BFA050  (3.48 -> 4.51)
- *     Home & Chores           #8A97A6 -> #9AA5B2  (3.80 -> 4.53)
- *
- *   ITEMS nudged (16 of 53 — every other item cleared 4.5:1 unmodified):
- *     Day Sleep                #E07A3E -> #E58E5B  charcoal 3.79 -> 4.50
- *     Bed Exercise             #D98BA5 -> #DA8DA7  charcoal 4.41 -> 4.50
- *     Slow down                #8A93A6 -> #9CA4B4  charcoal 3.67 -> 4.52
- *     Meal Prep                #8B6BA8 -> #8969A7  white    4.41 -> 4.52
- *     Eating                   #E85D9E -> #ED81B3  charcoal 3.50 -> 4.52
- *     Gut                      #A9795A -> #996D50  white    3.77 -> 4.51
- *     Bath ritual              #6FA8DC -> #71A9DC  charcoal 4.48 -> 4.53
- *     Hair Care                #C99A3B -> #CB9D41  charcoal 4.40 -> 4.55
- *     Entertainment (YouTube)  #E23744 -> #E12E3C  white    4.32 -> 4.51
- *     GEOM                     #4B9CD3 -> #66ABDA  charcoal 3.77 -> 4.53
- *     Work                     #F2874B -> #F2884C  charcoal 4.50 -> 4.53
- *     Gmeet calls              #2E9E9E -> #35B5B5  charcoal 3.50 -> 4.54
- *     Nursery visit            #7A9B6E -> #90AB86  charcoal 3.63 -> 4.50
- *     Therapy                  #8FA82E -> #94AE30  charcoal 4.21 -> 4.50
- *     Coaching                 #D9482E -> #D54127  white    4.27 -> 4.55
- *     Study table clean        #E8829E -> #E986A1  charcoal 4.38 -> 4.52
- *
- *   Several near-white item fills (Liquids, Body Care (self), Star Bazar
- *   visit, Clean Toilets, Mopping/Brooming) look at a glance like they might
- *   need the boost too — measured, they clear charcoal at 8:1-9:1+, well
- *   past AA, so no boost is applied. Mopping/Brooming (#F2F0EA) additionally
- *   gets a hairline border (`ActivityCard.hairline`) — a legibility-against-
- *   the-page concern, not a text-contrast one, since it sits close enough to
- *   white to otherwise blend into the surrounding surface.
+ * These fields are kept, unread, rather than stripped from all 53 item
+ * literals below — the same "kept but currently unused" treatment this file
+ * already gave `onDeepBoost`/`onColorBoost` before the retheme (see
+ * `.label-contrast-boost` in index.css). If per-item colour is ever
+ * reintroduced, the measured values and methodology below are still valid
+ * and don't need re-deriving from scratch. The original methodology notes
+ * (measured against white/charcoal, nudged for 4.5:1 AA) are preserved
+ * as historical record, not current behaviour.
  * ------------------------------------------------------------------ */
 
 export const CATEGORIES: Record<CategoryId, Category> = {
@@ -542,4 +504,26 @@ export const QUALITIES: QualityDefinition[] = [
   { id: 'Straining', icon: CloudRain },
   { id: 'Draining', icon: BatteryLow },
   { id: 'Dysregulated', icon: Shuffle },
+]
+
+/* ------------------------------------------------------------------ *
+ * "Chronic Symptoms" — a multi-select, optional set of symptoms noticed
+ * around a logged activity. Unlike quality/flags, any number of these can
+ * be selected at once (see `ScheduledActivity.symptoms`). Icon choices are
+ * a judgement call (none were prescribed), same as quality's — cheap to
+ * swap later.
+ * ------------------------------------------------------------------ */
+
+export interface SymptomDefinition {
+  id: Symptom
+  icon: LucideIcon
+}
+
+export const SYMPTOMS: SymptomDefinition[] = [
+  { id: 'Pitta', icon: Flame },
+  { id: 'Inflammation', icon: Thermometer },
+  { id: 'Right knee pain', icon: Bone },
+  { id: 'Calves pain', icon: Footprints },
+  { id: 'Temporal pain', icon: Brain },
+  { id: 'Dryness', icon: Sun },
 ]

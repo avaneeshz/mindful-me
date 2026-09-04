@@ -18,17 +18,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        /** Deep Forest fill. The single primary action in the editor. */
+        /** The theme's invert fill. The single primary action in the editor. */
         primary:
-          'bg-forest text-white font-bold text-btn rounded-md hover:bg-forest-light active:brightness-95',
-        /** Text-only, no border. Cancel and other secondary actions. */
-        ghost: 'text-muted font-semibold text-body rounded-md hover:text-charcoal',
-        /** Destructive text action — Remove. */
-        destructive:
-          'text-terracotta font-semibold text-caption rounded-sm hover:underline underline-offset-2',
-        /** Gold text action — Edit, Undo, breadcrumb back. */
-        accent:
-          'text-gold font-semibold text-caption rounded-sm hover:underline underline-offset-2',
+          'bg-inv-bg text-inv-ink font-bold text-btn rounded-md hover:opacity-90 active:brightness-95',
+        /** Text-only, no border. Secondary actions. */
+        ghost: 'text-ink-dim font-semibold text-body rounded-md hover:text-ink',
+        /**
+         * Destructive text action — Remove. No colour any more (Section A) —
+         * distinguished from `accent` by weight/underline only, same as
+         * every other "no separate hue" pairing this retheme introduced.
+         */
+        destructive: 'text-ink-dim font-semibold text-caption rounded-sm hover:text-ink hover:underline underline-offset-2',
+        /** Text action — Edit, Undo, breadcrumb back. */
+        accent: 'text-ink-dim font-medium text-caption rounded-sm hover:text-ink hover:underline underline-offset-2',
       },
       size: {
         /** 44px — the standard touch target height. */

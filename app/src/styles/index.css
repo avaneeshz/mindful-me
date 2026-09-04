@@ -4,66 +4,55 @@
 
 @layer base {
   :root {
-    /* Mirrors of the Tailwind theme tokens, for the handful of places that need
-       runtime interpolation (per-category colours resolved from data). These are
-       the ONLY hex literals in the application source. */
-    --forest: #1b3b32;
-    --strip: #f1ede2;
+    /* ---------------------------------------------------------------------
+       Monochrome theme system (confirmed product decision) — replaces the
+       old forest-green/warm-ivory palette AND the per-category (`--cat-*`)
+       and per-tile (`--tile-accent`) colour systems entirely. No colour
+       anywhere: both themes are this same neutral bg/surface/ink/line set,
+       just inverted, exactly the prototype's final CSS custom-property
+       scheme. These are the ONLY hex literals in the application source —
+       every component reaches them through the Tailwind tokens in
+       tailwind.config.js (`bg-surface`, `text-ink`, etc.), never a literal.
 
-    /* The 9-tile row's single shared accent (approved mockup direction,
-       replacing each tile's old per-category `--cat-*-deep` colour). A
-       genuinely new, deliberate value — declared here, the one place
-       runtime-interpolated hex belongs, and mirrored into Tailwind's theme
-       as `tile-accent` (tailwind.config.js) so components reach it through
-       ordinary utility classes and never repeat the literal. */
-    --tile-accent: #2f6fe0;
+       DARK is the default (`:root`, no attribute) — the app's first-ever
+       load, with nothing yet in localStorage, opens in dark, matching the
+       prototype's own default. `[data-theme="light"]` overrides every
+       token below to the light pair. `ThemeContext` (state/) is what sets
+       that attribute and persists the choice per-device.
+       --------------------------------------------------------------------- */
+    --bg: #0a0a0b;
+    --surface: #17171a;
+    --surface-2: #1e1e21;
+    --ink: #f2f1ec;
+    --ink-dim: #8c8c90;
+    --line: rgba(255, 255, 255, 0.14);
+    --line-soft: rgba(255, 255, 255, 0.08);
+    --inv-bg: #f2f1ec;
+    --inv-ink: #0a0a0b;
 
-    /* Night row surface: a computed Deep Forest tint over the same day-row
-       base — deliberately NOT a new standalone hex value.
+    /* The Night timeline strip's one deliberate exception (approved this
+       round): a fixed grey, independent of the light/dark theme toggle —
+       stays grey whether the app is in light or dark mode, never switched
+       under `[data-theme="light"]` below. Its two companions are what stays
+       legible drawn ON that fixed surface (the midnight tick, the Night
+       row's own NOW marker) regardless of which theme the rest of the app
+       is in — a light-toned pair that reads against the fixed mid-grey
+       either way, the same reasoning that makes the surface itself fixed. */
+    --night-strip-fixed: #4b4b50;
+    --night-strip-fixed-ink: #f2f1ec;
+    --night-strip-fixed-line: rgba(255, 255, 255, 0.28);
+  }
 
-       The approved spec said 5%. Rendered, 5% is ~11/255 per channel away from
-       the Day row and the two rows read as identical, which pushes the whole
-       Day/Night distinction onto the small text captions — exactly what the
-       requirement said not to do. Raised to 12%: clearly darker at a glance,
-       still well clear of the lightest category strip fill (#BFD9C9) so an
-       empty Night slot can never be mistaken for a filled one. */
-    --night-strip: #dedcd2; /* static fallback for engines without color-mix */
-    --night-strip: color-mix(in srgb, var(--forest) 12%, var(--strip));
-
-    /* Row accent bars — the second, non-textual Day/Night cue. Both are Deep
-       Forest composites of the row base, so no new brand colour is introduced;
-       only the strength differs. */
-    --day-accent: #b6bcb0;
-    --day-accent: color-mix(in srgb, var(--forest) 35%, var(--strip));
-    --night-accent: var(--forest);
-
-    /* Category (9-tile) DEEP tones — the main 3x3 tile grid and list-row
-       icon chips only. Every real activity's own timeline-strip fill now
-       comes from its ITEM colour (data/activities.ts `ActivityCard.color`),
-       not from these — see that file's colour-system comment block. */
-    --cat-sleep-deep: #3e5c76;
-    --cat-food-deep: #ca9b5d;
-    --cat-care-deep: #7faf97;
-    --cat-downtime-deep: #aca299;
-    --cat-movement-deep: #a65d5d;
-    --cat-work-deep: #3e7a7a;
-    --cat-nature-deep: #bfa050;
-    --cat-growth-deep: #7c6a96;
-    --cat-home-deep: #9aa5b2;
-
-    /* Category LIGHT tones — a lighter tint of each tile's own DEEP hue,
-       reserved for category-level chrome with no single item to carry its
-       own colour (e.g. a flag marker's fallback). Never the timeline strip
-       fill any more — see `itemFillColor` in data/activities.ts. */
-    --cat-sleep-light: #b6c1cb;
-    --cat-food-light: #ebd9c1;
-    --cat-care-light: #cee1d7;
-    --cat-downtime-light: #dfdcd8;
-    --cat-movement-light: #ddc1c1;
-    --cat-work-light: #b6cccc;
-    --cat-nature-light: #e7dbbd;
-    --cat-growth-light: #cdc6d7;
-    --cat-home-light: #d9dde2;
+  :root[data-theme='light'] {
+    --bg: #fafaf8;
+    --surface: #ffffff;
+    --surface-2: #f1f0ec;
+    --ink: #17171a;
+    --ink-dim: #75757a;
+    --line: rgba(10, 10, 11, 0.14);
+    --line-soft: rgba(10, 10, 11, 0.08);
+    --inv-bg: #17171a;
+    --inv-ink: #fafaf8;
   }
 
   html,
@@ -76,24 +65,26 @@
   }
 
   body {
-    @apply bg-bg font-sans text-body text-charcoal antialiased;
+    @apply bg-bg font-sans text-body text-ink antialiased;
     -webkit-tap-highlight-color: transparent;
   }
 
   /* ---------------------------------------------------------------------
-     Focus ring standard, product-wide: 2px solid Deep Forest, 2px offset.
-     One treatment for every interactive element — segment control, timeline
-     slots, tiles, flags, buttons, links. Never overridden per component.
+     Focus ring standard, product-wide: 2px solid ink (the theme's own
+     foreground — never a separate accent colour), 2px offset. One
+     treatment for every interactive element — segment control, timeline
+     slots, tiles, chips, buttons, links. Never overridden per component.
+     Flips with the theme automatically since `ink` does.
      --------------------------------------------------------------------- */
   :where(a, button, [role='button'], [tabindex]):focus-visible {
-    outline: 2px solid var(--forest);
+    outline: 2px solid var(--ink);
     outline-offset: 2px;
   }
 
   /* Timeline slots sit flush against their neighbours, so a positive offset
      would be clipped by the row's overflow. Draw it inside instead. */
   .slot-button:focus-visible {
-    outline: 2px solid var(--forest);
+    outline: 2px solid var(--ink);
     outline-offset: -2px;
     z-index: 5;
   }
@@ -101,30 +92,21 @@
 
 @layer components {
   /* -------------------------------------------------------------------------
-     ACCESSIBILITY MITIGATION — reserve class, currently unused.
-
-     Applied to label TEXT sitting on a DEEP (tile) or item `color` fill,
-     for the rare case where neither white nor charcoal reaches the 4.5:1 AA
-     text minimum even after nudging the fill's lightness (never its hue —
-     see the measured-contrast methodology in data/activities.ts). A Deep
-     Forest shadow is laid directly behind the glyphs, darkening the few
-     pixels a reader actually resolves an edge against.
-
-     The Tile Redesign catalog (9 tiles, 53 items) re-measured every fill
-     against this same 4.5:1 bar and every one cleared it with a lightness
-     nudge alone — so nothing currently uses this class. Left in place as the
-     documented fallback for the next colour that doesn't nudge cleanly,
-     rather than re-deriving the mitigation from scratch then.
-
-     Icons are unaffected by a fill missing 4.5:1 — the WCAG non-text minimum
-     is only 3:1, which every fill in this catalog clears.
+     ACCESSIBILITY MITIGATION — reserve class, currently unused and, under
+     the monochrome theme, no longer even reachable: this existed to darken
+     text sitting on a per-category/per-item COLOUR fill for the rare case
+     neither white nor charcoal cleared 4.5:1 AA against it. There is no
+     such per-item fill any more — every surface is the theme's own flat
+     bg/surface/ink, chosen as an already-accessible pair by construction —
+     so nothing can ever reach for this class again. Left in place, inert,
+     rather than also removing the `onDeepBoost`/`onColorBoost` type fields
+     it was named for; see their own doc comments in domain/types.ts.
      ---------------------------------------------------------------------- */
   .label-contrast-boost {
     text-shadow:
-      0 1px 2px rgba(27, 59, 50, 0.65),
-      0 0 1px rgba(27, 59, 50, 0.9);
+      0 1px 2px rgba(0, 0, 0, 0.65),
+      0 0 1px rgba(0, 0, 0, 0.9);
   }
-
 }
 
 @layer utilities {
@@ -258,18 +240,20 @@
    first and does not work here: a container's background paints BEHIND its
    children, so the white editor card sat straight over the shadow.
 
-   The tone is the elevation-1 shadow colour, so the cue reads as the same
-   depth language the rest of the product uses, over any surface it falls on.
-   Visibility is driven from App.tsx — it shows only while content actually
-   remains below, and only where <main> is the scroll container (never mobile,
-   where the document scrolls instead).
+   The tone is a soft `ink` tint fading to transparent — `color-mix()`, not a
+   literal, so it flips with the theme automatically: it darkens toward the
+   edge on the light theme and lightens toward the edge on dark, the same
+   "there's more below" cue either way. Visibility is driven from App.tsx —
+   it shows only while content actually remains below, and only where <main>
+   is the scroll container (never mobile, where the document scrolls
+   instead).
    ------------------------------------------------------------------------ */
 .scroll-cue-bottom {
   background-image: linear-gradient(
     to top,
-    rgba(61, 58, 53, 0.14),
-    rgba(61, 58, 53, 0.05) 45%,
-    rgba(61, 58, 53, 0)
+    color-mix(in srgb, var(--ink) 14%, transparent),
+    color-mix(in srgb, var(--ink) 5%, transparent) 45%,
+    transparent
   );
 }
 
@@ -314,6 +298,54 @@
 
 .item-chip-row::-webkit-scrollbar {
   display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Tile expand panel — grows in REAL LAYOUT FLOW (Section B), not
+   `position: absolute`. That's what makes zero-overlap actually guaranteed:
+   the container genuinely grows to contain the panel, pushing whatever comes
+   after it down, rather than floating over it and risking an overlap.
+
+   `.panel-outer` is a CSS grid with one row, animated between `0fr` (closed)
+   and `1fr` (open) — `grid-template-rows` is animatable, unlike `height`,
+   without needing to know the panel's real pixel height up front. `.show` is
+   the one class TileRow.tsx toggles. `.panel-inner`'s `overflow: hidden` +
+   `min-height: 0` is what actually clips the `0fr` state to nothing instead
+   of the grid still reserving the content's intrinsic height.
+
+   The panel itself scales in from `transform-origin: var(--origin-x) top` —
+   TileRow.tsx sets `--origin-x` to the chevron's own x position (via
+   `domain/panelGeometry.ts`), so the "grows out of the tapped tile" read
+   holds regardless of which tile opened it. Width and left offset are also
+   set inline per-open (a real CSS `margin-left`, not `left`/`position`), so
+   the panel stays in flow while still landing at its anchored x position. */
+.panel-outer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.panel-outer.show {
+  grid-template-rows: 1fr;
+}
+
+.panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.activity-panel {
+  transform-origin: var(--origin-x, 50%) top;
+  transform: scale(0.96);
+  opacity: 0;
+  transition:
+    opacity 200ms ease,
+    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.panel-outer.show .activity-panel {
+  transform: scale(1);
+  opacity: 1;
 }
 
 /* Respect reduced-motion for every motion the redesign introduces: the smooth

@@ -11,7 +11,7 @@ import {
   dayRowSlotIndices,
   flagMarkerAt,
   formatActivityRange,
-  formatHourTick,
+  formatHourTickLabel,
   formatMinutes,
   formatSlotRange,
   minutesInSlot,
@@ -20,7 +20,8 @@ import {
   periodOfSlot,
   positionInRow,
   rowActivitySegments,
-  rowTickLabels,
+  rowHourTickLabels,
+  tickLabelPositions,
   slotIndexFromDate,
   slotIndexFromMinutes,
   slotMinuteRange,
@@ -38,7 +39,7 @@ function activity(startMinutes: number, durationMinutes: number, name = 'Homewor
     startMinutes,
     durationMinutes,
     flags: [],
-    quality: null,
+    quality: null, symptoms: [], notes: null,
     status: 'planned',
     timezone: 'UTC',
   }
@@ -53,7 +54,7 @@ function marker(startMinutes: number, flags: ScheduledActivity['flags']): Schedu
     startMinutes,
     durationMinutes: 0,
     flags,
-    quality: null,
+    quality: null, symptoms: [], notes: null,
     status: 'planned',
     timezone: 'UTC',
   }
@@ -307,14 +308,40 @@ describe('time formatting', () => {
 })
 
 describe('hour tick ruler', () => {
-  it('labels exactly 3 points per row — start, midpoint, end — in 12-hour lowercase format', () => {
-    expect(rowTickLabels('day')).toEqual(['6a', '12p', '6p'])
-    expect(rowTickLabels('night')).toEqual(['6p', '12a', '6a'])
+  it('labels every hour across the row — 13 points, first and last only carrying an AM/PM suffix', () => {
+    expect(rowHourTickLabels('day')).toEqual([
+      '6AM', '7', '8', '9', '10', '11', '12', '1', '2', '3', '4', '5', '6PM',
+    ])
+    expect(rowHourTickLabels('night')).toEqual([
+      '6PM', '7', '8', '9', '10', '11', '12', '1', '2', '3', '4', '5', '6AM',
+    ])
   })
 
-  it('formats both noon and midnight as 12, never 0', () => {
-    expect(formatHourTick(0)).toBe('12a')
-    expect(formatHourTick(12)).toBe('12p')
-    expect(formatHourTick(23)).toBe('11p')
+  it('formats both noon and midnight as 12, never 0, only at an edge', () => {
+    expect(formatHourTickLabel(0, { first: true })).toBe('12AM')
+    expect(formatHourTickLabel(12, { last: true })).toBe('12PM')
+    expect(formatHourTickLabel(23, { last: true })).toBe('11PM')
+  })
+
+  it('drops the AM/PM suffix for every label that is not a row edge', () => {
+    expect(formatHourTickLabel(0, {})).toBe('12')
+    expect(formatHourTickLabel(13, {})).toBe('1')
+    expect(formatHourTickLabel(19, {})).toBe('7')
+  })
+
+  it('places 13 labels at even 1/12 steps, from 0% to 100%', () => {
+    const positions = tickLabelPositions()
+    expect(positions).toHaveLength(13)
+    expect(positions[0]).toBe(0)
+    expect(positions[12]).toBe(100)
+    expect(positions[6]).toBeCloseTo(50, 5)
+    // Strictly increasing — no two labels land on the same x position.
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThan(positions[i - 1])
+    }
+  })
+
+  it('day and night rows never share the same 13-label set (they cover different hours)', () => {
+    expect(rowHourTickLabels('day')).not.toEqual(rowHourTickLabels('night'))
   })
 })

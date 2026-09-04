@@ -31,7 +31,7 @@ Do not add complexity merely because a feature is technically possible. When unc
 
 - **The full 24 hours, not just waking hours.** Sleep is a first-class tracked period on the same timeline as everything else, not an afterthought.
 - **Arbitrary duration, always.** An activity is however long it actually took — 8 minutes, 37 minutes, 2 hours 17 minutes — never rounded to fit a grid. The 30-minute grid you see is a visual ruler drawn *over* your real activities, never the unit they're stored in.
-- **Category- and state-first, not task-first.** Every activity belongs to one of nine wellness categories, can optionally carry an emotional/somatic flag (Trauma response, Stress response, Fear response, Anger response), and can optionally record how it felt (Nourishing, Productive, Straining, Draining, Dysregulated) — a trauma-informed layer most planning or habit apps don't have at all.
+- **Category- and state-first, not task-first.** Every activity belongs to one of nine wellness categories, and can optionally record its quality (Nourishing, Productive, Straining, Draining, Dysregulated), any number of chronic symptoms noticed around it, a protective-response flag (Trauma response, Stress response, Fear response, Anger response), and freeform notes — a trauma-informed layer most planning or habit apps don't have at all.
 - **One scheduling engine, two gestures.** Dragging an activity onto the timeline and selecting-a-slot-then-picking-an-activity are two entry points into the exact same underlying logic — they can never quietly diverge into different rules.
 - **Real accuracy over passive convenience.** Nothing is auto-tracked or guessed by an algorithm; everything is a deliberate, honest record of what you did, when, for how long — a trade of a little more upfront effort for data you can actually trust.
 
@@ -48,7 +48,7 @@ These apply to every feature, and are treated as hard constraints, not defaults 
 7. A conflicting edit from another device: the newest edit wins, and the older one is never silently discarded.
 8. A read of "today" or "this week" is always scoped to that window — the app never gets slower as history grows.
 9. No accidental double-submits.
-10. Sensitive fields (the emotional/somatic flags) are encrypted at rest and visible only to their owner — no exceptions.
+10. Sensitive fields (protective-response flags, activity quality, chronic symptoms, and notes) are encrypted at rest and visible only to their owner — no exceptions.
 11. Deleting something is immediate from your view, recoverable for a window, then genuinely gone.
 12. You can always go back and fix a past day — nothing about your history is locked.
 13. One logical activity is never silently split across two disjoint free periods — if a duration doesn't fit contiguously where you're placing it, you're offered the largest block that does, not an invisible workaround.

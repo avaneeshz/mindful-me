@@ -35,12 +35,14 @@ describe('CapacityMeter', () => {
     expect(fillCount(html)).toBe(0)
   })
 
-  it('turns the fill Terracotta only at a genuine 30/30', () => {
+  it('steps the fill from ink-dim to solid ink only at a genuine 30/30 — no colour, just intensity', () => {
     const partial = renderToStaticMarkup(<CapacityMeter segments={[{ id: 'a', minutes: 15 }]} />)
-    expect(partial).not.toContain('bg-terracotta')
+    expect(partial).toContain('bg-ink-dim')
+    expect(partial).not.toMatch(/bg-ink"/)
 
     const full = renderToStaticMarkup(<CapacityMeter segments={[{ id: 'a', minutes: 30 }]} />)
-    expect(full).toContain('bg-terracotta')
+    expect(full).not.toContain('bg-ink-dim')
+    expect(full).toMatch(/bg-ink"/)
   })
 
   it('supports more than two activities sharing one cell — there is no 2-activity cap', () => {

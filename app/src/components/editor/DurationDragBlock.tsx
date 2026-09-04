@@ -1,5 +1,4 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { findCard, itemFillColor } from '@/data/activities'
 import { formatMinutes } from '@/domain/slots'
 import {
   clampMove,
@@ -169,7 +168,11 @@ export function DurationDragBlock({
 
   return (
     <div className="flex flex-col gap-xs">
-      <p id="duration-drag-label" className="text-caption font-semibold text-muted">
+      {/* Section D — the "Duration" section label is gone; the ruler shows
+          directly, unlabeled. Still named for assistive tech, just not
+          visibly — `sr-only`, not removed outright, so the sliders' own
+          `aria-labelledby` still resolves to something meaningful. */}
+      <p id="duration-drag-label" className="sr-only">
         Duration
       </p>
       {/* Live edge time labels float above the track, anchored directly over
@@ -184,18 +187,16 @@ export function DurationDragBlock({
           const left = Math.max(0, pctFor(a.startMinutes))
           const right = Math.min(100, pctFor(a.startMinutes + a.durationMinutes))
           if (right <= left) return null
-          const onColor = findCard(a.name ?? '')?.onColor ?? 'text-charcoal'
           return (
             <div
               key={a.id}
               aria-hidden="true"
               // Square corners — flush against the pill or against each
-              // other, so the strip reads as one continuous timeline.
-              className={cn(
-                'absolute inset-y-0 flex items-center overflow-hidden px-xs text-nano font-semibold',
-                onColor,
-              )}
-              style={{ left: `${left}%`, width: `${right - left}%`, background: itemFillColor(a.name), opacity: 0.45 }}
+              // other, so the strip reads as one continuous timeline. No
+              // per-item colour any more (Section A) — every neighbour is
+              // the same flat, theme-aware wash.
+              className="absolute inset-y-0 flex items-center overflow-hidden bg-line-soft px-xs text-nano font-semibold text-ink-dim"
+              style={{ left: `${left}%`, width: `${right - left}%` }}
             >
               <span className="truncate">{a.name}</span>
             </div>
@@ -221,8 +222,8 @@ export function DurationDragBlock({
             onPointerDown={(event) => beginDrag('move', event)}
             onKeyDown={onMoveKeyDown}
             className={cn(
-              'h-full w-full cursor-grab rounded-md bg-forest',
-              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal',
+              'h-full w-full cursor-grab rounded-md bg-inv-bg',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
               dragKind === 'move' && 'cursor-grabbing',
             )}
           />
@@ -246,7 +247,7 @@ export function DurationDragBlock({
               event.stopPropagation()
               onResizeStartKeyDown(event)
             }}
-            className="absolute left-0 top-1/2 h-[24px] w-[10px] -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal"
+            className="absolute left-0 top-1/2 h-[24px] w-[10px] -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full bg-inv-ink/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           />
 
           {/* Right (end) resize handle — reuses setDuration, nothing new. */}
@@ -267,16 +268,16 @@ export function DurationDragBlock({
               event.stopPropagation()
               onResizeEndKeyDown(event)
             }}
-            className="absolute right-0 top-1/2 h-[24px] w-[10px] translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-charcoal"
+            className="absolute right-0 top-1/2 h-[24px] w-[10px] translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-full bg-inv-ink/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           />
         </div>
       </div>
-      <div aria-hidden="true" className="flex justify-between text-nano text-muted">
+      <div aria-hidden="true" className="flex justify-between text-nano text-ink-dim">
         <span>{formatMinutes(windowStart)}</span>
         <span>{formatMinutes(windowEnd)}</span>
       </div>
       {pinned && (
-        <p id={DURATION_DRAG_MESSAGE_ID} role="status" className="text-note font-medium text-gold">
+        <p id={DURATION_DRAG_MESSAGE_ID} role="status" className="text-note font-medium text-ink">
           Capped — a neighbouring activity (or the end of the day) starts right there.
         </p>
       )}
@@ -292,7 +293,7 @@ function EdgeTimeLabel({ leftPct, minutes }: { leftPct: number; minutes: number 
       className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
       style={{ left: `${leftPct}%` }}
     >
-      <span className="whitespace-nowrap rounded-full border border-line bg-white px-sm py-px text-nano font-extrabold text-forest">
+      <span className="whitespace-nowrap rounded-full border border-line bg-surface-2 px-sm py-px text-nano font-extrabold text-ink">
         {formatMinutes(minutes)}
       </span>
       <span className="mt-px h-[6px] w-px bg-line" />

@@ -108,6 +108,17 @@ export type FlagId = 'Trauma response' | 'Stress response' | 'Fear response' | '
  */
 export type ActivityQuality = 'Nourishing' | 'Productive' | 'Straining' | 'Draining' | 'Dysregulated'
 
+/**
+ * A multi-select, optional set of chronic symptoms noticed around a logged
+ * activity ("Chronic Symptoms" section, between quality and protective
+ * response). Unlike quality/flags, any number can be selected at once —
+ * `ScheduledActivity.symptoms` is a plain array with no "at most one"
+ * client-side contract, mirroring the DB's own `text[]` storage shape
+ * (`symptoms_encrypted`, encrypted the same way `flags_encrypted` originally
+ * was, before flags narrowed to single-select).
+ */
+export type Symptom = 'Pitta' | 'Inflammation' | 'Right knee pain' | 'Calves pain' | 'Temporal pain' | 'Dryness'
+
 export type ScheduleStatus = 'planned' | 'completed'
 
 /**
@@ -160,8 +171,12 @@ export interface ScheduledActivity {
    * first if it ever encounters that.
    */
   flags: FlagId[]
-  /** "How did it feel?" — optional, single-select. Never required to log an activity. */
+  /** "Activity quality" — optional, single-select. Never required to log an activity. */
   quality: ActivityQuality | null
+  /** "Chronic Symptoms" — optional, multi-select. Any number, including none. */
+  symptoms: Symptom[]
+  /** Freeform notes, optional. Encrypted at rest like quality/flags/symptoms (rule 10). */
+  notes: string | null
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string

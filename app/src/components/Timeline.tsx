@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { FLAGS, itemFillColor } from '@/data/activities'
+import { FLAGS } from '@/data/activities'
 import {
   MIDNIGHT_TICK_POSITION,
   SLOT_MINUTES,
@@ -11,11 +11,12 @@ import {
   periodOfSlot,
   positionInRow,
   rowActivitySegments,
+  rowHourTickLabels,
   rowSlotIndices,
-  rowTickLabels,
+  tickLabelPositions,
 } from '@/domain/slots'
 import { PERIOD_ICONS } from '@/data/periods'
-import { TimelineScenery } from '@/components/TimelineScenery'
+import { useTheme } from '@/state/ThemeContext'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
@@ -170,9 +171,19 @@ function TimelineRow({
   onDropCard,
   onKeyDown,
 }: TimelineRowProps) {
+  const { theme, setTheme } = useTheme()
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
   const indices = rowSlotIndices(period)
+  const tickLabels = rowHourTickLabels(period)
+  const tickPositions = tickLabelPositions()
   const Icon = PERIOD_ICONS[period]
+  // Section A — the theme toggle lives right here, on the Sun/Moon end-caps
+  // already sitting beside each row, not a new settings control. This is a
+  // DIFFERENT axis from `isCurrentPeriod` below: which THEME the user chose
+  // (a preference) versus which period real device time is in right now (a
+  // fact) — the two can disagree (it's genuinely night, but the user prefers
+  // the light theme) and both render independently on the same cap.
+  const isThemeSelected = period === 'day' ? theme === 'light' : theme === 'dark'
   // This row holds the real current time right now — the exact condition the
   // Sun/Moon end-cap glow keys off. `marker` is already `null` on whichever
   // row is NOT the live period (see the `Timeline` component above), so
@@ -213,25 +224,32 @@ function TimelineRow({
     <div className="flex items-start gap-xs">
       {/*
         Sun / Moon as the strip's left end-cap, not a floating icon beside it:
-        the circle's diameter equals the strip height, so its radius equals the
-        strip's rounded end-cap radius and the two read as one continuous
-        shape. Day and Night are dimensionally IDENTICAL — a matched pair; only
-        the surface tone differs, and each tone is the same token its own strip
-        uses (warm `strip` for Day, the cooler `night-strip` composite for
-        Night). No gradients.
+        the circle's diameter equals the strip height, so its radius equals
+        the strip's rounded end-cap radius and the two read as one continuous
+        shape. Day and Night are dimensionally IDENTICAL — a matched pair.
+
+        Also a real button now (Section A): clicking it sets the app's THEME
+        (light for the Sun, dark for the Moon) — `isThemeSelected` inverts
+        the fill exactly like a selected chip elsewhere in the product, the
+        one deliberate "colour" here being the theme's own invert pair, not
+        a new hue. The glow below is a SEPARATE, unchanged concern (rule:
+        "sun/moon glow... unchanged" this round) — it still keys off real
+        device time (`isCurrentPeriod`), never the chosen theme, and both
+        can be true or false independently of each other.
       */}
       <div className="shrink-0 pt-xl">
-        <span
-          role="img"
-          aria-label={period === 'day' ? 'Daytime' : 'Nighttime'}
+        <button
+          type="button"
+          onClick={() => setTheme(period === 'day' ? 'light' : 'dark')}
+          aria-pressed={isThemeSelected}
+          aria-label={period === 'day' ? 'Switch to light theme' : 'Switch to dark theme'}
           className={cn(
-            'flex size-timeline-row items-center justify-center rounded-full border transition-shadow duration-500',
+            'flex size-timeline-row items-center justify-center rounded-full border transition-colors duration-200',
             'mobile:size-timeline-row-sm ipad-land:size-timeline-row-md',
-            period === 'day'
-              ? 'border-line bg-strip text-gold'
-              : 'border-forest/20 bg-night-strip text-forest',
+            isThemeSelected ? 'border-inv-bg bg-inv-bg text-inv-ink' : 'border-line bg-surface text-ink-dim',
             // Glows only on whichever row is the REAL current period, right
-            // now. The animated pulse is disabled under prefers-reduced-motion
+            // now — unrelated to `isThemeSelected` above. The animated pulse
+            // is disabled under prefers-reduced-motion
             // (`motion-reduce:animate-none`); the paired `shadow-[...]`
             // utility then supplies the glow's resting frame as a static
             // fallback so reduced motion loses the pulse, never the glow.
@@ -242,7 +260,7 @@ function TimelineRow({
           )}
         >
           <Icon aria-hidden="true" className="size-[18px] mobile:size-[15px]" />
-        </span>
+        </button>
       </div>
 
       {/*
@@ -269,16 +287,15 @@ function TimelineRow({
           }`}
           className={cn(
             'timeline-row relative flex h-timeline-row w-full overflow-hidden rounded-lg mobile:h-timeline-row-sm ipad-land:h-timeline-row-md',
-            period === 'day' ? 'bg-strip' : 'bg-night-strip',
+            // Section C — no illustrated scenery any more (a partial
+            // reversal of the earlier decorative-budget decision, flagged
+            // in the PR description). Day: plain flat surface tone ("white
+            // only"). Night: a fixed grey, independent of the light/dark
+            // theme toggle — the one deliberate exception to "theme flows
+            // through everything" (`--night-strip-fixed`, styles/index.css).
+            period === 'day' ? 'bg-surface' : 'bg-night-strip-fixed',
           )}
         >
-          {/*
-            Illustrated backdrop. Painted first, with no z-index of its own,
-            so it stacks below the slot buttons and the z-[1] activity-segment
-            overlay by construction (see TimelineScenery's own doc comment) —
-            it can never sit above a fill or intercept a click.
-          */}
-          <TimelineScenery period={period} />
           {indices.map((slot) => {
             const touching = activitiesTouchingSlot(activities, slot)
             const flags = flagMarkerAt(activities, slot)?.flags ?? []
@@ -311,42 +328,49 @@ function TimelineRow({
                 style={{ width: `${100 / SLOTS_PER_ROW}%` }}
                 className={cn(
                   'slot-button relative flex h-full items-stretch',
-                  // The scenery behind an empty slot now ranges from a light
-                  // sky to a deep Night navy, instead of one flat strip
-                  // colour, and measured against it every one of these
-                  // outline colours has at least one weak spot: Deep Forest
-                  // (selected) measures ~1.5:1 on the Night sky, Gold
-                  // (hover/drag-over) measures ~1:1 on the Day sky's own
-                  // gold horizon — both close to invisible. A same-colour
-                  // ring can't fix that (it IS the colour that's blending
-                  // in), so each state also gets a soft white wash UNDER the
-                  // outline: it reliably lightens whatever scenery sits
-                  // beneath it — sky, mountain, or pine — regardless of that
-                  // scenery's own colour, so the state stays legible however
-                  // busy the backdrop gets. The outline itself, and its
-                  // colour per state, is unchanged.
-                  'hover:bg-white/25 hover:outline hover:outline-1.5 hover:outline-gold',
-                  isSelected && 'z-[2] bg-white/20 outline outline-2 -outline-offset-2 outline-forest',
-                  // drag-over is deliberately the strongest state
-                  isDragOver &&
-                    'z-[4] bg-white/30 outline outline-2.5 -outline-offset-2.5 outline-gold',
+                  // No more illustrated scenery behind an empty slot (Section
+                  // C) — a flat surface for Day, a fixed grey for Night. The
+                  // Night row's background no longer follows the light/dark
+                  // theme, so its own states reach for the fixed-grey's own
+                  // companion tokens instead of `ink`, guaranteeing contrast
+                  // against that one surface regardless of which theme the
+                  // rest of the app is in; Day's states use `ink` normally,
+                  // since its own surface DOES follow the theme.
+                  period === 'day'
+                    ? [
+                        'hover:bg-ink/10 hover:outline hover:outline-1.5 hover:outline-ink-dim',
+                        isSelected && 'z-[2] bg-ink/10 outline outline-2 -outline-offset-2 outline-ink',
+                        isDragOver && 'z-[4] bg-ink/15 outline outline-2.5 -outline-offset-2.5 outline-ink',
+                      ]
+                    : [
+                        'hover:bg-night-strip-fixed-ink/10 hover:outline hover:outline-1.5 hover:outline-night-strip-fixed-ink',
+                        isSelected &&
+                          'z-[2] bg-night-strip-fixed-ink/10 outline outline-2 -outline-offset-2 outline-night-strip-fixed-ink',
+                        isDragOver &&
+                          'z-[4] bg-night-strip-fixed-ink/15 outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
+                      ],
                 )}
               >
                 {flags.length > 0 && (
                   // Stacked VERTICALLY — a deliberate prior bug fix; horizontal
                   // flags bled into neighbouring slots. A small opaque backing
-                  // plate (not a Deep Forest colour change) keeps these
-                  // legible whether they sit over the light Day sky, the dark
-                  // Night sky, or a category segment fill — the one treatment
-                  // that works regardless of what scenery is behind it.
+                  // plate, period-matched the same way the slot states above
+                  // are, so it stays legible on either row regardless of theme.
                   <span
                     aria-hidden="true"
-                    className="absolute left-1/2 top-1/2 z-[3] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full bg-white/85 px-[3px] py-[2px] shadow-elevation-1"
+                    className={cn(
+                      'absolute left-1/2 top-1/2 z-[3] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full px-[3px] py-[2px] shadow-elevation-1',
+                      period === 'day' ? 'bg-inv-bg' : 'bg-night-strip-fixed-ink',
+                    )}
                   >
                     {flags.map((flag) => {
                       const FlagIcon = FLAG_ICONS[flag]
                       return FlagIcon ? (
-                        <FlagIcon key={flag} className="size-[8px] text-forest" strokeWidth={3} />
+                        <FlagIcon
+                          key={flag}
+                          className={cn('size-[8px]', period === 'day' ? 'text-inv-ink' : 'text-night-strip-fixed')}
+                          strokeWidth={3}
+                        />
                       ) : null
                     })}
                   </span>
@@ -363,20 +387,16 @@ function TimelineRow({
                 style={{
                   left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
                   width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
-                  // Tile Redesign §4: each real activity's own ITEM colour now
-                  // fills its strip segment (falls back to the tile's light
-                  // tone only for a stale/renamed catalog name).
-                  background: itemFillColor(segment.activity.name),
-                  // A subtle hairline, independent of the fill hue itself
-                  // (that palette is out of scope here). The fill is already
-                  // fully opaque so it was never blending with the scenery
-                  // behind it, but several item/category LIGHT tones are pale
-                  // enough that, sitting directly beside the new gradient sky
-                  // instead of the old flat strip, the segment's own edge —
-                  // where it starts and ends — was harder to place at a
-                  // glance. This hairline restores that boundary without
-                  // touching the fill colour.
-                  boxShadow: 'inset 0 0 0 1px rgba(61,58,53,0.14)',
+                  // No more per-item colour (Section A) — every real
+                  // activity's segment is the same flat, theme-aware wash,
+                  // with a matching hairline for its edges. The Night row's
+                  // background is the one fixed, theme-independent surface
+                  // (Section C), so segments drawn on it reach for that
+                  // surface's own fixed companion tokens instead, the same
+                  // reasoning the slot states above already follow.
+                  background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
+                  boxShadow:
+                    period === 'day' ? 'inset 0 0 0 1px var(--line)' : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
                 }}
               />
             ))}
@@ -390,17 +410,17 @@ function TimelineRow({
         {period === 'night' && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute top-0 h-timeline-row w-px bg-line mobile:h-timeline-row-sm ipad-land:h-timeline-row-md"
+            className="pointer-events-none absolute top-0 h-timeline-row w-px bg-night-strip-fixed-line mobile:h-timeline-row-sm ipad-land:h-timeline-row-md"
             style={{ left: `${(MIDNIGHT_TICK_POSITION / SLOTS_PER_ROW) * 100}%` }}
           />
         )}
 
         {/*
           Exactly one current-time marker exists, on the row that holds now.
-          Forest-on-light reads fine on the Day sky, but that same dark green
-          measures ~1.5:1 against the new Night sky's deep indigo/navy — close
-          to invisible. Night uses white for both the rule and the badge
-          instead (~19:1 against the Night sky); Day is unchanged.
+          Day's rule/badge use `ink`/`inv-*` normally (its own surface follows
+          the theme). Night draws on the fixed grey strip, so it reaches for
+          that surface's own fixed companion tokens instead — same reasoning
+          as everything else drawn on that one surface.
         */}
         {marker !== null && (
           <>
@@ -408,7 +428,7 @@ function TimelineRow({
               aria-hidden="true"
               className={cn(
                 'pointer-events-none absolute top-0 h-timeline-row w-[2px] mobile:h-timeline-row-sm ipad-land:h-timeline-row-md',
-                period === 'day' ? 'bg-forest' : 'bg-white',
+                period === 'day' ? 'bg-ink' : 'bg-night-strip-fixed-ink',
               )}
               style={{ left: `${marker * 100}%` }}
             />
@@ -416,7 +436,7 @@ function TimelineRow({
             <span
               className={cn(
                 'pointer-events-none absolute -top-xl z-[6] rounded-sm px-sm py-xs text-nano font-bold',
-                period === 'day' ? 'bg-forest text-white' : 'bg-white text-forest',
+                period === 'day' ? 'bg-inv-bg text-inv-ink' : 'bg-night-strip-fixed-ink text-night-strip-fixed',
                 markerAnchor,
               )}
               style={{ left: `${marker * 100}%` }}
@@ -430,18 +450,37 @@ function TimelineRow({
           absolute time reference at all, so "where does this period start and
           end" can only be answered from the caption text.
 
+          Section C — every hour now, not just start/midpoint/end, and drawn
+          in its OWN row below the strip rather than overlaid on top of it,
+          so a real scheduled-activity block can never cover one. Each
+          label is absolutely positioned at its real percentage-of-day
+          (`tickLabelPositions`) rather than relying on flexbox
+          `justify-between`, which only happened to line up before because
+          3 evenly-time-spaced labels are also evenly PIXEL-spaced when
+          every label is roughly the same width — with 13 labels of
+          genuinely different widths ("6AM" vs "7"), that stops being true.
+          The first label anchors its left edge, the last its right edge,
+          everything between is centred on its own tick — the same
+          convention the reference implementation uses.
+
           Lives INSIDE the scroll region so it pans with the strip it labels;
           outside it, the two drifted apart the moment the strip was panned.
 
           Decorative for assistive tech: every slot button already announces its
           own full time range.
         */}
-        <div
-          aria-hidden="true"
-          className="mt-xs flex w-full justify-between px-px text-nano font-medium text-muted"
-        >
-          {rowTickLabels(period).map((label, index) => (
-            <span key={`${label}-${index}`}>{label}</span>
+        <div aria-hidden="true" className="relative mt-xs h-[14px] w-full">
+          {tickLabels.map((label, index) => (
+            <span
+              key={`${label}-${index}`}
+              className={cn(
+                'absolute top-0 whitespace-nowrap text-nano font-medium text-ink-dim',
+                index === 0 ? '' : index === tickLabels.length - 1 ? '-translate-x-full' : '-translate-x-1/2',
+              )}
+              style={{ left: `${tickPositions[index]}%` }}
+            >
+              {label}
+            </span>
           ))}
         </div>
         </div>

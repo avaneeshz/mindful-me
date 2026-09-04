@@ -63,7 +63,10 @@ describe('dropping an activity onto a slot', () => {
   })
 
   it('offers a cancel that discards the pending drop', () => {
-    expect(html).toContain('Cancel')
+    // No visible "Cancel" button any more — the X close icon is the only
+    // way to dismiss without saving, and it dispatches the same
+    // `cancelStaging` action a Cancel button used to.
+    expect(html).toContain('aria-label="Close"')
     const cancelled = run(DROP, { type: 'cancelStaging' })
     expect(renderEditor(cancelled)).not.toContain('Save entry')
     expect(cancelled.activities).toEqual([])

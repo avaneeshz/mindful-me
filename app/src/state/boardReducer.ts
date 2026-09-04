@@ -11,7 +11,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { ActivityQuality, FlagId, ScheduledActivity } from '@/domain/types'
+import type { ActivityQuality, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
 
 /**
  * What is currently staged in the modal but not yet committed. Nothing here
@@ -29,8 +29,12 @@ export interface StagingState {
    * At most one, enforced entirely client-side (see `ScheduledActivity.flags`).
    */
   flag: FlagId | null
-  /** Modal Redesign §D — "How did it feel?", optional single-select. */
+  /** Modal Redesign §D — "Activity quality", optional single-select. */
   quality: ActivityQuality | null
+  /** "Chronic Symptoms" — optional multi-select, any number at once. */
+  symptoms: Symptom[]
+  /** Freeform notes textarea — optional, empty string is "nothing typed". */
+  notes: string
   /**
    * Id of the activity being edited in place, or null when adding a new one.
    * Saving replaces that activity rather than appending a duplicate. Because
@@ -60,6 +64,8 @@ export const EMPTY_STAGING: StagingState = {
   durationMinutes: 0,
   flag: null,
   quality: null,
+  symptoms: [],
+  notes: '',
   editingId: null,
 }
 
@@ -94,6 +100,9 @@ export type BoardAction =
   | { type: 'resizeStagingStart'; minutes: number }
   | { type: 'setStagingFlag'; flag: FlagId | null }
   | { type: 'setStagingQuality'; quality: ActivityQuality | null }
+  /** Multi-select toggle — adds the symptom if absent, removes it if present. */
+  | { type: 'toggleStagingSymptom'; symptom: Symptom }
+  | { type: 'setStagingNotes'; notes: string }
   | { type: 'commit' }
   | { type: 'editActivity'; id: string }
   | { type: 'removeActivity'; id: string }
@@ -149,6 +158,8 @@ function stageFrom(
     durationMinutes: candidate.durationMinutes,
     flag: null,
     quality: null,
+    symptoms: [],
+    notes: '',
     editingId: candidate.id,
   }
 }
@@ -273,6 +284,21 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, quality: action.quality } }
     }
 
+    case 'toggleStagingSymptom': {
+      if (!state.staging.cardName) return state
+      const { symptoms } = state.staging
+      const next = symptoms.includes(action.symptom)
+        ? symptoms.filter((s) => s !== action.symptom)
+        : [...symptoms, action.symptom]
+      return { ...state, staging: { ...state.staging, symptoms: next } }
+    }
+
+    case 'setStagingNotes': {
+      if (!state.staging.cardName) return state
+      if (state.staging.notes === action.notes) return state
+      return { ...state, staging: { ...state.staging, notes: action.notes } }
+    }
+
     case 'commit': {
       const { staging } = state
       if (!staging.cardName || !isStagingComplete(staging)) return state
@@ -291,15 +317,20 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         : undefined
 
       // Rule 4: editing time/duration never silently clears completion — the
-      // prior status and timezone always carry forward untouched. Flags and
-      // quality, unlike status, ARE editable from this same modal (Modal
-      // Redesign §B/§D/§E) — staging.flag/staging.quality are what the user
-      // just set there (defaulted from the prior activity's own values by
-      // `editActivity` below, so "didn't touch it" round-trips unchanged).
+      // prior status and timezone always carry forward untouched. Flags,
+      // quality, symptoms and notes, unlike status, ARE editable from this
+      // same modal (Modal Redesign §B/§D/§E) — staging's own values are what
+      // the user just set there (defaulted from the prior activity's own
+      // values by `editActivity` below, so "didn't touch it" round-trips
+      // unchanged). An empty notes textarea commits as `null`, not `''` —
+      // "nothing typed" and "no notes" are the same state, never a stored
+      // empty string.
       const committed = commitSchedule(candidate, {
         id: prior?.id,
         flags: staging.flag ? [staging.flag] : [],
         quality: staging.quality,
+        symptoms: staging.symptoms,
+        notes: staging.notes.trim() ? staging.notes : null,
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
@@ -327,6 +358,8 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           // only if the user goes on to Save; Cancel leaves the row untouched.
           flag: activity.flags[0] ?? null,
           quality: activity.quality,
+          symptoms: [...activity.symptoms],
+          notes: activity.notes ?? '',
           editingId: activity.id,
         },
       }

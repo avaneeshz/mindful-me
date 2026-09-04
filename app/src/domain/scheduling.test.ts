@@ -34,7 +34,7 @@ function make(
     startMinutes,
     durationMinutes,
     flags: [],
-    quality: null,
+    quality: null, symptoms: [], notes: null,
     status: 'planned',
     timezone: 'UTC',
     ...overrides,

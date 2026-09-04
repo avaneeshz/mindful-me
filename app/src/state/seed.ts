@@ -24,6 +24,8 @@ function activity(
     durationMinutes,
     flags: [],
     quality: null,
+    symptoms: [],
+    notes: null,
     status: 'planned',
     timezone: TIMEZONE,
   }
@@ -44,6 +46,8 @@ function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
     durationMinutes: 0,
     flags,
     quality: null,
+    symptoms: [],
+    notes: null,
     status: 'planned',
     timezone: TIMEZONE,
   }

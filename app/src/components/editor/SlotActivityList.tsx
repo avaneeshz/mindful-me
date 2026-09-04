@@ -39,7 +39,7 @@ export function SlotActivityList({
 
   return (
     <div className="mt-2xl ipad-land:mt-md">
-      <h3 className="mb-sm text-nano font-bold uppercase tracking-tag text-muted">In this slot</h3>
+      <h3 className="mb-sm text-nano font-bold uppercase tracking-tag text-ink-dim">In this slot</h3>
       <ul className="flex flex-col gap-sm">
         {touching.map((activity) => (
           <ActivityRow
@@ -92,10 +92,10 @@ function ActivityRow({
       aria-current={isEditing ? 'true' : undefined}
       className={cn(
         'group flex min-h-row flex-wrap items-center gap-md rounded-md bg-bg px-md py-sm',
-        'focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-forest',
-        // Same Deep Forest outline the timeline uses for its selected slot, so
+        'focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink',
+        // Same ink outline the timeline uses for its selected slot, so
         // "this is the one you are working on" reads identically in both places.
-        isEditing && 'outline outline-1.5 -outline-offset-1.5 outline-forest',
+        isEditing && 'outline outline-1.5 -outline-offset-1.5 outline-ink',
       )}
     >
       {/*
@@ -113,11 +113,11 @@ function ActivityRow({
         onClick={onToggleComplete}
         className={cn(
           'flex size-[22px] shrink-0 items-center justify-center rounded-full transition-colors',
-          isCompleted ? 'text-forest' : 'text-line hover:text-forest-light',
+          isCompleted ? 'text-ink' : 'text-line hover:text-ink-dim',
         )}
       >
         {isCompleted ? (
-          <CheckCircle2 aria-hidden="true" className="size-[20px]" fill="currentColor" stroke="white" />
+          <CheckCircle2 aria-hidden="true" className="size-[20px]" fill="currentColor" stroke="var(--bg)" />
         ) : (
           <Circle aria-hidden="true" className="size-[20px]" strokeWidth={1.75} />
         )}
@@ -129,17 +129,17 @@ function ActivityRow({
         {/* Row hover changes the underline only — no background shift. */}
         <span
           className={cn(
-            'text-body font-semibold text-charcoal group-hover:underline group-hover:underline-offset-2',
-            isCompleted && 'text-muted line-through decoration-1',
+            'text-body font-semibold text-ink group-hover:underline group-hover:underline-offset-2',
+            isCompleted && 'text-ink-dim line-through decoration-1',
           )}
         >
           {name}
         </span>
         {pathLabel && (
-          <span className="text-caption font-medium text-muted"> · {pathLabel}</span>
+          <span className="text-caption font-medium text-ink-dim"> · {pathLabel}</span>
         )}
         {continuedFromLabel && (
-          <span className="text-caption font-medium text-muted">
+          <span className="text-caption font-medium text-ink-dim">
             {' '}
             · continues from {continuedFromLabel}
           </span>
@@ -153,17 +153,17 @@ function ActivityRow({
         activity, e.g. to fix its time after the fact — rule 4).
       */}
       {isCompleted && (
-        <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
+        <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
           Completed
         </span>
       )}
       {isEditing && (
-        <span className="rounded-full bg-forest/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-forest">
+        <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
           Editing
         </span>
       )}
 
-      <span className="text-meta font-semibold text-muted">{displayDuration} min</span>
+      <span className="text-meta font-semibold text-ink-dim">{displayDuration} min</span>
 
       {/* Both actions are always icon + text, never icon-only. Editing/removing
           always acts on the one real activity directly, wherever it starts —
@@ -206,10 +206,10 @@ function UndoRow({ name, onUndo }: { name: string; onUndo: () => void }) {
     <li
       role="status"
       aria-live="polite"
-      className="flex min-h-row animate-undo-fade items-center gap-sm rounded-md px-md text-meta font-medium text-muted"
+      className="flex min-h-row animate-undo-fade items-center gap-sm rounded-md px-md text-meta font-medium text-ink-dim"
     >
       <span>Removed {name} ·</span>
-      <button type="button" onClick={onUndo} className="font-semibold text-gold hover:underline">
+      <button type="button" onClick={onUndo} className="font-semibold text-ink hover:underline">
         Undo
       </button>
     </li>

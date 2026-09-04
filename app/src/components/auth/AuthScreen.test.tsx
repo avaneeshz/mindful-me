@@ -62,6 +62,6 @@ describe('AuthScreen (initial render)', () => {
   })
 
   it('never renders the timeline/editor screen behind the gate', () => {
-    expect(html).not.toContain('30-Minute Slotting')
+    expect(html).not.toContain('Consort')
   })
 })

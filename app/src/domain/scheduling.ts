@@ -23,7 +23,7 @@
  * does not fit contiguously, the candidate is clamped to the longest
  * contiguous run available from its start, never split into two ranges.
  */
-import type { ActivityList, ActivityQuality, FlagId, ScheduledActivity, ScheduleStatus } from './types'
+import type { ActivityList, ActivityQuality, FlagId, ScheduledActivity, ScheduleStatus, Symptom } from './types'
 
 export const MIN_DURATION_MINUTES = 1
 /**
@@ -283,8 +283,12 @@ export function validateSchedule(
 
 export interface CommitContext {
   flags?: FlagId[]
-  /** "How did it feel?" — optional, single-select (see domain/types.ts). */
+  /** "Activity quality" — optional, single-select (see domain/types.ts). */
   quality?: ActivityQuality | null
+  /** "Chronic Symptoms" — optional, multi-select (see domain/types.ts). */
+  symptoms?: Symptom[]
+  /** Freeform notes — optional, encrypted at rest like quality/flags/symptoms. */
+  notes?: string | null
   status?: ScheduleStatus
   timezone?: string
   id?: string
@@ -315,6 +319,8 @@ export function commitSchedule(
     durationMinutes: candidate.durationMinutes,
     flags: context.flags ?? [],
     quality: context.quality ?? null,
+    symptoms: context.symptoms ?? [],
+    notes: context.notes ?? null,
     status: context.status ?? 'planned',
     timezone:
       context.timezone ??
