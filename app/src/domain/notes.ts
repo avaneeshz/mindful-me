@@ -22,7 +22,7 @@ export const NOTE_BUTTONS = [
 export type NoteButtonKey = (typeof NOTE_BUTTONS)[number]['key']
 
 /** Gifts-only dropdown — see the ticket's acceptance criteria verbatim. */
-export const GIFT_TYPES = ['Dreamer', 'the voice', 'the knower', 'memory bank', 'amplifier'] as const
+export const GIFT_TYPES = ['Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 'Amplifier'] as const
 
 export type GiftType = (typeof GIFT_TYPES)[number]
 
