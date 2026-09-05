@@ -48,7 +48,7 @@ describe('timesScheduledToday', () => {
   })
 
   it('never counts a flag marker (name: null) toward any card', () => {
-    const activities: ActivityList = [activity(null, { durationMinutes: 0, flags: ['Fear response'] })]
+    const activities: ActivityList = [activity(null, { durationMinutes: 0, flags: ['Attack'] })]
     expect(timesScheduledToday(activities, 'Night Sleep')).toBe(0)
   })
 })

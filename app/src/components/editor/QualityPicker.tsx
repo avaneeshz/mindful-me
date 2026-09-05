@@ -22,19 +22,17 @@ export function QualityPicker({
       <div role="group" aria-label="Activity quality" className="flex flex-wrap gap-sm">
         {QUALITIES.map((quality) => {
           const isSelected = selected.includes(quality.id)
-          const Icon = quality.icon
           return (
             <Chip
               key={quality.id}
               as="button"
-              size="md"
+              size="sm"
               tone={isSelected ? 'active' : 'surface'}
               interactive
               role="checkbox"
               aria-checked={isSelected}
               onClick={() => onToggle(quality.id)}
             >
-              <Icon aria-hidden="true" className="size-[16px]" />
               {quality.id}
             </Chip>
           )

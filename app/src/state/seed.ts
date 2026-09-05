@@ -76,16 +76,16 @@ export function createSeedActivities(): ScheduledActivity[] {
     activity('Vipassana', [], 8 * 60 + 30, 30),
     activity('Vipassana', [], 10 * 60, 30),
     activity('Spiritual Care', ['Prayer'], 11 * 60, 30),
-    flagMarker(11 * 60, ['Trauma response']),
+    flagMarker(11 * 60, ['Trauma Activation']),
     activity('Meal Prep', [], 12 * 60, 30),
     activity('Sports or Exercise', ['HIIT'], 13 * 60 + 30, 30),
     // "Body care" renamed to "Body Care (self)"; sub/third path kept verbatim.
     activity('Body Care (self)', ['Oiling', 'Body'], 14 * 60 + 30, 15),
     // "Supplements"' sub-list now names the dosing window explicitly.
     activity('Supplements', ['Magnesium (post-dinner)'], 14 * 60 + 45, 15),
-    flagMarker(14 * 60 + 30, ['Stress response']),
+    flagMarker(14 * 60 + 30, ['Triggered']),
     activity('Errand time', [], 15 * 60, 30),
     activity('Homework', [], 15 * 60 + 30, 30),
-    flagMarker(15 * 60 + 30, ['Fear response']),
+    flagMarker(15 * 60 + 30, ['Attack']),
   ]
 }

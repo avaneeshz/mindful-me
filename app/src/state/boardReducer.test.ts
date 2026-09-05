@@ -300,7 +300,7 @@ describe('toggleComplete — Phase 3 planned vs. actual', () => {
       path: [],
       startMinutes: 0,
       durationMinutes: 0,
-      flags: ['Fear response'],
+      flags: ['Attack'],
       quality: [], symptoms: [], notes: null,
       status: 'planned',
       timezone: 'UTC',
@@ -319,15 +319,15 @@ describe('flags attach to the activity being logged, single-select', () => {
 
   it('setStagingFlag replaces rather than accumulates — never more than one', () => {
     let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Stress response' })
-    expect(state.staging.flag).toBe('Stress response')
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
-    expect(state.staging.flag).toBe('Fear response') // replaced, not added
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Triggered' })
+    expect(state.staging.flag).toBe('Triggered')
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
+    expect(state.staging.flag).toBe('Attack') // replaced, not added
   })
 
   it('"None" (null) clears the staged flag', () => {
     let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
     state = boardReducer(state, { type: 'setStagingFlag', flag: null })
     expect(state.staging.flag).toBeNull()
   })
@@ -336,10 +336,10 @@ describe('flags attach to the activity being logged, single-select', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingFlag', flag: 'Trauma response' },
+      { type: 'setStagingFlag', flag: 'Trauma Activation' },
       { type: 'commit' },
     )
-    expect(real(state)[0].flags).toEqual(['Trauma response'])
+    expect(real(state)[0].flags).toEqual(['Trauma Activation'])
 
     state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     expect(real(state)[0].flags).toEqual([])
@@ -349,13 +349,13 @@ describe('flags attach to the activity being logged, single-select', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingFlag', flag: 'Stress response' },
+      { type: 'setStagingFlag', flag: 'Triggered' },
       { type: 'commit' },
     )
     const id = real(state)[0].id
 
     state = boardReducer(state, { type: 'editActivity', id })
-    expect(state.staging.flag).toBe('Stress response')
+    expect(state.staging.flag).toBe('Triggered')
 
     state = run(state, { type: 'setStagingFlag', flag: null }, { type: 'commit' })
     expect(real(state)[0].flags).toEqual([])
@@ -365,7 +365,7 @@ describe('flags attach to the activity being logged, single-select', () => {
     const state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingFlag', flag: 'Fear response' },
+      { type: 'setStagingFlag', flag: 'Attack' },
       { type: 'commit' },
     )
     expect(real(state)[0].durationMinutes).toBe(30) // unaffected by the flag

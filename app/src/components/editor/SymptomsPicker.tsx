@@ -23,19 +23,17 @@ export function SymptomsPicker({
       <div role="group" aria-label="Chronic Symptoms" className="flex flex-wrap gap-sm">
         {SYMPTOMS.map((symptom) => {
           const isSelected = selected.includes(symptom.id)
-          const Icon = symptom.icon
           return (
             <Chip
               key={symptom.id}
               as="button"
-              size="md"
+              size="sm"
               tone={isSelected ? 'active' : 'surface'}
               interactive
               role="checkbox"
               aria-checked={isSelected}
               onClick={() => onToggle(symptom.id)}
             >
-              <Icon aria-hidden="true" className="size-[16px]" />
               {symptom.id}
             </Chip>
           )

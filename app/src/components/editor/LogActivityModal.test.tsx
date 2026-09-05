@@ -140,6 +140,12 @@ describe('Activity quality — 18-value multi-select (SCRUM-10)', () => {
     }
   })
 
+  it('renders no icon inside an Activity quality chip — text-only, per SCRUM-15', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    const section = html.slice(html.indexOf('Activity quality'), html.indexOf('Chronic Symptoms'))
+    expect(section).not.toContain('<svg')
+  })
+
   it('is a real checkbox group (multi-select), not a radiogroup', () => {
     const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
     expect(html).toContain('role="group" aria-label="Activity quality"')
@@ -176,6 +182,12 @@ describe('Chronic Symptoms — a new multi-select section', () => {
     expect(html).toContain('role="group" aria-label="Chronic Symptoms"')
   })
 
+  it('renders no icon inside a Chronic Symptoms chip — text-only, per SCRUM-15', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    const section = html.slice(html.indexOf('Chronic Symptoms'), html.indexOf('Protective response'))
+    expect(section).not.toContain('<svg')
+  })
+
   it('reflects every currently-selected symptom as checked', () => {
     const html = renderModal({
       staging: { ...EMPTY_STAGING, cardName: 'Night Sleep', symptoms: ['Pitta', 'Dryness'] },
@@ -192,11 +204,34 @@ describe('Protective response (formerly "Flag") — relabeled, reordered', () =>
     expect(html).not.toContain('>Flag<')
   })
 
-  it('orders None LAST — Trauma, Stress, Fear, Anger, None', () => {
+  it('orders the 14 options as specified, with None last', () => {
     const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
-    const order = ['Trauma', 'Stress', 'Fear', 'Anger', 'None'].map((label) => html.indexOf(`>${label}</`, html.indexOf('Protective response')))
+    const labels = [
+      'Trauma Activation',
+      'Triggered',
+      'Attack',
+      'Anger',
+      'Procrastinated',
+      'Shut Down',
+      'Collapse',
+      'Over Accommodating',
+      'Hyper Responsibility',
+      'Over Function',
+      'Intellectualization',
+      'Optimization',
+      'Hyper Vigilance',
+      'Problem Solving',
+      'None',
+    ]
+    const order = labels.map((label) => html.indexOf(`>${label}</`, html.indexOf('Protective response')))
     for (const index of order) expect(index).toBeGreaterThan(-1)
     for (let i = 1; i < order.length; i++) expect(order[i]).toBeGreaterThan(order[i - 1])
+  })
+
+  it('renders no icon inside a Protective response chip — text-only', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    const section = html.slice(html.indexOf('Protective response'))
+    expect(section).not.toContain('<svg')
   })
 })
 

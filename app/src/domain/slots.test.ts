@@ -172,7 +172,7 @@ describe('activitiesTouchingSlot', () => {
   })
 
   it('excludes flag markers (zero duration) entirely', () => {
-    const acts: ActivityList = [marker(600, ['Fear response'])]
+    const acts: ActivityList = [marker(600, ['Attack'])]
     expect(activitiesTouchingSlot(acts, 20)).toHaveLength(0)
   })
 })
@@ -198,14 +198,14 @@ describe('minutesInSlot / startsInSlot', () => {
 
 describe('flagMarkerAt', () => {
   it('finds the marker anchored exactly at the slot start', () => {
-    const acts: ActivityList = [marker(600, ['Trauma response'])]
-    expect(flagMarkerAt(acts, 20)?.flags).toEqual(['Trauma response'])
+    const acts: ActivityList = [marker(600, ['Trauma Activation'])]
+    expect(flagMarkerAt(acts, 20)?.flags).toEqual(['Trauma Activation'])
     expect(flagMarkerAt(acts, 21)).toBeUndefined()
   })
 
   it('is independent of whatever real activity also touches the slot', () => {
-    const acts: ActivityList = [activity(600, 30), marker(600, ['Stress response'])]
-    expect(flagMarkerAt(acts, 20)?.flags).toEqual(['Stress response'])
+    const acts: ActivityList = [activity(600, 30), marker(600, ['Triggered'])]
+    expect(flagMarkerAt(acts, 20)?.flags).toEqual(['Triggered'])
     expect(activitiesTouchingSlot(acts, 20)).toHaveLength(1)
   })
 })
@@ -214,7 +214,7 @@ describe('countMarkedSlots', () => {
   it('counts only grid cells touched by a real activity, not flag-only ones', () => {
     const acts: ActivityList = [
       activity(90, 30), // slot 3
-      marker(120, ['Stress response']), // slot 4, flagged but unmarked
+      marker(120, ['Triggered']), // slot 4, flagged but unmarked
       activity(150, 60), // slots 5 and 6
     ]
     expect(countMarkedSlots(acts)).toBe(3)
@@ -270,7 +270,7 @@ describe('rowActivitySegments', () => {
   })
 
   it('never renders a segment for a flag-only marker', () => {
-    const acts: ActivityList = [marker(600, ['Fear response'])]
+    const acts: ActivityList = [marker(600, ['Attack'])]
     expect(rowActivitySegments(acts, 'day')).toEqual([])
   })
 

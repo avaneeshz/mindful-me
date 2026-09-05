@@ -249,7 +249,7 @@ describe('isWindowFull', () => {
 
 describe('rule 4 — editing time/duration never silently clears completion', () => {
   it('carries the prior status and flags forward on an in-place edit', () => {
-    const prior = make(600, 30, { id: 'a', status: 'completed', flags: ['Stress response'] })
+    const prior = make(600, 30, { id: 'a', status: 'completed', flags: ['Triggered'] })
     const candidate = computeCandidateSchedule({ name: 'Homework', path: [] }, 660, [prior], {
       editingId: 'a',
     })
@@ -260,7 +260,7 @@ describe('rule 4 — editing time/duration never silently clears completion', ()
       timezone: prior.timezone,
     })
     expect(committed.status).toBe('completed')
-    expect(committed.flags).toEqual(['Stress response'])
+    expect(committed.flags).toEqual(['Triggered'])
     expect(committed.startMinutes).toBe(660)
   })
 
@@ -316,11 +316,11 @@ describe('commitSchedule', () => {
   it('produces a null-named, zero-duration record for a flag-only marker', () => {
     const committed = commitSchedule(
       { id: null, activity: null, startMinutes: 90, durationMinutes: 0 },
-      { flags: ['Fear response'] },
+      { flags: ['Attack'] },
     )
     expect(committed.name).toBeNull()
     expect(committed.durationMinutes).toBe(0)
-    expect(committed.flags).toEqual(['Fear response'])
+    expect(committed.flags).toEqual(['Attack'])
   })
 })
 

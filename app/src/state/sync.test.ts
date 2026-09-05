@@ -71,36 +71,36 @@ describe('deriveSyncIntents', () => {
   it('a brand-new activity with a staged flag needs only ONE intent — flags ride along inside create', () => {
     let state = start()
     state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
     const { next, intents } = step(state, { type: 'commit' })
 
     expect(intents).toHaveLength(1)
     expect(intents[0]).toMatchObject({ kind: 'create' })
-    expect(next.activities[0].flags).toEqual(['Fear response'])
+    expect(next.activities[0].flags).toEqual(['Attack'])
   })
 
   it('editing an activity to CHANGE its flag produces reschedule + flags, not reschedule alone', () => {
     let state = start()
     state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
     state = boardReducer(state, { type: 'commit' })
     const id = state.activities[0].id
 
     state = boardReducer(state, { type: 'editActivity', id })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Stress response' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Triggered' })
     const { intents, next } = step(state, { type: 'commit' })
 
     expect(intents).toEqual([
       { kind: 'reschedule', activity: next.activities[0] },
       { kind: 'flags', activity: next.activities[0] },
     ])
-    expect(next.activities[0].flags).toEqual(['Stress response'])
+    expect(next.activities[0].flags).toEqual(['Triggered'])
   })
 
   it('editing an activity WITHOUT touching its flag produces only reschedule — no redundant flags call', () => {
     let state = start()
     state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Fear response' })
+    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
     state = boardReducer(state, { type: 'commit' })
     const id = state.activities[0].id
 
@@ -109,7 +109,7 @@ describe('deriveSyncIntents', () => {
     const { intents, next } = step(state, { type: 'commit' })
 
     expect(intents).toEqual([{ kind: 'reschedule', activity: next.activities[0] }])
-    expect(next.activities[0].flags).toEqual(['Fear response']) // unchanged
+    expect(next.activities[0].flags).toEqual(['Attack']) // unchanged
   })
 
   it('produces a status intent when completion is toggled', () => {

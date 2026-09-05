@@ -93,7 +93,7 @@ describe('Today screen', () => {
   })
 
   it('renders flags inside their slot, stacked vertically', () => {
-    // Seed slot 22 (11:00) carries a Trauma response flag marker.
+    // Seed slot 22 (11:00) carries a Trauma Activation flag marker.
     const slot22 = html.split('data-slot="22"')[1]?.split('data-slot=')[0] ?? ''
     expect(slot22).toContain('flex-col')
   })
@@ -132,7 +132,7 @@ describe('Today screen', () => {
   // content isn't in this page's markup at all; `FlagPicker`'s own render
   // (all 4 flags + None) is covered directly in its component test instead.
   it('renders no flag toggle in the default, nothing-staged page state', () => {
-    expect(html).not.toContain('aria-label="Trauma response"')
+    expect(html).not.toContain('aria-label="Trauma Activation"')
   })
 
   it('renders no idle placeholder in the staging pane', () => {

@@ -1,5 +1,4 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { FLAGS } from '@/data/activities'
 import {
   MIDNIGHT_TICK_POSITION,
   SLOT_MINUTES,
@@ -19,8 +18,6 @@ import { PERIOD_ICONS } from '@/data/periods'
 import { useTheme } from '@/state/ThemeContext'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
 import { cn } from '@/lib/utils'
-
-const FLAG_ICONS = Object.fromEntries(FLAGS.map((f) => [f.id, f.icon]))
 
 /** Spoken description of a slot — never relies on colour to convey state. */
 function describeSlot(slot: number, touching: ScheduledActivity[], flags: readonly FlagId[]): string {
@@ -356,6 +353,12 @@ function TimelineRow({
                   // flags bled into neighbouring slots. A small opaque backing
                   // plate, period-matched the same way the slot states above
                   // are, so it stays legible on either row regardless of theme.
+                  // SCRUM-15: flags no longer carry a per-item icon (the
+                  // "Protective response" option set is text-only now), so a
+                  // legacy marker's presence is a plain dot rather than a
+                  // per-flag glyph — this is a read-only legacy rendering path
+                  // (`domain/slots.ts` `flagMarkerAt`); nothing creates new
+                  // flag-only markers any more.
                   <span
                     aria-hidden="true"
                     className={cn(
@@ -363,16 +366,12 @@ function TimelineRow({
                       period === 'day' ? 'bg-inv-bg' : 'bg-night-strip-fixed-ink',
                     )}
                   >
-                    {flags.map((flag) => {
-                      const FlagIcon = FLAG_ICONS[flag]
-                      return FlagIcon ? (
-                        <FlagIcon
-                          key={flag}
-                          className={cn('size-[8px]', period === 'day' ? 'text-inv-ink' : 'text-night-strip-fixed')}
-                          strokeWidth={3}
-                        />
-                      ) : null
-                    })}
+                    {flags.map((flag) => (
+                      <span
+                        key={flag}
+                        className={cn('size-[6px] rounded-full', period === 'day' ? 'bg-inv-ink' : 'bg-night-strip-fixed')}
+                      />
+                    ))}
                   </span>
                 )}
               </button>
