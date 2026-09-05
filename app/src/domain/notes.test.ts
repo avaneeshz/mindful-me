@@ -36,7 +36,7 @@ describe('NOTE_BUTTONS', () => {
 
 describe('GIFT_TYPES', () => {
   it('is exactly the 5 values from the ticket, in the given order', () => {
-    expect(GIFT_TYPES).toEqual(['Dreamer', 'the voice', 'the knower', 'memory bank', 'amplifier'])
+    expect(GIFT_TYPES).toEqual(['Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 'Amplifier'])
   })
 })
 
@@ -74,7 +74,7 @@ describe('canSubmitNote', () => {
   })
 
   it('accepts Gifts once both a note and a gift type are present', () => {
-    expect(canSubmitNote('gifts', 'A gift I noticed', 'the voice')).toBe(true)
+    expect(canSubmitNote('gifts', 'A gift I noticed', 'The Voice')).toBe(true)
   })
 })
 

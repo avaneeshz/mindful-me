@@ -87,7 +87,7 @@ create table public.note_entries (
 
   -- Gifts-only: one of the 5 fixed gift types. Null for every other button.
   gift_type text check (
-    gift_type is null or gift_type in ('Dreamer', 'the voice', 'the knower', 'memory bank', 'amplifier')
+    gift_type is null or gift_type in ('Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 'Amplifier')
   ),
   constraint gift_type_only_for_gifts check (gift_type is null or button_key = 'gifts'),
 
@@ -169,7 +169,7 @@ begin
   end if;
 
   if p_button_key = 'gifts' then
-    if p_gift_type is null or p_gift_type not in ('Dreamer', 'the voice', 'the knower', 'memory bank', 'amplifier') then
+    if p_gift_type is null or p_gift_type not in ('Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 'Amplifier') then
       raise exception 'gift_type_required' using errcode = '22023';
     end if;
   end if;
