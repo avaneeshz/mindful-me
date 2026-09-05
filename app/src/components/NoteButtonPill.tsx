@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { ChevronDown, Loader2, X } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +34,10 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const [noteText, setNoteText] = useState('')
   const [giftType, setGiftType] = useState<GiftType | ''>('')
   const [justSaved, setJustSaved] = useState(false)
+  // History is collapsed by default (SCRUM-13 follow-up) — the popover opens
+  // straight to the Store form; the log of past notes is a click away
+  // rather than always taking up space underneath it.
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -43,6 +47,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const textareaId = useId()
   const selectId = useId()
   const historyHeadingId = useId()
+  const historyListId = useId()
 
   const { entries, status, error, submitting, addNote } = useNoteEntries(buttonKey, open)
   const needsGiftType = requiresGiftType(buttonKey)
@@ -74,6 +79,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   // form the user opened specifically to write in, not a menu to browse.
   useEffect(() => {
     if (open) textareaRef.current?.focus()
+    else setHistoryOpen(false) // Collapsed again next time this popover opens.
   }, [open])
 
   useEffect(() => {
@@ -198,40 +204,52 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
           </form>
 
           <div className="mt-lg border-t border-line pt-md">
-            <h3
+            <button
+              type="button"
               id={historyHeadingId}
-              className="mb-sm text-nano font-semibold uppercase tracking-tag text-ink-dim"
+              aria-expanded={historyOpen}
+              aria-controls={historyListId}
+              onClick={() => setHistoryOpen((value) => !value)}
+              className="flex w-full items-center justify-between text-nano font-semibold uppercase tracking-tag text-ink-dim transition-colors hover:text-ink"
             >
               History
-            </h3>
+              <ChevronDown
+                aria-hidden="true"
+                className={cn('size-[14px] transition-transform', historyOpen && 'rotate-180')}
+              />
+            </button>
 
-            {status === 'loading' && entries.length === 0 && (
-              <p className="flex items-center gap-sm text-caption text-ink-dim">
-                <Loader2 aria-hidden="true" className="size-[14px] animate-spin" />
-                Loading…
-              </p>
-            )}
+            {historyOpen && (
+              <div id={historyListId} role="region" aria-labelledby={historyHeadingId} className="mt-sm">
+                {status === 'loading' && entries.length === 0 && (
+                  <p className="flex items-center gap-sm text-caption text-ink-dim">
+                    <Loader2 aria-hidden="true" className="size-[14px] animate-spin" />
+                    Loading…
+                  </p>
+                )}
 
-            {status !== 'loading' && entries.length === 0 && (
-              <p className="text-caption text-ink-dim">No notes yet — the first one you store shows up here.</p>
-            )}
+                {status !== 'loading' && entries.length === 0 && (
+                  <p className="text-caption text-ink-dim">No notes yet — the first one you store shows up here.</p>
+                )}
 
-            {entries.length > 0 && (
-              <ul aria-labelledby={historyHeadingId} className="flex max-h-[220px] flex-col gap-sm overflow-y-auto">
-                {entries.map((entry) => (
-                  <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
-                    <div className="flex items-center justify-between gap-sm">
-                      <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
-                        {formatNoteTimestamp(new Date(entry.createdAt))}
-                      </time>
-                      {entry.giftType && (
-                        <span className="text-nano font-semibold text-ink-dim">{entry.giftType}</span>
-                      )}
-                    </div>
-                    <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
-                  </li>
-                ))}
-              </ul>
+                {entries.length > 0 && (
+                  <ul className="flex max-h-[220px] flex-col gap-sm overflow-y-auto">
+                    {entries.map((entry) => (
+                      <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
+                        <div className="flex items-center justify-between gap-sm">
+                          <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
+                            {formatNoteTimestamp(new Date(entry.createdAt))}
+                          </time>
+                          {entry.giftType && (
+                            <span className="text-nano font-semibold text-ink-dim">{entry.giftType}</span>
+                          )}
+                        </div>
+                        <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
         </div>
