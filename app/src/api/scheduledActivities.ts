@@ -14,7 +14,7 @@ interface ScheduledActivityDto {
   start_minute: number
   timezone: string
   flags: string[] | null
-  quality: string | null
+  quality: string[] | null
   status: string
   created_at: string
   updated_at: string
@@ -31,7 +31,7 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     startMinutes: dto.start_minute,
     durationMinutes: dto.duration_minutes,
     flags: (dto.flags ?? []) as FlagId[],
-    quality: (dto.quality as ActivityQuality | null) ?? null,
+    quality: (dto.quality ?? []) as ActivityQuality[],
     symptoms: (dto.symptoms ?? []) as Symptom[],
     notes: dto.notes ?? null,
     status: (dto.status as ScheduleStatus) ?? 'planned',
@@ -131,7 +131,7 @@ export async function apiSetScheduledActivityFlags(id: string, flags: FlagId[]):
 }
 
 /** Parity with `apiSetScheduledActivityFlags` — a quality-only edit with no accompanying time change. */
-export async function apiSetScheduledActivityQuality(id: string, quality: ActivityQuality | null): Promise<void> {
+export async function apiSetScheduledActivityQuality(id: string, quality: ActivityQuality[]): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('set_scheduled_activity_quality', { p_id: id, p_quality: quality })
   if (error) throw error

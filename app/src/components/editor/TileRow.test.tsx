@@ -70,7 +70,7 @@ describe('tile progress — spoken via aria-label, no visible "x/y" badge any mo
 
   it('counts an auto-locked item once its scheduled-today count reaches its limit', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 480, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 480, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const html = renderRow({ activities })
     expect(html).toContain(`Sleep &amp; Rest, 1 of ${cardsForCategory('sleep').length} done`)
@@ -94,10 +94,10 @@ describe('tile progress — spoken via aria-label, no visible "x/y" badge any mo
 describe('whole-tile lock treatment', () => {
   it('marks the whole tile locked once every one of its own items is locked', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const dismissed = new Set(['Supplements', 'Slow down'])
     const sleepCount = cardsForCategory('sleep').length
@@ -108,10 +108,10 @@ describe('whole-tile lock treatment', () => {
 
   it('stays inside the row rather than disappearing once fully locked', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
-      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a2', name: 'Day Sleep', path: [], startMinutes: 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a3', name: 'Bed Exercise', path: [], startMinutes: 120, durationMinutes: 15, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a4', name: 'Bed Exercise', path: [], startMinutes: 150, durationMinutes: 15, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const dismissed = new Set(['Supplements', 'Slow down'])
     const html = renderRow({ activities, dismissed })
@@ -149,7 +149,7 @@ describe('monochrome, flat-progress-bar tile row (Section A/B — no colour anyw
 
   it('renders no separate numeric "x/y" badge on the tile — done/total is now spoken only, via aria-label', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const html = renderRow({ activities })
     // "1/5" (the old visible badge format) does not appear anywhere in the
@@ -160,7 +160,7 @@ describe('monochrome, flat-progress-bar tile row (Section A/B — no colour anyw
 
   it('the progress bar fill is a real done/total WIDTH percentage (Section B — replaces the old water-fill HEIGHT gauge)', () => {
     const activities: ActivityList = [
-      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'a1', name: 'Night Sleep', path: [], startMinutes: 0, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ]
     const html = renderRow({ activities }) // Sleep & Rest: 1 of 5 -> 20%
     expect(html).toContain('width:20%')
@@ -183,7 +183,7 @@ describe('monochrome, flat-progress-bar tile row (Section A/B — no colour anyw
         startMinutes: i * 30,
         durationMinutes: 15,
         flags: [],
-        quality: null, symptoms: [], notes: null,
+        quality: [], symptoms: [], notes: null,
         status: 'planned' as const,
         timezone: 'UTC',
       }))

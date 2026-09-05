@@ -20,7 +20,7 @@ function renderModal(overrides: Partial<ComponentProps<typeof LogActivityModal>>
       onMove={() => {}}
       onResizeStart={() => {}}
       onSetFlag={() => {}}
-      onSetQuality={() => {}}
+      onToggleQuality={() => {}}
       onToggleSymptom={() => {}}
       onSetNotes={() => {}}
       onCommit={() => {}}
@@ -113,6 +113,46 @@ describe('sub-option drill-down (same staging mechanism, relocated into the moda
   })
 })
 
+describe('Activity quality — 18-value multi-select (SCRUM-10)', () => {
+  it('lists all 18 quality values', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    for (const quality of [
+      'Resonance',
+      'Flow',
+      'Scattered',
+      'Overstimulated',
+      'Zone out',
+      'Numb',
+      'Engaged',
+      'Bored',
+      'Resistant',
+      'Frozen',
+      'Avoiding',
+      'Confusion',
+      'Compulsive persistent',
+      'Interoceptive Override',
+      'Addictive',
+      'Nourishing',
+      'Draining',
+      'Energizing',
+    ]) {
+      expect(html).toContain(quality)
+    }
+  })
+
+  it('is a real checkbox group (multi-select), not a radiogroup', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
+    expect(html).toContain('role="group" aria-label="Activity quality"')
+  })
+
+  it('reflects every currently-selected quality as checked', () => {
+    const html = renderModal({
+      staging: { ...EMPTY_STAGING, cardName: 'Night Sleep', quality: ['Flow', 'Nourishing'] },
+    })
+    expect(html.match(/aria-checked="true"/g)?.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
 describe('Chronic Symptoms — a new multi-select section', () => {
   it('sits between Activity quality and Protective response', () => {
     const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
@@ -131,7 +171,7 @@ describe('Chronic Symptoms — a new multi-select section', () => {
     }
   })
 
-  it('is a real checkbox group (multi-select), not a radiogroup like quality/flag', () => {
+  it('is a real checkbox group (multi-select), not a radiogroup like flag', () => {
     const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
     expect(html).toContain('role="group" aria-label="Chronic Symptoms"')
   })
@@ -234,7 +274,7 @@ describe('feature-flag-gated duration fallback', () => {
         onMove={() => {}}
         onResizeStart={() => {}}
         onSetFlag={() => {}}
-        onSetQuality={() => {}}
+        onToggleQuality={() => {}}
         onToggleSymptom={() => {}}
         onSetNotes={() => {}}
         onCommit={() => {}}
