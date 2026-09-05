@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, User } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
+import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { WeatherPill } from '@/components/WeatherPill'
+import { NOTE_BUTTONS } from '@/domain/notes'
 import type { AuthUser } from '@/state/AuthContext'
 import { cn } from '@/lib/utils'
 
@@ -41,13 +43,6 @@ export interface HeaderBarProps {
   onSignOut: () => void
 }
 
-/**
- * The 5 new placeholder pills (Section E) — inert, same treatment as the
- * "Deep log"/"Notes" stub pattern elsewhere: visually present, not wired to
- * anything. Real behaviour for these is a separate, future product decision.
- */
-const PLACEHOLDER_PILLS = ['Gifts', 'Chits', 'Opportunities', 'Learnings', 'Feedback']
-
 export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: HeaderBarProps) {
   return (
     <header className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
@@ -57,22 +52,16 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: He
       <h1 className="pl-0 font-display text-h1 font-semibold text-ink mobile:pl-[52px] mobile:text-h1-sm">
         Consort
       </h1>
-      {/* `flex-wrap` — the whole meta row, placeholder pills included, wraps
-          onto a second line if it runs out of horizontal space, rather than
+      {/* `flex-wrap` — the whole meta row, note pills included, wraps onto a
+          second line if it runs out of horizontal space, rather than
           overflowing. */}
       <div className="flex flex-wrap items-center justify-end gap-sm">
-      {/* Truly inert — a `<span>`, not a `<button>`: real button semantics
-          would put these in the tab order and announce them as actionable
-          to assistive tech, which would be misleading for something with no
-          behaviour behind it yet (same reasoning the "Deep log"/Notes stub
-          elsewhere in this app already follows). */}
-      {PLACEHOLDER_PILLS.map((label) => (
-        <span
-          key={label}
-          className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: false }), 'font-semibold')}
-        >
-          {label}
-        </span>
+      {/* SCRUM-13 — Gifts, Chits, Opportunities, Learnings, Mirror (renamed
+          from Feedback), Prayer (new). Each is now a real interactive
+          button: clicking one opens a note-entry popover (see
+          `NoteButtonPill`) rather than doing nothing. */}
+      {NOTE_BUTTONS.map(({ key, label }) => (
+        <NoteButtonPill key={key} buttonKey={key} label={label} />
       ))}
 
       {/*
