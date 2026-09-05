@@ -91,15 +91,33 @@ export interface ActivityCard {
 }
 
 /**
- * A whole-slot marker. Legacy-only going forward: the client no longer
+ * "Protective response" — a single-select, optional pick on an individual
+ * scheduled activity (at most one; "None" clears it). SCRUM-15 replaced the
+ * original 4-value vocabulary (`Trauma response` / `Stress response` /
+ * `Fear response` / `Anger response`) outright with this 14-value one — not
+ * a rename of those values, a full replacement of the option set.
+ *
+ * A whole-slot marker is legacy-only going forward: the client no longer
  * creates flag-only markers (Modal Redesign §E) — flags now attach to the
  * real activity being logged instead (see `ScheduledActivity.flags` below).
  * Old zero-duration marker rows, if any exist, keep rendering exactly as
- * before (`domain/slots.ts` `flagMarkerAt` is untouched) — this union just
- * grows a 4th member so both the legacy path and the new per-activity path
- * can express it.
+ * before (`domain/slots.ts` `flagMarkerAt` is untouched).
  */
-export type FlagId = 'Trauma response' | 'Stress response' | 'Fear response' | 'Anger response'
+export type FlagId =
+  | 'Trauma Activation'
+  | 'Triggered'
+  | 'Attack'
+  | 'Anger'
+  | 'Procrastinated'
+  | 'Shut Down'
+  | 'Collapse'
+  | 'Over Accommodating'
+  | 'Hyper Responsibility'
+  | 'Over Function'
+  | 'Intellectualization'
+  | 'Optimization'
+  | 'Hyper Vigilance'
+  | 'Problem Solving'
 
 /**
  * A multi-select, optional reflection on how a logged activity felt —

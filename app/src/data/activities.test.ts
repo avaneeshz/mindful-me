@@ -105,20 +105,29 @@ describe('itemFillColor', () => {
   })
 })
 
-describe('FLAGS (Modal Redesign §E)', () => {
-  it('has exactly 4 flags, Anger response appended last', () => {
+describe('FLAGS ("Protective response", SCRUM-15 — 14-value option set)', () => {
+  it('has exactly the 14 specified values, in spec order', () => {
     expect(FLAGS.map((f) => f.id)).toEqual([
-      'Trauma response',
-      'Stress response',
-      'Fear response',
-      'Anger response',
+      'Trauma Activation',
+      'Triggered',
+      'Attack',
+      'Anger',
+      'Procrastinated',
+      'Shut Down',
+      'Collapse',
+      'Over Accommodating',
+      'Hyper Responsibility',
+      'Over Function',
+      'Intellectualization',
+      'Optimization',
+      'Hyper Vigilance',
+      'Problem Solving',
     ])
   })
 
-  it('every flag has a distinct id and a short label', () => {
+  it('every flag has a distinct id', () => {
     const ids = FLAGS.map((f) => f.id)
     expect(new Set(ids).size).toBe(ids.length)
-    for (const flag of FLAGS) expect(flag.shortLabel.length).toBeGreaterThan(0)
   })
 })
 

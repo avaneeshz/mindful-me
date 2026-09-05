@@ -1,7 +1,5 @@
 import {
   Activity,
-  AlertTriangle,
-  Angry,
   Bath,
   BatteryLow,
   BatteryCharging,
@@ -25,7 +23,6 @@ import {
   GraduationCap,
   Hand,
   HandHeart,
-  HeartCrack,
   HeartHandshake,
   HeartPulse,
   Headphones,
@@ -475,22 +472,32 @@ export function itemFillColor(name: string | null): string {
 
 /* ------------------------------------------------------------------ *
  * Flags — whole-slot markers. NOT timed activities, no duration, no capacity
- * cost. Behaviour is frozen this pass; only the presentation was resized.
+ * cost. SCRUM-15 replaced the original 4-value "Protective response" option
+ * set outright with this 14-value one, and dropped icons from the picker
+ * (text-only, smaller — see `FlagPicker.tsx`) — every label here is already
+ * a self-contained short phrase, so there's no separate abbreviated
+ * "shortLabel" the way the old 4-value set needed one.
  * ------------------------------------------------------------------ */
 
 export interface FlagDefinition {
   id: FlagId
-  /** Short caption shown under the icon on touch viewports. */
-  shortLabel: string
-  icon: LucideIcon
 }
 
 export const FLAGS: FlagDefinition[] = [
-  { id: 'Trauma response', shortLabel: 'Trauma', icon: HeartCrack },
-  { id: 'Stress response', shortLabel: 'Stress', icon: Zap },
-  { id: 'Fear response', shortLabel: 'Fear', icon: AlertTriangle },
-  // Appended, not reordered in among the existing three (Modal Redesign §E).
-  { id: 'Anger response', shortLabel: 'Anger', icon: Angry },
+  { id: 'Trauma Activation' },
+  { id: 'Triggered' },
+  { id: 'Attack' },
+  { id: 'Anger' },
+  { id: 'Procrastinated' },
+  { id: 'Shut Down' },
+  { id: 'Collapse' },
+  { id: 'Over Accommodating' },
+  { id: 'Hyper Responsibility' },
+  { id: 'Over Function' },
+  { id: 'Intellectualization' },
+  { id: 'Optimization' },
+  { id: 'Hyper Vigilance' },
+  { id: 'Problem Solving' },
 ]
 
 /* ------------------------------------------------------------------ *

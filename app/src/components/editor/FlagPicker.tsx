@@ -1,4 +1,3 @@
-import { Ban } from 'lucide-react'
 import { FLAGS } from '@/data/activities'
 import type { FlagId } from '@/domain/types'
 import { Chip } from '@/components/ui/chip'
@@ -10,12 +9,16 @@ import { Chip } from '@/components/ui/chip'
  * always-multi-select `FlagsRow` in `SlotEditor`'s header, which is deleted
  * (nothing creates a flag-only marker any more; legacy marker rows still
  * read/render exactly as before, untouched, via `domain/slots.ts`
- * `flagMarkerAt`). The underlying `FlagId` values are unchanged — only the
- * section's own label and the option order changed.
+ * `flagMarkerAt`).
  *
- * "None" is a real 5th chip, not an implicit empty state — selecting it (or
+ * SCRUM-15 replaced the original 4-value option set with a 14-value one
+ * (`FlagId` in domain/types.ts) and dropped icons from every chip in this
+ * section — text-only, smaller (`size="sm"`), since the option list is long
+ * enough now that icons and full-size text cost too much space.
+ *
+ * "None" is a real chip, not an implicit empty state — selecting it (or
  * re-selecting the currently active flag) clears the selection. Ordered
- * LAST this round (was first) — Trauma, Stress, Fear, Anger, None.
+ * LAST, after all 14 options.
  */
 export function FlagPicker({
   selected,
@@ -30,33 +33,30 @@ export function FlagPicker({
       <div role="radiogroup" aria-label="Protective response" className="flex flex-wrap gap-sm">
         {FLAGS.map((flag) => {
           const isSelected = selected === flag.id
-          const Icon = flag.icon
           return (
             <Chip
               key={flag.id}
               as="button"
-              size="md"
+              size="sm"
               tone={isSelected ? 'active' : 'surface'}
               interactive
               role="radio"
               aria-checked={isSelected}
               onClick={() => onSelect(isSelected ? null : flag.id)}
             >
-              <Icon aria-hidden="true" className="size-[16px]" />
-              {flag.shortLabel}
+              {flag.id}
             </Chip>
           )
         })}
         <Chip
           as="button"
-          size="md"
+          size="sm"
           tone={selected === null ? 'active' : 'surface'}
           interactive
           role="radio"
           aria-checked={selected === null}
           onClick={() => onSelect(null)}
         >
-          <Ban aria-hidden="true" className="size-[16px]" />
           None
         </Chip>
       </div>
