@@ -19,7 +19,7 @@ export function SymptomsPicker({
 }) {
   return (
     <fieldset className="flex flex-col gap-sm">
-      <legend className="text-caption font-semibold text-ink-dim">Chronic Symptoms</legend>
+      <legend className="text-entry-name font-semibold text-ink">Chronic Symptoms</legend>
       <div role="group" aria-label="Chronic Symptoms" className="flex flex-wrap gap-sm">
         {SYMPTOMS.map((symptom) => {
           const isSelected = selected.includes(symptom.id)
@@ -27,7 +27,7 @@ export function SymptomsPicker({
             <Chip
               key={symptom.id}
               as="button"
-              size="sm"
+              size="xs"
               tone={isSelected ? 'active' : 'surface'}
               interactive
               role="checkbox"
