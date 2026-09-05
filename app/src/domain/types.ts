@@ -102,11 +102,33 @@ export interface ActivityCard {
 export type FlagId = 'Trauma response' | 'Stress response' | 'Fear response' | 'Anger response'
 
 /**
- * A single-select, optional reflection on how a logged activity felt —
- * "How did it feel?" (Modal Redesign §D). Nullable: logging an activity must
- * never require answering this.
+ * A multi-select, optional reflection on how a logged activity felt —
+ * "Activity quality" (formerly "How did it feel?", SCRUM-10 replaced the old
+ * 5-value single-select vocabulary with this 18-value multi-select one; two
+ * labels, `Nourishing` and `Draining`, happen to survive from the old list,
+ * coincidentally — not a preserved data mapping). Any number can be
+ * selected at once, mirroring `Symptom`/`ScheduledActivity.symptoms`'
+ * multi-select shape exactly.
  */
-export type ActivityQuality = 'Nourishing' | 'Productive' | 'Straining' | 'Draining' | 'Dysregulated'
+export type ActivityQuality =
+  | 'Resonance'
+  | 'Flow'
+  | 'Scattered'
+  | 'Overstimulated'
+  | 'Zone out'
+  | 'Numb'
+  | 'Engaged'
+  | 'Bored'
+  | 'Resistant'
+  | 'Frozen'
+  | 'Avoiding'
+  | 'Confusion'
+  | 'Compulsive persistent'
+  | 'Interoceptive Override'
+  | 'Addictive'
+  | 'Nourishing'
+  | 'Draining'
+  | 'Energizing'
 
 /**
  * A multi-select, optional set of chronic symptoms noticed around a logged
@@ -171,8 +193,8 @@ export interface ScheduledActivity {
    * first if it ever encounters that.
    */
   flags: FlagId[]
-  /** "Activity quality" — optional, single-select. Never required to log an activity. */
-  quality: ActivityQuality | null
+  /** "Activity quality" — optional, multi-select. Any number, including none. */
+  quality: ActivityQuality[]
   /** "Chronic Symptoms" — optional, multi-select. Any number, including none. */
   symptoms: Symptom[]
   /** Freeform notes, optional. Encrypted at rest like quality/flags/symptoms (rule 10). */

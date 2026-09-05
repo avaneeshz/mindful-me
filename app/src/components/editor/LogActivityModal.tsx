@@ -36,7 +36,7 @@ export function LogActivityModal({
   onMove,
   onResizeStart,
   onSetFlag,
-  onSetQuality,
+  onToggleQuality,
   onToggleSymptom,
   onSetNotes,
   onCommit,
@@ -52,7 +52,7 @@ export function LogActivityModal({
   onMove: (minutes: number) => void
   onResizeStart: (minutes: number) => void
   onSetFlag: (flag: FlagId | null) => void
-  onSetQuality: (quality: ActivityQuality | null) => void
+  onToggleQuality: (quality: ActivityQuality) => void
   onToggleSymptom: (symptom: Symptom) => void
   onSetNotes: (notes: string) => void
   onCommit: () => void
@@ -176,7 +176,7 @@ export function LogActivityModal({
               />
             )}
 
-            <QualityPicker selected={staging.quality} onSelect={onSetQuality} />
+            <QualityPicker selected={staging.quality} onToggle={onToggleQuality} />
             <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} />
             <FlagPicker selected={staging.flag} onSelect={onSetFlag} />
 

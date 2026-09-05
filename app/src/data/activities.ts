@@ -4,6 +4,7 @@ import {
   Angry,
   Bath,
   BatteryLow,
+  BatteryCharging,
   BedDouble,
   BedSingle,
   Bone,
@@ -11,11 +12,12 @@ import {
   Briefcase,
   Building2,
   CircleDashed,
-  CloudRain,
+  CircleSlash,
   Coffee,
   Droplet,
   Droplets,
   Dumbbell,
+  EyeOff,
   Flame,
   Flower2,
   Footprints,
@@ -27,18 +29,23 @@ import {
   HeartHandshake,
   HeartPulse,
   Headphones,
+  HelpCircle,
   Home,
   Image,
   Leaf,
   Lightbulb,
+  Magnet,
   Moon,
   PenLine,
   Pill,
+  Repeat,
   Rocket,
   Scissors,
+  Shield,
   ShieldPlus,
   ShoppingCart,
   Shuffle,
+  Snowflake,
   Soup,
   Sparkle,
   Sparkles,
@@ -51,7 +58,6 @@ import {
   TrainFront,
   Trees,
   TreePine,
-  TrendingUp,
   Tv,
   Users,
   Utensils,
@@ -488,8 +494,12 @@ export const FLAGS: FlagDefinition[] = [
 ]
 
 /* ------------------------------------------------------------------ *
- * "How did it feel?" (Modal Redesign §D) — a single-select, optional
- * reflection on a logged activity. Icon choices are a judgement call (none
+ * "Activity quality" (formerly "How did it feel?") — a multi-select,
+ * optional reflection on a logged activity. SCRUM-10 replaced the old
+ * 5-value single-select vocabulary entirely with this 18-value multi-select
+ * one (see `ActivityQuality` in domain/types.ts) — `Nourishing` and
+ * `Draining` keep their old icons since the labels happen to survive into
+ * the new list; every other icon choice is a fresh judgement call (none
  * were prescribed) — flagged in the PR description, cheap to swap later.
  * ------------------------------------------------------------------ */
 
@@ -499,11 +509,24 @@ export interface QualityDefinition {
 }
 
 export const QUALITIES: QualityDefinition[] = [
+  { id: 'Resonance', icon: Waves },
+  { id: 'Flow', icon: Wind },
+  { id: 'Scattered', icon: Shuffle },
+  { id: 'Overstimulated', icon: Zap },
+  { id: 'Zone out', icon: CircleDashed },
+  { id: 'Numb', icon: CircleSlash },
+  { id: 'Engaged', icon: Sparkles },
+  { id: 'Bored', icon: Timer },
+  { id: 'Resistant', icon: Shield },
+  { id: 'Frozen', icon: Snowflake },
+  { id: 'Avoiding', icon: EyeOff },
+  { id: 'Confusion', icon: HelpCircle },
+  { id: 'Compulsive persistent', icon: Repeat },
+  { id: 'Interoceptive Override', icon: Activity },
+  { id: 'Addictive', icon: Magnet },
   { id: 'Nourishing', icon: HeartPulse },
-  { id: 'Productive', icon: TrendingUp },
-  { id: 'Straining', icon: CloudRain },
   { id: 'Draining', icon: BatteryLow },
-  { id: 'Dysregulated', icon: Shuffle },
+  { id: 'Energizing', icon: BatteryCharging },
 ]
 
 /* ------------------------------------------------------------------ *

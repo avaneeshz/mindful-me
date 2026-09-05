@@ -122,14 +122,27 @@ describe('FLAGS (Modal Redesign §E)', () => {
   })
 })
 
-describe('QUALITIES ("how did it feel?", Modal Redesign §D)', () => {
-  it('has exactly the 5 specified values, in spec order', () => {
+describe('QUALITIES ("Activity quality", SCRUM-10 — 18-value multi-select)', () => {
+  it('has exactly the 18 specified values, in spec order', () => {
     expect(QUALITIES.map((q) => q.id)).toEqual([
+      'Resonance',
+      'Flow',
+      'Scattered',
+      'Overstimulated',
+      'Zone out',
+      'Numb',
+      'Engaged',
+      'Bored',
+      'Resistant',
+      'Frozen',
+      'Avoiding',
+      'Confusion',
+      'Compulsive persistent',
+      'Interoceptive Override',
+      'Addictive',
       'Nourishing',
-      'Productive',
-      'Straining',
       'Draining',
-      'Dysregulated',
+      'Energizing',
     ])
   })
 

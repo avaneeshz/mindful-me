@@ -157,7 +157,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
         onMove={(minutes) => dispatch({ type: 'setStagingStart', minutes })}
         onResizeStart={(minutes) => dispatch({ type: 'resizeStagingStart', minutes })}
         onSetFlag={(flag) => dispatch({ type: 'setStagingFlag', flag })}
-        onSetQuality={(quality) => dispatch({ type: 'setStagingQuality', quality })}
+        onToggleQuality={(quality) => dispatch({ type: 'toggleStagingQuality', quality })}
         onToggleSymptom={(symptom) => dispatch({ type: 'toggleStagingSymptom', symptom })}
         onSetNotes={(notes) => dispatch({ type: 'setStagingNotes', notes })}
         onCommit={() => dispatch({ type: 'commit' })}

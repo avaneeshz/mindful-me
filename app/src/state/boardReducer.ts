@@ -29,8 +29,8 @@ export interface StagingState {
    * At most one, enforced entirely client-side (see `ScheduledActivity.flags`).
    */
   flag: FlagId | null
-  /** Modal Redesign §D — "Activity quality", optional single-select. */
-  quality: ActivityQuality | null
+  /** "Activity quality" — optional multi-select (SCRUM-10). */
+  quality: ActivityQuality[]
   /** "Chronic Symptoms" — optional multi-select, any number at once. */
   symptoms: Symptom[]
   /** Freeform notes textarea — optional, empty string is "nothing typed". */
@@ -63,7 +63,7 @@ export const EMPTY_STAGING: StagingState = {
   startMinutes: 0,
   durationMinutes: 0,
   flag: null,
-  quality: null,
+  quality: [],
   symptoms: [],
   notes: '',
   editingId: null,
@@ -99,7 +99,8 @@ export type BoardAction =
    */
   | { type: 'resizeStagingStart'; minutes: number }
   | { type: 'setStagingFlag'; flag: FlagId | null }
-  | { type: 'setStagingQuality'; quality: ActivityQuality | null }
+  /** Multi-select toggle — adds the quality if absent, removes it if present. */
+  | { type: 'toggleStagingQuality'; quality: ActivityQuality }
   /** Multi-select toggle — adds the symptom if absent, removes it if present. */
   | { type: 'toggleStagingSymptom'; symptom: Symptom }
   | { type: 'setStagingNotes'; notes: string }
@@ -157,7 +158,7 @@ function stageFrom(
     startMinutes: candidate.startMinutes,
     durationMinutes: candidate.durationMinutes,
     flag: null,
-    quality: null,
+    quality: [],
     symptoms: [],
     notes: '',
     editingId: candidate.id,
@@ -278,10 +279,13 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, flag: action.flag } }
     }
 
-    case 'setStagingQuality': {
+    case 'toggleStagingQuality': {
       if (!state.staging.cardName) return state
-      if (state.staging.quality === action.quality) return state
-      return { ...state, staging: { ...state.staging, quality: action.quality } }
+      const { quality } = state.staging
+      const next = quality.includes(action.quality)
+        ? quality.filter((q) => q !== action.quality)
+        : [...quality, action.quality]
+      return { ...state, staging: { ...state.staging, quality: next } }
     }
 
     case 'toggleStagingSymptom': {
@@ -357,7 +361,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           // `flags` doc comment) — the first is kept, the rest are dropped
           // only if the user goes on to Save; Cancel leaves the row untouched.
           flag: activity.flags[0] ?? null,
-          quality: activity.quality,
+          quality: [...activity.quality],
           symptoms: [...activity.symptoms],
           notes: activity.notes ?? '',
           editingId: activity.id,

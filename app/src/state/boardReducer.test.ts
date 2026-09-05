@@ -301,7 +301,7 @@ describe('toggleComplete — Phase 3 planned vs. actual', () => {
       startMinutes: 0,
       durationMinutes: 0,
       flags: ['Fear response'],
-      quality: null, symptoms: [], notes: null,
+      quality: [], symptoms: [], notes: null,
       status: 'planned',
       timezone: 'UTC',
     }
@@ -423,7 +423,7 @@ describe('drag and drop', () => {
     // Something occupies 11:00-11:30. A card dropped at 10:00 (slot 20) may
     // grow, but must stop dead at 11:00 rather than overwriting or truncating it.
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ])
     const state = run(occupied, DROP, { type: 'stepDuration', delta: 300 })
     expect(state.staging.durationMinutes).toBe(60)
@@ -439,7 +439,7 @@ describe('drag and drop', () => {
     // slot 21. Dropping there selects slot 21 (every cell is independently
     // selectable) but the picker offers nothing, since no time is free there.
     const covered = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ])
     const state = boardReducer(covered, { type: 'dropCard', cardName: 'Errand time', slot: 21 })
     expect(state.selectedSlot).toBe(21)
@@ -584,7 +584,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
   it('clamps a typed value down to the same continuous-block ceiling the stepper respects', () => {
     // Something else starts 50 minutes after 16:00 (the pinned "now" slot).
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ])
     const state = run(
       occupied,
@@ -618,7 +618,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
 
   it('quick-add also clamps to the ceiling rather than creating an overlap', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ])
     let state = run(occupied, { type: 'pickCard', cardName: 'Homework' }) // clamped to 30 already? verify below
     // Add a full 2 hours — far more than the 40-minute ceiling allows.
@@ -657,7 +657,7 @@ describe('setStagingStart — duration drag-block, moving the whole pill', () =>
 
   it('hard-stops at a neighbouring activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00, 30 min
     state = boardReducer(state, { type: 'setStagingStart', minutes: 18 * 60 })
@@ -680,7 +680,7 @@ describe('resizeStagingStart — duration drag-block, resizing from the start ha
 
   it('hard-stops against a preceding activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: null, symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00-16:30
     state = boardReducer(state, { type: 'resizeStagingStart', minutes: 15 * 60 + 30 })
@@ -694,47 +694,61 @@ describe('resizeStagingStart — duration drag-block, resizing from the start ha
   })
 })
 
-describe('setStagingQuality — "how did it feel?"', () => {
-  it('defaults to null for a freshly picked card', () => {
+describe('toggleStagingQuality — "Activity quality" (multi-select, SCRUM-10)', () => {
+  it('defaults to an empty array for a freshly picked card', () => {
     const state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    expect(state.staging.quality).toBeNull()
+    expect(state.staging.quality).toEqual([])
   })
 
-  it('stages a single quality value, replacing any prior one', () => {
+  it('adds a quality not yet present', () => {
     let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingQuality', quality: 'Productive' })
-    expect(state.staging.quality).toBe('Productive')
-    state = boardReducer(state, { type: 'setStagingQuality', quality: 'Draining' })
-    expect(state.staging.quality).toBe('Draining')
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Flow' })
+    expect(state.staging.quality).toEqual(['Flow'])
   })
 
-  it('commit attaches the staged quality to the real activity; null commits as null', () => {
+  it('accumulates — more than one quality may be staged at once', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Flow' })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Draining' })
+    expect(state.staging.quality).toEqual(['Flow', 'Draining'])
+  })
+
+  it('removes an already-staged quality on a second toggle, leaving the rest', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Flow' })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Draining' })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Flow' })
+    expect(state.staging.quality).toEqual(['Draining'])
+  })
+
+  it('commit attaches every staged quality to the real activity; none commits as an empty array', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingQuality', quality: 'Nourishing' },
+      { type: 'toggleStagingQuality', quality: 'Nourishing' },
+      { type: 'toggleStagingQuality', quality: 'Energizing' },
       { type: 'commit' },
     )
-    expect(real(state)[0].quality).toBe('Nourishing')
+    expect(real(state)[0].quality).toEqual(['Nourishing', 'Energizing'])
 
     state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
-    expect(real(state)[0].quality).toBeNull()
+    expect(real(state)[0].quality).toEqual([])
   })
 
-  it('editing an activity re-stages its own existing quality', () => {
+  it('editing an activity re-stages its own existing quality selections', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingQuality', quality: 'Straining' },
+      { type: 'toggleStagingQuality', quality: 'Scattered' },
       { type: 'commit' },
     )
     const id = real(state)[0].id
     state = boardReducer(state, { type: 'editActivity', id })
-    expect(state.staging.quality).toBe('Straining')
+    expect(state.staging.quality).toEqual(['Scattered'])
   })
 })
 
-describe('toggleStagingSymptom — "Chronic Symptoms" (multi-select, unlike quality/flag)', () => {
+describe('toggleStagingSymptom — "Chronic Symptoms" (multi-select, like quality, unlike flag)', () => {
   it('defaults to an empty array for a freshly picked card', () => {
     const state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
     expect(state.staging.symptoms).toEqual([])
@@ -746,7 +760,7 @@ describe('toggleStagingSymptom — "Chronic Symptoms" (multi-select, unlike qual
     expect(state.staging.symptoms).toEqual(['Pitta'])
   })
 
-  it('accumulates — unlike quality/flag, more than one may be staged at once', () => {
+  it('accumulates — unlike flag, more than one may be staged at once', () => {
     let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
     state = boardReducer(state, { type: 'toggleStagingSymptom', symptom: 'Pitta' })
     state = boardReducer(state, { type: 'toggleStagingSymptom', symptom: 'Dryness' })

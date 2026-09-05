@@ -283,8 +283,8 @@ export function validateSchedule(
 
 export interface CommitContext {
   flags?: FlagId[]
-  /** "Activity quality" — optional, single-select (see domain/types.ts). */
-  quality?: ActivityQuality | null
+  /** "Activity quality" — optional, multi-select (see domain/types.ts). */
+  quality?: ActivityQuality[]
   /** "Chronic Symptoms" — optional, multi-select (see domain/types.ts). */
   symptoms?: Symptom[]
   /** Freeform notes — optional, encrypted at rest like quality/flags/symptoms. */
@@ -318,7 +318,7 @@ export function commitSchedule(
     startMinutes: candidate.startMinutes,
     durationMinutes: candidate.durationMinutes,
     flags: context.flags ?? [],
-    quality: context.quality ?? null,
+    quality: context.quality ?? [],
     symptoms: context.symptoms ?? [],
     notes: context.notes ?? null,
     status: context.status ?? 'planned',
