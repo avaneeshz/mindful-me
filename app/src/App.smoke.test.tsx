@@ -84,7 +84,7 @@ describe('Today screen', () => {
     // activity (00:00-08:00) rather than sixteen artificially separate
     // 30-minute entries, and it legitimately crosses the Night/Day row
     // boundary at 06:00 — correctly rendered as two segments, one per row.
-    expect(html.match(/data-activity-span="[^"]+"/g) ?? []).toHaveLength(12)
+    expect(html.match(/data-activity="[^"]+"/g) ?? []).toHaveLength(12)
     // Two of them — Body Care (self) and Supplements — legitimately share
     // one grid cell without overlapping, which the old capacity rule
     // specifically disallowed beyond a hardcoded pair.

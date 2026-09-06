@@ -1,3 +1,4 @@
+import { isWindowFull } from './scheduling'
 import type { ActivityList, Period, ScheduledActivity } from './types'
 
 /* ------------------------------------------------------------------ *
@@ -315,4 +316,64 @@ export function rowActivitySegments(activities: ActivityList, period: Period): R
     }
   }
   return result
+}
+
+/* ------------------------------------------------------------------ *
+ * Click/keyboard resolution — which activity (if any) a real point in time
+ * lands on, and the ordered set of real Tab stops for a row. Both exist so
+ * `components/Timeline.tsx` never recomputes this geometry or the "does this
+ * slot still have room" question itself; pixel<->minute conversion stays in
+ * the component (same separation `panelGeometry.ts` — since removed — used
+ * to keep DOM measurement out of pure placement math).
+ * ------------------------------------------------------------------ */
+
+/** The one real activity (if any) whose [start, start+duration) span contains `minutes`. */
+export function activityAtMinute(activities: ActivityList, minutes: number): ScheduledActivity | undefined {
+  return activities.find(
+    (a) => isReal(a) && a.startMinutes <= minutes && minutes < a.startMinutes + a.durationMinutes,
+  )
+}
+
+/** One real Tab stop on a Day/Night row: either a still-open grid cell, or one rendered activity-segment piece. */
+export type RowFocusStop = { kind: 'slot'; slot: number } | { kind: 'activity'; activityId: string }
+
+function focusStopKey(stop: RowFocusStop): string {
+  return stop.kind === 'slot' ? `slot:${stop.slot}` : `activity:${stop.activityId}`
+}
+
+/** True when both stops name the same slot or the same activity. */
+export function focusStopsEqual(a: RowFocusStop, b: RowFocusStop): boolean {
+  return focusStopKey(a) === focusStopKey(b)
+}
+
+/**
+ * The ordered (left to right) list of real Tab stops for a Day or Night row:
+ * one `{kind:'slot'}` entry per grid cell that still has free capacity — a
+ * slot `isWindowFull` reports as 100% covered contributes NO entry, mirroring
+ * `TileRow.tsx`'s `hiddenFromAT` pattern ("nothing meaningful to do here right
+ * now, drop it from the tab sequence") — interleaved with one
+ * `{kind:'activity'}` entry per `rowActivitySegments` piece, reusing that
+ * function's own geometry rather than recomputing it. This is what the
+ * roving-tabindex focus state and the Left/Right/Home/End keyboard handling
+ * in `Timeline.tsx` walk, replacing the old fixed `rowSlotIndices(period)`
+ * array as the thing arrow keys navigate over.
+ */
+export function rowFocusStops(activities: ActivityList, period: Period): RowFocusStop[] {
+  const positioned: Array<{ position: number; stop: RowFocusStop }> = []
+
+  for (const slot of rowSlotIndices(period)) {
+    const { start } = slotMinuteRange(slot)
+    if (!isWindowFull(activities, start, SLOT_MINUTES)) {
+      positioned.push({ position: positionInRow(slot), stop: { kind: 'slot', slot } })
+    }
+  }
+
+  for (const segment of rowActivitySegments(activities, period)) {
+    positioned.push({
+      position: segment.startPosition,
+      stop: { kind: 'activity', activityId: segment.activity.id },
+    })
+  }
+
+  return positioned.sort((a, b) => a.position - b.position).map((p) => p.stop)
 }

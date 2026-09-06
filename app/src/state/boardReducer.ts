@@ -1,5 +1,5 @@
 import { findCard } from '@/data/activities'
-import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
+import { slotIndexFromDate, slotIndexFromMinutes, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
   clampMove,
@@ -112,6 +112,15 @@ export type BoardAction =
   | { type: 'dropCard'; cardName: string; slot: number }
   | { type: 'hydrate'; activities: ScheduledActivity[] }
   | { type: 'toggleComplete'; id: string }
+  /**
+   * Clicking (or keyboard-activating) an activity's own rendered segment on
+   * the Timeline strip — see `components/Timeline.tsx`. Defined as exactly
+   * what the manual flow does, the same precedent `dropCard` already sets:
+   * select the slot the activity starts in, then open it for edit — so this
+   * inherits `editActivity`'s guard (unknown id, or a flag-only marker,
+   * leaves the state untouched) verbatim, and can never drift from it.
+   */
+  | { type: 'selectActivity'; id: string }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -449,6 +458,23 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         ...state,
         activities: state.activities.map((a) => (a.id === action.id ? { ...a, status } : a)),
       }
+    }
+
+    /**
+     * Composes `selectSlot` + `editActivity` verbatim — the exact precedent
+     * `dropCard` already sets ("select the dropped slot, then pick that
+     * card"). Guard early (unknown id, or a flag-only marker — `name ===
+     * null`) without touching `selectedSlot`, mirroring `editActivity`'s own
+     * guard exactly.
+     */
+    case 'selectActivity': {
+      const activity = state.activities.find((a) => a.id === action.id)
+      if (!activity || activity.name === null) return state
+      const selected = boardReducer(state, {
+        type: 'selectSlot',
+        slot: slotIndexFromMinutes(activity.startMinutes),
+      })
+      return boardReducer(selected, { type: 'editActivity', id: action.id })
     }
 
     default:

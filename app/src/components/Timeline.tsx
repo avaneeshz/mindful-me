@@ -5,15 +5,20 @@ import {
   SLOTS_PER_ROW,
   activitiesTouchingSlot,
   flagMarkerAt,
+  focusStopsEqual,
+  formatActivityRange,
   formatSlotRange,
   nowMarker,
-  periodOfSlot,
-  positionInRow,
   rowActivitySegments,
+  rowFocusStops,
   rowHourTickLabels,
   rowSlotIndices,
+  slotIndexFromMinutes,
+  slotMinuteRange,
   tickLabelPositions,
+  type RowFocusStop,
 } from '@/domain/slots'
+import { isWindowFull } from '@/domain/scheduling'
 import { PERIOD_ICONS } from '@/data/periods'
 import { useTheme } from '@/state/ThemeContext'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
@@ -35,6 +40,16 @@ function describeSlot(slot: number, touching: ScheduledActivity[], flags: readon
   return parts.join('. ')
 }
 
+/** Spoken description of one activity's own rendered segment — its name, path, and real time range. */
+function describeActivity(activity: ScheduledActivity): string {
+  const label = `${activity.name}${activity.path.length ? ` ${activity.path.join(' ')}` : ''}`
+  return `${label}, ${formatActivityRange(activity.startMinutes, activity.durationMinutes)}`
+}
+
+function activityDataSelector(activityId: string): string {
+  return `[data-activity="${CSS.escape(activityId)}"]`
+}
+
 interface TimelineProps {
   activities: ActivityList
   selectedSlot: number
@@ -47,6 +62,13 @@ interface TimelineProps {
   now: Date | null
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
+  /**
+   * Clicking (or keyboard-activating) a specific activity's own rendered
+   * segment — opens that activity's edit modal directly, rather than merely
+   * selecting the 30-minute slot it lives in. See `state/boardReducer.ts`'s
+   * `selectActivity` action.
+   */
+  onSelectActivity: (id: string) => void
 }
 
 export function Timeline({
@@ -55,66 +77,74 @@ export function Timeline({
   now,
   onSelectSlot,
   onDropCard,
+  onSelectActivity,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
   /**
-   * Last slot the user actually focused. The roving tab stop follows this, not
-   * only `selectedSlot` — arrow keys move focus WITHOUT selecting (deliberately,
-   * so arrowing past a slot cannot discard a staged pick), so tracking selection
-   * alone meant tabbing away and back dumped the user at the row's first slot.
+   * Last stop the user actually focused — a grid slot OR an activity segment.
+   * The roving tab stop follows this, not only `selectedSlot` — arrow keys
+   * move focus WITHOUT selecting (deliberately, so arrowing past a stop
+   * cannot discard a staged pick), so tracking selection alone meant tabbing
+   * away and back dumped the user at the row's first stop.
    */
-  const [focusedSlot, setFocusedSlot] = useState<number | null>(null)
+  const [focusedStop, setFocusedStop] = useState<RowFocusStop | null>(null)
 
   const marker = now ? nowMarker(now) : null
 
-  function focusSlot(slot: number) {
-    const target = containerRef.current?.querySelector<HTMLButtonElement>(
-      `[data-slot="${slot}"]`,
-    )
+  function focusStop(stop: RowFocusStop) {
+    const selector = stop.kind === 'slot' ? `[data-slot="${stop.slot}"]` : activityDataSelector(stop.activityId)
+    const target = containerRef.current?.querySelector<HTMLButtonElement>(selector)
     target?.focus()
   }
 
   /**
-   * Roving-tabindex keyboard model: arrows move focus, Enter/Space selects.
-   * Focus deliberately does NOT auto-select, so arrowing past a slot cannot
-   * discard something staged in the editor.
+   * Roving-tabindex keyboard model, walking `rowFocusStops` (grid slots with
+   * free capacity, interleaved with activity segments) instead of the old
+   * fixed 24-slot array. Arrows move focus, Enter/Space is free — a real
+   * `<button>` handles that natively once the control genuinely is one.
+   * Up/Down land on the other row's stop at the nearest equivalent position;
+   * it does not try to preserve "same activity" (not required — see the
+   * task's own confirmed decision).
    */
-  function handleKeyDown(event: KeyboardEvent<HTMLElement>, slot: number) {
-    const period = periodOfSlot(slot)
-    const position = positionInRow(slot)
-    const indices = rowSlotIndices(period)
-    let nextPosition: number | null = null
-    let nextPeriod: Period = period
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) {
+    const stops = rowFocusStops(activities, period)
+    const index = Math.max(
+      0,
+      stops.findIndex((s) => focusStopsEqual(s, stop)),
+    )
+
+    let nextStops = stops
+    let nextIndex = index
 
     switch (event.key) {
       case 'ArrowLeft':
-        nextPosition = Math.max(0, position - 1)
+        nextIndex = Math.max(0, index - 1)
         break
       case 'ArrowRight':
-        nextPosition = Math.min(SLOTS_PER_ROW - 1, position + 1)
+        nextIndex = Math.min(stops.length - 1, index + 1)
         break
       case 'ArrowUp':
-        nextPeriod = 'day'
-        nextPosition = position
+      case 'ArrowDown': {
+        const nextPeriod: Period = event.key === 'ArrowUp' ? 'day' : 'night'
+        nextStops = rowFocusStops(activities, nextPeriod)
+        if (nextStops.length === 0) return
+        const ratio = stops.length > 1 ? index / (stops.length - 1) : 0
+        nextIndex = Math.round(ratio * (nextStops.length - 1))
         break
-      case 'ArrowDown':
-        nextPeriod = 'night'
-        nextPosition = position
-        break
+      }
       case 'Home':
-        nextPosition = 0
+        nextIndex = 0
         break
       case 'End':
-        nextPosition = SLOTS_PER_ROW - 1
+        nextIndex = stops.length - 1
         break
       default:
         return
     }
 
     event.preventDefault()
-    const target =
-      nextPeriod === period ? indices[nextPosition] : rowSlotIndices(nextPeriod)[nextPosition]
-    focusSlot(target)
+    const target = nextStops[nextIndex]
+    if (target) focusStop(target)
   }
 
   return (
@@ -130,11 +160,12 @@ export function Timeline({
             period={period}
             activities={activities}
             selectedSlot={selectedSlot}
-            focusedSlot={focusedSlot}
+            focusedStop={focusedStop}
             marker={marker && marker.period === period ? marker.ratio : null}
-            onFocusSlot={setFocusedSlot}
+            onFocusStop={setFocusedStop}
             onSelectSlot={onSelectSlot}
             onDropCard={onDropCard}
+            onSelectActivity={onSelectActivity}
             onKeyDown={handleKeyDown}
           />
         ))}
@@ -147,30 +178,33 @@ interface TimelineRowProps {
   period: Period
   activities: ActivityList
   selectedSlot: number
-  /** Last slot the user focused, on either row. Drives the roving tab stop. */
-  focusedSlot: number | null
+  /** Last stop the user focused, on either row. Drives the roving tab stop. */
+  focusedStop: RowFocusStop | null
   /** 0–1 position of the current-time marker, or null if it is on the other row. */
   marker: number | null
-  onFocusSlot: (slot: number) => void
+  onFocusStop: (stop: RowFocusStop) => void
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
-  onKeyDown: (event: KeyboardEvent<HTMLElement>, slot: number) => void
+  onSelectActivity: (id: string) => void
+  onKeyDown: (event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) => void
 }
 
 function TimelineRow({
   period,
   activities,
   selectedSlot,
-  focusedSlot,
+  focusedStop,
   marker,
-  onFocusSlot,
+  onFocusStop,
   onSelectSlot,
   onDropCard,
+  onSelectActivity,
   onKeyDown,
 }: TimelineRowProps) {
   const { theme, setTheme } = useTheme()
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
   const indices = rowSlotIndices(period)
+  const stops = rowFocusStops(activities, period)
   const tickLabels = rowHourTickLabels(period)
   const tickPositions = tickLabelPositions()
   const Icon = PERIOD_ICONS[period]
@@ -188,16 +222,17 @@ function TimelineRow({
   // of sync with the marker itself.
   const isCurrentPeriod = marker !== null
 
-  // Roving tabindex, in priority order: the slot the user last focused on THIS
+  // Roving tabindex, in priority order: the stop the user last focused on THIS
   // row (so arrow-key movement survives tabbing away and back), else the
-  // selected slot when it lives here, else this row's first slot. Each row
-  // always has exactly one tab stop.
-  const rovingSlot =
-    focusedSlot !== null && indices.includes(focusedSlot)
-      ? focusedSlot
-      : indices.includes(selectedSlot)
-        ? selectedSlot
-        : indices[0]
+  // selected slot's own stop when it lives here and still has one, else this
+  // row's first stop. Each row always has exactly one tab stop.
+  const selectedAsStop: RowFocusStop = { kind: 'slot', slot: selectedSlot }
+  const rovingStop =
+    focusedStop !== null && stops.some((s) => focusStopsEqual(s, focusedStop))
+      ? focusedStop
+      : stops.some((s) => focusStopsEqual(s, selectedAsStop))
+        ? selectedAsStop
+        : stops[0]
 
   // The NOW badge is centred on the marker, except within half a badge-width of
   // either end — there it anchors to the edge instead, so it can never be
@@ -298,18 +333,28 @@ function TimelineRow({
             const flags = flagMarkerAt(activities, slot)?.flags ?? []
             const isSelected = slot === selectedSlot
             const isDragOver = dragOverSlot === slot
+            const windowFull = isWindowFull(activities, slotMinuteRange(slot).start, SLOT_MINUTES)
+            const isRovingSlot = rovingStop?.kind === 'slot' && rovingStop.slot === slot
 
             return (
               <button
                 key={slot}
                 type="button"
                 data-slot={slot}
-                tabIndex={slot === rovingSlot ? 0 : -1}
+                // A slot with zero free capacity left has nothing meaningful
+                // of its own to do any more — the activity segment(s)
+                // covering it are the sole meaningful control there now, so
+                // it drops out of the Tab sequence entirely (never a tab
+                // stop), mirroring `TileRow.tsx`'s `hiddenFromAT` pattern.
+                // Everything else about the slot button — its background,
+                // hover ring, `describeSlot` label, drag handling — is
+                // unchanged.
+                tabIndex={windowFull ? -1 : isRovingSlot ? 0 : -1}
                 aria-current={isSelected ? 'true' : undefined}
                 aria-label={`${describeSlot(slot, touching, flags)}${isSelected ? ', selected slot' : ''}`}
                 onClick={() => onSelectSlot(slot)}
-                onFocus={() => onFocusSlot(slot)}
-                onKeyDown={(event) => onKeyDown(event, slot)}
+                onFocus={() => onFocusStop({ kind: 'slot', slot })}
+                onKeyDown={(event) => onKeyDown(event, period, { kind: 'slot', slot })}
                 onDragOver={(event) => {
                   event.preventDefault()
                   event.dataTransfer.dropEffect = 'copy'
@@ -353,16 +398,13 @@ function TimelineRow({
                   // flags bled into neighbouring slots. A small opaque backing
                   // plate, period-matched the same way the slot states above
                   // are, so it stays legible on either row regardless of theme.
-                  // SCRUM-15: flags no longer carry a per-item icon (the
-                  // "Protective response" option set is text-only now), so a
-                  // legacy marker's presence is a plain dot rather than a
-                  // per-flag glyph — this is a read-only legacy rendering path
-                  // (`domain/slots.ts` `flagMarkerAt`); nothing creates new
-                  // flag-only markers any more.
+                  // z-[6] so it stays visible even under an activity-segment
+                  // button (z-[5]) covering the same slot — legacy-only
+                  // rendering path, see `domain/slots.ts` `flagMarkerAt`.
                   <span
                     aria-hidden="true"
                     className={cn(
-                      'absolute left-1/2 top-1/2 z-[3] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full px-[3px] py-[2px] shadow-elevation-1',
+                      'absolute left-1/2 top-1/2 z-[6] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full px-[3px] py-[2px] shadow-elevation-1',
                       period === 'day' ? 'bg-inv-bg' : 'bg-night-strip-fixed-ink',
                     )}
                   >
@@ -377,28 +419,92 @@ function TimelineRow({
               </button>
             )
           })}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1]">
-            {rowActivitySegments(activities, period).map((segment) => (
-              <span
-                key={`${segment.activity.id}-${segment.startPosition}`}
-                data-activity-span={segment.activity.id}
-                className="absolute inset-y-0"
-                style={{
-                  left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
-                  width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
-                  // No more per-item colour (Section A) — every real
-                  // activity's segment is the same flat, theme-aware wash,
-                  // with a matching hairline for its edges. The Night row's
-                  // background is the one fixed, theme-independent surface
-                  // (Section C), so segments drawn on it reach for that
-                  // surface's own fixed companion tokens instead, the same
-                  // reasoning the slot states above already follow.
-                  background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
-                  boxShadow:
-                    period === 'day' ? 'inset 0 0 0 1px var(--line)' : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
-                }}
-              />
-            ))}
+          {/*
+            Each real activity's own rendered span is now a genuine, focusable
+            control — clicking (or Enter/Space-activating) it dispatches
+            `onSelectActivity`, opening THAT activity's own edit modal
+            directly, rather than merely selecting the 30-minute slot beneath
+            it. The wrapping div stays `pointer-events-none` so a click on the
+            empty (uncovered) part of a slot still reaches the plain slot
+            button underneath — each activity button re-enables its own
+            pointer events individually.
+
+            z-[5] — above the slot's own isSelected (z-2) and isDragOver (z-4)
+            states — so a click or keyboard Enter on the segment always
+            resolves to the activity, even when it also happens to sit inside
+            the currently-selected or drag-hovered slot.
+
+            Drag-and-drop regression guard: a card dropped from the tile-row
+            popup onto a point that sits under one of these buttons must still
+            work. Wiring the identical onDragOver/onDragLeave/onDrop handlers
+            here, anchored at the covering activity's own start slot
+            (`slotIndexFromMinutes`), is sufficient — `computeCandidateSchedule`
+            already snaps a placement forward past busy time (rule 5), so the
+            actual placement resolves correctly even though the drop's pixel
+            position is not what determines it.
+          */}
+          <div className="pointer-events-none absolute inset-0 z-[1]">
+            {rowActivitySegments(activities, period).map((segment) => {
+              const anchorSlot = slotIndexFromMinutes(segment.activity.startMinutes)
+              const isFocusableActivity =
+                rovingStop?.kind === 'activity' && rovingStop.activityId === segment.activity.id
+              const isDragOverActivity = dragOverSlot === anchorSlot
+
+              return (
+                <button
+                  key={`${segment.activity.id}-${segment.startPosition}`}
+                  type="button"
+                  data-activity={segment.activity.id}
+                  tabIndex={isFocusableActivity ? 0 : -1}
+                  aria-label={describeActivity(segment.activity)}
+                  onClick={() => onSelectActivity(segment.activity.id)}
+                  onFocus={() => onFocusStop({ kind: 'activity', activityId: segment.activity.id })}
+                  onKeyDown={(event) => onKeyDown(event, period, { kind: 'activity', activityId: segment.activity.id })}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'copy'
+                    setDragOverSlot(anchorSlot)
+                  }}
+                  onDragLeave={() => setDragOverSlot((s) => (s === anchorSlot ? null : s))}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    setDragOverSlot(null)
+                    const cardName = event.dataTransfer.getData('text/plain')
+                    if (cardName) onDropCard(cardName, anchorSlot)
+                  }}
+                  className={cn(
+                    'pointer-events-auto absolute inset-y-0 z-[5] cursor-pointer',
+                    period === 'day'
+                      ? [
+                          'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-ink-dim',
+                          'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink',
+                          isDragOverActivity && 'outline outline-2.5 -outline-offset-2.5 outline-ink',
+                        ]
+                      : [
+                          'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-night-strip-fixed-ink',
+                          'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-night-strip-fixed-ink',
+                          isDragOverActivity && 'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
+                        ],
+                  )}
+                  style={{
+                    left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
+                    width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
+                    // No more per-item colour (Section A) — every real
+                    // activity's segment is the same flat, theme-aware wash,
+                    // with a matching hairline for its edges. The Night row's
+                    // background is the one fixed, theme-independent surface
+                    // (Section C), so segments drawn on it reach for that
+                    // surface's own fixed companion tokens instead, the same
+                    // reasoning the slot states above already follow.
+                    background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
+                    boxShadow:
+                      period === 'day'
+                        ? 'inset 0 0 0 1px var(--line)'
+                        : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
+                  }}
+                />
+              )
+            })}
           </div>
         </div>
         {/*
