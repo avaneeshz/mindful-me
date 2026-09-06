@@ -856,3 +856,102 @@ describe('setStagingNotes — freeform notes', () => {
     expect(state.staging.notes).toBe('')
   })
 })
+
+describe('selectActivity — clicking an activity’s own rendered timeline segment', () => {
+  it('is exactly "select the slot the activity starts in, then edit that activity"', () => {
+    let state = run(
+      start(),
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    const id = real(state)[0].id
+    // Deliberately viewed from an unrelated slot first, so the effect below
+    // can only be `selectActivity`'s own doing.
+    state = boardReducer(state, { type: 'selectSlot', slot: 5 })
+
+    const viaSelectActivity = boardReducer(state, { type: 'selectActivity', id })
+    const viaManualFlow = run(state, { type: 'selectSlot', slot: 20 }, { type: 'editActivity', id })
+    expect(viaSelectActivity).toEqual(viaManualFlow)
+  })
+
+  it('jumps to the activity’s own start slot, and opens it for edit', () => {
+    let state = run(
+      start(),
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectSlot', slot: 5 })
+
+    state = boardReducer(state, { type: 'selectActivity', id })
+    expect(state.selectedSlot).toBe(20)
+    expect(state.staging.editingId).toBe(id)
+    expect(state.staging.cardName).toBe('Homework')
+  })
+
+  it('jumps to the start slot even when the activity was clicked mid-span, not at its start', () => {
+    // A 90-minute activity anchored at slot 20 (10:00) reaches into slot 22
+    // (11:00-11:30) — clicking that later segment still resolves to slot 20.
+    let state = run(
+      start(),
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'stepDuration', delta: 60 }, // 30 -> 90
+      { type: 'commit' },
+    )
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectSlot', slot: 0 })
+
+    state = boardReducer(state, { type: 'selectActivity', id })
+    expect(state.selectedSlot).toBe(20)
+    expect(state.staging.editingId).toBe(id)
+  })
+
+  it('rule 4 — never touches completion status just by opening the editor', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = { ...state, activities: state.activities.map((a) => (a.id === id ? { ...a, status: 'completed' } : a)) }
+
+    state = boardReducer(state, { type: 'selectActivity', id })
+    expect(state.staging.editingId).toBe(id)
+    expect(byId(state, id)?.status).toBe('completed') // unchanged — nothing committed yet
+  })
+
+  it('guards against an unknown id — state is returned unchanged, selectedSlot untouched', () => {
+    const state = boardReducer(start(), { type: 'selectSlot', slot: 5 })
+    const after = boardReducer(state, { type: 'selectActivity', id: 'does-not-exist' })
+    expect(after).toBe(state) // same reference — no-op, exactly `editActivity`'s own guard
+  })
+
+  it('guards against a flag-only marker (name === null) — never opens it for edit', () => {
+    const markerActivity: ScheduledActivity = {
+      id: 'marker-1',
+      name: null,
+      path: [],
+      startMinutes: 600,
+      durationMinutes: 0,
+      flags: ['Attack'],
+      quality: [],
+      symptoms: [],
+      notes: null,
+      status: 'planned',
+      timezone: 'UTC',
+    }
+    const state = boardReducer(start([markerActivity]), { type: 'selectSlot', slot: 5 })
+    const after = boardReducer(state, { type: 'selectActivity', id: 'marker-1' })
+    expect(after).toBe(state)
+  })
+
+  it('never commits — the activity’s own fields are unchanged until an explicit Save', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    const before = byId(state, id)
+
+    state = boardReducer(state, { type: 'selectActivity', id })
+    state = boardReducer(state, { type: 'stepDuration', delta: 15 }) // staged only, not committed
+    expect(byId(state, id)).toEqual(before)
+    expect(state.staging.durationMinutes).toBe(45)
+  })
+})

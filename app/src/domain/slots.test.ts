@@ -6,10 +6,12 @@ import {
   SLOTS_PER_DAY,
   SLOTS_PER_ROW,
   activitiesTouchingSlot,
+  activityAtMinute,
   activityRowSegments,
   countMarkedSlots,
   dayRowSlotIndices,
   flagMarkerAt,
+  focusStopsEqual,
   formatActivityRange,
   formatHourTickLabel,
   formatMinutes,
@@ -20,6 +22,7 @@ import {
   periodOfSlot,
   positionInRow,
   rowActivitySegments,
+  rowFocusStops,
   rowHourTickLabels,
   tickLabelPositions,
   slotIndexFromDate,
@@ -343,5 +346,120 @@ describe('hour tick ruler', () => {
 
   it('day and night rows never share the same 13-label set (they cover different hours)', () => {
     expect(rowHourTickLabels('day')).not.toEqual(rowHourTickLabels('night'))
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Click/keyboard resolution.
+ * ------------------------------------------------------------------ */
+
+describe('activityAtMinute', () => {
+  it('finds the activity covering an exact minute', () => {
+    const acts: ActivityList = [activity(600, 30, 'Homework')]
+    expect(activityAtMinute(acts, 615)?.name).toBe('Homework')
+  })
+
+  it('includes the start minute and excludes the end minute — half-open range', () => {
+    const acts: ActivityList = [activity(600, 30)]
+    expect(activityAtMinute(acts, 600)).toBeDefined()
+    expect(activityAtMinute(acts, 629)).toBeDefined()
+    expect(activityAtMinute(acts, 630)).toBeUndefined()
+  })
+
+  it('returns undefined for a minute covered by nothing', () => {
+    const acts: ActivityList = [activity(600, 30)]
+    expect(activityAtMinute(acts, 700)).toBeUndefined()
+  })
+
+  it('never matches a flag-only marker (zero duration)', () => {
+    const acts: ActivityList = [marker(600, ['Attack'])]
+    expect(activityAtMinute(acts, 600)).toBeUndefined()
+  })
+
+  it('picks out the right activity among several non-overlapping ones', () => {
+    const acts: ActivityList = [activity(600, 10, 'A'), activity(610, 10, 'B'), activity(620, 10, 'C')]
+    expect(activityAtMinute(acts, 611)?.name).toBe('B')
+    expect(activityAtMinute(acts, 625)?.name).toBe('C')
+  })
+
+  it('returns undefined on an empty board', () => {
+    expect(activityAtMinute([], 600)).toBeUndefined()
+  })
+})
+
+describe('rowFocusStops', () => {
+  it('is every slot on an empty row, in chronological order, none dropped', () => {
+    const stops = rowFocusStops([], 'day')
+    expect(stops).toHaveLength(SLOTS_PER_ROW)
+    expect(stops).toEqual(dayRowSlotIndices().map((slot) => ({ kind: 'slot', slot })))
+  })
+
+  it('stitches the night row the same way its slot indices do (36..47 then 0..11)', () => {
+    const stops = rowFocusStops([], 'night')
+    expect(stops).toEqual(nightRowSlotIndices().map((slot) => ({ kind: 'slot', slot })))
+  })
+
+  it('drops a fully-covered slot’s own stop, replacing it with the covering activity’s', () => {
+    // A 30-minute activity anchored exactly at slot 20 (10:00-10:30) leaves
+    // that slot with zero free capacity — no `{kind:'slot', slot:20}` entry.
+    const acts: ActivityList = [activity(600, 30, 'Homework')]
+    const stops = rowFocusStops(acts, 'day')
+    expect(stops).not.toContainEqual({ kind: 'slot', slot: 20 })
+    expect(stops).toContainEqual({ kind: 'activity', activityId: acts[0].id })
+    expect(stops).toHaveLength(SLOTS_PER_ROW) // 23 free slots + 1 activity stop
+  })
+
+  it('keeps a partially-covered slot’s own stop alongside the activity’s — both are meaningful', () => {
+    // A 10-minute activity inside slot 20 (10:00-10:10) leaves 20 real free
+    // minutes in that same cell — `isWindowFull` says there is still room.
+    const acts: ActivityList = [activity(600, 10, 'Quick task')]
+    const stops = rowFocusStops(acts, 'day')
+    expect(stops).toContainEqual({ kind: 'slot', slot: 20 })
+    expect(stops).toContainEqual({ kind: 'activity', activityId: acts[0].id })
+  })
+
+  it('orders activity and slot stops together by real position, not by kind', () => {
+    // Homework fully covers slots 20-21 (10:00-11:00); slot 19 and slot 22
+    // stay open on either side.
+    const acts: ActivityList = [activity(600, 60, 'Homework')]
+    const stops = rowFocusStops(acts, 'day')
+    const slot19 = stops.findIndex((s) => s.kind === 'slot' && s.slot === 19)
+    const activityStop = stops.findIndex((s) => s.kind === 'activity')
+    const slot22 = stops.findIndex((s) => s.kind === 'slot' && s.slot === 22)
+    expect(slot19).toBeGreaterThanOrEqual(0)
+    expect(activityStop).toBeGreaterThan(slot19)
+    expect(slot22).toBeGreaterThan(activityStop)
+    // Exactly one activity stop for one contiguous 2-slot block — not one per slot it touches.
+    expect(stops.filter((s) => s.kind === 'activity')).toHaveLength(1)
+  })
+
+  it('never renders a stop for a flag-only marker on its own', () => {
+    const acts: ActivityList = [marker(600, ['Attack'])]
+    const stops = rowFocusStops(acts, 'day')
+    expect(stops.filter((s) => s.kind === 'activity')).toHaveLength(0)
+    expect(stops).toContainEqual({ kind: 'slot', slot: 20 }) // marker never consumes room
+  })
+
+  it('produces multiple activity stops when several short activities share one slot', () => {
+    const acts: ActivityList = [activity(600, 10, 'A'), activity(610, 10, 'B'), activity(620, 10, 'C')]
+    const stops = rowFocusStops(acts, 'day')
+    expect(stops.filter((s) => s.kind === 'activity')).toHaveLength(3)
+    expect(stops).not.toContainEqual({ kind: 'slot', slot: 20 }) // fully covered by the three together
+  })
+})
+
+describe('focusStopsEqual', () => {
+  it('matches two slot stops naming the same slot', () => {
+    expect(focusStopsEqual({ kind: 'slot', slot: 5 }, { kind: 'slot', slot: 5 })).toBe(true)
+    expect(focusStopsEqual({ kind: 'slot', slot: 5 }, { kind: 'slot', slot: 6 })).toBe(false)
+  })
+
+  it('matches two activity stops naming the same activity id', () => {
+    expect(focusStopsEqual({ kind: 'activity', activityId: 'a1' }, { kind: 'activity', activityId: 'a1' })).toBe(true)
+    expect(focusStopsEqual({ kind: 'activity', activityId: 'a1' }, { kind: 'activity', activityId: 'a2' })).toBe(false)
+  })
+
+  it('never matches a slot stop against an activity stop', () => {
+    expect(focusStopsEqual({ kind: 'slot', slot: 5 }, { kind: 'activity', activityId: '5' })).toBe(false)
   })
 })

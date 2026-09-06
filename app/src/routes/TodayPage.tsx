@@ -27,6 +27,7 @@ export function TodayPage() {
           now={isViewingToday ? now : null}
           onSelectSlot={(slot) => dispatch({ type: 'selectSlot', slot })}
           onDropCard={(cardName, slot) => dispatch({ type: 'dropCard', cardName, slot })}
+          onSelectActivity={(id) => dispatch({ type: 'selectActivity', id })}
         />
       </div>
 
