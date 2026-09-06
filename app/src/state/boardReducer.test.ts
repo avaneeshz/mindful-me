@@ -4,6 +4,7 @@ import {
   createInitialState,
   isStagingComplete,
   stagingOptions,
+  EMPTY_STAGING,
   type BoardAction,
   type BoardState,
 } from './boardReducer'
@@ -858,7 +859,7 @@ describe('setStagingNotes — freeform notes', () => {
 })
 
 describe('selectActivity — clicking an activity’s own rendered timeline segment', () => {
-  it('is exactly "select the slot the activity starts in, then edit that activity"', () => {
+  it('sets viewingActivityId and jumps to the activity’s own start slot, leaving staging untouched', () => {
     let state = run(
       start(),
       { type: 'selectSlot', slot: 20 },
@@ -870,25 +871,11 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
     // can only be `selectActivity`'s own doing.
     state = boardReducer(state, { type: 'selectSlot', slot: 5 })
 
-    const viaSelectActivity = boardReducer(state, { type: 'selectActivity', id })
-    const viaManualFlow = run(state, { type: 'selectSlot', slot: 20 }, { type: 'editActivity', id })
-    expect(viaSelectActivity).toEqual(viaManualFlow)
-  })
-
-  it('jumps to the activity’s own start slot, and opens it for edit', () => {
-    let state = run(
-      start(),
-      { type: 'selectSlot', slot: 20 },
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'commit' },
-    )
-    const id = real(state)[0].id
-    state = boardReducer(state, { type: 'selectSlot', slot: 5 })
-
     state = boardReducer(state, { type: 'selectActivity', id })
     expect(state.selectedSlot).toBe(20)
-    expect(state.staging.editingId).toBe(id)
-    expect(state.staging.cardName).toBe('Homework')
+    expect(state.viewingActivityId).toBe(id)
+    // No modal jump any more — `staging` stays exactly at its empty default.
+    expect(state.staging).toEqual(EMPTY_STAGING)
   })
 
   it('jumps to the start slot even when the activity was clicked mid-span, not at its start', () => {
@@ -906,16 +893,17 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
 
     state = boardReducer(state, { type: 'selectActivity', id })
     expect(state.selectedSlot).toBe(20)
-    expect(state.staging.editingId).toBe(id)
+    expect(state.viewingActivityId).toBe(id)
+    expect(state.staging).toEqual(EMPTY_STAGING)
   })
 
-  it('rule 4 — never touches completion status just by opening the editor', () => {
+  it('rule 4 — never touches completion status just by viewing the summary', () => {
     let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     const id = real(state)[0].id
     state = { ...state, activities: state.activities.map((a) => (a.id === id ? { ...a, status: 'completed' } : a)) }
 
     state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.staging.editingId).toBe(id)
+    expect(state.viewingActivityId).toBe(id)
     expect(byId(state, id)?.status).toBe('completed') // unchanged — nothing committed yet
   })
 
@@ -925,7 +913,7 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
     expect(after).toBe(state) // same reference — no-op, exactly `editActivity`'s own guard
   })
 
-  it('guards against a flag-only marker (name === null) — never opens it for edit', () => {
+  it('guards against a flag-only marker (name === null) — never views it as a summary', () => {
     const markerActivity: ScheduledActivity = {
       id: 'marker-1',
       name: null,
@@ -944,14 +932,85 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
     expect(after).toBe(state)
   })
 
-  it('never commits — the activity’s own fields are unchanged until an explicit Save', () => {
+  it('never commits, and never opens the modal — the activity’s own fields and staging are both untouched', () => {
     let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     const id = real(state)[0].id
     const before = byId(state, id)
 
     state = boardReducer(state, { type: 'selectActivity', id })
-    state = boardReducer(state, { type: 'stepDuration', delta: 15 }) // staged only, not committed
     expect(byId(state, id)).toEqual(before)
-    expect(state.staging.durationMinutes).toBe(45)
+    expect(state.staging).toEqual(EMPTY_STAGING)
+  })
+
+  it('is distinct from editActivity — the summary view never populates staging the way the Edit button does', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+
+    const viaSelectActivity = boardReducer(state, { type: 'selectActivity', id })
+    expect(viaSelectActivity.staging.cardName).toBeNull()
+
+    const viaEditActivity = boardReducer(state, { type: 'editActivity', id })
+    expect(viaEditActivity.staging.cardName).toBe('Homework')
+  })
+})
+
+describe('selectSlot clears viewingActivityId', () => {
+  it('clears it when a different slot is selected directly', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectActivity', id })
+    expect(state.viewingActivityId).toBe(id)
+
+    state = boardReducer(state, { type: 'selectSlot', slot: state.selectedSlot + 1 })
+    expect(state.viewingActivityId).toBeNull()
+  })
+
+  it('clears it even when re-selecting the same slot directly (the plain slot button)', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectActivity', id })
+    const slot = state.selectedSlot
+
+    state = boardReducer(state, { type: 'selectSlot', slot })
+    expect(state.selectedSlot).toBe(slot)
+    expect(state.viewingActivityId).toBeNull()
+  })
+
+  it('a drop (selectSlot + pickCard) leaves viewingActivityId cleared', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectActivity', id })
+
+    state = boardReducer(state, { type: 'dropCard', cardName: 'Errand time', slot: 30 })
+    expect(state.viewingActivityId).toBeNull()
+  })
+})
+
+describe('removeActivity clears viewingActivityId when it references the removed activity', () => {
+  it('clears viewingActivityId when the viewed activity is removed', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectActivity', id })
+    expect(state.viewingActivityId).toBe(id)
+
+    state = boardReducer(state, { type: 'removeActivity', id })
+    expect(state.viewingActivityId).toBeNull()
+  })
+
+  it('leaves an unrelated viewingActivityId alone', () => {
+    let state = run(
+      start(),
+      { type: 'selectSlot', slot: 10 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    state = run(state, { type: 'selectSlot', slot: 20 }, { type: 'pickCard', cardName: 'Errand time' }, { type: 'commit' })
+    const [homeworkId, errandId] = real(state).map((a) => a.id)
+
+    state = boardReducer(state, { type: 'selectActivity', id: homeworkId })
+    expect(state.viewingActivityId).toBe(homeworkId)
+
+    state = boardReducer(state, { type: 'removeActivity', id: errandId })
+    expect(state.viewingActivityId).toBe(homeworkId)
   })
 })

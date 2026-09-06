@@ -64,8 +64,9 @@ interface TimelineProps {
   onDropCard: (cardName: string, slot: number) => void
   /**
    * Clicking (or keyboard-activating) a specific activity's own rendered
-   * segment — opens that activity's edit modal directly, rather than merely
-   * selecting the 30-minute slot it lives in. See `state/boardReducer.ts`'s
+   * segment — selects that activity's own start slot and loads it into
+   * `SlotEditor`'s read-only Activity-summary view (its own Edit button is
+   * what opens the edit modal). See `state/boardReducer.ts`'s
    * `selectActivity` action.
    */
   onSelectActivity: (id: string) => void

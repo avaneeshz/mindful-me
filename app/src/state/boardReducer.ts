@@ -55,6 +55,16 @@ export interface BoardState {
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
+  /**
+   * Id of the activity currently shown in `SlotEditor`'s read-only Activity
+   * summary view, or null when nothing has been clicked yet (or the thing
+   * that was being viewed no longer resolves). Entirely separate from
+   * `staging.editingId` — viewing a summary never opens `LogActivityModal`;
+   * only the summary's own Edit button (`editActivity`) does that. Set by
+   * `selectActivity`, cleared by a standalone `selectSlot` and by removing
+   * the activity it names.
+   */
+  viewingActivityId: string | null
 }
 
 export const EMPTY_STAGING: StagingState = {
@@ -153,6 +163,7 @@ export function createInitialState(activities: ScheduledActivity[], now: Date): 
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
+    viewingActivityId: null,
   }
 }
 
@@ -178,10 +189,18 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
   switch (action.type) {
     case 'selectSlot': {
       const slot = ((action.slot % 48) + 48) % 48
-      if (slot === state.selectedSlot) return state
+      if (slot === state.selectedSlot) {
+        // Same slot, nothing staged for it changing hands — still clears
+        // whatever activity summary was being viewed, since a standalone
+        // `selectSlot` (the plain slot button) always means "back to Slot
+        // view" (`selectActivity`'s own composition re-sets it immediately
+        // after, same pattern `dropCard` already uses).
+        if (state.viewingActivityId === null) return state
+        return { ...state, viewingActivityId: null }
+      }
       // Selecting a different slot abandons anything staged for the old one —
       // staged picks are scoped to a slot and were never committed.
-      return { ...state, selectedSlot: slot, staging: EMPTY_STAGING }
+      return { ...state, selectedSlot: slot, staging: EMPTY_STAGING, viewingActivityId: null }
     }
 
     case 'pickCard': {
@@ -386,6 +405,8 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         activities: state.activities.filter((a) => a.id !== action.id),
         // Editing the removed activity is no longer meaningful.
         staging: state.staging.editingId === action.id ? EMPTY_STAGING : state.staging,
+        // Nor is viewing its summary.
+        viewingActivityId: state.viewingActivityId === action.id ? null : state.viewingActivityId,
         removal: { activity },
       }
     }
@@ -461,11 +482,15 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     }
 
     /**
-     * Composes `selectSlot` + `editActivity` verbatim — the exact precedent
-     * `dropCard` already sets ("select the dropped slot, then pick that
-     * card"). Guard early (unknown id, or a flag-only marker — `name ===
-     * null`) without touching `selectedSlot`, mirroring `editActivity`'s own
-     * guard exactly.
+     * Clicking (or keyboard-activating) an activity's own rendered segment on
+     * the Timeline strip no longer jumps straight into `LogActivityModal` —
+     * it only selects the activity's own start slot for context (composing
+     * `selectSlot`, the exact precedent `dropCard` already sets) and records
+     * which activity `SlotEditor`'s Activity-summary view should show,
+     * WITHOUT touching `staging` — the modal only ever opens from that
+     * summary's own explicit Edit button (`editActivity`), unchanged. Guard
+     * early (unknown id, or a flag-only marker — `name === null`) without
+     * touching `selectedSlot`, mirroring `editActivity`'s own guard exactly.
      */
     case 'selectActivity': {
       const activity = state.activities.find((a) => a.id === action.id)
@@ -474,7 +499,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         type: 'selectSlot',
         slot: slotIndexFromMinutes(activity.startMinutes),
       })
-      return boardReducer(selected, { type: 'editActivity', id: action.id })
+      return { ...selected, viewingActivityId: action.id }
     }
 
     default:
