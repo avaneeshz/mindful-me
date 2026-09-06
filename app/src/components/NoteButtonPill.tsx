@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { ChevronDown, Loader2, X } from 'lucide-react'
-import { chipVariants } from '@/components/ui/chip'
+import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
   canSubmitNote,
@@ -18,8 +18,8 @@ const fieldClass =
 
 /**
  * SCRUM-13 — one header pill's whole note-entry surface: the trigger button,
- * a Store form (textarea, plus a gift-type dropdown for Gifts only), and the
- * full history of previously stored notes for this one button.
+ * a Store form (textarea, plus a gift-type chip radiogroup for Gifts only),
+ * and the full history of previously stored notes for this one button.
  *
  * Deliberately follows `HeaderBar`'s OWN existing popover pattern
  * (`DatePill`/`AccountMenu`'s `open` state + outside-click/Escape-to-close +
@@ -45,7 +45,6 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const savedFlashTimeoutRef = useRef<number | undefined>(undefined)
 
   const textareaId = useId()
-  const selectId = useId()
   const historyHeadingId = useId()
   const historyListId = useId()
 
@@ -139,27 +138,28 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
             {needsGiftType && (
-              <div>
-                <label htmlFor={selectId} className="mb-xs block text-caption font-semibold text-ink-dim">
-                  Gift type
-                </label>
-                <select
-                  id={selectId}
-                  value={giftType}
-                  onChange={(event) => setGiftType(event.target.value as GiftType)}
-                  required
-                  className={cn(fieldClass, 'cursor-pointer')}
-                >
-                  <option value="" disabled>
-                    Select a gift type…
-                  </option>
-                  {GIFT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <fieldset className="flex flex-col gap-sm">
+                <legend className="text-caption font-semibold text-ink-dim">Gift type</legend>
+                <div role="radiogroup" aria-label="Gift type" className="flex flex-wrap gap-sm">
+                  {GIFT_TYPES.map((type) => {
+                    const isSelected = giftType === type
+                    return (
+                      <Chip
+                        key={type}
+                        as="button"
+                        size="xs"
+                        tone={isSelected ? 'active' : 'surface'}
+                        interactive
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => setGiftType(isSelected ? '' : type)}
+                      >
+                        {type}
+                      </Chip>
+                    )
+                  })}
+                </div>
+              </fieldset>
             )}
 
             <div>

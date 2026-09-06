@@ -18,7 +18,7 @@ export function QualityPicker({
 }) {
   return (
     <fieldset className="flex flex-col gap-sm">
-      <legend className="text-caption font-semibold text-ink-dim">Activity quality</legend>
+      <legend className="text-entry-name font-semibold text-ink">Activity quality</legend>
       <div role="group" aria-label="Activity quality" className="flex flex-wrap gap-sm">
         {QUALITIES.map((quality) => {
           const isSelected = selected.includes(quality.id)
@@ -26,7 +26,7 @@ export function QualityPicker({
             <Chip
               key={quality.id}
               as="button"
-              size="sm"
+              size="xs"
               tone={isSelected ? 'active' : 'surface'}
               interactive
               role="checkbox"

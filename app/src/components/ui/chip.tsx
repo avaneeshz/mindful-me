@@ -28,6 +28,16 @@ const chipVariants = cva(
         md: 'h-control px-lg text-body font-semibold',
         /** Segment inside the 44px navigator track (44 − 2×4 padding). */
         segment: 'h-segment px-lg text-body font-semibold',
+        /**
+         * Compact option chips for dense multi-option rows (the log-activity
+         * modal's Activity quality / Protective response / Chronic Symptoms
+         * pickers) — `sm` at 40px/12px padding read too large once those
+         * rows grew to 14-18 options. No height token on the shared scale
+         * goes below `segment`'s 36px, and this is a one-off UI-density
+         * value rather than a dimension the spec names elsewhere, so it's an
+         * arbitrary value here instead of a new entry on that scale.
+         */
+        xs: 'h-[32px] px-sm text-caption font-semibold',
       },
       interactive: {
         true: 'cursor-pointer',

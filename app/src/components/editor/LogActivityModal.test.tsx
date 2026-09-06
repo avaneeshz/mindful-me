@@ -204,7 +204,7 @@ describe('Protective response (formerly "Flag") — relabeled, reordered', () =>
     expect(html).not.toContain('>Flag<')
   })
 
-  it('orders the 14 options as specified, with None last', () => {
+  it('orders the 14 options as specified, with no separate "None" chip', () => {
     const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
     const labels = [
       'Trauma Activation',
@@ -221,11 +221,16 @@ describe('Protective response (formerly "Flag") — relabeled, reordered', () =>
       'Optimization',
       'Hyper Vigilance',
       'Problem Solving',
-      'None',
     ]
     const order = labels.map((label) => html.indexOf(`>${label}</`, html.indexOf('Protective response')))
     for (const index of order) expect(index).toBeGreaterThan(-1)
     for (let i = 1; i < order.length; i++) expect(order[i]).toBeGreaterThan(order[i - 1])
+  })
+
+  it('renders no dedicated "None" chip — clearing a selection is done by re-clicking the active chip', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep', flag: 'Anger' } })
+    const section = html.slice(html.indexOf('Protective response'))
+    expect(section).not.toContain('>None<')
   })
 
   it('renders no icon inside a Protective response chip — text-only', () => {

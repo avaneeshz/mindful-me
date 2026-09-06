@@ -109,7 +109,7 @@ export function LogActivityModal({
           <div className="flex items-start justify-between gap-md">
             {/* The tile-name subtitle under the activity name is gone this
                 round — the name alone is the header now. */}
-            <Dialog.Title className="min-w-0 text-entry-name font-semibold text-ink">
+            <Dialog.Title className="min-w-0 text-h1-sm font-semibold text-ink">
               {staging.cardName}
             </Dialog.Title>
             <Dialog.Close asChild>

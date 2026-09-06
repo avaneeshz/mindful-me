@@ -13,12 +13,12 @@ import { Chip } from '@/components/ui/chip'
  *
  * SCRUM-15 replaced the original 4-value option set with a 14-value one
  * (`FlagId` in domain/types.ts) and dropped icons from every chip in this
- * section — text-only, smaller (`size="sm"`), since the option list is long
- * enough now that icons and full-size text cost too much space.
+ * section — text-only, since the option list is long enough now that icons
+ * and full-size text cost too much space.
  *
- * "None" is a real chip, not an implicit empty state — selecting it (or
- * re-selecting the currently active flag) clears the selection. Ordered
- * LAST, after all 14 options.
+ * There is no dedicated "None" chip — clearing the selection is done by
+ * re-clicking the currently active flag chip, which already toggles it off
+ * (`onSelect(isSelected ? null : flag.id)` below).
  */
 export function FlagPicker({
   selected,
@@ -29,7 +29,7 @@ export function FlagPicker({
 }) {
   return (
     <fieldset className="flex flex-col gap-sm">
-      <legend className="text-caption font-semibold text-ink-dim">Protective response</legend>
+      <legend className="text-entry-name font-semibold text-ink">Protective response</legend>
       <div role="radiogroup" aria-label="Protective response" className="flex flex-wrap gap-sm">
         {FLAGS.map((flag) => {
           const isSelected = selected === flag.id
@@ -37,7 +37,7 @@ export function FlagPicker({
             <Chip
               key={flag.id}
               as="button"
-              size="sm"
+              size="xs"
               tone={isSelected ? 'active' : 'surface'}
               interactive
               role="radio"
@@ -48,17 +48,6 @@ export function FlagPicker({
             </Chip>
           )
         })}
-        <Chip
-          as="button"
-          size="sm"
-          tone={selected === null ? 'active' : 'surface'}
-          interactive
-          role="radio"
-          aria-checked={selected === null}
-          onClick={() => onSelect(null)}
-        >
-          None
-        </Chip>
       </div>
     </fieldset>
   )
