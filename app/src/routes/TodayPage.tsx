@@ -1,4 +1,5 @@
 import { HeaderBar } from '@/components/HeaderBar'
+import { ReflectionSection } from '@/components/ReflectionSection'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
 import { useAuth } from '@/state/AuthContext'
@@ -36,7 +37,7 @@ export function TodayPage() {
         trailing breathing margin is the last thing worth spending pixels on
         there, so it halves alongside the top-zone gaps.
       */}
-      <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
+      <div className="mt-2xl ipad-land:mt-md">
         <SlotEditor
           state={state}
           dispatch={dispatch}
@@ -45,6 +46,10 @@ export function TodayPage() {
           nowSlot={isViewingToday ? nowSlot : -1}
           viewedDate={viewedDate}
         />
+      </div>
+
+      <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
+        <ReflectionSection />
       </div>
     </div>
   )
