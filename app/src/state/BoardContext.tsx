@@ -19,7 +19,7 @@ import { createSeedActivities } from './seed'
 import { slotIndexFromDate } from '@/domain/slots'
 import { deriveSyncIntents, runSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
-import { isSameLocalDay, localDayRange } from '@/lib/localTime'
+import { isSameLocalDay, localDayRange, shouldRolloverViewedDate } from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 import type { ScheduledActivity } from '@/domain/types'
 
@@ -33,7 +33,10 @@ interface BoardContextValue {
   /**
    * The calendar day the board is currently showing — "today" until the
    * user picks a different date from the header's date picker (BL-2).
-   * Always a local-midnight instant (see `localDayRange`).
+   * Always a local-midnight instant (see `localDayRange`). While the board
+   * is following "today" this ALSO advances on its own the instant the
+   * device clock crosses local midnight, even with no reload — see the
+   * rollover effect below and `shouldRolloverViewedDate`.
    */
   viewedDate: Date
   /** True exactly when `viewedDate` is the real current day. */
@@ -175,6 +178,36 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       cancelled = true
     }
   }, [isTest, viewedDate])
+
+  // Midnight rollover: `viewedDate` is otherwise only ever changed by an
+  // explicit `setViewedDate` call (the date picker) — nothing previously
+  // watched the live clock, so a tab left open (backgrounded, not reloaded)
+  // across local midnight kept showing/writing yesterday's board forever
+  // (`state.activities`, the local-storage key, and the server hydrate range
+  // are all scoped to `viewedDate`). This re-checks on every clock tick
+  // (`now` changes every `CLOCK_TICK_MS`) and, the instant the device's
+  // calendar day changes while the board was following "today" a tick ago,
+  // switches to the new day through the exact same path `setViewedDate`
+  // already uses for a manual date change (local-first load + the server
+  // reconciliation effect above firing for the new date) — never a second,
+  // parallel way of loading a day. `shouldRolloverViewedDate` is what keeps
+  // this from disturbing a `viewedDate` the user deliberately pinned to some
+  // other day (rule 12): see its own doc comment for exactly how.
+  const prevNowRef = useRef(now)
+  useEffect(() => {
+    if (isTest) return
+    const prevNow = prevNowRef.current
+    prevNowRef.current = now
+    if (shouldRolloverViewedDate(viewedDate, prevNow, now)) {
+      setViewedDate(now)
+    }
+    // `viewedDate`/`setViewedDate` are read for their CURRENT render value
+    // only at the moment `now` actually changes (see the doc comment above)
+    // — depending on them here would re-run this on every date-picker change
+    // too, which is unnecessary and would fight the rollover's own
+    // `prevNowRef` bookkeeping.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, isTest])
 
   const nowSlot = useMemo(() => slotIndexFromDate(now), [now])
   const isViewingToday = useMemo(() => isSameLocalDay(viewedDate, now), [viewedDate, now])

@@ -66,3 +66,28 @@ export function localDayRange(reference: Date): { start: Date; end: Date } {
 export function isSameLocalDay(a: Date, b: Date): boolean {
   return localDateISO(a) === localDateISO(b)
 }
+
+/**
+ * Whether a device-clock tick that moved from `prevNow` to `now` should
+ * auto-advance a "following today" viewed day to `now`'s calendar day.
+ *
+ * This is the rollover rule behind BL-2's "today" default: a board left
+ * mounted across local midnight (a tab backgrounded overnight, not reloaded)
+ * must pick up the new day on its own, but a board the user has deliberately
+ * pinned to some OTHER day (rule 12 — editing a past day is always allowed)
+ * must never be yanked off it just because the wall clock happened to cross
+ * midnight somewhere else. The two are told apart using only the state from
+ * just BEFORE this tick (`prevNow`, and whatever day `viewedDate` already
+ * was) — never "is viewedDate === now's day" after the fact, which a real
+ * rollover already breaks by the time you'd go check it.
+ *
+ * True exactly when: (1) `prevNow` and `now` actually fall on different
+ * calendar days — no tick, no rollover to consider — AND (2) `viewedDate`
+ * still matched `prevNow`'s day, i.e. the board WAS following today the
+ * instant before this crossing. A `viewedDate` pinned to any other day fails
+ * (2) and this returns false, leaving that navigation undisturbed.
+ */
+export function shouldRolloverViewedDate(viewedDate: Date, prevNow: Date, now: Date): boolean {
+  if (isSameLocalDay(prevNow, now)) return false
+  return isSameLocalDay(viewedDate, prevNow)
+}
