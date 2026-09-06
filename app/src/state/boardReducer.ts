@@ -1,4 +1,4 @@
-import { findCard } from '@/data/activities'
+import { defaultCatalogSnapshot, findCardIn, type CatalogSnapshot } from '@/domain/catalog'
 import { slotIndexFromDate, slotIndexFromMinutes, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
@@ -55,6 +55,17 @@ export interface BoardState {
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
+  /**
+   * The live effective catalog (see `domain/catalog.ts`), sourced from
+   * `CatalogContext` via the `setCatalog` action below — never imported
+   * statically here, so a user's own added/removed tiles and cards are what
+   * `pickCard`/`isStagingComplete`/`stagingOptions` actually resolve against.
+   * Defaults to the system catalog (`defaultCatalogSnapshot`) so every
+   * existing test that never dispatches `setCatalog`
+   * (`boardReducer.test.ts`'s `createInitialState(activities, now)`, no third
+   * argument) keeps getting exactly today's 9-tile/53-card behaviour.
+   */
+  catalog: CatalogSnapshot
 }
 
 export const EMPTY_STAGING: StagingState = {
@@ -112,6 +123,9 @@ export type BoardAction =
   | { type: 'dropCard'; cardName: string; slot: number }
   | { type: 'hydrate'; activities: ScheduledActivity[] }
   | { type: 'toggleComplete'; id: string }
+  /** `CatalogContext`'s effective snapshot changed (a background sync merge, or the
+   * Configuration screen's own Save) — see `BoardContext`'s catalog-sync effect. */
+  | { type: 'setCatalog'; catalog: CatalogSnapshot }
   /**
    * Clicking (or keyboard-activating) an activity's own rendered segment on
    * the Timeline strip — see `components/Timeline.tsx`. Defined as exactly
@@ -122,10 +136,17 @@ export type BoardAction =
    */
   | { type: 'selectActivity'; id: string }
 
-/** Is the staged path deep enough to name a concrete leaf activity? */
-export function isStagingComplete(staging: StagingState): boolean {
+/**
+ * Is the staged path deep enough to name a concrete leaf activity?
+ *
+ * `catalog` defaults to the system catalog so every existing call site that
+ * predates `CatalogContext` (tests chiefly) keeps resolving against exactly
+ * today's 9-tile/53-card set; a live caller (`SlotEditor`, `boardReducer`
+ * itself) always passes `state.catalog` explicitly instead.
+ */
+export function isStagingComplete(staging: StagingState, catalog: CatalogSnapshot = defaultCatalogSnapshot()): boolean {
   if (!staging.cardName) return false
-  const card = findCard(staging.cardName)
+  const card = findCardIn(catalog, staging.cardName)
   if (!card) return false
   if (!card.sub) return true
   if (staging.path.length === 0) return false
@@ -133,10 +154,13 @@ export function isStagingComplete(staging: StagingState): boolean {
   return staging.path.length >= 1
 }
 
-/** Options to show for the current drill-down depth, or null at a leaf. */
-export function stagingOptions(staging: StagingState): { options: string[]; level: number } | null {
+/** Options to show for the current drill-down depth, or null at a leaf. Same `catalog` default as `isStagingComplete`. */
+export function stagingOptions(
+  staging: StagingState,
+  catalog: CatalogSnapshot = defaultCatalogSnapshot(),
+): { options: string[]; level: number } | null {
   if (!staging.cardName) return null
-  const card = findCard(staging.cardName)
+  const card = findCardIn(catalog, staging.cardName)
   if (!card?.sub) return null
   if (staging.path.length === 0) return { options: card.sub, level: 0 }
   if (card.third && staging.path.length === 1) {
@@ -146,13 +170,18 @@ export function stagingOptions(staging: StagingState): { options: string[]; leve
   return null
 }
 
-export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {
+export function createInitialState(
+  activities: ScheduledActivity[],
+  now: Date,
+  catalog: CatalogSnapshot = defaultCatalogSnapshot(),
+): BoardState {
   const selectedSlot = slotIndexFromDate(now)
   return {
     activities,
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
+    catalog,
   }
 }
 
@@ -185,7 +214,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     }
 
     case 'pickCard': {
-      const card = findCard(action.cardName)
+      const card = findCardIn(state.catalog, action.cardName)
       if (!card) return state
       const { start, end } = slotMinuteRange(state.selectedSlot)
       const candidate = computeCandidateSchedule({ name: card.name, path: [] }, start, state.activities)
@@ -314,7 +343,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
 
     case 'commit': {
       const { staging } = state
-      if (!staging.cardName || !isStagingComplete(staging)) return state
+      if (!staging.cardName || !isStagingComplete(staging, state.catalog)) return state
 
       const candidate: CandidateSchedule = {
         id: staging.editingId,
@@ -443,6 +472,19 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
      */
     case 'hydrate':
       return { ...state, activities: action.activities, staging: EMPTY_STAGING, removal: null }
+
+    /**
+     * `CatalogContext`'s effective snapshot changed. Deliberately does NOT
+     * touch `staging` (the mirror image of `hydrate`'s cardName-scoped
+     * clear): a card mid-edit stays mid-edit through a background catalog
+     * refresh, since nothing about the DROP itself becomes invalid just
+     * because, say, an unrelated tile was renamed elsewhere. If the specific
+     * card being staged was itself removed, `commit`'s own
+     * `isStagingComplete`/`findCardIn` guard already refuses to save it.
+     */
+    case 'setCatalog':
+      if (state.catalog === action.catalog) return state
+      return { ...state, catalog: action.catalog }
 
     /**
      * Phase 3 — planned vs. actual. Toggling completion NEVER touches

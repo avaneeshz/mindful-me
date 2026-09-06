@@ -21,6 +21,7 @@ import { deriveSyncIntents, runSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
 import { isSameLocalDay, localDayRange, shouldRolloverViewedDate } from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
+import { useCatalog } from './CatalogContext'
 import type { ScheduledActivity } from '@/domain/types'
 
 interface BoardContextValue {
@@ -97,6 +98,7 @@ export interface BoardProviderProps {
 export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   const isTest = fixedNow !== undefined
   const now = useDeviceClock(fixedNow)
+  const { snapshot: catalogSnapshot } = useCatalog()
 
   // BL-2: the day being VIEWED, independent of the real current instant
   // above. Defaults to today, exactly as the board always has — see
@@ -113,7 +115,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // in local storage yet, viewing today) falls back to the demo seed content.
   const [state, dispatch] = useReducer(boardReducer, undefined, () => {
     const activities = isTest ? createSeedActivities() : loadActivitiesForDate(viewedDate, now)
-    return createInitialState(activities, now)
+    return createInitialState(activities, now, catalogSnapshot)
   })
 
   // Tracks the most recently dispatched action so the effect below can derive
@@ -129,6 +131,20 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     lastActionRef.current = action
     dispatch(action)
   }
+
+  // `CatalogContext`'s effective catalog changes AFTER this reducer's initial
+  // snapshot (the background sync fetch on mount resolves later; the
+  // Configuration screen's Save applies later still) — this keeps
+  // `state.catalog` current from then on, exactly the way `hydrate` keeps
+  // `state.activities` current with the server. Skipped in tests (`isTest`),
+  // same as every other network-adjacent effect below: `BoardProvider`'s test
+  // mode seeds `catalogSnapshot` once at construction and never needs it to
+  // change mid-test.
+  useEffect(() => {
+    if (isTest) return
+    trackedDispatch({ type: 'setCatalog', catalog: catalogSnapshot })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTest, catalogSnapshot])
 
   // Local-first write + background sync (rule 6). Runs after every action
   // that actually changed state — persisting is unconditional (any change to
