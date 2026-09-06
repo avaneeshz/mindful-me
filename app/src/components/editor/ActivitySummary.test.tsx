@@ -88,3 +88,57 @@ describe('ActivitySummary — the read-only Activity view', () => {
     expect(html).toMatch(/>Edit</)
   })
 })
+
+describe('ActivitySummary — Panel Redesign §4, horizontal tag layout', () => {
+  it('lays out all three tag categories in one grid-cols-3 band when all three are present', () => {
+    const html = renderToStaticMarkup(
+      <ActivitySummary
+        activity={{ ...BASE, quality: ['Resonance'], flags: ['Attack'], symptoms: ['Pitta'] }}
+        onEdit={vi.fn()}
+      />,
+    )
+    expect(html).toContain('grid-cols-3')
+    expect(html).not.toContain('grid-cols-2')
+  })
+
+  it('collapses to grid-cols-2 — no dead column — when only two of the three are present', () => {
+    const html = renderToStaticMarkup(
+      <ActivitySummary
+        activity={{ ...BASE, quality: ['Resonance'], flags: [], symptoms: ['Pitta'] }}
+        onEdit={vi.fn()}
+      />,
+    )
+    expect(html).toContain('grid-cols-2')
+    expect(html).not.toContain('grid-cols-3')
+    expect(html).not.toContain('Protective response')
+  })
+
+  it('collapses to a single column when only one tag category is present', () => {
+    const html = renderToStaticMarkup(
+      <ActivitySummary activity={{ ...BASE, quality: ['Resonance'] }} onEdit={vi.fn()} />,
+    )
+    expect(html).toContain('grid-cols-1')
+    expect(html).not.toContain('grid-cols-2')
+    expect(html).not.toContain('grid-cols-3')
+  })
+
+  it('renders no tag grid at all when none of the three are present', () => {
+    const html = renderToStaticMarkup(<ActivitySummary activity={BASE} onEdit={vi.fn()} />)
+    expect(html).not.toContain('grid-cols-1')
+    expect(html).not.toContain('grid-cols-2')
+    expect(html).not.toContain('grid-cols-3')
+  })
+
+  it('merges the name/path header and the time-range/duration line onto one row', () => {
+    const html = renderToStaticMarkup(
+      <ActivitySummary
+        activity={{ ...BASE, name: 'Body Care (self)', path: ['Oiling', 'Body'] }}
+        onEdit={vi.fn()}
+      />,
+    )
+    // One `justify-between` row carries both halves — the name/path on one
+    // side, the time range/duration on the other — rather than each being
+    // its own stacked full-width block.
+    expect(html).toMatch(/justify-between[^>]*>[\s\S]*Body Care \(self\)[\s\S]*10:00 – 10:45[\s\S]*<\/div>/)
+  })
+})

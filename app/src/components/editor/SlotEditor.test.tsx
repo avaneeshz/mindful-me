@@ -320,3 +320,72 @@ describe('the Activity | Slot toggle', () => {
     expect(renderEditor(viewing)).not.toContain('role="dialog"')
   })
 })
+
+describe('Panel Redesign §1 — the toggle is hidden on a totally empty slot', () => {
+  it('renders no radiogroup at all when nothing touches the selected slot', () => {
+    const html = renderEditor(run())
+    expect(html).not.toContain('role="radiogroup"')
+    expect(html).not.toContain('>Activity<')
+  })
+
+  it('shows Slot-view content directly — empty list, tile row present, no Activity empty-state copy', () => {
+    const html = renderEditor(run())
+    expect(html).not.toContain('In this slot')
+    expect(html).not.toContain('Tap a scheduled activity')
+    expect(html).toContain('tile-row')
+  })
+
+  it('renders the radiogroup once at least one activity touches the slot', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).toContain('role="radiogroup"')
+  })
+})
+
+describe('Panel Redesign §2 — auto-reset to Slot view whenever nothing specific is being viewed', () => {
+  it('a plain selectSlot (viewingActivityId null) always shows the SLOT heading, never an activity range', () => {
+    const state = run(DROP, { type: 'commit' })
+    expect(state.viewingActivityId).toBeNull()
+    const html = renderEditor(state)
+    expect(html).toContain(formatSlotRange(20))
+  })
+
+  it('removeActivity on the currently-viewed activity clears viewingActivityId and the panel stays/returns to Slot content', () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    expect(viewing.viewingActivityId).toBe(id)
+
+    const afterRemoval = boardReducer(viewing, { type: 'removeActivity', id })
+    expect(afterRemoval.viewingActivityId).toBeNull()
+
+    const html = renderEditor(afterRemoval)
+    expect(html).toContain(formatSlotRange(20))
+    expect(html).not.toContain('Tap a scheduled activity')
+  })
+})
+
+describe('Panel Redesign §3 — the 9-tile picker never mounts once the slot is at full capacity', () => {
+  it('a partially-filled slot (room remains) shows the tile row and no "full" note', () => {
+    const partial = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'stepDuration', delta: -15 }, // 30 -> 15, 15 min still free in the 30-min slot
+      { type: 'commit' },
+    )
+    const html = renderEditor(partial)
+    expect(html).toContain('In this slot')
+    expect(html).toContain('tile-row')
+    expect(html).not.toContain('This slot is full')
+  })
+
+  it('a fully-booked slot shows the activity list and the "full" note, but no tile grid', () => {
+    const full = run(DROP, { type: 'commit' }) // 'Errand time', 30 min, exactly fills slot 20
+    const html = renderEditor(full)
+    expect(html).toContain('In this slot')
+    expect(html).toContain('Errand time')
+    expect(html).toContain('This slot is full')
+    expect(html).not.toContain('tile-row')
+    // No tile label should leak through either.
+    expect(html).not.toContain('Sleep &amp; Rest')
+  })
+})

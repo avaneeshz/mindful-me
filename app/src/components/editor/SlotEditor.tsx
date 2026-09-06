@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Info } from 'lucide-react'
 import {
   activitiesTouchingSlot,
   flagMarkerAt,
@@ -16,7 +17,7 @@ import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
-import { TileRow } from './TileRow'
+import { describeSlotContents, TileRow } from './TileRow'
 
 /** Which of the two panel views is showing — plain ephemeral UI state, not board data (same reasoning `ThemeContext` is kept separate from `BoardContext`). */
 type PanelView = 'slot' | 'activity'
@@ -66,12 +67,27 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
   const flags = flagMarkerAt(activities, selectedSlot)?.flags ?? []
   const { dismissed, toggleDismissed } = useDismissedActivities(viewedDate)
 
+  // The toggle only matters once there is something an Activity view could
+  // possibly show — a totally empty slot renders Slot view directly, with no
+  // toggle at all (Panel Redesign §1).
+  const hasTouchingActivities = touching.length > 0
+
+  // Auto-reset to Slot view whenever nothing specific is being viewed
+  // (Panel Redesign §2) — `viewingActivityId` already goes `null` on a plain
+  // `selectSlot` dispatch and when `removeActivity` clears a viewed-then-
+  // deleted activity, so deriving the rendered view straight from it (rather
+  // than reading the manually-set `view` state alone) is what makes those
+  // cases snap back to Slot on their own. The asymmetry is deliberate: once
+  // `selectActivity` sets a real `viewingActivityId`, this defers entirely to
+  // whatever `view` the user last chose.
+  const effectiveView: PanelView = viewingActivityId ? view : 'slot'
+
   // Guards against `undefined` itself — a since-removed or never-set id.
   const viewingActivity = viewingActivityId
     ? activities.find((a) => a.id === viewingActivityId)
     : undefined
   const headingLabel =
-    view === 'activity' && viewingActivity
+    effectiveView === 'activity' && viewingActivity
       ? formatActivityRange(viewingActivity.startMinutes, viewingActivity.durationMinutes)
       : formatSlotRange(selectedSlot)
 
@@ -143,45 +159,51 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
         {/* Activity | Slot — extends the Chip primitive's own `size="segment"`
             variant, built for exactly this two-option segmented shape (see
             `components/ui/chip.tsx`). Plain ephemeral view state, same
-            single-select radiogroup pattern `FlagPicker` already establishes. */}
-        <div
-          role="radiogroup"
-          aria-label="Panel view"
-          className="flex items-center gap-xs rounded-full bg-bg p-xs"
-        >
-          <Chip
-            as="button"
-            size="segment"
-            tone={view === 'activity' ? 'active' : 'bare'}
-            interactive
-            role="radio"
-            aria-checked={view === 'activity'}
-            onClick={() => setView('activity')}
+            single-select radiogroup pattern `FlagPicker` already establishes.
+            Hidden entirely on a totally empty slot (Panel Redesign §1) —
+            Activity view there could only ever show its own empty state. */}
+        {hasTouchingActivities && (
+          <div
+            role="radiogroup"
+            aria-label="Panel view"
+            className="flex items-center gap-xs rounded-full bg-bg p-xs"
           >
-            Activity
-          </Chip>
-          <Chip
-            as="button"
-            size="segment"
-            tone={view === 'slot' ? 'active' : 'bare'}
-            interactive
-            role="radio"
-            aria-checked={view === 'slot'}
-            onClick={() => setView('slot')}
-          >
-            Slot
-          </Chip>
-        </div>
+            <Chip
+              as="button"
+              size="segment"
+              tone={effectiveView === 'activity' ? 'active' : 'bare'}
+              interactive
+              role="radio"
+              aria-checked={effectiveView === 'activity'}
+              onClick={() => setView('activity')}
+            >
+              Activity
+            </Chip>
+            <Chip
+              as="button"
+              size="segment"
+              tone={effectiveView === 'slot' ? 'active' : 'bare'}
+              interactive
+              role="radio"
+              aria-checked={effectiveView === 'slot'}
+              onClick={() => setView('slot')}
+            >
+              Slot
+            </Chip>
+          </div>
+        )}
       </header>
 
       {/* The shared min-height keeps the toggle from visibly resizing the
-          frame — sized to the Slot view's own typical content (a couple of
-          `SlotActivityList` rows plus the `TileRow` grid, per breakpoint).
+          frame — re-measured for the leaner Slot/Activity content Panel
+          Redesign §§1-4 leave behind (a full `TileRow` grid no longer shares
+          this space at all — see the `atCapacity` branch below — and
+          `ActivitySummary` no longer stacks everything in one long column).
           `ActivitySummary` fills the same space (`flex-1` + its own
           `justify-center`) rather than leaving a short card with a lot of
           empty gap below it. */}
-      <div className="mt-2xl flex min-h-[400px] flex-col mobile:min-h-[300px] ipad-land:mt-md ipad-land:min-h-[300px]">
-        {view === 'slot' ? (
+      <div className="mt-2xl flex min-h-[220px] flex-col mobile:min-h-[180px] ipad-land:mt-md ipad-land:min-h-[160px]">
+        {effectiveView === 'slot' ? (
           <>
             <CapacityMeter segments={meterSegments} />
 
@@ -196,17 +218,33 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
               onUndo={() => dispatch({ type: 'undoRemoval' })}
             />
 
-            <div className="mt-2xl ipad-land:mt-md">
-              <TileRow
-                atCapacity={atCapacity}
-                activityCount={touching.length}
-                usedMinutes={usedMinutes}
-                activities={activities}
-                dismissed={dismissed}
-                onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
-                onToggleDismiss={toggleDismissed}
-              />
-            </div>
+            {/* Panel Redesign §3 — a fully-booked slot has nothing left to
+                pick, so the 9-tile picker doesn't mount at all here any more
+                (previously always rendered, just dimmed). A one-line status
+                note takes its place; `SlotActivityList` above is unaffected —
+                the existing-activity list is exactly what stays useful here. */}
+            {atCapacity ? (
+              <p
+                role="status"
+                className="mt-2xl flex items-start gap-sm rounded-md bg-bg px-md py-sm text-note font-medium text-ink ipad-land:mt-md"
+              >
+                <Info aria-hidden="true" className="mt-px size-[14px] shrink-0 text-ink-dim" />
+                <span>
+                  This slot is full — {describeSlotContents(touching.length, usedMinutes)}.{' '}
+                  {touching.length === 1 ? 'Remove it' : 'Remove one'} above to free up space, or
+                  choose a different slot.
+                </span>
+              </p>
+            ) : (
+              <div className="mt-2xl ipad-land:mt-md">
+                <TileRow
+                  activities={activities}
+                  dismissed={dismissed}
+                  onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
+                  onToggleDismiss={toggleDismissed}
+                />
+              </div>
+            )}
           </>
         ) : (
           <ActivitySummary
