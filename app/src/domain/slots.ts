@@ -185,6 +185,14 @@ export function formatActivityRange(startMinutes: number, durationMinutes: numbe
   return `${formatClock(startMinutes)} – ${formatClock(startMinutes + durationMinutes)}`
 }
 
+/** e.g. "45 min", "1h", "1h 30m" — a real activity's own total duration, hour-aware. */
+export function formatDurationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`
+}
+
 /* ------------------------------------------------------------------ *
  * Grid <-> real-activity relationship. There is no more capacity rule and
  * no more "spillover" bookkeeping — an activity simply has a real start

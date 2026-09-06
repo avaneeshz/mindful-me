@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   activitiesTouchingSlot,
   flagMarkerAt,
+  formatActivityRange,
   formatSlotRange,
   minutesInSlot,
   slotMinuteRange,
@@ -10,10 +11,15 @@ import {
 import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { useDismissedActivities } from '@/state/dismissedActivities'
+import { Chip } from '@/components/ui/chip'
+import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
 import { TileRow } from './TileRow'
+
+/** Which of the two panel views is showing — plain ephemeral UI state, not board data (same reasoning `ThemeContext` is kept separate from `BoardContext`). */
+type PanelView = 'slot' | 'activity'
 
 /** How long the undo affordance stays available after a removal. */
 const UNDO_WINDOW_MS = 4000
@@ -50,11 +56,24 @@ interface SlotEditorProps {
  * staged-but-not-yet-saved pick only.
  */
 export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorProps) {
-  const { activities, selectedSlot, staging, removal } = state
+  const { activities, selectedSlot, staging, removal, viewingActivityId } = state
+  // Ephemeral UI state — which of the two panel views is showing. Doesn't
+  // need to survive a reload and doesn't belong in the reducer, the same
+  // reasoning `ThemeContext` is kept separate from `BoardContext`.
+  const [view, setView] = useState<PanelView>('slot')
   const { start: slotStart } = slotMinuteRange(selectedSlot)
   const touching = activitiesTouchingSlot(activities, selectedSlot)
   const flags = flagMarkerAt(activities, selectedSlot)?.flags ?? []
   const { dismissed, toggleDismissed } = useDismissedActivities(viewedDate)
+
+  // Guards against `undefined` itself — a since-removed or never-set id.
+  const viewingActivity = viewingActivityId
+    ? activities.find((a) => a.id === viewingActivityId)
+    : undefined
+  const headingLabel =
+    view === 'activity' && viewingActivity
+      ? formatActivityRange(viewingActivity.startMinutes, viewingActivity.durationMinutes)
+      : formatSlotRange(selectedSlot)
 
   const usedMinutes = touching.reduce((sum, a) => sum + minutesInSlot(a, selectedSlot), 0)
   const meterSegments: CapacityMeterSegment[] = touching
@@ -99,7 +118,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
               id="slot-editor-heading"
               className="font-display text-slot-time font-semibold text-ink"
             >
-              {formatSlotRange(selectedSlot)}
+              {headingLabel}
             </h2>
             <span className="rounded-full border border-line bg-bg px-sm py-xs text-micro font-bold text-ink">
               Selected slot
@@ -119,31 +138,82 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
               </span>
             )}
           </div>
-          <CapacityMeter segments={meterSegments} />
+        </div>
+
+        {/* Activity | Slot — extends the Chip primitive's own `size="segment"`
+            variant, built for exactly this two-option segmented shape (see
+            `components/ui/chip.tsx`). Plain ephemeral view state, same
+            single-select radiogroup pattern `FlagPicker` already establishes. */}
+        <div
+          role="radiogroup"
+          aria-label="Panel view"
+          className="flex items-center gap-xs rounded-full bg-bg p-xs"
+        >
+          <Chip
+            as="button"
+            size="segment"
+            tone={view === 'activity' ? 'active' : 'bare'}
+            interactive
+            role="radio"
+            aria-checked={view === 'activity'}
+            onClick={() => setView('activity')}
+          >
+            Activity
+          </Chip>
+          <Chip
+            as="button"
+            size="segment"
+            tone={view === 'slot' ? 'active' : 'bare'}
+            interactive
+            role="radio"
+            aria-checked={view === 'slot'}
+            onClick={() => setView('slot')}
+          >
+            Slot
+          </Chip>
         </div>
       </header>
 
-      <SlotActivityList
-        touching={touching}
-        selectedSlot={selectedSlot}
-        removal={removal}
-        editingId={staging.editingId}
-        onEdit={(id) => dispatch({ type: 'editActivity', id })}
-        onRemove={(id) => dispatch({ type: 'removeActivity', id })}
-        onToggleComplete={(id) => dispatch({ type: 'toggleComplete', id })}
-        onUndo={() => dispatch({ type: 'undoRemoval' })}
-      />
+      {/* The shared min-height keeps the toggle from visibly resizing the
+          frame — sized to the Slot view's own typical content (a couple of
+          `SlotActivityList` rows plus the `TileRow` grid, per breakpoint).
+          `ActivitySummary` fills the same space (`flex-1` + its own
+          `justify-center`) rather than leaving a short card with a lot of
+          empty gap below it. */}
+      <div className="mt-2xl flex min-h-[400px] flex-col mobile:min-h-[300px] ipad-land:mt-md ipad-land:min-h-[300px]">
+        {view === 'slot' ? (
+          <>
+            <CapacityMeter segments={meterSegments} />
 
-      <div className="mt-2xl ipad-land:mt-md">
-        <TileRow
-          atCapacity={atCapacity}
-          activityCount={touching.length}
-          usedMinutes={usedMinutes}
-          activities={activities}
-          dismissed={dismissed}
-          onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
-          onToggleDismiss={toggleDismissed}
-        />
+            <SlotActivityList
+              touching={touching}
+              selectedSlot={selectedSlot}
+              removal={removal}
+              editingId={staging.editingId}
+              onEdit={(id) => dispatch({ type: 'editActivity', id })}
+              onRemove={(id) => dispatch({ type: 'removeActivity', id })}
+              onToggleComplete={(id) => dispatch({ type: 'toggleComplete', id })}
+              onUndo={() => dispatch({ type: 'undoRemoval' })}
+            />
+
+            <div className="mt-2xl ipad-land:mt-md">
+              <TileRow
+                atCapacity={atCapacity}
+                activityCount={touching.length}
+                usedMinutes={usedMinutes}
+                activities={activities}
+                dismissed={dismissed}
+                onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
+                onToggleDismiss={toggleDismissed}
+              />
+            </div>
+          </>
+        ) : (
+          <ActivitySummary
+            activity={viewingActivity}
+            onEdit={(id) => dispatch({ type: 'editActivity', id })}
+          />
+        )}
       </div>
 
       <LogActivityModal

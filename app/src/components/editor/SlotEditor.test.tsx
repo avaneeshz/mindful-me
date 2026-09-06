@@ -295,3 +295,28 @@ describe('editing a spanning activity in place from a later cell', () => {
     expect(html).toContain('This slot is full')
   })
 })
+
+describe('the Activity | Slot toggle', () => {
+  it('renders both segments, Slot active by default — Slot view unchanged from before, regardless of viewingActivityId', () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    const html = renderEditor(viewing)
+
+    expect(html).toMatch(/role="radiogroup"[^>]*aria-label="Panel view"/)
+    expect(html).toMatch(/role="radio"[^>]*aria-checked="true"[^>]*>\s*Slot/s)
+    expect(html).toMatch(/role="radio"[^>]*aria-checked="false"[^>]*>\s*Activity/s)
+    // Slot view's own content is exactly what it was before this feature —
+    // the header still shows the SLOT's range, not the activity's.
+    expect(html).toContain(formatSlotRange(20))
+    expect(html).toContain('In this slot')
+    expect(html).toContain('Errand time')
+  })
+
+  it("a click on the timeline never opens the modal directly any more — Slot view (the default) shows no dialog", () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    expect(renderEditor(viewing)).not.toContain('role="dialog"')
+  })
+})
