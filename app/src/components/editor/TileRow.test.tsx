@@ -127,6 +127,32 @@ describe('slot-full notice copy', () => {
   })
 })
 
+describe('the tile-category popup (dialog, not the old inline expand panel)', () => {
+  // No tile is tapped in a static SSR-string render, so the dialog always
+  // starts closed here — same reachability limit the old inline panel had
+  // (it also only opened via a measured pointer click, untestable in this
+  // suite). This just pins down what the CLOSED state must never leak.
+  it('renders every tile aria-pressed="false" and no tile aria-pressed="true", by default', () => {
+    const html = renderRow()
+    expect(html.match(/aria-pressed="false"/g) ?? []).toHaveLength(9)
+    expect(html).not.toContain('aria-pressed="true"')
+  })
+
+  it('renders no dialog content, overlay, or item chips while every tile is closed', () => {
+    const html = renderRow()
+    expect(html).not.toContain('item-chip-row')
+    expect(html).not.toContain('bg-black/45')
+    expect(html).not.toContain('Close')
+  })
+
+  it('leaves no trace of the old inline expand-panel markup', () => {
+    const html = renderRow()
+    expect(html).not.toContain('panel-outer')
+    expect(html).not.toContain('panel-inner')
+    expect(html).not.toContain('activity-panel')
+  })
+})
+
 describe('monochrome, flat-progress-bar tile row (Section A/B — no colour anywhere)', () => {
   it('uses no colour anywhere — no per-category or tile-accent tokens, only ink/surface/line', () => {
     const html = renderRow()

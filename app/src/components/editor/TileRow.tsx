@@ -1,8 +1,8 @@
-import { useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { CheckCircle2, Circle, Info } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCircle2, Circle, Info, X } from 'lucide-react'
+import * as Dialog from '@radix-ui/react-dialog'
 import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
-import { computePanelGeometry, type PanelGeometry } from '@/domain/panelGeometry'
 import type { ActivityCard, ActivityList, Category, CategoryId } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
@@ -32,22 +32,19 @@ interface TileRowProps {
 }
 
 /**
- * Tile row (Modal Redesign §1, then Section B of the theme/panel round) —
- * the 9 tiles as one fill-width horizontal row (never a 3x3 grid, never
- * scrolling). Tapping a tile grows a panel directly below the row, IN REAL
- * LAYOUT FLOW (`.panel-outer`'s `grid-template-rows` animation, styles/
- * index.css) — never `position: absolute` — which is what guarantees it can
- * never overlap anything: the container genuinely grows to contain it. The
- * panel anchors to the tapped tile (left edge for tiles 1-4, centered under
- * tile 5, right edge for tiles 6-9), sizes itself to exactly fit that
- * category's own item count, and grows a chevron + scale-in animation
- * anchored at the tapped tile's own x position — see `domain/panelGeometry.ts`
- * for the actual placement math (measured pixel rects in, geometry out; that
- * module is where this behaviour is actually unit-tested, the same way real
- * pointer-drag math is tested at the pure-function layer elsewhere in this
- * app, not through simulated DOM events this SSR-string test suite can't
- * produce). Tapping the same tile again collapses the panel; tapping a
- * different tile swaps the panel's content and re-anchors in place.
+ * Tile row (Modal Redesign §1, then Section B of the theme/panel round,
+ * then the popup round) — the 9 tiles as one fill-width horizontal row
+ * (never a 3x3 grid, never scrolling). Tapping a tile opens that category's
+ * items in a popup dialog (the same Radix Dialog pattern `LogActivityModal`
+ * uses — deliberately no `<Dialog.Portal>`, see the comment above its
+ * `Dialog.Root` for why), reusing `ItemChip`'s grid content and
+ * `PanelHeader`'s icon/label/progress as the dialog's own header. Picking a
+ * card inside it calls `onPickCard` and closes the dialog, so
+ * `LogActivityModal` opens on top exactly as it does today — that modal is
+ * driven entirely by `staging.cardName`, unrelated to this dialog's own open
+ * state. Tapping the same tile again, or the dialog's own close affordance
+ * (X button, Escape, overlay click), closes it; tapping a different tile
+ * swaps the dialog's contents in place.
  */
 export function TileRow({
   atCapacity,
@@ -60,36 +57,13 @@ export function TileRow({
 }: TileRowProps) {
   const [draggingCard, setDraggingCard] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<CategoryId | null>(null)
-  const [geometry, setGeometry] = useState<PanelGeometry | null>(null)
-  const rowRef = useRef<HTMLDivElement>(null)
 
   const openCards = openCategory ? cardsForCategory(openCategory) : null
   const openProgress = openCards ? tileProgress(openCards, activities, dismissed) : null
   const openCategoryDef = openCategory ? CATEGORIES[openCategory] : null
 
-  function toggleTile(categoryId: CategoryId, tileIndex: number, event: ReactMouseEvent<HTMLButtonElement>) {
-    if (openCategory === categoryId) {
-      setOpenCategory(null)
-      setGeometry(null)
-      return
-    }
-    const rowEl = rowRef.current
-    const tileEl = event.currentTarget
-    if (rowEl) {
-      const rowRect = rowEl.getBoundingClientRect()
-      const tileRect = tileEl.getBoundingClientRect()
-      setGeometry(
-        computePanelGeometry({
-          tileIndex,
-          tileCount: CATEGORY_ORDER.length,
-          tileLeft: tileRect.left - rowRect.left,
-          tileWidth: tileRect.width,
-          rowWidth: rowRect.width,
-          itemCount: cardsForCategory(categoryId).length,
-        }),
-      )
-    }
-    setOpenCategory(categoryId)
+  function toggleTile(categoryId: CategoryId) {
+    setOpenCategory((current) => (current === categoryId ? null : categoryId))
   }
 
   return (
@@ -115,8 +89,8 @@ export function TileRow({
         </p>
       )}
 
-      <div ref={rowRef} className={cn('tile-row', atCapacity && 'opacity-40')}>
-        {CATEGORY_ORDER.map((categoryId, tileIndex) => {
+      <div className={cn('tile-row', atCapacity && 'opacity-40')}>
+        {CATEGORY_ORDER.map((categoryId) => {
           const category = CATEGORIES[categoryId]
           const progress = tileProgress(cardsForCategory(categoryId), activities, dismissed)
           const isActive = openCategory === categoryId
@@ -127,36 +101,46 @@ export function TileRow({
               progress={progress}
               isActive={isActive}
               hiddenFromAT={atCapacity}
-              onToggle={(event) => toggleTile(categoryId, tileIndex, event)}
+              onToggle={() => toggleTile(categoryId)}
             />
           )
         })}
       </div>
 
-      {/* Real layout flow — see the doc comment above and `.panel-outer` in
-          index.css. Always mounted (never conditionally rendered) so the
-          grid-rows transition has something to animate; `.show` and the
-          geometry inline styles are what actually open/position it. */}
-      <div className={cn('panel-outer', openCategory && geometry && 'show')}>
-        <div className="panel-inner">
-          {openCategory && openCards && openProgress && openCategoryDef && geometry && (
-            <div
-              className="activity-panel mt-md rounded-lg border border-line bg-surface p-lg"
-              style={
-                {
-                  width: `${geometry.width}px`,
-                  marginLeft: `${geometry.marginLeft}px`,
-                  '--origin-x': `${geometry.chevronLeft}px`,
-                } as CSSProperties
-              }
-            >
-              <span
-                aria-hidden="true"
-                className="absolute -top-[7px] size-0 border-x-[7px] border-b-[7px] border-x-transparent border-b-surface"
-                style={{ left: `${geometry.chevronLeft}px` }}
-              />
-              <PanelHeader category={openCategoryDef} progress={openProgress} />
-              <div className={cn('item-chip-row mt-md', atCapacity && 'opacity-40')}>
+      {/* The popup — see the doc comment above. Deliberately no
+          `<Dialog.Portal>`: this whole app's test suite is SSR-string
+          assertions (`renderToStaticMarkup`), and a portal's content renders
+          into a real DOM node that plain server rendering never produces —
+          it would silently vanish from every test despite `open` being
+          true. `position: fixed` still positions against the viewport
+          either way. */}
+      <Dialog.Root open={openCategory !== null} onOpenChange={(open) => !open && setOpenCategory(null)}>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
+        <Dialog.Content
+          className={cn(
+            'fixed z-50 flex flex-col gap-md overflow-y-auto bg-surface p-lg shadow-elevation-2 focus:outline-none',
+            'inset-0 mobile:inset-0',
+            'md:inset-auto md:left-1/2 md:top-1/2 md:w-[min(640px,92vw)] md:max-h-[85vh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg',
+          )}
+        >
+          {openCategory && openCards && openProgress && openCategoryDef && (
+            <>
+              <div className="flex items-start justify-between gap-md">
+                <PanelHeader category={openCategoryDef} progress={openProgress} />
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    className="flex size-[32px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
+                  >
+                    <X aria-hidden="true" className="size-[18px]" />
+                  </button>
+                </Dialog.Close>
+              </div>
+              <Dialog.Description className="sr-only">
+                Choose an item from {openCategoryDef.label} to log for today.
+              </Dialog.Description>
+              <div className={cn('item-chip-row', atCapacity && 'opacity-40')}>
                 {openCards.map((card) => (
                   <ItemChip
                     key={card.name}
@@ -164,17 +148,20 @@ export function TileRow({
                     locked={isCardLocked(card, activities, dismissed)}
                     atCapacity={atCapacity}
                     isDragging={draggingCard === card.name}
-                    onPick={() => onPickCard(card.name)}
+                    onPick={() => {
+                      onPickCard(card.name)
+                      setOpenCategory(null)
+                    }}
                     onToggleDismiss={() => onToggleDismiss(card.name)}
                     onDragStart={() => setDraggingCard(card.name)}
                     onDragEnd={() => setDraggingCard(null)}
                   />
                 ))}
               </div>
-            </div>
+            </>
           )}
-        </div>
-      </div>
+        </Dialog.Content>
+      </Dialog.Root>
     </div>
   )
 }
@@ -183,16 +170,20 @@ function PanelHeader({ category, progress }: { category: Category; progress: Til
   const Icon = category.icon
   return (
     <div className="flex items-center gap-sm">
-      {/* The connector — repeats the active tile's own icon, so the panel
-          unambiguously belongs to it even once the row has scrolled the
-          tile itself out of easy reach. */}
+      {/* The connector — repeats the active tile's own icon, so the dialog
+          unambiguously belongs to it. */}
       <span
         aria-hidden="true"
         className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-inv-bg text-inv-ink"
       >
         <Icon className="size-[15px]" />
       </span>
-      <h3 className="text-meta font-semibold text-ink">{category.label}</h3>
+      {/* `asChild` hands the heading element itself to Radix so the dialog
+          gets a real `aria-labelledby`-linked accessible name, same visual
+          markup as before. */}
+      <Dialog.Title asChild>
+        <h3 className="text-meta font-semibold text-ink">{category.label}</h3>
+      </Dialog.Title>
       {progress.done > 0 && (
         <p role="status" className="text-note font-medium text-ink-dim">
           {describeProgress(progress)} for today.
@@ -213,7 +204,7 @@ function Tile({
   progress: TileProgress
   isActive: boolean
   hiddenFromAT: boolean
-  onToggle: (event: ReactMouseEvent<HTMLButtonElement>) => void
+  onToggle: () => void
 }) {
   const Icon = category.icon
   const locked = isTileLocked(progress)
