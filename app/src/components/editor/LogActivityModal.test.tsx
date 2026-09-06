@@ -3,30 +3,37 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { LogActivityModal } from './LogActivityModal'
 import { EMPTY_STAGING } from '@/state/boardReducer'
+import { CatalogProvider } from '@/state/CatalogContext'
 import type { ActivityList } from '@/domain/types'
 
 const NO_ACTIVITIES: ActivityList = []
 
+/** `LogActivityModal` now reads the catalog (for sub/third options and per-activity attribute
+ * allow-lists) through `CatalogContext` — see `TileRow.test.tsx`'s own doc comment for why a
+ * `<CatalogProvider>` ancestor with no local cache present resolves to exactly the system default
+ * catalog, leaving every assertion below unchanged. */
 function renderModal(overrides: Partial<ComponentProps<typeof LogActivityModal>> = {}): string {
   return renderToStaticMarkup(
-    <LogActivityModal
-      staging={EMPTY_STAGING}
-      activities={NO_ACTIVITIES}
-      maxDuration={30}
-      canCommit={false}
-      onPickOption={() => {}}
-      onStep={() => {}}
-      onSetDuration={() => {}}
-      onMove={() => {}}
-      onResizeStart={() => {}}
-      onSetFlag={() => {}}
-      onToggleQuality={() => {}}
-      onToggleSymptom={() => {}}
-      onSetNotes={() => {}}
-      onCommit={() => {}}
-      onCancel={() => {}}
-      {...overrides}
-    />,
+    <CatalogProvider>
+      <LogActivityModal
+        staging={EMPTY_STAGING}
+        activities={NO_ACTIVITIES}
+        maxDuration={30}
+        canCommit={false}
+        onPickOption={() => {}}
+        onStep={() => {}}
+        onSetDuration={() => {}}
+        onMove={() => {}}
+        onResizeStart={() => {}}
+        onSetFlag={() => {}}
+        onToggleQuality={() => {}}
+        onToggleSymptom={() => {}}
+        onSetNotes={() => {}}
+        onCommit={() => {}}
+        onCancel={() => {}}
+        {...overrides}
+      />
+    </CatalogProvider>,
   )
 }
 
@@ -301,25 +308,33 @@ describe('feature-flag-gated duration fallback', () => {
     vi.doMock('@/lib/featureFlags', () => ({ SHOW_DURATION_STEPPER_FALLBACK: true }))
     const { LogActivityModal: FlaggedModal } = await import('./LogActivityModal')
     const { EMPTY_STAGING: EmptyStaging } = await import('@/state/boardReducer')
+    // `vi.resetModules()` gives every module a fresh instance, `CatalogContext`
+    // included — the outer, statically-imported `CatalogProvider` above is a
+    // DIFFERENT module instance than the one `FlaggedModal`'s own fresh import
+    // of `useCatalog` resolves against, so its context lookup would still
+    // fail. Re-import `CatalogProvider` here too, from the same fresh module.
+    const { CatalogProvider: FreshCatalogProvider } = await import('@/state/CatalogContext')
 
     const html = renderToStaticMarkup(
-      <FlaggedModal
-        staging={{ ...EmptyStaging, cardName: 'Night Sleep' }}
-        activities={NO_ACTIVITIES}
-        maxDuration={30}
-        canCommit={false}
-        onPickOption={() => {}}
-        onStep={() => {}}
-        onSetDuration={() => {}}
-        onMove={() => {}}
-        onResizeStart={() => {}}
-        onSetFlag={() => {}}
-        onToggleQuality={() => {}}
-        onToggleSymptom={() => {}}
-        onSetNotes={() => {}}
-        onCommit={() => {}}
-        onCancel={() => {}}
-      />,
+      <FreshCatalogProvider>
+        <FlaggedModal
+          staging={{ ...EmptyStaging, cardName: 'Night Sleep' }}
+          activities={NO_ACTIVITIES}
+          maxDuration={30}
+          canCommit={false}
+          onPickOption={() => {}}
+          onStep={() => {}}
+          onSetDuration={() => {}}
+          onMove={() => {}}
+          onResizeStart={() => {}}
+          onSetFlag={() => {}}
+          onToggleQuality={() => {}}
+          onToggleSymptom={() => {}}
+          onSetNotes={() => {}}
+          onCommit={() => {}}
+          onCancel={() => {}}
+        />
+      </FreshCatalogProvider>,
     )
     expect(html).toContain('Decrease duration')
     expect(html).not.toContain('role="slider"')

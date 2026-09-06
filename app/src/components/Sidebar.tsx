@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
 interface NavEntry {
   label: string
   icon: LucideIcon
-  /** Only "Today" has a real screen. The rest are placeholders, as today. */
+  /** "Today" and "Settings" have real screens. The rest are still placeholders. */
   to?: string
 }
 
@@ -39,7 +39,7 @@ const NAV_ENTRIES: NavEntry[] = [
   { label: 'Progress', icon: PieChart },
   { label: 'Insights', icon: Sparkles },
   { label: 'Flags', icon: Flag },
-  { label: 'Settings', icon: Settings },
+  { label: 'Settings', icon: Settings, to: '/settings' },
 ]
 
 const navItemClass =

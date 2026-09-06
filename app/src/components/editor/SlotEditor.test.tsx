@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { SlotEditor } from './SlotEditor'
 import {
   boardReducer,
@@ -7,6 +8,7 @@ import {
   type BoardAction,
   type BoardState,
 } from '@/state/boardReducer'
+import { CatalogProvider } from '@/state/CatalogContext'
 import { formatSlotRange } from '@/domain/slots'
 
 /**
@@ -25,9 +27,16 @@ function applyFrom(state: BoardState, ...actions: BoardAction[]): BoardState {
   return actions.reduce(boardReducer, state)
 }
 
+/** `TileRow`/`LogActivityModal`/`SlotActivityList` (all rendered inside `SlotEditor`) now read the
+ * catalog through `CatalogContext` and `TileRow` links to `/settings` — see `TileRow.test.tsx`'s own
+ * doc comment for why an empty local cache resolves to exactly the system default catalog either way. */
 function renderEditor(state: BoardState): string {
   return renderToStaticMarkup(
-    <SlotEditor state={state} dispatch={() => {}} nowSlot={32} viewedDate={AT_4PM} />,
+    <MemoryRouter initialEntries={['/']}>
+      <CatalogProvider>
+        <SlotEditor state={state} dispatch={() => {}} nowSlot={32} viewedDate={AT_4PM} />
+      </CatalogProvider>
+    </MemoryRouter>,
   )
 }
 

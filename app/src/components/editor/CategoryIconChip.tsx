@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import type { Category } from '@/domain/types'
+import type { CatalogCategory } from '@/domain/catalog'
 import { cn } from '@/lib/utils'
 
 /**
@@ -7,15 +7,15 @@ import { cn } from '@/lib/utils'
  * list. No colour any more (Section A) — a flat `surface-2` wash with an
  * `ink` icon, the same theme-following pair everything else uses. `category`
  * is still accepted (some callers pass it for the icon fallback below) but
- * its `deep`/`light` tones are no longer read — see `data/activities.ts`'s
- * colour-system comment for why they're kept as inert data.
+ * its label is not otherwise read here — see `data/activities.ts`'s
+ * colour-system comment for the retired per-category tones this once carried.
  */
 export function CategoryIconChip({
   category: _category,
   icon: Icon,
   className,
 }: {
-  category: Category
+  category: CatalogCategory | undefined
   icon?: LucideIcon
   className?: string
 }) {

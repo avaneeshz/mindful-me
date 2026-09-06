@@ -1,25 +1,45 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { TileRow } from './TileRow'
 import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
+import { CatalogProvider } from '@/state/CatalogContext'
 import type { ActivityList } from '@/domain/types'
 
 const NO_ACTIVITIES: ActivityList = []
 const NO_DISMISSED: ReadonlySet<string> = new Set()
 
+/**
+ * `TileRow` now reads the tile/card set through `CatalogContext` (see the
+ * full-stack-engineer agent definition's "Catalog Customization" section)
+ * rather than importing `data/activities.ts` directly — every render needs a
+ * `<CatalogProvider>` ancestor. With no local cache present (this suite's
+ * `node` test environment has no real `localStorage`, same as every other
+ * local-first hook in this app under this test environment — see
+ * `dismissedActivities.ts`'s own fail-closed contract), it resolves to
+ * exactly the system default catalog `data/activities.ts` always described,
+ * so every assertion below is unchanged from before this context existed.
+ * `<MemoryRouter>` is needed too — the empty-tile-row state links to
+ * `/settings`, unreachable in these tests (9 tiles always render) but the
+ * `Link` component still needs a router ancestor to mount at all.
+ */
 function renderRow(overrides: Partial<ComponentProps<typeof TileRow>> = {}): string {
   return renderToStaticMarkup(
-    <TileRow
-      atCapacity={false}
-      activityCount={0}
-      usedMinutes={0}
-      activities={NO_ACTIVITIES}
-      dismissed={NO_DISMISSED}
-      onPickCard={() => {}}
-      onToggleDismiss={() => {}}
-      {...overrides}
-    />,
+    <MemoryRouter initialEntries={['/']}>
+      <CatalogProvider>
+        <TileRow
+          atCapacity={false}
+          activityCount={0}
+          usedMinutes={0}
+          activities={NO_ACTIVITIES}
+          dismissed={NO_DISMISSED}
+          onPickCard={() => {}}
+          onToggleDismiss={() => {}}
+          {...overrides}
+        />
+      </CatalogProvider>
+    </MemoryRouter>,
   )
 }
 

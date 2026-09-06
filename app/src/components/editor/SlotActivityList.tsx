@@ -1,8 +1,9 @@
 import { CheckCircle2, Circle, Pencil, X } from 'lucide-react'
-import { categoryOf, findCard } from '@/data/activities'
+import { findCardIn } from '@/domain/catalog'
 import { formatMinutes, minutesInSlot, startsInSlot } from '@/domain/slots'
 import type { ScheduledActivity } from '@/domain/types'
 import type { RemovalRecord } from '@/state/boardReducer'
+import { useCatalog } from '@/state/CatalogContext'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { CategoryIconChip } from './CategoryIconChip'
@@ -80,9 +81,10 @@ function ActivityRow({
   onRemove: () => void
   onToggleComplete: () => void
 }) {
+  const { snapshot } = useCatalog()
   const name = activity.name ?? 'Activity'
-  const card = findCard(name)
-  const category = categoryOf(name)
+  const card = findCardIn(snapshot, name)
+  const category = card ? snapshot.categories[card.categoryId] : undefined
   const pathLabel = activity.path.length > 0 ? activity.path.join(' · ') : null
   const continuedFromLabel = continuedFrom !== null ? formatMinutes(continuedFrom) : null
   const isCompleted = activity.status === 'completed'

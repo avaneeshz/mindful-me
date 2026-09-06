@@ -124,3 +124,35 @@ Run the project's own checks — `npm run typecheck` and `npm test` at minimum �
 ## Important
 
 You are the implementation authority for this project now, not just an execution arm — but that means catching problems, not inventing new requirements. If a decision in this file looks wrong once you're in the real code, or a migration phase's prerequisite isn't actually satisfied, say so and ask before proceeding. Never provision real paid infrastructure (a live Supabase project, a Vercel deployment, a paid tier of anything) without the user's explicit go-ahead first.
+
+---
+
+## Catalog Customization (decided — do not relitigate)
+
+Landed 2026-09-06 on top of Phases 1–3 (does not depend on or change anything in Phase 4/5). Today's hardcoded catalog (`data/activities.ts`'s `CATEGORIES`/`CATEGORY_ORDER`/`ACTIVITY_CARDS`/`QUALITIES`/`SYMPTOMS`/`FLAGS`) is now fully user-customizable — which tiles exist, which cards belong to each tile, each card's sub/third-level drill-down, and which subset of the three master vocabularies each card's own log form offers — via a new Configuration screen at `/settings`, wired from the Sidebar's "Settings" entry (now a real link, not a disabled placeholder). See `DECISIONS.md`'s "Catalog Customization" entry for the short version of the decisions that shaped this; this section is the full architecture, kept in sync with it as this area evolves.
+
+**Database — two new tables, one existing table extended:**
+
+| Table | Holds | Key columns |
+|---|---|---|
+| `catalog_categories` | The tiles — today's 9, extendable to a user-added one | `id, label, icon_key, sort_order, is_active, created_by, created_at` |
+| `activities` (extended) | Unchanged shape (card/sub/third via `parent_id`) + new metadata | adds `sort_order int`, `is_active boolean`; `category_id` is now a real FK to `catalog_categories.id` (was a fixed 9-value CHECK enum) |
+| `activity_attribute_options` | Per-activity allow-list override for one of the three master vocabularies | `id, activity_id, user_id, attribute_type ('quality'\|'symptom'\|'flag'), option_id, created_at`, unique `(activity_id, attribute_type, option_id)` |
+
+No rows for an `(activity_id, attribute_type)` pair means "show the full master list" (zero-migration-risk default for all 53 pre-existing items) — only an explicit row set restricts it. Deletion is always soft (`is_active = false`) for any row that ever reached the server; a same-session, never-synced row is hard-dropped client-side instead (nothing to preserve). Migrations: `20260906120000_catalog_categories.sql` through `20260906120300_catalog_config_api.sql`.
+
+**RPCs** (`20260906120300_catalog_config_api.sql`): `get_effective_catalog()` (one jsonb read — active tiles + active cards/subs/thirds + the caller's own attribute overrides), `create_catalog_category`/`create_catalog_activity` (insert-only — v1 has no rename), `set_catalog_category_active`/`set_activity_active` (the two `SECURITY DEFINER` exceptions — see `DECISIONS.md` for why), `set_activity_attribute_options` (delete-then-insert, replaces one pair's whole allow-list).
+
+**Frontend — the effective catalog has one source of truth from here on:**
+
+| Layer | File(s) | Role |
+|---|---|---|
+| Domain | `domain/catalog.ts`, `domain/tileLayout.ts` | Pure. `catalog.ts` defines `CatalogSnapshot` (the flat, name-keyed render shape every consumer below reads) and `buildSnapshotFromRows` (collapses the DB's `parent_id` tree into it, dropping anything inactive or orphaned by an inactive tile); `defaultCatalogSnapshot()` converts `data/activities.ts` once, memoized, and is what every caller that predates this feature (tests chiefly) still gets by default. `tileLayout.ts` is the tested model behind `TileRow.tsx`'s CSS-Grid `auto-fit`/`minmax` tile sizing (see below) — the actual responsive layout is enacted by the browser, not JS. |
+| State | `state/CatalogContext.tsx`, `state/catalogLocalPersistence.ts` | `CatalogProvider` (wraps `BoardProvider` in `App.tsx`) is the one source of the effective catalog: local-first from a `localStorage` cache (same fail-closed contract as `state/localPersistence.ts`), background-refreshed via `get_effective_catalog`. `BoardContext` dispatches a `setCatalog` action into `boardReducer` whenever this context's snapshot changes, so `state.catalog` (a new `BoardState` field, defaulting to `defaultCatalogSnapshot()`) is what `pickCard`/`isStagingComplete`/`stagingOptions` resolve against — never a static import of `data/activities.ts` any more. `state/configReducer.ts` (+ `state/configSync.ts`) is the Configuration screen's OWN staged-edit reducer, deliberately separate from `boardReducer` — see below. |
+| UI | `routes/SettingsPage.tsx`, `components/editor/TileRow.tsx`, `components/editor/LogActivityModal.tsx` + its pickers | `SettingsPage` is the one Configuration screen — a breadcrumb-driven drill (tiles → a tile's cards → a card's subs [+ its attribute-options panel] → a sub's thirds), no wizard. `TileRow`/`LogActivityModal`/`SlotActivityList` now read tiles/cards through `useCatalog()` instead of importing `data/activities.ts` directly; `QualityPicker`/`SymptomsPicker`/`FlagPicker` each take an optional `allowedIds` prop (the per-activity allow-list, `undefined` = show every master value) filtering `QUALITIES`/`SYMPTOMS`/`FLAGS`, which stay exactly where they were as TS constants — only which subset applies is data-driven. |
+
+**Tile row auto-fit** (`TileRow.tsx` + `domain/tileLayout.ts`): generalized from the old fixed-9-tiles flex row to any N via CSS Grid's `repeat(auto-fit, minmax(64px, 1fr))` — as many equal-width columns as fit at a readable minimum width, filling the row edge-to-edge at typical desktop widths exactly like before, wrapping to more rows at narrow widths instead of squeezing every tile unreadably thin. No JS resize measurement needed; `tilesPerRow`/`tileRowCount` in `domain/tileLayout.ts` are the tested model of that same contract (same "pure math tested, CSS enactment isn't" split `panelGeometry.ts` already established for the tile row's other geometry).
+
+**Configuration screen edits are staged, not instant** — the one deliberate exception to rule 6's "every write lands locally first, instantly" at the level of an INDIVIDUAL edit. `configReducer.ts` mirrors `boardReducer.ts`'s own staging pattern: every add/remove/attribute-list change only touches the screen's own working state (a `temp:<uuid>` id for anything added this session) until Save. Save itself still honors rule 6 in full — it applies the merged result to `CatalogContext` (and therefore the Home screen) synchronously, then fires the queued operations at the server in the background (`state/configSync.ts`, sequential — not parallel like `state/sync.ts`'s `runSyncIntents` — since a later op may reference an earlier one's not-yet-real temp id).
+
+No v1 drag-reorder anywhere in this feature — new items simply append (`sort_order` = current max + 1 within their sibling group).

@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { CheckCircle2, Circle, Info, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
+import { Link } from 'react-router-dom'
+import { cardsForCategoryIn, type CatalogCard, type CatalogCategory } from '@/domain/catalog'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
-import type { ActivityCard, ActivityList, Category, CategoryId } from '@/domain/types'
+import { tileRowGridTemplate } from '@/domain/tileLayout'
+import type { ActivityList } from '@/domain/types'
+import { useCatalog } from '@/state/CatalogContext'
 import { cn } from '@/lib/utils'
 
 /** e.g. "1 activity totalling 30 minutes", "2 activities totalling 30 minutes". */
@@ -56,13 +59,15 @@ export function TileRow({
   onToggleDismiss,
 }: TileRowProps) {
   const [draggingCard, setDraggingCard] = useState<string | null>(null)
-  const [openCategory, setOpenCategory] = useState<CategoryId | null>(null)
+  const [openCategory, setOpenCategory] = useState<string | null>(null)
+  const { snapshot } = useCatalog()
+  const { categoryOrder, categories } = snapshot
 
-  const openCards = openCategory ? cardsForCategory(openCategory) : null
+  const openCards = openCategory ? cardsForCategoryIn(snapshot, openCategory) : null
   const openProgress = openCards ? tileProgress(openCards, activities, dismissed) : null
-  const openCategoryDef = openCategory ? CATEGORIES[openCategory] : null
+  const openCategoryDef = openCategory ? categories[openCategory] : null
 
-  function toggleTile(categoryId: CategoryId) {
+  function toggleTile(categoryId: string) {
     setOpenCategory((current) => (current === categoryId ? null : categoryId))
   }
 
@@ -89,10 +94,22 @@ export function TileRow({
         </p>
       )}
 
-      <div className={cn('tile-row', atCapacity && 'opacity-40')}>
-        {CATEGORY_ORDER.map((categoryId) => {
-          const category = CATEGORIES[categoryId]
-          const progress = tileProgress(cardsForCategory(categoryId), activities, dismissed)
+      {/*
+        Configuration screen ask #1/#4 — this used to assume exactly 9 tiles
+        (a flex row of `flex-1` children). Generalized to any N via CSS Grid's
+        `auto-fit`/`minmax` (`tileRowGridTemplate`, `domain/tileLayout.ts`):
+        as many equal-width columns as fit at a readable minimum width, filling
+        the row edge-to-edge exactly like today at a typical desktop width —
+        with narrower viewports wrapping to more rows instead of squeezing
+        every tile unreadably thin, all with no JS resize measurement needed.
+      */}
+      <div
+        className={cn('tile-row', atCapacity && 'opacity-40')}
+        style={{ gridTemplateColumns: tileRowGridTemplate() }}
+      >
+        {categoryOrder.map((categoryId) => {
+          const category = categories[categoryId]
+          const progress = tileProgress(cardsForCategoryIn(snapshot, categoryId), activities, dismissed)
           const isActive = openCategory === categoryId
           return (
             <Tile
@@ -106,6 +123,18 @@ export function TileRow({
           )
         })}
       </div>
+
+      {/* Empty state — every tile removed via the Configuration screen. Real
+          content, not merely an absent row, so the picker never looks broken. */}
+      {categoryOrder.length === 0 && (
+        <p className="rounded-md border border-dashed border-line bg-bg px-md py-lg text-center text-note text-ink-dim">
+          No tiles are set up yet. Add one from{' '}
+          <Link to="/settings" className="font-semibold text-ink underline underline-offset-2">
+            Settings
+          </Link>{' '}
+          to start logging activities.
+        </p>
+      )}
 
       {/* The popup — see the doc comment above. Deliberately no
           `<Dialog.Portal>`: this whole app's test suite is SSR-string
@@ -166,7 +195,7 @@ export function TileRow({
   )
 }
 
-function PanelHeader({ category, progress }: { category: Category; progress: TileProgress }) {
+function PanelHeader({ category, progress }: { category: CatalogCategory; progress: TileProgress }) {
   const Icon = category.icon
   return (
     <div className="flex items-center gap-sm">
@@ -200,7 +229,7 @@ function Tile({
   hiddenFromAT,
   onToggle,
 }: {
-  category: Category
+  category: CatalogCategory
   progress: TileProgress
   isActive: boolean
   hiddenFromAT: boolean
@@ -267,7 +296,7 @@ function ItemChip({
   onDragStart,
   onDragEnd,
 }: {
-  card: ActivityCard
+  card: CatalogCard
   locked: boolean
   atCapacity: boolean
   isDragging: boolean

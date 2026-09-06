@@ -22,33 +22,41 @@ import { Chip } from '@/components/ui/chip'
  */
 export function FlagPicker({
   selected,
+  allowedIds,
   onSelect,
 }: {
   selected: FlagId | null
+  /** See `QualityPicker`'s own doc comment — same allow-list contract, same fixed master vocabulary. */
+  allowedIds?: string[]
   onSelect: (flag: FlagId | null) => void
 }) {
+  const options = allowedIds ? FLAGS.filter((flag) => allowedIds.includes(flag.id)) : FLAGS
   return (
     <fieldset className="flex flex-col gap-sm">
       <legend className="text-entry-name font-semibold text-ink">Protective response</legend>
-      <div role="radiogroup" aria-label="Protective response" className="flex flex-wrap gap-sm">
-        {FLAGS.map((flag) => {
-          const isSelected = selected === flag.id
-          return (
-            <Chip
-              key={flag.id}
-              as="button"
-              size="xs"
-              tone={isSelected ? 'active' : 'surface'}
-              interactive
-              role="radio"
-              aria-checked={isSelected}
-              onClick={() => onSelect(isSelected ? null : flag.id)}
-            >
-              {flag.id}
-            </Chip>
-          )
-        })}
-      </div>
+      {options.length === 0 ? (
+        <p className="text-caption text-ink-dim">No protective response options are configured for this activity.</p>
+      ) : (
+        <div role="radiogroup" aria-label="Protective response" className="flex flex-wrap gap-sm">
+          {options.map((flag) => {
+            const isSelected = selected === flag.id
+            return (
+              <Chip
+                key={flag.id}
+                as="button"
+                size="xs"
+                tone={isSelected ? 'active' : 'surface'}
+                interactive
+                role="radio"
+                aria-checked={isSelected}
+                onClick={() => onSelect(isSelected ? null : flag.id)}
+              >
+                {flag.id}
+              </Chip>
+            )
+          })}
+        </div>
+      )}
     </fieldset>
   )
 }

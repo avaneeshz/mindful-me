@@ -1,8 +1,9 @@
 import { X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { findCard } from '@/data/activities'
+import { findCardIn, overridesFor } from '@/domain/catalog'
 import { SHOW_DURATION_STEPPER_FALLBACK } from '@/lib/featureFlags'
 import { stagingOptions, type StagingState } from '@/state/boardReducer'
+import { useCatalog } from '@/state/CatalogContext'
 import type { ActivityList, ActivityQuality, FlagId, Symptom } from '@/domain/types'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
@@ -58,9 +59,10 @@ export function LogActivityModal({
   onCommit: () => void
   onCancel: () => void
 }) {
+  const { snapshot: catalog, attributeOverrides } = useCatalog()
   const isOpen = staging.cardName !== null
-  const card = staging.cardName ? findCard(staging.cardName) : undefined
-  const options = stagingOptions(staging)
+  const card = staging.cardName ? findCardIn(catalog, staging.cardName) : undefined
+  const options = stagingOptions(staging, catalog)
 
   return (
     // Deliberately NO `<Dialog.Portal>`: this whole app's test suite is
@@ -176,9 +178,21 @@ export function LogActivityModal({
               />
             )}
 
-            <QualityPicker selected={staging.quality} onToggle={onToggleQuality} />
-            <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} />
-            <FlagPicker selected={staging.flag} onSelect={onSetFlag} />
+            <QualityPicker
+              selected={staging.quality}
+              allowedIds={overridesFor(attributeOverrides, staging.cardName, 'quality')}
+              onToggle={onToggleQuality}
+            />
+            <SymptomsPicker
+              selected={staging.symptoms}
+              allowedIds={overridesFor(attributeOverrides, staging.cardName, 'symptom')}
+              onToggle={onToggleSymptom}
+            />
+            <FlagPicker
+              selected={staging.flag}
+              allowedIds={overridesFor(attributeOverrides, staging.cardName, 'flag')}
+              onSelect={onSetFlag}
+            />
 
             {/* Notes — a real, always-visible field now (was the inert
                 "Deep log" stub). No expand/collapse, no separate heading —

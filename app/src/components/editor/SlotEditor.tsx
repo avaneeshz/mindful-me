@@ -81,9 +81,13 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
   }, [removal, dispatch])
 
   // Computed ONCE and passed to the modal. Used to derive its own enabled
-  // state from `isStagingComplete(staging)` alone, which could leave it
-  // enabled while `commit` clamped the duration to 0 and no-oped.
-  const canCommit = isStagingComplete(staging) && maxDuration > 0
+  // state from `isStagingComplete(staging, state.catalog)` alone, which could
+  // leave it enabled while `commit` clamped the duration to 0 and no-oped.
+  // `state.catalog` (not the default) matters here: without it, a card the
+  // user added via the Configuration screen would never resolve through
+  // `findCardIn`, leaving Save permanently disabled for anything but the 53
+  // stock items.
+  const canCommit = isStagingComplete(staging, state.catalog) && maxDuration > 0
 
   // `ipad-land:p-lg` trims padding exactly as `mobile:p-lg` already does: a
   // vertical density adaptation for a short viewport, not a structural change.
