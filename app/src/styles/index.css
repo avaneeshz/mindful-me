@@ -300,54 +300,6 @@
   display: none;
 }
 
-/* ---------------------------------------------------------------------------
-   Tile expand panel — grows in REAL LAYOUT FLOW (Section B), not
-   `position: absolute`. That's what makes zero-overlap actually guaranteed:
-   the container genuinely grows to contain the panel, pushing whatever comes
-   after it down, rather than floating over it and risking an overlap.
-
-   `.panel-outer` is a CSS grid with one row, animated between `0fr` (closed)
-   and `1fr` (open) — `grid-template-rows` is animatable, unlike `height`,
-   without needing to know the panel's real pixel height up front. `.show` is
-   the one class TileRow.tsx toggles. `.panel-inner`'s `overflow: hidden` +
-   `min-height: 0` is what actually clips the `0fr` state to nothing instead
-   of the grid still reserving the content's intrinsic height.
-
-   The panel itself scales in from `transform-origin: var(--origin-x) top` —
-   TileRow.tsx sets `--origin-x` to the chevron's own x position (via
-   `domain/panelGeometry.ts`), so the "grows out of the tapped tile" read
-   holds regardless of which tile opened it. Width and left offset are also
-   set inline per-open (a real CSS `margin-left`, not `left`/`position`), so
-   the panel stays in flow while still landing at its anchored x position. */
-.panel-outer {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-.panel-outer.show {
-  grid-template-rows: 1fr;
-}
-
-.panel-inner {
-  overflow: hidden;
-  min-height: 0;
-}
-
-.activity-panel {
-  transform-origin: var(--origin-x, 50%) top;
-  transform: scale(0.96);
-  opacity: 0;
-  transition:
-    opacity 200ms ease,
-    transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-.panel-outer.show .activity-panel {
-  transform: scale(1);
-  opacity: 1;
-}
-
 /* Respect reduced-motion for every motion the redesign introduces: the smooth
    scroll to a period, the row outline pulse, and the undo fade-out. */
 @media (prefers-reduced-motion: reduce) {
