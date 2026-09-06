@@ -18,6 +18,11 @@ describe('NoteButtonPill', () => {
     expect(html).not.toContain('role="dialog"')
     expect(html).not.toContain('<textarea')
     expect(html).not.toContain('Store')
+    // Gifts' gift-type picker (a chip radiogroup, not a <select>) is inside
+    // that same closed popover, so none of it leaks either.
+    expect(html).not.toContain('<select')
+    expect(html).not.toContain('role="radiogroup"')
+    expect(html).not.toContain('Gift type')
   })
 
   it('is focusable and keyboard-operable like every other real button (no explicit tabIndex override)', () => {
