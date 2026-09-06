@@ -5,7 +5,7 @@
  * ON TOP of the committed schedule, never a placement rule of its own, and
  * `scheduling.ts`/`slots.ts` stay untouched by this feature.
  *
- * Two independent lock mechanisms, per `ActivityCard.disappear`:
+ * Two independent lock mechanisms, per `DisappearingCard.disappear`:
  *   - `auto:N`  derived straight from `activities` — no new persisted state.
  *     Counts today's `ScheduledActivity` rows by name, scoped to whichever
  *     day `activities` already represents (the caller — `BoardContext` via
@@ -14,7 +14,19 @@
  *     the one new small piece of state this feature adds (persisted per day
  *     by `state/dismissedActivities.ts`).
  */
-import type { ActivityCard, ActivityList } from './types'
+import type { ActivityList, DisappearRule } from './types'
+
+/**
+ * The one shape this module actually needs — deliberately NOT `ActivityCard`
+ * (`data/activities.ts`'s hardcoded 53-item type), so this stays usable for
+ * BOTH that static seed catalog and `domain/catalog.ts`'s `CatalogCard` (the
+ * live, user-customizable catalog `CatalogContext` serves) without either one
+ * importing the other. Both shapes already satisfy this structurally.
+ */
+export interface DisappearingCard {
+  name: string
+  disappear: DisappearRule
+}
 
 /** How many of today's activities carry this exact catalog name. */
 export function timesScheduledToday(activities: ActivityList, cardName: string): number {
@@ -27,7 +39,7 @@ export function timesScheduledToday(activities: ActivityList, cardName: string):
 
 /** True once `card` is done for the day — auto-threshold reached, or manually marked done. */
 export function isCardLocked(
-  card: ActivityCard,
+  card: DisappearingCard,
   activities: ActivityList,
   dismissed: ReadonlySet<string>,
 ): boolean {
@@ -44,7 +56,7 @@ export interface TileProgress {
 
 /** The "x of y done" count for one tile's own items. */
 export function tileProgress(
-  cards: readonly ActivityCard[],
+  cards: readonly DisappearingCard[],
   activities: ActivityList,
   dismissed: ReadonlySet<string>,
 ): TileProgress {
