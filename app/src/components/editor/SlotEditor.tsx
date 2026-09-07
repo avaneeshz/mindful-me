@@ -118,29 +118,9 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
       className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
       <header className="flex flex-wrap items-start gap-lg">
-        <div className="flex flex-wrap items-center gap-md">
-          {isNow && (
-            <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
-              Now
-            </span>
-          )}
-          {/* Legacy whole-slot flag markers (pre-existing data only —
-              nothing creates these any more) still surface here, read-only.
-              No separate colour any more (Section A) — distinguished from
-              the other pills by content alone, same monochrome treatment. */}
-          {flags.length > 0 && (
-            <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold text-ink">
-              {flags.join(', ')}
-            </span>
-          )}
-        </div>
-
-        {/* Right-anchored explicitly via `ml-auto` (not merely "last flex
-            child" under a row-level `justify-between`, which stops pinning
-            things right once `flex-wrap` breaks the header onto its own
-            line at narrow widths) — holds the Activity | Slot toggle plus,
-            beneath it, the slot's own time, right-aligned to match. */}
-        <div className="ml-auto flex flex-col items-end gap-sm">
+        {/* Left-anchored — holds the Activity | Slot toggle plus, beneath
+            it, the slot's own time, left-aligned to match. */}
+        <div className="flex flex-col items-start gap-sm">
           {/* Activity | Slot — extends the Chip primitive's own `size="segment"`
               variant, built for exactly this two-option segmented shape (see
               `components/ui/chip.tsx`). Plain ephemeral view state, same
@@ -194,6 +174,27 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
           >
             {formatSlotRange(selectedSlot)}
           </h2>
+        </div>
+
+        {/* Right-anchored explicitly via `ml-auto` (not merely "last flex
+            child" under a row-level `justify-between`, which stops pinning
+            things right once `flex-wrap` breaks the header onto its own
+            line at narrow widths) — holds the `Now`/legacy-flags pills. */}
+        <div className="ml-auto flex flex-wrap items-center gap-md">
+          {isNow && (
+            <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
+              Now
+            </span>
+          )}
+          {/* Legacy whole-slot flag markers (pre-existing data only —
+              nothing creates these any more) still surface here, read-only.
+              No separate colour any more (Section A) — distinguished from
+              the other pills by content alone, same monochrome treatment. */}
+          {flags.length > 0 && (
+            <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold text-ink">
+              {flags.join(', ')}
+            </span>
+          )}
         </div>
       </header>
 

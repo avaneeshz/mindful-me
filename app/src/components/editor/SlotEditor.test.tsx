@@ -354,10 +354,15 @@ describe('the two prototype-panel removals', () => {
   })
 })
 
-describe('header restructure — toggle right-anchored, heading always present for a11y', () => {
-  it('the toggle + time column is explicitly right-anchored (ml-auto), not merely the last flex child', () => {
+describe('header restructure — toggle left-anchored, pills right-anchored, heading always present for a11y', () => {
+  it('the toggle + time column is left-anchored (items-start), not right-aligned', () => {
     const html = renderEditor(run(DROP, { type: 'commit' }))
-    expect(html).toMatch(/class="ml-auto flex flex-col items-end gap-sm"/)
+    expect(html).toMatch(/class="flex flex-col items-start gap-sm"/)
+  })
+
+  it('the Now/flags pills column is explicitly right-anchored (ml-auto), not merely the last flex child', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).toMatch(/class="ml-auto flex flex-wrap items-center gap-md"/)
   })
 
   it('the section always has a real h2#slot-editor-heading, even on a totally empty slot', () => {
