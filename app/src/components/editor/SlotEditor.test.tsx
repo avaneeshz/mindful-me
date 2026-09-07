@@ -43,7 +43,6 @@ describe('dropping an activity onto a slot', () => {
 
   it('opens the configuration panel on the dropped slot', () => {
     expect(html).toContain(formatSlotRange(20))
-    expect(html).toContain('Selected slot')
     expect(html).not.toContain(formatSlotRange(32))
   })
 
@@ -91,8 +90,8 @@ describe('opening a slot that is part of a longer, spanning activity', () => {
 
   it("shows only the selected cell's own clipped share, not the activity's full duration", () => {
     const html = renderEditor(withSpanningActivity)
-    expect(html).toContain('30/30 min used')
-    expect(html).not.toContain('45/30 min used')
+    expect(html).toMatch(/>30 min</)
+    expect(html).not.toMatch(/>45 min</)
   })
 
   it('attributes the genuinely free remainder to the next cell, which is not "full"', () => {
@@ -100,7 +99,7 @@ describe('opening a slot that is part of a longer, spanning activity', () => {
     expect(nextSlot.selectedSlot).toBe(21)
 
     const html = renderEditor(nextSlot)
-    expect(html).toContain('15/30 min used')
+    expect(html).toMatch(/>15 min</)
     expect(html).not.toContain('This slot is full')
   })
 
@@ -318,6 +317,58 @@ describe('the Activity | Slot toggle', () => {
     const id = realId(state)
     const viewing = boardReducer(state, { type: 'selectActivity', id })
     expect(renderEditor(viewing)).not.toContain('role="dialog"')
+  })
+
+  it('shows the slot time, visibly and in a smaller font than a heading, under the toggle in Slot view', () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    // `view` defaults to 'slot' on first render, so this is Slot view.
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    const html = renderEditor(viewing)
+
+    expect(html).toMatch(new RegExp(`<h2 id="slot-editor-heading" class="text-caption[^"]*">${formatSlotRange(20)}</h2>`))
+    expect(html).not.toContain('text-slot-time')
+  })
+})
+
+describe('the two prototype-panel removals', () => {
+  it('never renders the capacity-meter row (no "N/30 min used" text, no progressbar)', () => {
+    const full = renderEditor(run(DROP, { type: 'commit' })) // exactly fills the slot
+    const partial = renderEditor(
+      run(
+        { type: 'selectSlot', slot: 20 },
+        { type: 'pickCard', cardName: 'Homework' },
+        { type: 'stepDuration', delta: -15 },
+        { type: 'commit' },
+      ),
+    )
+    for (const html of [full, partial]) {
+      expect(html).not.toMatch(/\d+\/30 min used/)
+      expect(html).not.toContain('role="progressbar"')
+    }
+  })
+
+  it('never renders the "Selected slot" pill', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).not.toContain('Selected slot')
+  })
+})
+
+describe('header restructure — toggle right-anchored, heading always present for a11y', () => {
+  it('the toggle + time column is explicitly right-anchored (ml-auto), not merely the last flex child', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).toMatch(/class="ml-auto flex flex-col items-end gap-sm"/)
+  })
+
+  it('the section always has a real h2#slot-editor-heading, even on a totally empty slot', () => {
+    const html = renderEditor(run())
+    expect(html).toMatch(/<h2 id="slot-editor-heading"/)
+  })
+
+  it('the Now and legacy flag pills still render, just no longer sharing a row with the time heading', () => {
+    const withFlags = boardReducer(run(DROP, { type: 'commit' }), { type: 'selectSlot', slot: 32 })
+    const html = renderEditor(withFlags)
+    expect(html).toContain('Now')
   })
 })
 

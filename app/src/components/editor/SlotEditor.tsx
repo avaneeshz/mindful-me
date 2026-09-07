@@ -3,7 +3,6 @@ import { Info } from 'lucide-react'
 import {
   activitiesTouchingSlot,
   flagMarkerAt,
-  formatActivityRange,
   formatSlotRange,
   minutesInSlot,
   slotMinuteRange,
@@ -14,7 +13,6 @@ import { isStagingComplete, type BoardAction, type BoardState } from '@/state/bo
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { Chip } from '@/components/ui/chip'
 import { ActivitySummary } from './ActivitySummary'
-import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
 import { describeSlotContents, TileRow } from './TileRow'
@@ -86,16 +84,8 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
   const viewingActivity = viewingActivityId
     ? activities.find((a) => a.id === viewingActivityId)
     : undefined
-  const headingLabel =
-    effectiveView === 'activity' && viewingActivity
-      ? formatActivityRange(viewingActivity.startMinutes, viewingActivity.durationMinutes)
-      : formatSlotRange(selectedSlot)
 
   const usedMinutes = touching.reduce((sum, a) => sum + minutesInSlot(a, selectedSlot), 0)
-  const meterSegments: CapacityMeterSegment[] = touching
-    .slice()
-    .sort((a, b) => a.startMinutes - b.startMinutes)
-    .map((a) => ({ id: a.id, minutes: minutesInSlot(a, selectedSlot) }))
 
   const maxDuration = staging.cardName
     ? maxContiguousDuration(activities, staging.startMinutes, staging.editingId)
@@ -127,71 +117,84 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
       aria-labelledby="slot-editor-heading"
       className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
-      <header className="flex flex-wrap items-start justify-between gap-lg">
-        <div className="flex flex-col gap-md">
-          <div className="flex flex-wrap items-center gap-md">
-            <h2
-              id="slot-editor-heading"
-              className="font-display text-slot-time font-semibold text-ink"
-            >
-              {headingLabel}
-            </h2>
-            <span className="rounded-full border border-line bg-bg px-sm py-xs text-micro font-bold text-ink">
-              Selected slot
+      <header className="flex flex-wrap items-start gap-lg">
+        <div className="flex flex-wrap items-center gap-md">
+          {isNow && (
+            <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
+              Now
             </span>
-            {isNow && (
-              <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
-                Now
-              </span>
-            )}
-            {/* Legacy whole-slot flag markers (pre-existing data only —
-                nothing creates these any more) still surface here, read-only.
-                No separate colour any more (Section A) — distinguished from
-                the other pills by content alone, same monochrome treatment. */}
-            {flags.length > 0 && (
-              <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold text-ink">
-                {flags.join(', ')}
-              </span>
-            )}
-          </div>
+          )}
+          {/* Legacy whole-slot flag markers (pre-existing data only —
+              nothing creates these any more) still surface here, read-only.
+              No separate colour any more (Section A) — distinguished from
+              the other pills by content alone, same monochrome treatment. */}
+          {flags.length > 0 && (
+            <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold text-ink">
+              {flags.join(', ')}
+            </span>
+          )}
         </div>
 
-        {/* Activity | Slot — extends the Chip primitive's own `size="segment"`
-            variant, built for exactly this two-option segmented shape (see
-            `components/ui/chip.tsx`). Plain ephemeral view state, same
-            single-select radiogroup pattern `FlagPicker` already establishes.
-            Hidden entirely on a totally empty slot (Panel Redesign §1) —
-            Activity view there could only ever show its own empty state. */}
-        {hasTouchingActivities && (
-          <div
-            role="radiogroup"
-            aria-label="Panel view"
-            className="flex items-center gap-xs rounded-full bg-bg p-xs"
+        {/* Right-anchored explicitly via `ml-auto` (not merely "last flex
+            child" under a row-level `justify-between`, which stops pinning
+            things right once `flex-wrap` breaks the header onto its own
+            line at narrow widths) — holds the Activity | Slot toggle plus,
+            beneath it, the slot's own time, right-aligned to match. */}
+        <div className="ml-auto flex flex-col items-end gap-sm">
+          {/* Activity | Slot — extends the Chip primitive's own `size="segment"`
+              variant, built for exactly this two-option segmented shape (see
+              `components/ui/chip.tsx`). Plain ephemeral view state, same
+              single-select radiogroup pattern `FlagPicker` already establishes.
+              Hidden entirely on a totally empty slot (Panel Redesign §1) —
+              Activity view there could only ever show its own empty state. */}
+          {hasTouchingActivities && (
+            <div
+              role="radiogroup"
+              aria-label="Panel view"
+              className="flex items-center gap-xs rounded-full bg-bg p-xs"
+            >
+              <Chip
+                as="button"
+                size="segment"
+                tone={effectiveView === 'activity' ? 'active' : 'bare'}
+                interactive
+                role="radio"
+                aria-checked={effectiveView === 'activity'}
+                onClick={() => setView('activity')}
+              >
+                Activity
+              </Chip>
+              <Chip
+                as="button"
+                size="segment"
+                tone={effectiveView === 'slot' ? 'active' : 'bare'}
+                interactive
+                role="radio"
+                aria-checked={effectiveView === 'slot'}
+                onClick={() => setView('slot')}
+              >
+                Slot
+              </Chip>
+            </div>
+          )}
+
+          {/* The section's accessible name (`aria-labelledby`) must always
+              resolve to something in both views, so this stays mounted as
+              the real `h2` either way — just visually hidden outside Slot
+              view, since Activity view already shows the viewed activity's
+              own real time range inside `ActivitySummary` (repeating a slot
+              time under the toggle there would be redundant). */}
+          <h2
+            id="slot-editor-heading"
+            className={
+              effectiveView === 'slot'
+                ? 'text-caption font-semibold text-ink'
+                : 'sr-only'
+            }
           >
-            <Chip
-              as="button"
-              size="segment"
-              tone={effectiveView === 'activity' ? 'active' : 'bare'}
-              interactive
-              role="radio"
-              aria-checked={effectiveView === 'activity'}
-              onClick={() => setView('activity')}
-            >
-              Activity
-            </Chip>
-            <Chip
-              as="button"
-              size="segment"
-              tone={effectiveView === 'slot' ? 'active' : 'bare'}
-              interactive
-              role="radio"
-              aria-checked={effectiveView === 'slot'}
-              onClick={() => setView('slot')}
-            >
-              Slot
-            </Chip>
-          </div>
-        )}
+            {formatSlotRange(selectedSlot)}
+          </h2>
+        </div>
       </header>
 
       {/* The shared min-height keeps the toggle from visibly resizing the
@@ -205,8 +208,6 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate }: SlotEditorP
       <div className="mt-2xl flex min-h-[220px] flex-col mobile:min-h-[180px] ipad-land:mt-md ipad-land:min-h-[160px]">
         {effectiveView === 'slot' ? (
           <>
-            <CapacityMeter segments={meterSegments} />
-
             <SlotActivityList
               touching={touching}
               selectedSlot={selectedSlot}

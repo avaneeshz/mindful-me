@@ -155,12 +155,9 @@ describe('Today screen', () => {
     expect(html).not.toContain('full — 2 activities totalling 30 minutes. Remove one')
   })
 
-  it('draws one capacity fill for the pinned slot’s single seeded activity', () => {
-    const meter = html.split('aria-label="Slot capacity"')[1]?.split('</div>')[0] ?? ''
-    const fills = meter.match(/left:calc\(/g) ?? []
-    // Grid cell 20 (the pinned now-slot) holds a single 30-minute Vipassana entry.
-    expect(fills).toHaveLength(1)
-    expect(meter).toContain('width:calc(100% - 2px)')
+  it('renders no capacity-meter row at all — dropped from the Slot-view panel entirely', () => {
+    expect(html).not.toContain('aria-label="Slot capacity"')
+    expect(html).not.toMatch(/\d+\/30 min used/)
   })
 
   it('rules both timeline rows with every hour — 13 ticks apiece, AM/PM only at the row edges', () => {
