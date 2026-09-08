@@ -127,9 +127,12 @@ Do not modify API contracts, payloads or business behavior merely to simplify fr
 
 ## Agent Workflow
 
-There is a single agent for this project: **full-stack-engineer** (`.claude/agents/full-stack-engineer.md`). It owns frontend, backend, and database work end-to-end — there is no separate design, QA, or review agent.
+There are two agents for this project:
 
-Product philosophy, the design system, and every rule in this file still apply in full to everything that agent builds — a single implementer does not mean lighter standards. The agent's own file carries the project-specific architecture, the decided backend/database model, and the non-negotiable product rules for scheduling; read it alongside this file before implementing anything substantial.
+* **full-stack-engineer** (`.claude/agents/full-stack-engineer.md`) — the sole implementer. It owns frontend, backend, and database work end-to-end. There is no separate design or code-review agent.
+* **qa-engineer** (`.claude/agents/qa-engineer.md`) — independent verification. It does not write application code; it drives the real running app, checks behavior against this file, the engineer's non-negotiable product rules, and `QA-REGRESSION.md`, and files what it finds. Confirmed bugs route back to full-stack-engineer to fix — qa-engineer never patches `app/src/**` itself, even a trivial one-liner. That separation is the entire point of having two agents instead of one.
+
+Product philosophy, the design system, and every rule in this file still apply in full to everything that gets built — splitting implementation from verification does not mean lighter standards on either side. The engineer's own file carries the project-specific architecture, the decided backend/database model, and the non-negotiable product rules for scheduling; read it alongside this file before implementing anything substantial. `QA-REGRESSION.md` (repo root) is the maintained, scenario-level regression checklist both agents keep current — extend it when a bug reveals a gap, never silently narrow it.
 
 ## Quality Standard
 
