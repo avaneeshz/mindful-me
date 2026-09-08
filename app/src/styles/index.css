@@ -41,9 +41,26 @@
     --night-strip-fixed: #4b4b50;
     --night-strip-fixed-ink: #f2f1ec;
     --night-strip-fixed-line: rgba(255, 255, 255, 0.28);
+
+    /* The Sun / Moon timeline end-caps read as identity, not as themed
+       surfaces: the Sun cap is ALWAYS light, the Moon cap ALWAYS dark, in
+       both themes — same "deliberate fixed exception" reasoning as
+       `--night-strip-fixed` above. Each carries its own legible-ink
+       companion. */
+    --sun-cap-bg: #f2f1ec;
+    --sun-cap-ink: #3a3a3e;
+    --moon-cap-bg: #1b1b1f;
+    --moon-cap-ink: #f2f1ec;
+
+    /* Native form controls (the `<input type="time">` picker indicator in
+       the Sun/Moon log popover, scrollbars, etc.) must follow the active
+       theme — without this the time field's clock icon is dark-on-dark and
+       invisible in the dark theme. */
+    color-scheme: dark;
   }
 
   :root[data-theme='light'] {
+    color-scheme: light;
     --bg: #fafaf8;
     --surface: #ffffff;
     --surface-2: #f1f0ec;

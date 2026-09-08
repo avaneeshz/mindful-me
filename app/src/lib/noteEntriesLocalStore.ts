@@ -25,7 +25,13 @@ export function loadLocalNoteEntries(buttonKey: NoteButtonKey): NoteEntry[] | nu
     const raw = window.localStorage.getItem(keyFor(buttonKey))
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as NoteEntry[]) : null
+    if (!Array.isArray(parsed)) return null
+    // `giftType` was renamed to the generic `entryType` when Prayer and
+    // Learnings gained their own type lists — carry pre-rename local rows over.
+    return parsed.map((row: Record<string, unknown>) => ({
+      ...row,
+      entryType: row.entryType ?? row.giftType ?? null,
+    })) as NoteEntry[]
   } catch {
     return null
   }

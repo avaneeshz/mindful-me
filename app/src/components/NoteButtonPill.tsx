@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button'
 import {
   canSubmitNote,
   formatNoteTimestamp,
-  GIFT_TYPES,
-  requiresGiftType,
-  type GiftType,
+  noteButtonTypes,
   type NoteButtonKey,
 } from '@/domain/notes'
 import { useNoteEntries } from '@/state/useNoteEntries'
@@ -17,8 +15,9 @@ const fieldClass =
   'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
 /**
- * SCRUM-13 — one header pill's whole note-entry surface: the trigger button,
- * a Store form (textarea, plus a gift-type chip radiogroup for Gifts only),
+ * One header pill's whole note-entry surface: the trigger button, a Store
+ * form (textarea, plus a single-select type chip radiogroup for the buttons
+ * that define one — see `NOTE_BUTTON_TYPES`: Extra Senses, Prayer, Learnings),
  * and the full history of previously stored notes for this one button.
  *
  * Deliberately follows `HeaderBar`'s OWN existing popover pattern
@@ -32,7 +31,7 @@ const fieldClass =
 export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey; label: string }) {
   const [open, setOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
-  const [giftType, setGiftType] = useState<GiftType | ''>('')
+  const [entryType, setEntryType] = useState<string>('')
   const [justSaved, setJustSaved] = useState(false)
   // History is collapsed by default (SCRUM-13 follow-up) — the popover opens
   // straight to the Store form; the log of past notes is a click away
@@ -49,8 +48,8 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const historyListId = useId()
 
   const { entries, status, error, submitting, addNote } = useNoteEntries(buttonKey, open)
-  const needsGiftType = requiresGiftType(buttonKey)
-  const canSubmit = canSubmitNote(buttonKey, noteText, giftType === '' ? null : giftType)
+  const types = noteButtonTypes(buttonKey)
+  const canSubmit = canSubmitNote(buttonKey, noteText, entryType === '' ? null : entryType)
 
   useEffect(() => {
     if (!open) return
@@ -94,11 +93,11 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     event.preventDefault()
     if (submitting || !canSubmit) return // Rule 9's double-submit guard, applied to Store.
 
-    const ok = await addNote(noteText, giftType === '' ? null : giftType)
+    const ok = await addNote(noteText, entryType === '' ? null : entryType)
     if (!ok) return
 
     setNoteText('')
-    setGiftType('')
+    setEntryType('')
     setJustSaved(true)
     window.clearTimeout(savedFlashTimeoutRef.current)
     savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 2500)
@@ -137,12 +136,12 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
-            {needsGiftType && (
+            {types && (
               <fieldset className="flex flex-col gap-sm">
-                <legend className="text-caption font-semibold text-ink-dim">Gift type</legend>
-                <div role="radiogroup" aria-label="Gift type" className="flex flex-wrap gap-sm">
-                  {GIFT_TYPES.map((type) => {
-                    const isSelected = giftType === type
+                <legend className="text-caption font-semibold text-ink-dim">Type</legend>
+                <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-sm">
+                  {types.map((type) => {
+                    const isSelected = entryType === type
                     return (
                       <Chip
                         key={type}
@@ -152,7 +151,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                         interactive
                         role="radio"
                         aria-checked={isSelected}
-                        onClick={() => setGiftType(isSelected ? '' : type)}
+                        onClick={() => setEntryType(isSelected ? '' : type)}
                       >
                         {type}
                       </Chip>
@@ -240,8 +239,8 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                           <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
                             {formatNoteTimestamp(new Date(entry.createdAt))}
                           </time>
-                          {entry.giftType && (
-                            <span className="text-nano font-semibold text-ink-dim">{entry.giftType}</span>
+                          {entry.entryType && (
+                            <span className="text-nano font-semibold text-ink-dim">{entry.entryType}</span>
                           )}
                         </div>
                         <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>

@@ -3,8 +3,10 @@ import { CalendarDays, User } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
+import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { WeatherPill } from '@/components/WeatherPill'
 import { NOTE_BUTTONS } from '@/domain/notes'
+import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
 import type { AuthUser } from '@/state/AuthContext'
 import { cn } from '@/lib/utils'
 
@@ -56,12 +58,17 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: He
           second line if it runs out of horizontal space, rather than
           overflowing. */}
       <div className="flex flex-wrap items-center justify-end gap-sm">
-      {/* SCRUM-13 — Gifts, Chits, Opportunities, Learnings, Mirror (renamed
-          from Feedback), Prayer (new). Each is now a real interactive
-          button: clicking one opens a note-entry popover (see
-          `NoteButtonPill`) rather than doing nothing. */}
+      {/* Note pills — Extra Senses (was Gifts), Learnings, People (was Mirror),
+          Prayer, Scriptures, Summons, Worship. Each opens a note-entry popover
+          (see `NoteButtonPill`); Chits and Opportunities moved to the sidebar. */}
       {NOTE_BUTTONS.map(({ key, label }) => (
         <NoteButtonPill key={key} buttonKey={key} label={label} />
+      ))}
+
+      {/* Display buttons — always show a stored per-day number on the face
+          (Vipassana minutes, Steps count); click to set/replace it. */}
+      {DISPLAY_BUTTONS.map(({ key }) => (
+        <DisplayValueButton key={key} buttonKey={key} viewedDate={viewedDate} />
       ))}
 
       {/*

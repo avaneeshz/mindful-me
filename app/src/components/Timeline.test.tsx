@@ -28,6 +28,7 @@ function renderTimeline(now: Date | null = null, activities: ActivityList = NO_A
       <Timeline
         activities={activities}
         selectedSlot={20}
+        viewedDate={new Date(2026, 8, 8)}
         now={now}
         onSelectSlot={() => {}}
         onDropCard={() => {}}
@@ -37,21 +38,26 @@ function renderTimeline(now: Date | null = null, activities: ActivityList = NO_A
   )
 }
 
-describe('the Sun/Moon end-caps are the theme toggle (Section A)', () => {
-  it('renders both as real buttons, not decorative spans', () => {
+describe('the Sun/Moon end-caps are the light-log triggers (no longer a theme toggle)', () => {
+  it('renders both as real buttons that open the sun/moon light log', () => {
     const html = renderTimeline()
-    expect(html).toContain('aria-label="Switch to light theme"')
-    expect(html).toContain('aria-label="Switch to dark theme"')
+    expect(html).toContain('aria-label="Log sun light"')
+    expect(html).toContain('aria-label="Log moon light"')
     // Real interactive elements — not `role="img"` placeholders.
     expect(html).not.toContain('role="img"')
   })
 
-  it('the dark theme is the default — the Moon cap reads as selected on first load, the Sun does not', () => {
+  it('no longer carries the retired "Switch to … theme" toggle affordance', () => {
     const html = renderTimeline()
-    const moonButtonTag = html.match(/<button[^>]*aria-label="Switch to dark theme"[^>]*>/)?.[0]
-    const sunButtonTag = html.match(/<button[^>]*aria-label="Switch to light theme"[^>]*>/)?.[0]
-    expect(moonButtonTag).toContain('aria-pressed="true"')
-    expect(sunButtonTag).toContain('aria-pressed="false"')
+    expect(html).not.toContain('Switch to light theme')
+    expect(html).not.toContain('Switch to dark theme')
+  })
+
+  it('each cap is a dialog trigger, closed on first render', () => {
+    const html = renderTimeline()
+    const sunButtonTag = html.match(/<button[^>]*aria-label="Log sun light"[^>]*>/)?.[0]
+    expect(sunButtonTag).toContain('aria-haspopup="dialog"')
+    expect(sunButtonTag).toContain('aria-expanded="false"')
   })
 })
 
@@ -71,7 +77,7 @@ describe('no illustrated scenery any more (Section C — flagged reversal)', () 
     expect(html).toContain('bg-surface')
   })
 
-  it('the night strip is a fixed grey, independent of the theme toggle', () => {
+  it('the night strip is a fixed grey, independent of the active theme', () => {
     const html = renderTimeline()
     expect(html).toContain('bg-night-strip-fixed')
   })

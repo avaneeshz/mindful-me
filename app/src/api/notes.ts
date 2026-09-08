@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient'
-import type { GiftType, NoteButtonKey, NoteEntry } from '@/domain/notes'
+import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
 
 /** The shape `public.note_entry_dto` (see `20260905090000_note_entries.sql`) hands back. */
 interface NoteEntryDto {
@@ -15,7 +15,9 @@ function dtoToClient(dto: NoteEntryDto): NoteEntry {
     id: dto.id,
     buttonKey: dto.button_key as NoteButtonKey,
     note: dto.note,
-    giftType: (dto.gift_type as GiftType | null) ?? null,
+    // The server column is still `gift_type` (unchanged contract); the client
+    // field is the generic `entryType` now that Prayer/Learnings feed it too.
+    entryType: dto.gift_type ?? null,
     createdAt: dto.created_at,
   }
 }
@@ -50,13 +52,13 @@ export async function apiListNoteEntries(buttonKey: NoteButtonKey): Promise<Note
 export async function apiCreateNoteEntry(
   buttonKey: NoteButtonKey,
   note: string,
-  giftType: GiftType | null,
+  entryType: string | null,
 ): Promise<NoteEntry | null> {
   if (!supabase) return null
   const { data, error } = await supabase.rpc('create_note_entry', {
     p_button_key: buttonKey,
     p_note: note,
-    p_gift_type: giftType,
+    p_gift_type: entryType,
   })
   if (error) {
     // eslint-disable-next-line no-console
