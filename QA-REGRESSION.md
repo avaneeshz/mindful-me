@@ -32,7 +32,7 @@ Unless a scenario says otherwise, test at all three breakpoints — **desktop**,
 ## 2. Slot / Activity toggle panel (`SlotEditor.tsx`)
 
 - [ ] **2.1** [S] Slot with zero touching activities → no toggle rendered at all; panel shows Slot content directly (empty activity list + tile row, since there's free room).
-- [ ] **2.2** [S] Slot with ≥1 activity → toggle visible, defaults to **Slot** view on first arrival at that slot.
+- [ ] **2.2** [S] Slot with ≥1 activity, arrived at via a **plain slot click** → toggle visible, defaults to **Slot** view. This does NOT hold for a 100%-covered slot arrived at via its only click route (an activity segment, since no plain-slot click target exists there) — that case correctly preserves whatever toggle state was last chosen instead, by design (see `boardReducer.ts`'s `selectActivity`/`selectSlot` composition). Test both routes explicitly rather than assuming "first arrival" always means the same thing.
 - [ ] **2.3** [S] Clicking an activity segment on the timeline while the toggle is on **Activity** → shows that activity's read-only summary (name, path, real time range + duration, activity quality / protective response / chronic symptoms tags only for categories actually present, notes if any) with a working **Edit** button.
 - [ ] **2.4** [S] Edit button in the Activity summary → opens `LogActivityModal` pre-populated with that exact activity's current values (not defaults).
 - [ ] **2.5** [S] Clicking a genuinely empty slot (or the free remainder of a partially-filled one) → panel snaps back to **Slot** view automatically, even if Activity was the last-selected toggle state.
