@@ -399,13 +399,17 @@ function TimelineRow({
                   // flags bled into neighbouring slots. A small opaque backing
                   // plate, period-matched the same way the slot states above
                   // are, so it stays legible on either row regardless of theme.
-                  // z-[6] so it stays visible even under an activity-segment
-                  // button (z-[5]) covering the same slot — legacy-only
-                  // rendering path, see `domain/slots.ts` `flagMarkerAt`.
+                  // z-[6] so it PAINTS above an activity-segment button (z-[5])
+                  // covering the same slot — legacy-only rendering path, see
+                  // `domain/slots.ts` `flagMarkerAt`. `pointer-events-none`
+                  // because it's purely decorative (already `aria-hidden`) and
+                  // must never win hit-testing over the activity segment it
+                  // sits on top of — see the activity-overlay wrapper's z-[7]
+                  // below for the other half of that fix.
                   <span
                     aria-hidden="true"
                     className={cn(
-                      'absolute left-1/2 top-1/2 z-[6] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full px-[3px] py-[2px] shadow-elevation-1',
+                      'pointer-events-none absolute left-1/2 top-1/2 z-[6] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-px rounded-full px-[3px] py-[2px] shadow-elevation-1',
                       period === 'day' ? 'bg-inv-bg' : 'bg-night-strip-fixed-ink',
                     )}
                   >
@@ -443,8 +447,20 @@ function TimelineRow({
             already snaps a placement forward past busy time (rule 5), so the
             actual placement resolves correctly even though the drop's pixel
             position is not what determines it.
+
+            z-[7] on this wrapper — not z-[1] — because a `z-[N]` on a CHILD
+            button only wins against its OWN siblings; it can't out-rank a
+            sibling of the WRAPPER itself. Two of this wrapper's siblings
+            legitimately carry a higher z-index than 1: the plain slot button
+            once `isSelected` (z-[2]) and the legacy flag-marker span (z-[6]),
+            and either one previously painted/hit-tested ABOVE this entire
+            overlay regardless of the z-[5] on the activity buttons inside it.
+            z-[7] beats both, so a click always reaches the correct activity
+            segment. (The flag marker also got `pointer-events-none` above,
+            belt-and-suspenders, since it's decorative and never needed to be
+            a click target at all.)
           */}
-          <div className="pointer-events-none absolute inset-0 z-[1]">
+          <div className="pointer-events-none absolute inset-0 z-[7]">
             {rowActivitySegments(activities, period).map((segment) => {
               const anchorSlot = slotIndexFromMinutes(segment.activity.startMinutes)
               const isFocusableActivity =

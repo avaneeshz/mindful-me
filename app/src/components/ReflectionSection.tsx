@@ -39,11 +39,15 @@ function ReflectionCardTile({ card }: { card: ReflectionCard }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-xs p-md pb-2xl">
-        <p className="text-note font-semibold leading-snug text-ink">
+        <p className="break-words text-note font-semibold leading-snug text-ink">
           {/* A trailing period, not a bare digit, inside its own span — a
               bare "<span>7</span>" would collide with unrelated numeric
               literals elsewhere in the page's markup (e.g. the timeline
-              hour ruler's own "7"). */}
+              hour ruler's own "7"). `break-words` on this <p> is what keeps
+              a single long-word title ("Environment", "Boundaries") wrapping
+              onto a second line at ipad-land/mobile widths instead of
+              overflowing past the tile and getting silently hard-clipped by
+              the ancestor tile's `overflow-hidden`. */}
           <span className="mr-xs font-normal text-ink-dim">{card.number}.</span>
           {card.title}
         </p>
