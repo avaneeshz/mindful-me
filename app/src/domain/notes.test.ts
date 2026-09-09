@@ -13,7 +13,7 @@ import {
 } from './notes'
 
 describe('NOTE_BUTTONS', () => {
-  it('is the 7 header pills, in render order — Gifts→Extra Senses, Mirror→People, Chits/Opportunities gone', () => {
+  it('is the 7 header pills, in render order — Gifts→Extra Senses, Mirror→Relational Nutrient, Chits/Opportunities gone', () => {
     expect(NOTE_BUTTONS.map((button) => button.key)).toEqual([
       'gifts',
       'learnings',
@@ -26,11 +26,11 @@ describe('NOTE_BUTTONS', () => {
     expect(NOTE_BUTTONS.map((button) => button.label)).toEqual([
       'Extra Senses',
       'Learnings',
-      'People',
+      'Relational Nutrient',
       'Prayer',
       'Scriptures',
-      'Summons',
-      'Worship',
+      'Sermons',
+      'Worship Singing',
     ])
   })
 

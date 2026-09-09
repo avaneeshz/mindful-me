@@ -33,11 +33,13 @@ export function ReflectionSection() {
 
 function ReflectionCardTile({ card }: { card: ReflectionCard }) {
   return (
-    <div className="group flex flex-col gap-sm">
-      <div className="aspect-[4/3] w-full overflow-hidden rounded-md border border-line bg-surface-2 transition-colors group-hover:border-ink group-hover:shadow-elevation-2">
+    <div className="flex flex-col overflow-hidden rounded-md border border-line bg-surface transition-colors hover:border-ink hover:shadow-elevation-2">
+      <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
         <img src={card.image} alt="" className="size-full object-cover" />
       </div>
-      <p className="text-center text-note font-semibold leading-snug text-ink">{card.title}</p>
+      <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">
+        {card.title}
+      </p>
     </div>
   )
 }

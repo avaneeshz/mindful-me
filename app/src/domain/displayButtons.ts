@@ -3,18 +3,28 @@
  * their face (not just when opened) and take a single set/replace value per
  * day. Two today: Vipassana (minutes) and Steps (a plain integer). Pure
  * types + formatting only; persistence is `lib/displayValuesLocalStore.ts`.
+ *
+ * `input` is HOW the value is entered: `'number'` types the number straight
+ * in; `'duration'` enters a start and end clock time (like the Sun / Moon
+ * exposure log) and stores the minutes between them. The stored value and its
+ * face format are the same either way — a `'min'` count.
  */
 
 export const DISPLAY_BUTTONS = [
-  { key: 'vipassana', label: 'Vipassana', unit: 'min' },
-  { key: 'steps', label: 'Steps', unit: 'int' },
+  { key: 'vipassana', label: 'Vipassana', unit: 'min', input: 'duration' },
+  { key: 'steps', label: 'Steps', unit: 'int', input: 'number' },
 ] as const
 
 export type DisplayButtonKey = (typeof DISPLAY_BUTTONS)[number]['key']
 export type DisplayButtonUnit = (typeof DISPLAY_BUTTONS)[number]['unit']
+export type DisplayButtonInput = (typeof DISPLAY_BUTTONS)[number]['input']
 
 export function displayButtonUnit(key: DisplayButtonKey): DisplayButtonUnit {
   return DISPLAY_BUTTONS.find((button) => button.key === key)?.unit ?? 'int'
+}
+
+export function displayButtonInput(key: DisplayButtonKey): DisplayButtonInput {
+  return DISPLAY_BUTTONS.find((button) => button.key === key)?.input ?? 'number'
 }
 
 /** `75` minutes → `"1h 15m"`, `40` → `"40m"`, `120` → `"2h"`. */

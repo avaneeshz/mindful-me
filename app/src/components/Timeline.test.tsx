@@ -41,8 +41,8 @@ function renderTimeline(now: Date | null = null, activities: ActivityList = NO_A
 describe('the Sun/Moon end-caps are the light-log triggers (no longer a theme toggle)', () => {
   it('renders both as real buttons that open the sun/moon light log', () => {
     const html = renderTimeline()
-    expect(html).toContain('aria-label="Log sun light"')
-    expect(html).toContain('aria-label="Log moon light"')
+    expect(html).toContain('aria-label="Log sun exposure"')
+    expect(html).toContain('aria-label="Log moon exposure"')
     // Real interactive elements — not `role="img"` placeholders.
     expect(html).not.toContain('role="img"')
   })
@@ -55,7 +55,7 @@ describe('the Sun/Moon end-caps are the light-log triggers (no longer a theme to
 
   it('each cap is a dialog trigger, closed on first render', () => {
     const html = renderTimeline()
-    const sunButtonTag = html.match(/<button[^>]*aria-label="Log sun light"[^>]*>/)?.[0]
+    const sunButtonTag = html.match(/<button[^>]*aria-label="Log sun exposure"[^>]*>/)?.[0]
     expect(sunButtonTag).toContain('aria-haspopup="dialog"')
     expect(sunButtonTag).toContain('aria-expanded="false"')
   })

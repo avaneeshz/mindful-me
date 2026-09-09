@@ -11,9 +11,9 @@ function render(): string {
 }
 
 describe('HeaderBar note pills', () => {
-  it('renders the 7 note pills, in order — Extra Senses, Learnings, People, Prayer, Scriptures, Summons, Worship', () => {
+  it('renders the 7 note pills, in order — Extra Senses, Learnings, Relational Nutrient, Prayer, Scriptures, Sermons, Worship Singing', () => {
     const html = render()
-    const labels = ['Extra Senses', 'Learnings', 'People', 'Prayer', 'Scriptures', 'Summons', 'Worship']
+    const labels = ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Prayer', 'Scriptures', 'Sermons', 'Worship Singing']
     let lastIndex = -1
     for (const label of labels) {
       const index = html.indexOf(`>${label}<`)
@@ -31,7 +31,7 @@ describe('HeaderBar note pills', () => {
 
   it('every note pill is a real, focusable <button>', () => {
     const html = render()
-    for (const label of ['Extra Senses', 'Learnings', 'People', 'Prayer', 'Scriptures', 'Summons', 'Worship']) {
+    for (const label of ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Prayer', 'Scriptures', 'Sermons', 'Worship Singing']) {
       expect(html).toMatch(new RegExp(`<button[^>]*aria-label="${label} notes"`))
     }
   })

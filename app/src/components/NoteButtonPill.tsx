@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils'
 const fieldClass =
   'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
+const PANEL_WIDTH = 340
+
 /**
  * One header pill's whole note-entry surface: the trigger button, a Store
  * form (textarea, plus a single-select type chip radiogroup for the buttons
@@ -30,6 +32,9 @@ const fieldClass =
  */
 export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey; label: string }) {
   const [open, setOpen] = useState(false)
+  // Which edge the popover anchors to, chosen on open so it never runs off
+  // screen — the left-hand pills in the row have no room to expand leftward.
+  const [align, setAlign] = useState<'left' | 'right'>('left')
   const [noteText, setNoteText] = useState('')
   const [entryType, setEntryType] = useState<string>('')
   const [justSaved, setJustSaved] = useState(false)
@@ -89,6 +94,18 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     triggerRef.current?.focus()
   }
 
+  function toggle() {
+    setOpen((wasOpen) => {
+      if (!wasOpen) {
+        const rect = triggerRef.current?.getBoundingClientRect()
+        if (rect) {
+          setAlign(rect.left + PANEL_WIDTH <= window.innerWidth - 16 ? 'left' : 'right')
+        }
+      }
+      return !wasOpen
+    })
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     if (submitting || !canSubmit) return // Rule 9's double-submit guard, applied to Store.
@@ -111,8 +128,11 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`${label} notes`}
-        onClick={() => setOpen((value) => !value)}
-        className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
+        onClick={toggle}
+        className={cn(
+          chipVariants({ tone: 'surface', size: 'sm', interactive: true }),
+          'whitespace-nowrap font-semibold',
+        )}
       >
         {label}
       </button>
@@ -121,7 +141,10 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
         <div
           role="dialog"
           aria-label={`${label} notes`}
-          className="absolute right-0 top-[calc(100%+8px)] z-30 w-[min(340px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
+          className={cn(
+            'absolute top-[calc(100%+8px)] z-30 w-[min(340px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2',
+            align === 'left' ? 'left-0' : 'right-0',
+          )}
         >
           <div className="mb-md flex items-center justify-between">
             <h2 className="text-body font-semibold text-ink">{label}</h2>

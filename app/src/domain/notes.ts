@@ -7,22 +7,23 @@
  * React, no Supabase, no `localStorage` — see `state/useNoteEntries.ts` for
  * where those live.
  *
- * `Extra Senses` (key `gifts`) and `People` (key `mirror`) are display
+ * `Extra Senses` (key `gifts`), `Relational Nutrient` (key `mirror`),
+ * `Sermons` (key `summons`) and `Worship Singing` (key `worship`) are display
  * renames only — their storage keys are unchanged so existing entries and the
  * (unchanged) DB CHECK constraint still line up. `Opportunities` and `Chits`
  * were removed from this row and now live as inert sidebar entries
- * (`components/Sidebar.tsx`). `Scriptures` / `Summons` / `Worship` are new.
+ * (`components/Sidebar.tsx`). `Scriptures` / `Sermons` / `Worship Singing` are new.
  */
 
 /** The header pills, in the order they render. */
 export const NOTE_BUTTONS = [
   { key: 'gifts', label: 'Extra Senses' },
   { key: 'learnings', label: 'Learnings' },
-  { key: 'mirror', label: 'People' },
+  { key: 'mirror', label: 'Relational Nutrient' },
   { key: 'prayer', label: 'Prayer' },
   { key: 'scriptures', label: 'Scriptures' },
-  { key: 'summons', label: 'Summons' },
-  { key: 'worship', label: 'Worship' },
+  { key: 'summons', label: 'Sermons' },
+  { key: 'worship', label: 'Worship Singing' },
 ] as const
 
 export type NoteButtonKey = (typeof NOTE_BUTTONS)[number]['key']

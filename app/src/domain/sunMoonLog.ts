@@ -24,8 +24,8 @@ export interface SunMoonEntry {
 }
 
 export const SUN_MOON_HEADING: Record<SunMoonKind, string> = {
-  sun: 'Sun light',
-  moon: 'Moon light',
+  sun: 'Sun Exposure',
+  moon: 'Moon Exposure',
 }
 
 function minutesOfClock(hhmm: string): number | null {

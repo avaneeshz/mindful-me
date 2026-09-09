@@ -13,9 +13,7 @@ import {
 } from '@/domain/sunMoonLog'
 import { useSunMoonLog } from '@/state/useSunMoonLog'
 import { localDateISO } from '@/lib/localTime'
-
-const fieldClass =
-  'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
+import { TimeField } from '@/components/ui/TimeField'
 
 /**
  * The timeline end-cap, made a logging control. Tapping the Sun cap (Day row)
@@ -114,7 +112,7 @@ export function SunMoonLogPopover({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={kind === 'sun' ? 'Log sun light' : 'Log moon light'}
+        aria-label={kind === 'sun' ? 'Log sun exposure' : 'Log moon exposure'}
         onClick={() => setOpen((value) => !value)}
         className={capClassName}
       >
@@ -143,31 +141,21 @@ export function SunMoonLogPopover({
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
-            <div className="flex gap-sm">
-              <div className="flex-1">
+            {/* Stacked, not side-by-side: each row is a time field plus its
+                AM/PM toggle, which two-up overflowed and overlapped inside
+                this ~320px popover on tablet widths. */}
+            <div className="flex flex-col gap-sm">
+              <div>
                 <label htmlFor={startId} className="mb-xs block text-caption font-semibold text-ink-dim">
                   Start
                 </label>
-                <input
-                  ref={startRef}
-                  id={startId}
-                  type="time"
-                  value={start}
-                  onChange={(event) => setStart(event.target.value)}
-                  className={fieldClass}
-                />
+                <TimeField id={startId} inputRef={startRef} value={start} onChange={setStart} ariaLabel="Start time" />
               </div>
-              <div className="flex-1">
+              <div>
                 <label htmlFor={endId} className="mb-xs block text-caption font-semibold text-ink-dim">
                   End
                 </label>
-                <input
-                  id={endId}
-                  type="time"
-                  value={end}
-                  onChange={(event) => setEnd(event.target.value)}
-                  className={fieldClass}
-                />
+                <TimeField id={endId} value={end} onChange={setEnd} ariaLabel="End time" />
               </div>
             </div>
 
