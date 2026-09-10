@@ -151,3 +151,67 @@ describe('an activity’s own rendered segment is a real, independently operable
     expect(slotButton).not.toContain('tabindex="-1"')
   })
 })
+
+describe('activity click-routing beats every sibling that used to out-rank it (M-1 fix)', () => {
+  // Regression coverage for the confirmed QA finding: a z-[N] on the
+  // individual activity <button>s only wins against OTHER CHILDREN of the
+  // same overlay wrapper — it can never out-rank a SIBLING of the wrapper
+  // itself, and the wrapper's own stacking value is what actually competes
+  // with the selected-slot button (z-[2]) and the legacy flag-marker span
+  // (z-[6]). The wrapper must out-rank both.
+  it('the activity-overlay wrapper itself now out-ranks the selected-slot button (z-[2]) and the flag marker (z-[6])', () => {
+    const html = renderTimeline(null, [activity(10 * 60, 30, 'Homework')])
+    expect(html).toContain('pointer-events-none absolute inset-0 z-[7]')
+    // The old, too-low wrapper stacking value must be gone, not merely
+    // shadowed by a second class.
+    expect(html).not.toContain('pointer-events-none absolute inset-0 z-[1]"')
+  })
+
+  it('the legacy flag-marker dot is pointer-events-none — decorative, never a click target', () => {
+    const flagMarker: ScheduledActivity = {
+      id: 'marker-1',
+      name: null,
+      path: [],
+      startMinutes: 600,
+      durationMinutes: 0,
+      flags: ['Attack'],
+      quality: [],
+      symptoms: [],
+      notes: null,
+      status: 'planned',
+      timezone: 'UTC',
+    }
+    const html = renderTimeline(null, [flagMarker])
+    // The marker span still paints above (z-[6], unchanged, for visibility)
+    // but must not intercept clicks meant for whatever sits beneath it.
+    const markerSpan = html.match(/<span aria-hidden="true" class="[^"]*z-\[6\][^"]*">/)?.[0]
+    expect(markerSpan).toBeDefined()
+    expect(markerSpan).toContain('pointer-events-none')
+    expect(markerSpan).toContain('z-[6]')
+  })
+
+  it('an activity segment sharing a selected slot stays reachable: its own button still carries data-activity and sits inside the now-higher overlay', () => {
+    // Two 15-minute activities packed into the same slot (29 = 14:30-14:45,
+    // 14:45-15:00) — the exact packed-slot shape from the confirmed repro.
+    const bodyCare = activity(14 * 60 + 30, 15, 'Body Care (self)')
+    const supplements = { ...activity(14 * 60 + 45, 15, 'Supplements'), id: 'supplements-1' }
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <Timeline
+          activities={[bodyCare, supplements]}
+          selectedSlot={29}
+          viewedDate={new Date(2026, 8, 8)}
+          now={null}
+          onSelectSlot={() => {}}
+          onDropCard={() => {}}
+          onSelectActivity={() => {}}
+        />
+      </ThemeProvider>,
+    )
+    expect(html).toContain(`data-activity="${bodyCare.id}"`)
+    expect(html).toContain('data-activity="supplements-1"')
+    // One overlay wrapper per row (Day, Night) — both now carry the raised
+    // z-[7], not just whichever row happens to hold this slot.
+    expect(html.match(/pointer-events-none absolute inset-0 z-\[7\]/g)?.length).toBe(2)
+  })
+})

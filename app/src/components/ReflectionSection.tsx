@@ -37,7 +37,11 @@ function ReflectionCardTile({ card }: { card: ReflectionCard }) {
       <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
         <img src={card.image} alt="" className="size-full object-cover" />
       </div>
-      <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">
+      {/* `break-words` keeps a single long-word title ("Environment",
+          "Boundaries") wrapping onto a second line at ipad-land/mobile
+          widths instead of overflowing past the tile and getting silently
+          hard-clipped by the ancestor tile's `overflow-hidden`. */}
+      <p className="break-words border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">
         {card.title}
       </p>
     </div>

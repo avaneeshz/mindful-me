@@ -105,11 +105,17 @@ describe('Today screen', () => {
     expect(html).toContain('Loading weather')
   })
 
-  it('renders all 9 top-level tiles on the picker’s main screen', () => {
-    // Tile Redesign: the flat 24/53-card grid is gone — the picker's ALWAYS-
-    // rendered surface is the 9 top-level tiles; the 53 leaf items live one
-    // level deeper, behind a tile, and aren't in the initial markup at all.
+  it('renders all 9 top-level tiles on the picker’s main screen — once the selected slot has room', () => {
+    // Tile Redesign: the flat 24/53-card grid is gone — the picker's surface
+    // is the 9 top-level tiles; the 53 leaf items live one level deeper,
+    // behind a tile, and aren't in the initial markup at all. Panel Redesign
+    // §3 additionally withholds the whole tile row once the selected slot is
+    // fully booked, so this asserts against 16:00 (free — the seed's last
+    // entry ends at 16:00) rather than the suite's usual pinned 10:15
+    // (slot 20, which the seed fills to capacity with one 30-min Vipassana
+    // entry — see the capacity-fill test below).
     // `renderToStaticMarkup` HTML-escapes "&" to "&amp;".
+    const atFreeSlot = render(new Date(2026, 7, 25, 16, 0))
     for (const label of [
       'Sleep &amp; Rest',
       'Food &amp; Nourishment',
@@ -121,8 +127,14 @@ describe('Today screen', () => {
       'Growth &amp; Connection',
       'Home &amp; Chores',
     ]) {
-      expect(html).toContain(label)
+      expect(atFreeSlot).toContain(label)
     }
+  })
+
+  it('renders no tile row at all once the selected slot is fully booked', () => {
+    // The pinned 10:15 fixture (slot 20) is exactly this case — see above.
+    expect(html).not.toContain('Sleep &amp; Rest')
+    expect(html).toContain('This slot is full')
   })
 
   // Modal Redesign §E: flags no longer live in the always-visible slot
@@ -143,12 +155,9 @@ describe('Today screen', () => {
     expect(html).not.toContain('full — 2 activities totalling 30 minutes. Remove one')
   })
 
-  it('draws one capacity fill for the pinned slot’s single seeded activity', () => {
-    const meter = html.split('aria-label="Slot capacity"')[1]?.split('</div>')[0] ?? ''
-    const fills = meter.match(/left:calc\(/g) ?? []
-    // Grid cell 20 (the pinned now-slot) holds a single 30-minute Vipassana entry.
-    expect(fills).toHaveLength(1)
-    expect(meter).toContain('width:calc(100% - 2px)')
+  it('renders no capacity-meter row at all — dropped from the Slot-view panel entirely', () => {
+    expect(html).not.toContain('aria-label="Slot capacity"')
+    expect(html).not.toMatch(/\d+\/30 min used/)
   })
 
   it('rules both timeline rows with every hour — 13 ticks apiece, AM/PM only at the row edges', () => {

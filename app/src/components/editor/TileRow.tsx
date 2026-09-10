@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, Circle, Info, X } from 'lucide-react'
+import { CheckCircle2, Circle, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
@@ -19,10 +19,6 @@ function describeProgress(progress: TileProgress): string {
 }
 
 interface TileRowProps {
-  /** True when the slot can take nothing further and nothing is staged. */
-  atCapacity: boolean
-  activityCount: number
-  usedMinutes: number
   /** Today's (viewed day's) full activity list — what `auto:N` disappear rules count against. */
   activities: ActivityList
   /** Item names the user has manually marked done today (Tile Redesign §5). */
@@ -45,16 +41,14 @@ interface TileRowProps {
  * state. Tapping the same tile again, or the dialog's own close affordance
  * (X button, Escape, overlay click), closes it; tapping a different tile
  * swaps the dialog's contents in place.
+ *
+ * Only ever mounted while the slot actually has free capacity — a full slot
+ * shows no tile grid at all (Panel Redesign §3), so this component no longer
+ * carries its own "slot is full" dimmed/withdrawn state; that message, when
+ * shown, lives directly in `SlotEditor` alongside the decision not to mount
+ * this component in the first place.
  */
-export function TileRow({
-  atCapacity,
-  activityCount,
-  usedMinutes,
-  activities,
-  dismissed,
-  onPickCard,
-  onToggleDismiss,
-}: TileRowProps) {
+export function TileRow({ activities, dismissed, onPickCard, onToggleDismiss }: TileRowProps) {
   const [draggingCard, setDraggingCard] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<CategoryId | null>(null)
 
@@ -68,28 +62,7 @@ export function TileRow({
 
   return (
     <div>
-      {/*
-        `role="status"` matches the capacity message that used to sit above
-        the flat picker grid. The reason has to be ANNOUNCED, not merely
-        present on screen — assistive tech can't otherwise tell why the row
-        below just went `aria-hidden`.
-      */}
-      {atCapacity && (
-        <p
-          role="status"
-          className="mb-lg flex items-start gap-sm rounded-md bg-bg px-md py-sm text-note font-medium text-ink"
-        >
-          <Info aria-hidden="true" className="mt-px size-[14px] shrink-0 text-ink-dim" />
-          <span>
-            This slot is full — {describeSlotContents(activityCount, usedMinutes)}.{' '}
-            <span className="sr-only">The activity list above is unavailable until there is room. </span>
-            {activityCount === 1 ? 'Remove it' : 'Remove one'} above to free up space, or choose a
-            different slot.
-          </span>
-        </p>
-      )}
-
-      <div className={cn('tile-row', atCapacity && 'opacity-40')}>
+      <div className="tile-row">
         {CATEGORY_ORDER.map((categoryId) => {
           const category = CATEGORIES[categoryId]
           const progress = tileProgress(cardsForCategory(categoryId), activities, dismissed)
@@ -100,7 +73,6 @@ export function TileRow({
               category={category}
               progress={progress}
               isActive={isActive}
-              hiddenFromAT={atCapacity}
               onToggle={() => toggleTile(categoryId)}
             />
           )
@@ -140,13 +112,12 @@ export function TileRow({
               <Dialog.Description className="sr-only">
                 Choose an item from {openCategoryDef.label} to log for today.
               </Dialog.Description>
-              <div className={cn('item-chip-row', atCapacity && 'opacity-40')}>
+              <div className="item-chip-row">
                 {openCards.map((card) => (
                   <ItemChip
                     key={card.name}
                     card={card}
                     locked={isCardLocked(card, activities, dismissed)}
-                    atCapacity={atCapacity}
                     isDragging={draggingCard === card.name}
                     onPick={() => {
                       onPickCard(card.name)
@@ -197,13 +168,11 @@ function Tile({
   category,
   progress,
   isActive,
-  hiddenFromAT,
   onToggle,
 }: {
   category: Category
   progress: TileProgress
   isActive: boolean
-  hiddenFromAT: boolean
   onToggle: () => void
 }) {
   const Icon = category.icon
@@ -215,8 +184,6 @@ function Tile({
     <div className="relative flex-1 min-w-0">
       <button
         type="button"
-        tabIndex={hiddenFromAT ? -1 : undefined}
-        aria-hidden={hiddenFromAT || undefined}
         aria-pressed={isActive}
         onClick={onToggle}
         aria-label={`${category.label}, ${describeProgress(progress)}`}
@@ -260,7 +227,6 @@ function Tile({
 function ItemChip({
   card,
   locked,
-  atCapacity,
   isDragging,
   onPick,
   onToggleDismiss,
@@ -269,7 +235,6 @@ function ItemChip({
 }: {
   card: ActivityCard
   locked: boolean
-  atCapacity: boolean
   isDragging: boolean
   onPick: () => void
   onToggleDismiss: () => void
@@ -277,7 +242,6 @@ function ItemChip({
   onDragEnd: () => void
 }) {
   const Icon = card.icon
-  const hiddenFromAT = locked || atCapacity
 
   return (
     <div className="relative shrink-0">
@@ -285,8 +249,8 @@ function ItemChip({
         type="button"
         draggable={!locked}
         disabled={locked}
-        tabIndex={hiddenFromAT ? -1 : undefined}
-        aria-hidden={hiddenFromAT || undefined}
+        tabIndex={locked ? -1 : undefined}
+        aria-hidden={locked || undefined}
         onClick={onPick}
         onDragStart={(event) => {
           event.dataTransfer.setData('text/plain', card.name)
@@ -330,8 +294,6 @@ function ItemChip({
       {!locked && card.disappear.mode === 'manual' && (
         <button
           type="button"
-          tabIndex={atCapacity ? -1 : undefined}
-          aria-hidden={atCapacity || undefined}
           onClick={(event) => {
             event.stopPropagation()
             onToggleDismiss()

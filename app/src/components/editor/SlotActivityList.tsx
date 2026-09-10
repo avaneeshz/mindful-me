@@ -125,7 +125,17 @@ function ActivityRow({
 
       <CategoryIconChip category={category} icon={card?.icon} />
 
-      <span className="min-w-0 flex-1">
+      {/*
+        `mobile:basis-full` forces name+path onto its own flex line at mobile
+        widths — the duration text and action buttons then wrap onto the next
+        line below instead of fighting this span for the remaining space on
+        one line, which is what let a long path label (e.g. "Magnesium
+        (post-dinner)") visually collide with the "15 min" duration text at
+        exactly 390px. `break-words` is the defense-in-depth half: even a
+        single word wider than the row (no natural space to wrap at) breaks
+        instead of overflowing past the row's edge.
+      */}
+      <span className="min-w-0 flex-1 break-words mobile:basis-full">
         {/* Row hover changes the underline only — no background shift. */}
         <span
           className={cn(

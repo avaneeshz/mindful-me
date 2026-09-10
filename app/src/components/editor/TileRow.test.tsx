@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { TileRow } from './TileRow'
+import { describeSlotContents, TileRow } from './TileRow'
 import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
 import type { ActivityList } from '@/domain/types'
 
@@ -11,9 +11,6 @@ const NO_DISMISSED: ReadonlySet<string> = new Set()
 function renderRow(overrides: Partial<ComponentProps<typeof TileRow>> = {}): string {
   return renderToStaticMarkup(
     <TileRow
-      atCapacity={false}
-      activityCount={0}
-      usedMinutes={0}
       activities={NO_ACTIVITIES}
       dismissed={NO_DISMISSED}
       onPickCard={() => {}}
@@ -23,9 +20,9 @@ function renderRow(overrides: Partial<ComponentProps<typeof TileRow>> = {}): str
   )
 }
 
-describe('the 9-tile row stays mounted regardless of slot capacity', () => {
-  it('renders all 9 tiles when the slot has room', () => {
-    const html = renderRow({ atCapacity: false })
+describe('the 9-tile row', () => {
+  it('renders all 9 tiles', () => {
+    const html = renderRow()
     expect(html).toContain('tile-row')
     expect(html.match(/tabindex="-1"/g) ?? []).toHaveLength(0)
     // `renderToStaticMarkup` HTML-escapes "&" to "&amp;".
@@ -44,16 +41,11 @@ describe('the 9-tile row stays mounted regardless of slot capacity', () => {
     }
   })
 
-  it('keeps all 9 tiles mounted, dimmed and withdrawn from the a11y tree, when the slot is full', () => {
-    const html = renderRow({ atCapacity: true, activityCount: 1, usedMinutes: 30 })
-    expect(html).toContain('tile-row')
-    expect(html).toContain('This slot is full')
-    expect(html.match(/tabindex="-1"/g) ?? []).toHaveLength(9)
-    expect(html).not.toMatch(/<button[^>]*disabled/)
-  })
-
-  it('shows no "this slot is full" note once the slot has room', () => {
-    expect(renderRow({ atCapacity: false })).not.toContain('This slot is full')
+  // Panel Redesign §3 — `SlotEditor` no longer mounts this component at all
+  // once the slot is at capacity, so this component itself carries no
+  // "slot is full" copy or dimmed/withdrawn state any more.
+  it('never renders a "this slot is full" note — that lives in SlotEditor now', () => {
+    expect(renderRow()).not.toContain('This slot is full')
   })
 })
 
@@ -120,10 +112,16 @@ describe('whole-tile lock treatment', () => {
   })
 })
 
-describe('slot-full notice copy', () => {
+// `describeSlotContents` itself is still exported from here (the copy it
+// generates is now rendered by `SlotEditor`'s own "this slot is full" note —
+// see SlotEditor.test.tsx for that render-level assertion).
+describe('describeSlotContents', () => {
   it('reports the slot’s real entry count and real total', () => {
-    const html = renderRow({ atCapacity: true, activityCount: 2, usedMinutes: 45 })
-    expect(html).toContain('2 activities totalling 45 minutes')
+    expect(describeSlotContents(2, 45)).toBe('2 activities totalling 45 minutes')
+  })
+
+  it('singularizes both the activity and minute count at 1', () => {
+    expect(describeSlotContents(1, 1)).toBe('1 activity totalling 1 minute')
   })
 })
 

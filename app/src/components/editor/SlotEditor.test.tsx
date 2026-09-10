@@ -43,7 +43,6 @@ describe('dropping an activity onto a slot', () => {
 
   it('opens the configuration panel on the dropped slot', () => {
     expect(html).toContain(formatSlotRange(20))
-    expect(html).toContain('Selected slot')
     expect(html).not.toContain(formatSlotRange(32))
   })
 
@@ -91,8 +90,8 @@ describe('opening a slot that is part of a longer, spanning activity', () => {
 
   it("shows only the selected cell's own clipped share, not the activity's full duration", () => {
     const html = renderEditor(withSpanningActivity)
-    expect(html).toContain('30/30 min used')
-    expect(html).not.toContain('45/30 min used')
+    expect(html).toMatch(/>30 min</)
+    expect(html).not.toMatch(/>45 min</)
   })
 
   it('attributes the genuinely free remainder to the next cell, which is not "full"', () => {
@@ -100,7 +99,7 @@ describe('opening a slot that is part of a longer, spanning activity', () => {
     expect(nextSlot.selectedSlot).toBe(21)
 
     const html = renderEditor(nextSlot)
-    expect(html).toContain('15/30 min used')
+    expect(html).toMatch(/>15 min</)
     expect(html).not.toContain('This slot is full')
   })
 
@@ -293,5 +292,156 @@ describe('editing a spanning activity in place from a later cell', () => {
     const html = renderEditor(grown)
     expect(html).toMatch(/>30 min</)
     expect(html).toContain('This slot is full')
+  })
+})
+
+describe('the Activity | Slot toggle', () => {
+  it('renders both segments, Slot active by default — Slot view unchanged from before, regardless of viewingActivityId', () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    const html = renderEditor(viewing)
+
+    expect(html).toMatch(/role="radiogroup"[^>]*aria-label="Panel view"/)
+    expect(html).toMatch(/role="radio"[^>]*aria-checked="true"[^>]*>\s*Slot/s)
+    expect(html).toMatch(/role="radio"[^>]*aria-checked="false"[^>]*>\s*Activity/s)
+    // Slot view's own content is exactly what it was before this feature —
+    // the header still shows the SLOT's range, not the activity's.
+    expect(html).toContain(formatSlotRange(20))
+    expect(html).toContain('In this slot')
+    expect(html).toContain('Errand time')
+  })
+
+  it("a click on the timeline never opens the modal directly any more — Slot view (the default) shows no dialog", () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    expect(renderEditor(viewing)).not.toContain('role="dialog"')
+  })
+
+  it('shows the slot time, visibly and in a smaller font than a heading, under the toggle in Slot view', () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    // `view` defaults to 'slot' on first render, so this is Slot view.
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    const html = renderEditor(viewing)
+
+    expect(html).toMatch(new RegExp(`<h2 id="slot-editor-heading" class="text-caption[^"]*">${formatSlotRange(20)}</h2>`))
+    expect(html).not.toContain('text-slot-time')
+  })
+})
+
+describe('the two prototype-panel removals', () => {
+  it('never renders the capacity-meter row (no "N/30 min used" text, no progressbar)', () => {
+    const full = renderEditor(run(DROP, { type: 'commit' })) // exactly fills the slot
+    const partial = renderEditor(
+      run(
+        { type: 'selectSlot', slot: 20 },
+        { type: 'pickCard', cardName: 'Homework' },
+        { type: 'stepDuration', delta: -15 },
+        { type: 'commit' },
+      ),
+    )
+    for (const html of [full, partial]) {
+      expect(html).not.toMatch(/\d+\/30 min used/)
+      expect(html).not.toContain('role="progressbar"')
+    }
+  })
+
+  it('never renders the "Selected slot" pill', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).not.toContain('Selected slot')
+  })
+})
+
+describe('header restructure — toggle left-anchored, pills right-anchored, heading always present for a11y', () => {
+  it('the toggle + time column is left-anchored (items-start), not right-aligned', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).toMatch(/class="flex flex-col items-start gap-sm"/)
+  })
+
+  it('the Now/flags pills column is explicitly right-anchored (ml-auto), not merely the last flex child', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).toMatch(/class="ml-auto flex flex-wrap items-center gap-md"/)
+  })
+
+  it('the section always has a real h2#slot-editor-heading, even on a totally empty slot', () => {
+    const html = renderEditor(run())
+    expect(html).toMatch(/<h2 id="slot-editor-heading"/)
+  })
+
+  it('the Now and legacy flag pills still render, just no longer sharing a row with the time heading', () => {
+    const withFlags = boardReducer(run(DROP, { type: 'commit' }), { type: 'selectSlot', slot: 32 })
+    const html = renderEditor(withFlags)
+    expect(html).toContain('Now')
+  })
+})
+
+describe('Panel Redesign §1 — the toggle is hidden on a totally empty slot', () => {
+  it('renders no radiogroup at all when nothing touches the selected slot', () => {
+    const html = renderEditor(run())
+    expect(html).not.toContain('role="radiogroup"')
+    expect(html).not.toContain('>Activity<')
+  })
+
+  it('shows Slot-view content directly — empty list, tile row present, no Activity empty-state copy', () => {
+    const html = renderEditor(run())
+    expect(html).not.toContain('In this slot')
+    expect(html).not.toContain('Tap a scheduled activity')
+    expect(html).toContain('tile-row')
+  })
+
+  it('renders the radiogroup once at least one activity touches the slot', () => {
+    const html = renderEditor(run(DROP, { type: 'commit' }))
+    expect(html).toContain('role="radiogroup"')
+  })
+})
+
+describe('Panel Redesign §2 — auto-reset to Slot view whenever nothing specific is being viewed', () => {
+  it('a plain selectSlot (viewingActivityId null) always shows the SLOT heading, never an activity range', () => {
+    const state = run(DROP, { type: 'commit' })
+    expect(state.viewingActivityId).toBeNull()
+    const html = renderEditor(state)
+    expect(html).toContain(formatSlotRange(20))
+  })
+
+  it('removeActivity on the currently-viewed activity clears viewingActivityId and the panel stays/returns to Slot content', () => {
+    const state = run(DROP, { type: 'commit' })
+    const id = realId(state)
+    const viewing = boardReducer(state, { type: 'selectActivity', id })
+    expect(viewing.viewingActivityId).toBe(id)
+
+    const afterRemoval = boardReducer(viewing, { type: 'removeActivity', id })
+    expect(afterRemoval.viewingActivityId).toBeNull()
+
+    const html = renderEditor(afterRemoval)
+    expect(html).toContain(formatSlotRange(20))
+    expect(html).not.toContain('Tap a scheduled activity')
+  })
+})
+
+describe('Panel Redesign §3 — the 9-tile picker never mounts once the slot is at full capacity', () => {
+  it('a partially-filled slot (room remains) shows the tile row and no "full" note', () => {
+    const partial = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'stepDuration', delta: -15 }, // 30 -> 15, 15 min still free in the 30-min slot
+      { type: 'commit' },
+    )
+    const html = renderEditor(partial)
+    expect(html).toContain('In this slot')
+    expect(html).toContain('tile-row')
+    expect(html).not.toContain('This slot is full')
+  })
+
+  it('a fully-booked slot shows the activity list and the "full" note, but no tile grid', () => {
+    const full = run(DROP, { type: 'commit' }) // 'Errand time', 30 min, exactly fills slot 20
+    const html = renderEditor(full)
+    expect(html).toContain('In this slot')
+    expect(html).toContain('Errand time')
+    expect(html).toContain('This slot is full')
+    expect(html).not.toContain('tile-row')
+    // No tile label should leak through either.
+    expect(html).not.toContain('Sleep &amp; Rest')
   })
 })
