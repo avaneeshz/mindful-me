@@ -19,6 +19,7 @@ import {
   type RowFocusStop,
 } from '@/domain/slots'
 import { isWindowFull } from '@/domain/scheduling'
+import { REFLECTION_CARD_MIME } from '@/domain/reflectionDrag'
 import { PERIOD_ICONS } from '@/data/periods'
 import { SunMoonLogPopover } from '@/components/SunMoonLogPopover'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
@@ -64,11 +65,22 @@ interface TimelineProps {
   onDropCard: (cardName: string, slot: number) => void
   /**
    * Clicking (or keyboard-activating) a specific activity's own rendered
-   * segment — opens that activity's edit modal directly, rather than merely
-   * selecting the 30-minute slot it lives in. See `state/boardReducer.ts`'s
-   * `selectActivity` action.
+   * segment — selects it for VIEWING (a read-only details summary) and as
+   * the target for reflection-card mapping, WITHOUT opening its edit modal
+   * (that stays reachable elsewhere — `SlotActivityList`'s own edit
+   * control). See `state/boardReducer.ts`'s `selectScheduledActivity`
+   * action — clicking the already-selected activity again deselects it.
    */
   onSelectActivity: (id: string) => void
+  /** The currently selected activity (if any) — outlined distinctly from hover/focus so the mapping target is visible at a glance. */
+  selectedActivityId: string | null
+  /**
+   * A reflection card dropped directly onto this activity's own segment —
+   * the "drag" path of reflection-card mapping (no prior selection needed,
+   * since the drop target IS the activity). See `state/boardReducer.ts`'s
+   * `mapReflectionCard` action; the caller owns the actual note-entry popup.
+   */
+  onDropReflectionCard: (scheduledActivityId: string, card: number) => void
   /** Dispatches `quickLogActivity` — threaded to the Sun/Moon end-cap popovers. See `state/boardReducer.ts`. */
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }
@@ -80,6 +92,8 @@ export function Timeline({
   onSelectSlot,
   onDropCard,
   onSelectActivity,
+  selectedActivityId,
+  onDropReflectionCard,
   onQuickLog,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
@@ -169,6 +183,8 @@ export function Timeline({
             onSelectSlot={onSelectSlot}
             onDropCard={onDropCard}
             onSelectActivity={onSelectActivity}
+            selectedActivityId={selectedActivityId}
+            onDropReflectionCard={onDropReflectionCard}
             onQuickLog={onQuickLog}
             onKeyDown={handleKeyDown}
           />
@@ -190,6 +206,8 @@ interface TimelineRowProps {
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
   onSelectActivity: (id: string) => void
+  selectedActivityId: string | null
+  onDropReflectionCard: (scheduledActivityId: string, card: number) => void
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
   onKeyDown: (event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) => void
 }
@@ -204,6 +222,8 @@ function TimelineRow({
   onSelectSlot,
   onDropCard,
   onSelectActivity,
+  selectedActivityId,
+  onDropReflectionCard,
   onQuickLog,
   onKeyDown,
 }: TimelineRowProps) {
@@ -404,26 +424,30 @@ function TimelineRow({
           {/*
             Each real activity's own rendered span is now a genuine, focusable
             control — clicking (or Enter/Space-activating) it dispatches
-            `onSelectActivity`, opening THAT activity's own edit modal
-            directly, rather than merely selecting the 30-minute slot beneath
-            it. The wrapping div stays `pointer-events-none` so a click on the
-            empty (uncovered) part of a slot still reaches the plain slot
-            button underneath — each activity button re-enables its own
-            pointer events individually.
+            `onSelectActivity`, SELECTING that activity for viewing/reflection
+            mapping (never opening its edit modal — that stays reachable
+            elsewhere, `SlotActivityList`'s own edit control). The wrapping
+            div stays `pointer-events-none` so a click on the empty
+            (uncovered) part of a slot still reaches the plain slot button
+            underneath — each activity button re-enables its own pointer
+            events individually.
 
             z-[5] — above the slot's own isSelected (z-2) and isDragOver (z-4)
             states — so a click or keyboard Enter on the segment always
             resolves to the activity, even when it also happens to sit inside
             the currently-selected or drag-hovered slot.
 
-            Drag-and-drop regression guard: a card dropped from the tile-row
-            popup onto a point that sits under one of these buttons must still
-            work. Wiring the identical onDragOver/onDragLeave/onDrop handlers
-            here, anchored at the covering activity's own start slot
-            (`slotIndexFromMinutes`), is sufficient — `computeCandidateSchedule`
-            already snaps a placement forward past busy time (rule 5), so the
-            actual placement resolves correctly even though the drop's pixel
-            position is not what determines it.
+            Two independent drops land here (see the `onDrop` handler below):
+            a reflection card (its own MIME type, mapping it onto THIS
+            activity — the drag path of reflection mapping) and, unchanged,
+            an activity card dropped from the tile-row popup onto a point
+            that sits under one of these buttons — wiring the identical
+            onDragOver/onDragLeave/onDrop handlers here, anchored at the
+            covering activity's own start slot (`slotIndexFromMinutes`), is
+            sufficient — `computeCandidateSchedule` already snaps a placement
+            forward past busy time (rule 5), so the actual placement resolves
+            correctly even though the drop's pixel position is not what
+            determines it.
           */}
           <div className="pointer-events-none absolute inset-0 z-[1]">
             {rowActivitySegments(activities, period).map((segment) => {
@@ -431,6 +455,7 @@ function TimelineRow({
               const isFocusableActivity =
                 rovingStop?.kind === 'activity' && rovingStop.activityId === segment.activity.id
               const isDragOverActivity = dragOverSlot === anchorSlot
+              const isSelectedActivity = selectedActivityId === segment.activity.id
 
               return (
                 <button
@@ -439,6 +464,7 @@ function TimelineRow({
                   data-activity={segment.activity.id}
                   tabIndex={isFocusableActivity ? 0 : -1}
                   aria-label={describeActivity(segment.activity)}
+                  aria-pressed={isSelectedActivity}
                   onClick={() => onSelectActivity(segment.activity.id)}
                   onFocus={() => onFocusStop({ kind: 'activity', activityId: segment.activity.id })}
                   onKeyDown={(event) => onKeyDown(event, period, { kind: 'activity', activityId: segment.activity.id })}
@@ -451,6 +477,17 @@ function TimelineRow({
                   onDrop={(event) => {
                     event.preventDefault()
                     setDragOverSlot(null)
+                    // Two different things can land here: a reflection card
+                    // (its own MIME type — maps it onto THIS activity, the
+                    // drag path of reflection mapping) or an activity card
+                    // from the tile row (`text/plain` — the pre-existing
+                    // "drop a new activity here" behaviour, untouched).
+                    const reflectionCard = event.dataTransfer.getData(REFLECTION_CARD_MIME)
+                    if (reflectionCard) {
+                      const card = Number(reflectionCard)
+                      if (Number.isFinite(card)) onDropReflectionCard(segment.activity.id, card)
+                      return
+                    }
                     const cardName = event.dataTransfer.getData('text/plain')
                     if (cardName) onDropCard(cardName, anchorSlot)
                   }}
@@ -460,12 +497,14 @@ function TimelineRow({
                       ? [
                           'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-ink-dim',
                           'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink',
-                          isDragOverActivity && 'outline outline-2.5 -outline-offset-2.5 outline-ink',
+                          (isDragOverActivity || isSelectedActivity) &&
+                            'outline outline-2.5 -outline-offset-2.5 outline-ink',
                         ]
                       : [
                           'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-night-strip-fixed-ink',
                           'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-night-strip-fixed-ink',
-                          isDragOverActivity && 'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
+                          (isDragOverActivity || isSelectedActivity) &&
+                            'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
                         ],
                   )}
                   style={{

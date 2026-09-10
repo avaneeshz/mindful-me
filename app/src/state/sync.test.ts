@@ -165,4 +165,30 @@ describe('deriveSyncIntents', () => {
     const { intents } = step(state, { type: 'pickCard', cardName: 'Errand time' })
     expect(intents).toEqual([])
   })
+
+  it('mapReflectionCard produces an addReflection intent naming the activity, card and note', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+
+    const { intents } = step(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 3, note: 'Tense.' })
+    expect(intents).toEqual([{ kind: 'addReflection', scheduledActivityId: id, card: 3, note: 'Tense.' }])
+  })
+
+  it('unmapReflectionCard produces a removeReflection intent, and neither intent fires for an unknown activity', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 3, note: 'Tense.' })
+
+    const { intents } = step(state, { type: 'unmapReflectionCard', scheduledActivityId: id, card: 3 })
+    expect(intents).toEqual([{ kind: 'removeReflection', scheduledActivityId: id, card: 3 }])
+
+    expect(step(state, { type: 'mapReflectionCard', scheduledActivityId: 'missing', card: 1, note: 'x' }).intents).toEqual(
+      [],
+    )
+    expect(step(state, { type: 'unmapReflectionCard', scheduledActivityId: 'missing', card: 1 }).intents).toEqual([])
+  })
 })

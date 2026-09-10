@@ -23,8 +23,6 @@ function renderModal(overrides: Partial<ComponentProps<typeof LogActivityModal>>
       onToggleQuality={() => {}}
       onToggleSymptom={() => {}}
       onSetNotes={() => {}}
-      onToggleReflection={() => {}}
-      onSetReflectionNote={() => {}}
       onCommit={() => {}}
       onCancel={() => {}}
       {...overrides}
@@ -319,8 +317,6 @@ describe('feature-flag-gated duration fallback', () => {
         onToggleQuality={() => {}}
         onToggleSymptom={() => {}}
         onSetNotes={() => {}}
-        onToggleReflection={() => {}}
-        onSetReflectionNote={() => {}}
         onCommit={() => {}}
         onCancel={() => {}}
       />,

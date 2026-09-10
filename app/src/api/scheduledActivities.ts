@@ -62,27 +62,6 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
 }
 
 /**
- * `ScheduledActivity.reflections` (catalog-number-keyed) -> the JSON shape
- * `create_scheduled_activity`/`reschedule_scheduled_activity`/
- * `set_scheduled_activity_reflections` accept (`{card_id, note}[]`, real DB
- * ids). A card number the catalog can't resolve yet (offline, not loaded) is
- * dropped from this SYNC call only — it stays intact in local state and
- * catches up on the next successful sync, same as `scheduleParams`'
- * `activity_id` resolution.
- */
-async function reflectionsParam(
-  reflections: readonly ReflectionEntry[],
-): Promise<{ card_id: string; note: string | null }[]> {
-  const resolved = await Promise.all(
-    reflections.map(async (r) => {
-      const cardId = await reflectionCardIdForNumber(r.card)
-      return cardId ? { card_id: cardId, note: r.note.trim() ? r.note : null } : null
-    }),
-  )
-  return resolved.filter((r): r is { card_id: string; note: string | null } => r !== null)
-}
-
-/**
  * The fields every create/reschedule call needs, derived from the client
  * shape plus `reference` — the calendar day `activity.startMinutes` is
  * anchored to (normally "today", i.e. the same `now` the board itself uses;
@@ -136,7 +115,6 @@ export async function apiCreateScheduledActivity(activity: ScheduledActivity, re
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
-    p_reflections: await reflectionsParam(activity.reflections),
   })
   if (error) throw error
 }
@@ -147,18 +125,21 @@ export async function apiRescheduleScheduledActivity(
 ): Promise<void> {
   if (!supabase) return
   const params = await scheduleParams(activity, reference)
-  // Quality, symptoms, notes and reflections are all bundled into reschedule
-  // too (unlike flags, kept deliberately separate — see the migration's own
-  // comment): the client always sends the full CURRENT value of each on
-  // every reschedule, never omitted, and the RPC unconditionally overwrites
-  // them, same contract every other bundled column has.
+  // Quality, symptoms and notes are all bundled into reschedule too (unlike
+  // flags, kept deliberately separate — see the migration's own comment):
+  // the client always sends the full CURRENT value of each on every
+  // reschedule, never omitted, and the RPC unconditionally overwrites them,
+  // same contract every other bundled column has. Reflections deliberately
+  // do NOT ride along here — mapping a card to an activity is its own,
+  // later action (`apiAddScheduledActivityReflection`/
+  // `apiRemoveScheduledActivityReflection` below), never bundled into a
+  // time/duration/quality/etc. edit.
   const { error } = await supabase.rpc('reschedule_scheduled_activity', {
     p_id: activity.id,
     ...params,
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
-    p_reflections: await reflectionsParam(activity.reflections),
   })
   if (error) throw error
 }
@@ -196,12 +177,43 @@ export async function apiSetScheduledActivityNotes(id: string, notes: string | n
   if (error) throw error
 }
 
-/** Parity with `apiSetScheduledActivitySymptoms` — a reflections-only edit with no accompanying time change. */
-export async function apiSetScheduledActivityReflections(id: string, reflections: ReflectionEntry[]): Promise<void> {
+/**
+ * Maps one reflection card onto an already-logged activity, with its own
+ * note — an upsert (replaces just THAT card's note if it was already
+ * mapped, adds it otherwise), never a bulk replace of the activity's whole
+ * reflection set. This is the actual usage pattern (see `state/
+ * boardReducer.ts`'s `mapReflectionCard` doc comment): reflection mapping
+ * happens as its own later action, potentially adding cards one at a time
+ * over hours, never bundled into create/reschedule.
+ *
+ * A card number the local catalog hasn't resolved to a real DB id yet
+ * (offline, not loaded) silently no-ops the SYNC call only — local state
+ * already has the mapping, and it catches up on the next successful sync.
+ */
+export async function apiAddScheduledActivityReflection(
+  scheduledActivityId: string,
+  card: number,
+  note: string,
+): Promise<void> {
   if (!supabase) return
-  const { error } = await supabase.rpc('set_scheduled_activity_reflections', {
-    p_id: id,
-    p_reflections: await reflectionsParam(reflections),
+  const cardId = await reflectionCardIdForNumber(card)
+  if (!cardId) return
+  const { error } = await supabase.rpc('add_scheduled_activity_reflection', {
+    p_scheduled_activity_id: scheduledActivityId,
+    p_reflection_card_id: cardId,
+    p_note: note.trim() ? note : null,
+  })
+  if (error) throw error
+}
+
+/** The inverse of `apiAddScheduledActivityReflection` — drops one card's mapping only. */
+export async function apiRemoveScheduledActivityReflection(scheduledActivityId: string, card: number): Promise<void> {
+  if (!supabase) return
+  const cardId = await reflectionCardIdForNumber(card)
+  if (!cardId) return
+  const { error } = await supabase.rpc('remove_scheduled_activity_reflection', {
+    p_scheduled_activity_id: scheduledActivityId,
+    p_reflection_card_id: cardId,
   })
   if (error) throw error
 }

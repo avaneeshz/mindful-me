@@ -858,88 +858,33 @@ describe('setStagingNotes — freeform notes', () => {
   })
 })
 
-describe('toggleStagingReflection / setStagingReflectionNote — reflection cards (Phase 3, many-to-many, per-card note)', () => {
-  it('defaults to an empty array for a freshly picked card', () => {
-    const state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    expect(state.staging.reflections).toEqual([])
-  })
-
-  it('toggling on adds the card with an empty note; toggling again removes it and its note together', () => {
-    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'toggleStagingReflection', card: 3 })
-    expect(state.staging.reflections).toEqual([{ card: 3, note: '' }])
-
-    state = boardReducer(state, { type: 'toggleStagingReflection', card: 3 })
-    expect(state.staging.reflections).toEqual([])
-  })
-
-  it('supports multiple cards selected at once, each with its own note', () => {
-    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'toggleStagingReflection', card: 1 })
-    state = boardReducer(state, { type: 'toggleStagingReflection', card: 5 })
-    state = boardReducer(state, { type: 'setStagingReflectionNote', card: 1, note: 'Tense shoulders' })
-    state = boardReducer(state, { type: 'setStagingReflectionNote', card: 5, note: 'Felt like myself' })
-
-    expect(state.staging.reflections).toEqual([
-      { card: 1, note: 'Tense shoulders' },
-      { card: 5, note: 'Felt like myself' },
-    ])
-  })
-
-  it('setStagingReflectionNote is a no-op for a card that is not currently selected', () => {
-    const state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    const after = boardReducer(state, { type: 'setStagingReflectionNote', card: 2, note: 'orphan note' })
-    expect(after).toBe(state)
-  })
-
-  it('commit attaches the staged reflections to the real activity', () => {
-    const state = run(
-      start(),
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'toggleStagingReflection', card: 7 },
-      { type: 'setStagingReflectionNote', card: 7, note: 'Held a clear boundary.' },
-      { type: 'commit' },
-    )
-    expect(real(state)[0].reflections).toEqual([{ card: 7, note: 'Held a clear boundary.' }])
-  })
-
-  it('editing an activity re-stages its own existing reflections, independently editable/removable', () => {
-    let state = run(
-      start(),
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'toggleStagingReflection', card: 9 },
-      { type: 'setStagingReflectionNote', card: 9, note: 'Chose Option B.' },
-      { type: 'commit' },
-    )
-    const id = real(state)[0].id
-    state = boardReducer(state, { type: 'editActivity', id })
-    expect(state.staging.reflections).toEqual([{ card: 9, note: 'Chose Option B.' }])
-
-    state = boardReducer(state, { type: 'toggleStagingReflection', card: 9 })
-    state = boardReducer(state, { type: 'commit' })
+describe('commit never touches reflections — mapping is a separate, later action', () => {
+  it('a brand-new activity always starts with no reflections, regardless of any (nonexistent) staging path for them', () => {
+    const state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     expect(real(state)[0].reflections).toEqual([])
+  })
+
+  it('editing time/duration/quality/etc. carries the activity’s EXISTING reflections forward untouched (rule-4-style guarantee)', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, {
+      type: 'mapReflectionCard',
+      scheduledActivityId: id,
+      card: 4,
+      note: 'Kept the boundary.',
+    })
+
+    state = boardReducer(state, { type: 'editActivity', id })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Flow' })
+    state = boardReducer(state, { type: 'commit' })
+
+    expect(byId(state, id)?.reflections).toEqual([{ card: 4, note: 'Kept the boundary.' }])
+    expect(byId(state, id)?.quality).toEqual(['Flow'])
   })
 })
 
-describe('selectActivity — clicking an activity’s own rendered timeline segment', () => {
-  it('is exactly "select the slot the activity starts in, then edit that activity"', () => {
-    let state = run(
-      start(),
-      { type: 'selectSlot', slot: 20 },
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'commit' },
-    )
-    const id = real(state)[0].id
-    // Deliberately viewed from an unrelated slot first, so the effect below
-    // can only be `selectActivity`'s own doing.
-    state = boardReducer(state, { type: 'selectSlot', slot: 5 })
-
-    const viaSelectActivity = boardReducer(state, { type: 'selectActivity', id })
-    const viaManualFlow = run(state, { type: 'selectSlot', slot: 20 }, { type: 'editActivity', id })
-    expect(viaSelectActivity).toEqual(viaManualFlow)
-  })
-
-  it('jumps to the activity’s own start slot, and opens it for edit', () => {
+describe('selectScheduledActivity — clicking an activity’s own rendered timeline segment', () => {
+  it('selects the activity WITHOUT opening the edit modal — staging/selectedSlot stay untouched', () => {
     let state = run(
       start(),
       { type: 'selectSlot', slot: 20 },
@@ -949,47 +894,52 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
     const id = real(state)[0].id
     state = boardReducer(state, { type: 'selectSlot', slot: 5 })
 
-    state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.selectedSlot).toBe(20)
-    expect(state.staging.editingId).toBe(id)
-    expect(state.staging.cardName).toBe('Homework')
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+    expect(state.selectedSlot).toBe(5) // unchanged
+    expect(state.staging.cardName).toBeNull() // no edit modal opened
   })
 
-  it('jumps to the start slot even when the activity was clicked mid-span, not at its start', () => {
-    // A 90-minute activity anchored at slot 20 (10:00) reaches into slot 22
-    // (11:00-11:30) — clicking that later segment still resolves to slot 20.
-    let state = run(
-      start(),
-      { type: 'selectSlot', slot: 20 },
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'stepDuration', delta: 60 }, // 30 -> 90
-      { type: 'commit' },
-    )
-    const id = real(state)[0].id
-    state = boardReducer(state, { type: 'selectSlot', slot: 0 })
-
-    state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.selectedSlot).toBe(20)
-    expect(state.staging.editingId).toBe(id)
-  })
-
-  it('rule 4 — never touches completion status just by opening the editor', () => {
+  it('clicking the already-selected activity again deselects it (toggle)', () => {
     let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     const id = real(state)[0].id
-    state = { ...state, activities: state.activities.map((a) => (a.id === id ? { ...a, status: 'completed' } : a)) }
 
-    state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.staging.editingId).toBe(id)
-    expect(byId(state, id)?.status).toBe('completed') // unchanged — nothing committed yet
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBeNull()
   })
 
-  it('guards against an unknown id — state is returned unchanged, selectedSlot untouched', () => {
-    const state = boardReducer(start(), { type: 'selectSlot', slot: 5 })
-    const after = boardReducer(state, { type: 'selectActivity', id: 'does-not-exist' })
-    expect(after).toBe(state) // same reference — no-op, exactly `editActivity`'s own guard
+  it('selecting a different activity replaces the prior selection outright', () => {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+      { type: 'selectSlot', slot: 40 },
+      { type: 'pickCard', cardName: 'Errand time' },
+      { type: 'commit' },
+    )
+    const [first, second] = real(state)
+    state = boardReducer(state, { type: 'selectScheduledActivity', id: first.id })
+    state = boardReducer(state, { type: 'selectScheduledActivity', id: second.id })
+    expect(state.selectedActivityId).toBe(second.id)
   })
 
-  it('guards against a flag-only marker (name === null) — never opens it for edit', () => {
+  it('an explicit null always clears the selection', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'selectScheduledActivity', id: null })
+    expect(state.selectedActivityId).toBeNull()
+  })
+
+  it('guards against an unknown id — state is returned unchanged', () => {
+    const state = start()
+    const after = boardReducer(state, { type: 'selectScheduledActivity', id: 'does-not-exist' })
+    expect(after).toBe(state)
+  })
+
+  it('guards against a flag-only marker (name === null) — never selectable', () => {
     const markerActivity: ScheduledActivity = {
       id: 'marker-1',
       name: null,
@@ -1003,20 +953,72 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
       status: 'planned',
       timezone: 'UTC',
     }
-    const state = boardReducer(start([markerActivity]), { type: 'selectSlot', slot: 5 })
-    const after = boardReducer(state, { type: 'selectActivity', id: 'marker-1' })
+    const state = start([markerActivity])
+    const after = boardReducer(state, { type: 'selectScheduledActivity', id: 'marker-1' })
     expect(after).toBe(state)
   })
+})
 
-  it('never commits — the activity’s own fields are unchanged until an explicit Save', () => {
+describe('mapReflectionCard / unmapReflectionCard — reflection-card mapping (a separate, later action; see the action’s own doc comment)', () => {
+  it('adds a card with its note to an already-logged activity', () => {
     let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     const id = real(state)[0].id
-    const before = byId(state, id)
 
-    state = boardReducer(state, { type: 'selectActivity', id })
-    state = boardReducer(state, { type: 'stepDuration', delta: 15 }) // staged only, not committed
-    expect(byId(state, id)).toEqual(before)
-    expect(state.staging.durationMinutes).toBe(45)
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 3, note: 'Felt tense.' })
+    expect(byId(state, id)?.reflections).toEqual([{ card: 3, note: 'Felt tense.' }])
+  })
+
+  it('adding a second and third card is normal usage — each keeps its own independent note', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'First.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 5, note: 'Second.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 9, note: 'Third.' })
+
+    expect(byId(state, id)?.reflections).toEqual([
+      { card: 1, note: 'First.' },
+      { card: 5, note: 'Second.' },
+      { card: 9, note: 'Third.' },
+    ])
+  })
+
+  it('re-mapping an already-mapped card overwrites just its own note, leaving the others untouched', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'First.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 5, note: 'Second.' })
+
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'Updated.' })
+    expect(byId(state, id)?.reflections).toEqual([
+      { card: 5, note: 'Second.' },
+      { card: 1, note: 'Updated.' },
+    ])
+  })
+
+  it('unmapReflectionCard drops one pairing, leaving every other reflection on the activity untouched', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'First.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 5, note: 'Second.' })
+
+    state = boardReducer(state, { type: 'unmapReflectionCard', scheduledActivityId: id, card: 1 })
+    expect(byId(state, id)?.reflections).toEqual([{ card: 5, note: 'Second.' }])
+  })
+
+  it('both actions no-op for an unknown activity id', () => {
+    const state = start()
+    expect(boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: 'missing', card: 1, note: 'x' })).toBe(
+      state,
+    )
+    expect(boardReducer(state, { type: 'unmapReflectionCard', scheduledActivityId: 'missing', card: 1 })).toBe(state)
+  })
+
+  it('unmapReflectionCard no-ops for a card that was never mapped', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    const after = boardReducer(state, { type: 'unmapReflectionCard', scheduledActivityId: id, card: 7 })
+    expect(after).toBe(state)
   })
 })
 

@@ -32,6 +32,8 @@ function renderTimeline(now: Date | null = null, activities: ActivityList = NO_A
         onSelectSlot={() => {}}
         onDropCard={() => {}}
         onSelectActivity={() => {}}
+        selectedActivityId={null}
+        onDropReflectionCard={() => {}}
         onQuickLog={() => {}}
       />
     </ThemeProvider>,
