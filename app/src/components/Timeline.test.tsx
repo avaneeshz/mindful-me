@@ -16,7 +16,7 @@ function activity(startMinutes: number, durationMinutes: number, name = 'Homewor
     flags: [],
     quality: [],
     symptoms: [],
-    notes: null,
+    notes: null, reflections: [],
     status: 'planned',
     timezone: 'UTC',
   }
@@ -28,11 +28,12 @@ function renderTimeline(now: Date | null = null, activities: ActivityList = NO_A
       <Timeline
         activities={activities}
         selectedSlot={20}
-        viewedDate={new Date(2026, 8, 8)}
         now={now}
         onSelectSlot={() => {}}
         onDropCard={() => {}}
         onSelectActivity={() => {}}
+        selectedActivityId={null}
+        onQuickLog={() => {}}
       />
     </ThemeProvider>,
   )
@@ -120,7 +121,7 @@ describe('an activity’s own rendered segment is a real, independently operable
       flags: ['Attack'],
       quality: [],
       symptoms: [],
-      notes: null,
+      notes: null, reflections: [],
       status: 'planned',
       timezone: 'UTC',
     }
@@ -149,5 +150,37 @@ describe('an activity’s own rendered segment is a real, independently operable
     const html = renderTimeline(null, [activity(10 * 60, 10, 'Quick task')])
     const slotButton = html.match(/<button[^>]*data-slot="20"[^>]*>/)?.[0]
     expect(slotButton).not.toContain('tabindex="-1"')
+  })
+})
+
+describe('a short activity’s interactive hit area is floored, independent of its visual width (drag-and-drop bug fix)', () => {
+  it('a 1-minute activity’s button still floors at the minimum hit width', () => {
+    const html = renderTimeline(null, [activity(10 * 60, 1, 'Quick task')])
+    const buttonTag = html.match(/<button[^>]*data-activity="a-600-1"[^>]*>/)?.[0]
+    expect(buttonTag).toBeDefined()
+    expect(buttonTag).toContain('max(100%, 24px)')
+  })
+
+  it('a long (multi-hour) activity’s button carries the exact same floor rule — the fix is not duration-conditional', () => {
+    const html = renderTimeline(null, [activity(10 * 60, 180, 'Night Sleep')])
+    const buttonTag = html.match(/<button[^>]*data-activity="a-600-180"[^>]*>/)?.[0]
+    expect(buttonTag).toContain('max(100%, 24px)')
+  })
+
+  it('the VISUAL fill stays exactly duration-proportional — only the button’s hit area is floored, never the drawn box', () => {
+    // A 1-minute activity's true width is 1/30/24 of the row — a genuine
+    // sliver. The button's OWN rendered width is the floored hit area
+    // (asserted above); the wrapping box one level up must still carry that
+    // exact tiny percentage, proving the visual fill was never widened.
+    const html = renderTimeline(null, [activity(10 * 60, 1, 'Quick task')])
+    const trueWidthPercent = (1 / 30 / 24) * 100 // ≈ 0.1389%
+    expect(html).toContain(`width:${trueWidthPercent}%`)
+  })
+
+  it('the enlarged hit area is centred on the segment (translated by half its own width), not anchored to one edge', () => {
+    const html = renderTimeline(null, [activity(10 * 60, 1, 'Quick task')])
+    const buttonTag = html.match(/<button[^>]*data-activity="a-600-1"[^>]*>/)?.[0]
+    expect(buttonTag).toContain('left-1/2')
+    expect(buttonTag).toContain('-translate-x-1/2')
   })
 })

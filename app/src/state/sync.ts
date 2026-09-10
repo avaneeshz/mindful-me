@@ -1,7 +1,9 @@
 import type { ScheduledActivity } from '@/domain/types'
 import type { BoardAction, BoardState } from './boardReducer'
 import {
+  apiAddScheduledActivityReflection,
   apiCreateScheduledActivity,
+  apiRemoveScheduledActivityReflection,
   apiRescheduleScheduledActivity,
   apiRestoreScheduledActivity,
   apiSetScheduledActivityFlags,
@@ -23,6 +25,10 @@ export type SyncIntent =
   | { kind: 'status'; activity: ScheduledActivity }
   | { kind: 'delete'; id: string }
   | { kind: 'restore'; id: string }
+  /** `mapReflectionCard` — an upsert of one card's mapping, never a bulk replace. */
+  | { kind: 'addReflection'; scheduledActivityId: string; card: number; note: string }
+  /** `unmapReflectionCard` — drops one card's mapping only. */
+  | { kind: 'removeReflection'; scheduledActivityId: string; card: number }
 
 /**
  * Every write lands locally first, instantly (rule 6) — the reducer has
@@ -80,6 +86,27 @@ export function deriveSyncIntents(
       return activity ? [{ kind: 'status', activity }] : []
     }
 
+    // A quick-log entry (Sun/Moon exposure, Vipassana) always appends a
+    // brand-new activity — same "diff the id sets" derivation `commit`'s own
+    // create branch uses, since a quick log never carries an id of its own
+    // until the reducer mints one.
+    case 'quickLogActivity': {
+      const prevIds = new Set(prevState.activities.map((a) => a.id))
+      const created = nextState.activities.find((a) => !prevIds.has(a.id))
+      return created ? [{ kind: 'create', activity: created }] : []
+    }
+
+    // Reflection mapping — a separate, later action from logging/editing an
+    // activity (see `boardReducer.ts`'s own doc comment). The reducer
+    // already guarded existence (a no-op returns the SAME state, caught by
+    // the `nextState === prevState` check above), so reaching here means it
+    // genuinely applied.
+    case 'mapReflectionCard':
+      return [{ kind: 'addReflection', scheduledActivityId: action.scheduledActivityId, card: action.card, note: action.note }]
+
+    case 'unmapReflectionCard':
+      return [{ kind: 'removeReflection', scheduledActivityId: action.scheduledActivityId, card: action.card }]
+
     default:
       return []
   }
@@ -108,6 +135,10 @@ export function runSyncIntents(intents: SyncIntent[], reference: Date): void {
           return apiSoftDeleteScheduledActivity(intent.id)
         case 'restore':
           return apiRestoreScheduledActivity(intent.id)
+        case 'addReflection':
+          return apiAddScheduledActivityReflection(intent.scheduledActivityId, intent.card, intent.note)
+        case 'removeReflection':
+          return apiRemoveScheduledActivityReflection(intent.scheduledActivityId, intent.card)
       }
     })()
 

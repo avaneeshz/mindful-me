@@ -27,7 +27,13 @@ function applyFrom(state: BoardState, ...actions: BoardAction[]): BoardState {
 
 function renderEditor(state: BoardState): string {
   return renderToStaticMarkup(
-    <SlotEditor state={state} dispatch={() => {}} nowSlot={32} viewedDate={AT_4PM} />,
+    <SlotEditor
+      state={state}
+      dispatch={() => {}}
+      nowSlot={32}
+      viewedDate={AT_4PM}
+      onOpenReflectionNote={() => {}}
+    />,
   )
 }
 
@@ -210,6 +216,58 @@ describe('Phase 3 — marking an activity complete', () => {
     )
     expect(state.activities.find((a) => a.id === id)).toMatchObject({ status: 'completed', durationMinutes: 35 })
     expect(renderEditor(state)).toContain('Completed')
+  })
+})
+
+describe('activity mode — a selected activity replaces the whole slot body', () => {
+  const withSelected = (() => {
+    const committed = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'toggleStagingQuality', quality: 'Flow' },
+      { type: 'commit' },
+    )
+    return boardReducer(committed, { type: 'selectScheduledActivity', id: realId(committed) })
+  })()
+  const html = renderEditor(withSelected)
+
+  it('shows the activity summary — the three signal groups and its quality value, not the slot heading or tile row', () => {
+    expect(html).toContain('Homework')
+    expect(html).toContain('Activity Quality')
+    expect(html).toContain('Chronic Symptoms')
+    expect(html).toContain('Protective Response')
+    expect(html).toContain('Flow')
+    expect(html).not.toContain('Selected slot')
+    expect(html).not.toContain('In this slot')
+  })
+
+  it('carries Edit and Remove actions directly on the summary', () => {
+    expect(html).toContain('aria-label="Edit Homework"')
+    expect(html).toContain('aria-label="Remove Homework"')
+  })
+
+  it('offers a close affordance back to slot mode', () => {
+    expect(html).toContain('aria-label="Close activity summary"')
+  })
+
+  it('shows a dash for a signal group with nothing recorded', () => {
+    // Homework here has quality Flow but no symptoms and no protective response.
+    expect(html).toMatch(/Chronic Symptoms<\/p><\/div><p[^>]*>—</)
+  })
+
+  it('reflects a mapped reflection card as a tappable thumbnail, with its note hidden until tapped', () => {
+    const withCard = boardReducer(withSelected, {
+      type: 'mapReflectionCard',
+      scheduledActivityId: realId(withSelected),
+      card: 1,
+      note: 'Grounded.',
+    })
+    const cardHtml = renderEditor(withCard)
+    expect(cardHtml).toContain('>Reflection<')
+    expect(cardHtml).toContain('Somatic')
+    expect(cardHtml).toContain('aria-label="Somatic — edit reflection note"')
+    // The note text itself only appears in the popup, never inline here.
+    expect(cardHtml).not.toContain('Grounded.')
   })
 })
 

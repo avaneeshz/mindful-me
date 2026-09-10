@@ -123,6 +123,39 @@ describe('deriveSyncIntents', () => {
     expect(next.activities[0].status).toBe('completed')
   })
 
+  it('produces a create intent for a quick-log entry (Sun/Moon exposure, Vipassana)', () => {
+    const state = start()
+    const action: BoardAction = {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: 360,
+      durationMinutes: 20,
+    }
+    const { next, intents } = step(state, action)
+
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({ kind: 'create' })
+    if (intents[0].kind === 'create') {
+      expect(intents[0].activity.id).toBe(next.activities[0].id)
+      expect(intents[0].activity.name).toBe('Vipassana')
+    }
+  })
+
+  it('produces no intent for a quick-log entry the reducer rejected (overlap)', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'commit' })
+    const existing = state.activities[0]
+
+    const { intents } = step(state, {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: existing.startMinutes,
+      durationMinutes: 10,
+    })
+    expect(intents).toEqual([])
+  })
+
   it('never produces an intent for a rejected/no-op commit even with something staged', () => {
     // Fill the slot completely, then try to add a second thing — pickCard
     // itself no-ops (nothing staged), so nothing to commit either.
@@ -131,5 +164,31 @@ describe('deriveSyncIntents', () => {
     state = boardReducer(state, { type: 'commit' })
     const { intents } = step(state, { type: 'pickCard', cardName: 'Errand time' })
     expect(intents).toEqual([])
+  })
+
+  it('mapReflectionCard produces an addReflection intent naming the activity, card and note', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+
+    const { intents } = step(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 3, note: 'Tense.' })
+    expect(intents).toEqual([{ kind: 'addReflection', scheduledActivityId: id, card: 3, note: 'Tense.' }])
+  })
+
+  it('unmapReflectionCard produces a removeReflection intent, and neither intent fires for an unknown activity', () => {
+    let state = start()
+    state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
+    state = boardReducer(state, { type: 'commit' })
+    const id = state.activities[0].id
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 3, note: 'Tense.' })
+
+    const { intents } = step(state, { type: 'unmapReflectionCard', scheduledActivityId: id, card: 3 })
+    expect(intents).toEqual([{ kind: 'removeReflection', scheduledActivityId: id, card: 3 }])
+
+    expect(step(state, { type: 'mapReflectionCard', scheduledActivityId: 'missing', card: 1, note: 'x' }).intents).toEqual(
+      [],
+    )
+    expect(step(state, { type: 'unmapReflectionCard', scheduledActivityId: 'missing', card: 1 }).intents).toEqual([])
   })
 })

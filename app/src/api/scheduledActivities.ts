@@ -1,9 +1,17 @@
 import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
 import { supabase } from '@/lib/supabaseClient'
-import type { ActivityQuality, FlagId, ScheduleStatus, ScheduledActivity, Symptom } from '@/domain/types'
+import type {
+  ActivityQuality,
+  FlagId,
+  ReflectionEntry,
+  ScheduleStatus,
+  ScheduledActivity,
+  Symptom,
+} from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
+import { numberForReflectionCardId, reflectionCardIdForNumber } from './reflectionCards'
 
-/** The shape `public.scheduled_activity_dto` (see the Phase 2/quality migrations) hands back. */
+/** The shape `public.scheduled_activity_dto` (see the Phase 2/quality/reflections migrations) hands back. */
 interface ScheduledActivityDto {
   id: string
   activity_id: string | null
@@ -20,10 +28,23 @@ interface ScheduledActivityDto {
   updated_at: string
   symptoms: string[] | null
   notes: string | null
+  reflections: { card_id: string; note: string | null }[] | null
 }
 
 async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity> {
   const name = dto.activity_id ? await nameForCatalogId(dto.activity_id) : null
+  const reflections = (
+    await Promise.all(
+      (dto.reflections ?? []).map(async (r): Promise<ReflectionEntry | null> => {
+        const card = await numberForReflectionCardId(r.card_id)
+        // A card id the client's own catalog doesn't recognize (not yet
+        // loaded, or a personal card from another device) is dropped rather
+        // than surfaced as a broken entry — same defensive posture
+        // `nameForCatalogId` already has for `activity_id`.
+        return card === null ? null : { card, note: r.note ?? '' }
+      }),
+    )
+  ).filter((r): r is ReflectionEntry => r !== null)
   return {
     id: dto.id,
     name,
@@ -34,6 +55,7 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     quality: (dto.quality ?? []) as ActivityQuality[],
     symptoms: (dto.symptoms ?? []) as Symptom[],
     notes: dto.notes ?? null,
+    reflections,
     status: (dto.status as ScheduleStatus) ?? 'planned',
     timezone: dto.timezone,
   }
@@ -107,7 +129,11 @@ export async function apiRescheduleScheduledActivity(
   // flags, kept deliberately separate — see the migration's own comment):
   // the client always sends the full CURRENT value of each on every
   // reschedule, never omitted, and the RPC unconditionally overwrites them,
-  // same contract every other bundled column has.
+  // same contract every other bundled column has. Reflections deliberately
+  // do NOT ride along here — mapping a card to an activity is its own,
+  // later action (`apiAddScheduledActivityReflection`/
+  // `apiRemoveScheduledActivityReflection` below), never bundled into a
+  // time/duration/quality/etc. edit.
   const { error } = await supabase.rpc('reschedule_scheduled_activity', {
     p_id: activity.id,
     ...params,
@@ -148,6 +174,47 @@ export async function apiSetScheduledActivitySymptoms(id: string, symptoms: Symp
 export async function apiSetScheduledActivityNotes(id: string, notes: string | null): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('set_scheduled_activity_notes', { p_id: id, p_notes: notes })
+  if (error) throw error
+}
+
+/**
+ * Maps one reflection card onto an already-logged activity, with its own
+ * note — an upsert (replaces just THAT card's note if it was already
+ * mapped, adds it otherwise), never a bulk replace of the activity's whole
+ * reflection set. This is the actual usage pattern (see `state/
+ * boardReducer.ts`'s `mapReflectionCard` doc comment): reflection mapping
+ * happens as its own later action, potentially adding cards one at a time
+ * over hours, never bundled into create/reschedule.
+ *
+ * A card number the local catalog hasn't resolved to a real DB id yet
+ * (offline, not loaded) silently no-ops the SYNC call only — local state
+ * already has the mapping, and it catches up on the next successful sync.
+ */
+export async function apiAddScheduledActivityReflection(
+  scheduledActivityId: string,
+  card: number,
+  note: string,
+): Promise<void> {
+  if (!supabase) return
+  const cardId = await reflectionCardIdForNumber(card)
+  if (!cardId) return
+  const { error } = await supabase.rpc('add_scheduled_activity_reflection', {
+    p_scheduled_activity_id: scheduledActivityId,
+    p_reflection_card_id: cardId,
+    p_note: note.trim() ? note : null,
+  })
+  if (error) throw error
+}
+
+/** The inverse of `apiAddScheduledActivityReflection` — drops one card's mapping only. */
+export async function apiRemoveScheduledActivityReflection(scheduledActivityId: string, card: number): Promise<void> {
+  if (!supabase) return
+  const cardId = await reflectionCardIdForNumber(card)
+  if (!cardId) return
+  const { error } = await supabase.rpc('remove_scheduled_activity_reflection', {
+    p_scheduled_activity_id: scheduledActivityId,
+    p_reflection_card_id: cardId,
+  })
   if (error) throw error
 }
 

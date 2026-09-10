@@ -1,26 +1,32 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  SUN_MOON_HEADING,
-  canSubmitSunMoon,
-  durationMinutes,
-  entriesForDay,
-  formatClock,
-  formatDuration,
-  totalMinutesForDay,
-  type SunMoonKind,
-} from '@/domain/sunMoonLog'
-import { useSunMoonLog } from '@/state/useSunMoonLog'
-import { localDateISO } from '@/lib/localTime'
+import { canSubmitQuickLog, clockToMinutes, durationBetween, formatClock, formatDuration } from '@/domain/quickLog'
+import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
+import type { ActivityList } from '@/domain/types'
 import { TimeField } from '@/components/ui/TimeField'
+
+export type SunMoonKind = 'sun' | 'moon'
+
+const SUN_MOON_HEADING: Record<SunMoonKind, string> = {
+  sun: 'Sun Exposure',
+  moon: 'Moon Exposure',
+}
 
 /**
  * The timeline end-cap, made a logging control. Tapping the Sun cap (Day row)
  * or the Moon cap (Night row) opens an anchored popover to record a stretch
- * of time in that light by start/end clock time, filed under the day the
- * board is currently viewing. Its history section shows only that day's
- * stretches, and only when there is at least one.
+ * of time in that light by start/end clock time.
+ *
+ * Backed by the real scheduling engine now (`entry_mode: 'quick_log'` — see
+ * the full-stack-engineer agent definition's Phase 2 scope): each stretch is
+ * an ordinary `ScheduledActivity` named "Sun Exposure"/"Moon Exposure",
+ * created through the SAME `validateSchedule`/shared-scheduling-module
+ * contract every other placement uses, so an entry that would overlap
+ * something already on the board is rejected with an inline message rather
+ * than silently vanishing. Its history section reads directly off the
+ * board's own `activities` (already scoped to the viewed day by
+ * `BoardContext`) instead of a separate local-only log.
  *
  * Owns the cap `<button>` itself so the whole trigger + popover unit lives in
  * one place. Follows `NoteButtonPill` / `HeaderBar`'s existing popover pattern
@@ -29,20 +35,25 @@ import { TimeField } from '@/components/ui/TimeField'
  */
 export function SunMoonLogPopover({
   kind,
-  viewedDate,
   icon: Icon,
   capClassName,
+  activities,
+  onQuickLog,
 }: {
   kind: SunMoonKind
-  viewedDate: Date
   icon: LucideIcon
   /** The end-cap's own visual classes, computed by `TimelineRow` (size + current-period glow). */
   capClassName: string
+  /** The viewed day's board — read for today's history/total and to validate a new entry before it commits. */
+  activities: ActivityList
+  /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. */
+  onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [justSaved, setJustSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -52,12 +63,14 @@ export function SunMoonLogPopover({
   const startId = useId()
   const endId = useId()
 
-  const { entries, addEntry } = useSunMoonLog(kind)
-  const heading = SUN_MOON_HEADING[kind]
-  const dayKey = localDateISO(viewedDate)
-  const dayEntries = entriesForDay(entries, dayKey)
-  const dayTotal = totalMinutesForDay(entries, dayKey)
-  const canSubmit = canSubmitSunMoon(start, end)
+  const cardName = SUN_MOON_HEADING[kind]
+  const heading = cardName
+  const dayEntries = activities
+    .filter((a) => a.name === cardName)
+    .slice()
+    .sort((a, b) => b.startMinutes - a.startMinutes)
+  const dayTotal = dayEntries.reduce((sum, a) => sum + a.durationMinutes, 0)
+  const canSubmit = canSubmitQuickLog(start, end)
 
   useEffect(() => {
     if (!open) return
@@ -96,10 +109,30 @@ export function SunMoonLogPopover({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    if (!canSubmit) return
-    addEntry(dayKey, start, end)
+    const durationMinutes = durationBetween(start, end)
+    const startMinutes = clockToMinutes(start)
+    if (!canSubmit || durationMinutes === null || startMinutes === null) return
+
+    const candidate: CandidateSchedule = {
+      id: null,
+      activity: { name: cardName, path: [] },
+      startMinutes,
+      durationMinutes,
+    }
+    const validation = validateSchedule(candidate, activities)
+    if (!validation.ok) {
+      setError(
+        validation.reason === 'occupied'
+          ? 'That time overlaps something already on the board.'
+          : 'That doesn’t fit before something else starts — try a shorter stretch or a different time.',
+      )
+      return
+    }
+
+    onQuickLog(cardName, startMinutes, durationMinutes)
     setStart('')
     setEnd('')
+    setError(null)
     setJustSaved(true)
     window.clearTimeout(savedFlashTimeoutRef.current)
     savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 2500)
@@ -159,6 +192,12 @@ export function SunMoonLogPopover({
               </div>
             </div>
 
+            {error && (
+              <p role="alert" className="rounded-md border border-ink bg-ink/10 px-md py-sm text-caption font-semibold text-ink">
+                {error}
+              </p>
+            )}
+
             <div className="flex items-center gap-sm">
               <Button type="submit" size="control" disabled={!canSubmit}>
                 Store
@@ -177,11 +216,8 @@ export function SunMoonLogPopover({
               <ul className="mt-sm flex max-h-[200px] flex-col gap-sm overflow-y-auto">
                 {dayEntries.map((entry) => (
                   <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs text-caption text-ink">
-                    {formatClock(entry.start)} – {formatClock(entry.end)}
-                    <span className="text-ink-dim">
-                      {' · '}
-                      {formatDuration(durationMinutes(entry.start, entry.end) ?? 0)}
-                    </span>
+                    {formatClock(minutesToClock(entry.startMinutes))} ·{' '}
+                    <span className="text-ink-dim">{formatDuration(entry.durationMinutes)}</span>
                   </li>
                 ))}
               </ul>
@@ -191,4 +227,11 @@ export function SunMoonLogPopover({
       )}
     </div>
   )
+}
+
+/** Minutes since local midnight (may be >= 1440 for a midnight-crossing entry's end, never its own start) → `"HH:MM"`. */
+function minutesToClock(minutes: number): string {
+  const m = ((minutes % 1440) + 1440) % 1440
+  const h = Math.floor(m / 60)
+  return `${String(h).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }

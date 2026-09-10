@@ -1,5 +1,5 @@
 import { findCard } from '@/data/activities'
-import { slotIndexFromDate, slotIndexFromMinutes, slotMinuteRange } from '@/domain/slots'
+import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
   clampMove,
@@ -55,6 +55,24 @@ export interface BoardState {
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
+  /**
+   * Id of the scheduled activity currently selected for VIEWING (a read-only
+   * details summary — quality/symptoms/protective response/notes/reflection
+   * cards already mapped) and as the target for reflection-card mapping —
+   * see `selectScheduledActivity`/`mapReflectionCard` below.
+   *
+   * This is the "activity mode" half of the timeline's two-mode click model:
+   * clicking an activity (or a fully-covered slot) selects it here and Frame
+   * 1 (`SlotEditor`) swaps its whole body for that activity's summary;
+   * clicking an empty slot selects a slot instead and clears this. The two
+   * are mutually exclusive by construction — every `selectSlot` clears this,
+   * and `selectScheduledActivity` never touches `selectedSlot`/`staging`
+   * (which stay as they were, purely so the light/dark theme and the "Now"
+   * badge still have a slot to derive from). `editActivity` is the one
+   * deliberate exception: editing FROM the summary keeps this set so the log
+   * modal opens over the summary and returns to it on save/cancel.
+   */
+  selectedActivityId: string | null
 }
 
 export const EMPTY_STAGING: StagingState = {
@@ -114,13 +132,44 @@ export type BoardAction =
   | { type: 'toggleComplete'; id: string }
   /**
    * Clicking (or keyboard-activating) an activity's own rendered segment on
-   * the Timeline strip — see `components/Timeline.tsx`. Defined as exactly
-   * what the manual flow does, the same precedent `dropCard` already sets:
-   * select the slot the activity starts in, then open it for edit — so this
-   * inherits `editActivity`'s guard (unknown id, or a flag-only marker,
-   * leaves the state untouched) verbatim, and can never drift from it.
+   * the Timeline strip — see `components/Timeline.tsx`. Selects it for
+   * VIEWING (`selectedActivityId`) — a read-only details summary, and the
+   * target for reflection-card mapping (`mapReflectionCard`) — it does NOT
+   * open the edit modal (that stays reachable via `editActivity`, e.g. from
+   * `SlotActivityList`'s own edit control). Clicking the already-selected
+   * activity again deselects it (toggle); selecting a different one, or an
+   * unknown id, or a flag-only marker (`name === null`) leaves the OLD
+   * selection cleared/replaced as appropriate rather than silently no-oping,
+   * since "nothing found" should never leave a stale id selected.
    */
-  | { type: 'selectActivity'; id: string }
+  | { type: 'selectScheduledActivity'; id: string | null }
+  /**
+   * Maps a reflection card onto an already-logged activity, with its own
+   * note — deliberately NOT part of logging/editing that activity (`commit`
+   * never touches `reflections`): the product decision is that reflection
+   * mapping happens later, possibly hours after the activity was logged, via
+   * either clicking a card in the reflection grid while an activity is
+   * selected, or dragging a card directly onto an activity's timeline
+   * segment. Adding a second/third card, or re-mapping an already-mapped
+   * card with a new note, is normal usage — this always overwrites that one
+   * pairing's note, never the activity's other reflections.
+   */
+  | { type: 'mapReflectionCard'; scheduledActivityId: string; card: number; note: string }
+  /** The inverse of `mapReflectionCard` — drops one pairing, leaving every other reflection on the activity untouched. */
+  | { type: 'unmapReflectionCard'; scheduledActivityId: string; card: number }
+  /**
+   * A quick-log entry (Sun/Moon exposure, Vipassana — `entry_mode:
+   * 'quick_log'` catalog activities) — an exact start/end clock time typed
+   * directly into that control's own popover, never the tile-row/staging
+   * modal. Always creates a NEW activity (these are logged as multiple
+   * sessions per day, never edited in place from here); the caller
+   * (`DisplayValueButton`/`SunMoonLogPopover`) is expected to have already
+   * validated the exact requested placement with `validateSchedule` itself
+   * so it can show an inline conflict error instead of a silent no-op — this
+   * re-validates anyway (belt and braces, same reasoning `commit` re-checks
+   * a staged candidate that was already validated when it was computed).
+   */
+  | { type: 'quickLogActivity'; cardName: string; startMinutes: number; durationMinutes: number }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -153,6 +202,7 @@ export function createInitialState(activities: ScheduledActivity[], now: Date): 
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
+    selectedActivityId: null,
   }
 }
 
@@ -178,10 +228,15 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
   switch (action.type) {
     case 'selectSlot': {
       const slot = ((action.slot % 48) + 48) % 48
-      if (slot === state.selectedSlot) return state
-      // Selecting a different slot abandons anything staged for the old one —
-      // staged picks are scoped to a slot and were never committed.
-      return { ...state, selectedSlot: slot, staging: EMPTY_STAGING }
+      // Selecting a slot is the "slot mode" gesture — it always clears any
+      // activity that was selected for viewing (the two modes are mutually
+      // exclusive: Frame 1 shows EITHER the slot's tile row OR a selected
+      // activity's summary, never both). A same-slot click while an activity
+      // is selected still has to fall through here to do that clearing.
+      if (slot === state.selectedSlot && state.selectedActivityId === null) return state
+      // Selecting a different slot also abandons anything staged for the old
+      // one — staged picks are scoped to a slot and were never committed.
+      return { ...state, selectedSlot: slot, staging: EMPTY_STAGING, selectedActivityId: null }
     }
 
     case 'pickCard': {
@@ -337,13 +392,18 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       // values by `editActivity` below, so "didn't touch it" round-trips
       // unchanged). An empty notes textarea commits as `null`, not `''` —
       // "nothing typed" and "no notes" are the same state, never a stored
-      // empty string.
+      // empty string. Reflections are NEVER part of this modal (a later,
+      // separate action — see `mapReflectionCard`/`unmapReflectionCard`), so
+      // committing a time/duration/quality/etc. edit always carries the
+      // activity's EXISTING reflections forward untouched, the same rule-4
+      // guarantee status/timezone already have.
       const committed = commitSchedule(candidate, {
         id: prior?.id,
         flags: staging.flag ? [staging.flag] : [],
         quality: staging.quality,
         symptoms: staging.symptoms,
         notes: staging.notes.trim() ? staging.notes : null,
+        reflections: prior?.reflections ?? [],
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
@@ -384,8 +444,10 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return {
         ...state,
         activities: state.activities.filter((a) => a.id !== action.id),
-        // Editing the removed activity is no longer meaningful.
+        // Editing (or viewing/mapping reflections onto) the removed activity
+        // is no longer meaningful.
         staging: state.staging.editingId === action.id ? EMPTY_STAGING : state.staging,
+        selectedActivityId: state.selectedActivityId === action.id ? null : state.selectedActivityId,
         removal: { activity },
       }
     }
@@ -439,10 +501,17 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
      * while this fetch was in flight against the server's answer is Phase
      * 5's last-write-wins hardening (rule 7), out of scope here. Clears any
      * staged pick and pending removal, since both reference activities by id
-     * that this swap may have just invalidated.
+     * that this swap may have just invalidated (and the selected-activity
+     * viewing/mapping target, for the same reason).
      */
     case 'hydrate':
-      return { ...state, activities: action.activities, staging: EMPTY_STAGING, removal: null }
+      return {
+        ...state,
+        activities: action.activities,
+        staging: EMPTY_STAGING,
+        removal: null,
+        selectedActivityId: null,
+      }
 
     /**
      * Phase 3 — planned vs. actual. Toggling completion NEVER touches
@@ -461,20 +530,68 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     }
 
     /**
-     * Composes `selectSlot` + `editActivity` verbatim — the exact precedent
-     * `dropCard` already sets ("select the dropped slot, then pick that
-     * card"). Guard early (unknown id, or a flag-only marker — `name ===
-     * null`) without touching `selectedSlot`, mirroring `editActivity`'s own
-     * guard exactly.
+     * Selects an activity for VIEWING/reflection-mapping — never opens the
+     * edit modal (that's `editActivity`, unchanged, still reachable from
+     * `SlotActivityList`). `action.id === null` always clears the selection
+     * outright; clicking the ALREADY-selected activity again also clears it
+     * (a click-to-toggle affordance); an unknown id or a flag-only marker
+     * (`name === null`, nothing to view) leaves the selection untouched
+     * rather than pointing it at something with no details to show.
      */
-    case 'selectActivity': {
+    case 'selectScheduledActivity': {
+      if (action.id === null) {
+        return state.selectedActivityId === null ? state : { ...state, selectedActivityId: null }
+      }
+      if (action.id === state.selectedActivityId) {
+        return { ...state, selectedActivityId: null }
+      }
       const activity = state.activities.find((a) => a.id === action.id)
       if (!activity || activity.name === null) return state
-      const selected = boardReducer(state, {
-        type: 'selectSlot',
-        slot: slotIndexFromMinutes(activity.startMinutes),
-      })
-      return boardReducer(selected, { type: 'editActivity', id: action.id })
+      return { ...state, selectedActivityId: action.id }
+    }
+
+    /**
+     * Reflection mapping — a later, separate action from logging/editing an
+     * activity (see the action's own doc comment above). Replaces any prior
+     * pairing for the SAME card (overwriting just its note), leaving every
+     * other reflection on the activity untouched; a card is otherwise
+     * appended. Silently no-ops for an unknown activity id rather than
+     * throwing — the UI is expected to only ever call this with an id it
+     * just read off `state.activities` itself.
+     */
+    case 'mapReflectionCard': {
+      const activity = state.activities.find((a) => a.id === action.scheduledActivityId)
+      if (!activity) return state
+      const withoutCard = activity.reflections.filter((r) => r.card !== action.card)
+      const updated = { ...activity, reflections: [...withoutCard, { card: action.card, note: action.note }] }
+      return {
+        ...state,
+        activities: state.activities.map((a) => (a.id === activity.id ? updated : a)),
+      }
+    }
+
+    /** The inverse of `mapReflectionCard` — drops one pairing only. No-ops if the activity or that pairing isn't found. */
+    case 'unmapReflectionCard': {
+      const activity = state.activities.find((a) => a.id === action.scheduledActivityId)
+      if (!activity) return state
+      if (!activity.reflections.some((r) => r.card === action.card)) return state
+      const updated = { ...activity, reflections: activity.reflections.filter((r) => r.card !== action.card) }
+      return {
+        ...state,
+        activities: state.activities.map((a) => (a.id === activity.id ? updated : a)),
+      }
+    }
+
+    case 'quickLogActivity': {
+      const candidate: CandidateSchedule = {
+        id: null,
+        activity: { name: action.cardName, path: [] },
+        startMinutes: action.startMinutes,
+        durationMinutes: action.durationMinutes,
+      }
+      if (!validateSchedule(candidate, state.activities).ok) return state
+      const committed = commitSchedule(candidate)
+      return { ...state, activities: [...state.activities, committed] }
     }
 
     default:

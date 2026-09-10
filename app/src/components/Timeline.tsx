@@ -50,6 +50,22 @@ function activityDataSelector(activityId: string): string {
   return `[data-activity="${CSS.escape(activityId)}"]`
 }
 
+/**
+ * The floor an activity segment's INTERACTIVE hit area (click, keyboard
+ * focus, and both drop kinds — a reflection card or a tile-row activity
+ * card) never shrinks below, regardless of how thin its VISUAL fill renders
+ * at short durations (rule 5 allows any duration down to a single minute).
+ * Native HTML5 drag-and-drop has no built-in tolerance for a target this
+ * thin, so without a floor a short activity is effectively undroppable in
+ * practice even though a long one works fine — see the segment markup
+ * below for how this is applied without changing the drawn box itself.
+ * No existing sizing token fits this (they're all sized for a discrete
+ * tap target like a button or chip, not "a floor under a proportional
+ * width"), so this is a deliberate one-off pixel value, the same reasoning
+ * `chip.tsx`'s `xs` size documents for its own arbitrary value.
+ */
+const MIN_ACTIVITY_HIT_WIDTH_PX = 24
+
 interface TimelineProps {
   activities: ActivityList
   selectedSlot: number
@@ -60,27 +76,33 @@ interface TimelineProps {
    * marker computed against the wrong day's timeline.
    */
   now: Date | null
-  /** The calendar day the board is showing — the Sun/Moon light log files entries under it. */
-  viewedDate: Date
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
   /**
    * Clicking (or keyboard-activating) a specific activity's own rendered
-   * segment — opens that activity's edit modal directly, rather than merely
-   * selecting the 30-minute slot it lives in. See `state/boardReducer.ts`'s
-   * `selectActivity` action.
+   * segment — selects it for VIEWING (Frame 1 swaps to its read-only
+   * summary) and as the target for reflection-card mapping, WITHOUT opening
+   * its edit modal (that stays reachable from the summary's own Edit
+   * control). Clicking a FULLY-covered slot resolves here too. See
+   * `state/boardReducer.ts`'s `selectScheduledActivity` action — clicking
+   * the already-selected activity again deselects it.
    */
   onSelectActivity: (id: string) => void
+  /** The currently selected activity (if any) — outlined distinctly from hover/focus so the mapping target is visible at a glance. */
+  selectedActivityId: string | null
+  /** Dispatches `quickLogActivity` — threaded to the Sun/Moon end-cap popovers. See `state/boardReducer.ts`. */
+  onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }
 
 export function Timeline({
   activities,
   selectedSlot,
   now,
-  viewedDate,
   onSelectSlot,
   onDropCard,
   onSelectActivity,
+  selectedActivityId,
+  onQuickLog,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
   /**
@@ -163,13 +185,14 @@ export function Timeline({
             period={period}
             activities={activities}
             selectedSlot={selectedSlot}
-            viewedDate={viewedDate}
             focusedStop={focusedStop}
             marker={marker && marker.period === period ? marker.ratio : null}
             onFocusStop={setFocusedStop}
             onSelectSlot={onSelectSlot}
             onDropCard={onDropCard}
             onSelectActivity={onSelectActivity}
+            selectedActivityId={selectedActivityId}
+            onQuickLog={onQuickLog}
             onKeyDown={handleKeyDown}
           />
         ))}
@@ -182,8 +205,6 @@ interface TimelineRowProps {
   period: Period
   activities: ActivityList
   selectedSlot: number
-  /** The viewed calendar day — threaded to the Sun/Moon light-log popover. */
-  viewedDate: Date
   /** Last stop the user focused, on either row. Drives the roving tab stop. */
   focusedStop: RowFocusStop | null
   /** 0–1 position of the current-time marker, or null if it is on the other row. */
@@ -192,6 +213,8 @@ interface TimelineRowProps {
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
   onSelectActivity: (id: string) => void
+  selectedActivityId: string | null
+  onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
   onKeyDown: (event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) => void
 }
 
@@ -199,13 +222,14 @@ function TimelineRow({
   period,
   activities,
   selectedSlot,
-  viewedDate,
   focusedStop,
   marker,
   onFocusStop,
   onSelectSlot,
   onDropCard,
   onSelectActivity,
+  selectedActivityId,
+  onQuickLog,
   onKeyDown,
 }: TimelineRowProps) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
@@ -264,7 +288,8 @@ function TimelineRow({
       <div className="shrink-0 pt-xl">
         <SunMoonLogPopover
           kind={period === 'day' ? 'sun' : 'moon'}
-          viewedDate={viewedDate}
+          activities={activities}
+          onQuickLog={onQuickLog}
           icon={Icon}
           capClassName={cn(
             'flex size-timeline-row items-center justify-center rounded-full border transition-colors duration-200',
@@ -317,6 +342,13 @@ function TimelineRow({
             const isDragOver = dragOverSlot === slot
             const windowFull = isWindowFull(activities, slotMinuteRange(slot).start, SLOT_MINUTES)
             const isRovingSlot = rovingStop?.kind === 'slot' && rovingStop.slot === slot
+            // When the slot has no free minutes left, a plain click on it
+            // (i.e. one that didn't land on a specific activity segment's own
+            // button) resolves to the real activity covering it — "click a
+            // filled time slot -> select that activity". A partially-free or
+            // empty slot still selects the slot itself, so its remaining time
+            // stays fillable from the tile row.
+            const coveringActivity = windowFull ? touching.find((a) => a.name !== null) ?? null : null
 
             return (
               <button
@@ -334,7 +366,7 @@ function TimelineRow({
                 tabIndex={windowFull ? -1 : isRovingSlot ? 0 : -1}
                 aria-current={isSelected ? 'true' : undefined}
                 aria-label={`${describeSlot(slot, touching, flags)}${isSelected ? ', selected slot' : ''}`}
-                onClick={() => onSelectSlot(slot)}
+                onClick={() => (coveringActivity ? onSelectActivity(coveringActivity.id) : onSelectSlot(slot))}
                 onFocus={() => onFocusStop({ kind: 'slot', slot })}
                 onKeyDown={(event) => onKeyDown(event, period, { kind: 'slot', slot })}
                 onDragOver={(event) => {
@@ -404,26 +436,38 @@ function TimelineRow({
           {/*
             Each real activity's own rendered span is now a genuine, focusable
             control — clicking (or Enter/Space-activating) it dispatches
-            `onSelectActivity`, opening THAT activity's own edit modal
-            directly, rather than merely selecting the 30-minute slot beneath
-            it. The wrapping div stays `pointer-events-none` so a click on the
-            empty (uncovered) part of a slot still reaches the plain slot
-            button underneath — each activity button re-enables its own
-            pointer events individually.
+            `onSelectActivity`, SELECTING that activity for viewing/reflection
+            mapping (never opening its edit modal — that stays reachable
+            elsewhere, `SlotActivityList`'s own edit control). The wrapping
+            div stays `pointer-events-none` so a click on the empty
+            (uncovered) part of a slot still reaches the plain slot button
+            underneath — each activity's own interactive button re-enables
+            its own pointer events individually.
 
             z-[5] — above the slot's own isSelected (z-2) and isDragOver (z-4)
             states — so a click or keyboard Enter on the segment always
             resolves to the activity, even when it also happens to sit inside
             the currently-selected or drag-hovered slot.
 
-            Drag-and-drop regression guard: a card dropped from the tile-row
-            popup onto a point that sits under one of these buttons must still
-            work. Wiring the identical onDragOver/onDragLeave/onDrop handlers
-            here, anchored at the covering activity's own start slot
-            (`slotIndexFromMinutes`), is sufficient — `computeCandidateSchedule`
-            already snaps a placement forward past busy time (rule 5), so the
-            actual placement resolves correctly even though the drop's pixel
-            position is not what determines it.
+            One kind of drop lands here (see the `onDrop` handler below): an
+            activity card dropped from the tile-row popup onto a point that
+            sits under one of these buttons — wiring the identical
+            onDragOver/onDragLeave/onDrop handlers here, anchored at the
+            covering activity's own start slot (`slotIndexFromMinutes`), is
+            sufficient — `computeCandidateSchedule` already snaps a placement
+            forward past busy time (rule 5), so the actual placement resolves
+            correctly even though the drop's pixel position is not what
+            determines it. (Reflection-card mapping is tap-only now — it
+            never reaches the timeline.)
+
+            Each segment is now TWO stacked elements, not one: an outer
+            positioning box sized EXACTLY duration-proportional (the visual
+            fill lives here, unchanged from before) and an inner `<button>`
+            centered on it whose width floors at `MIN_ACTIVITY_HIT_WIDTH_PX`
+            (`width: max(100%, ...)`) — the actual click/keyboard/drop target.
+            A short activity's drawn box still renders exactly as thin as its
+            duration implies; only what responds to a pointer, key, or drop
+            gets a floor under it.
           */}
           <div className="pointer-events-none absolute inset-0 z-[1]">
             {rowActivitySegments(activities, period).map((segment) => {
@@ -431,60 +475,87 @@ function TimelineRow({
               const isFocusableActivity =
                 rovingStop?.kind === 'activity' && rovingStop.activityId === segment.activity.id
               const isDragOverActivity = dragOverSlot === anchorSlot
+              const isSelectedActivity = selectedActivityId === segment.activity.id
 
               return (
-                <button
+                <div
                   key={`${segment.activity.id}-${segment.startPosition}`}
-                  type="button"
-                  data-activity={segment.activity.id}
-                  tabIndex={isFocusableActivity ? 0 : -1}
-                  aria-label={describeActivity(segment.activity)}
-                  onClick={() => onSelectActivity(segment.activity.id)}
-                  onFocus={() => onFocusStop({ kind: 'activity', activityId: segment.activity.id })}
-                  onKeyDown={(event) => onKeyDown(event, period, { kind: 'activity', activityId: segment.activity.id })}
-                  onDragOver={(event) => {
-                    event.preventDefault()
-                    event.dataTransfer.dropEffect = 'copy'
-                    setDragOverSlot(anchorSlot)
-                  }}
-                  onDragLeave={() => setDragOverSlot((s) => (s === anchorSlot ? null : s))}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    setDragOverSlot(null)
-                    const cardName = event.dataTransfer.getData('text/plain')
-                    if (cardName) onDropCard(cardName, anchorSlot)
-                  }}
-                  className={cn(
-                    'pointer-events-auto absolute inset-y-0 z-[5] cursor-pointer',
-                    period === 'day'
-                      ? [
-                          'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-ink-dim',
-                          'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink',
-                          isDragOverActivity && 'outline outline-2.5 -outline-offset-2.5 outline-ink',
-                        ]
-                      : [
-                          'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-night-strip-fixed-ink',
-                          'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-night-strip-fixed-ink',
-                          isDragOverActivity && 'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
-                        ],
-                  )}
+                  className="absolute inset-y-0"
                   style={{
                     left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
                     width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
-                    // No more per-item colour (Section A) — every real
-                    // activity's segment is the same flat, theme-aware wash,
-                    // with a matching hairline for its edges. The Night row's
-                    // background is the one fixed, theme-independent surface
-                    // (Section C), so segments drawn on it reach for that
-                    // surface's own fixed companion tokens instead, the same
-                    // reasoning the slot states above already follow.
-                    background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
-                    boxShadow:
-                      period === 'day'
-                        ? 'inset 0 0 0 1px var(--line)'
-                        : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
                   }}
-                />
+                >
+                  {/* The VISUAL fill — exactly this box, never resized by the
+                      hit-area floor on the button below. No more per-item
+                      colour (Section A) — every real activity's segment is
+                      the same flat, theme-aware wash, with a matching
+                      hairline for its edges. The Night row's background is
+                      the one fixed, theme-independent surface (Section C),
+                      so segments drawn on it reach for that surface's own
+                      fixed companion tokens instead, the same reasoning the
+                      slot states above already follow. */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
+                      boxShadow:
+                        period === 'day'
+                          ? 'inset 0 0 0 1px var(--line)'
+                          : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
+                    }}
+                  />
+
+                  {/* The INTERACTIVE hit target, centred on the visual box
+                      above but floored at MIN_ACTIVITY_HIT_WIDTH_PX. */}
+                  <button
+                    type="button"
+                    data-activity={segment.activity.id}
+                    tabIndex={isFocusableActivity ? 0 : -1}
+                    aria-label={describeActivity(segment.activity)}
+                    aria-pressed={isSelectedActivity}
+                    onClick={() => onSelectActivity(segment.activity.id)}
+                    onFocus={() => onFocusStop({ kind: 'activity', activityId: segment.activity.id })}
+                    onKeyDown={(event) =>
+                      onKeyDown(event, period, { kind: 'activity', activityId: segment.activity.id })
+                    }
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'copy'
+                      setDragOverSlot(anchorSlot)
+                    }}
+                    onDragLeave={() => setDragOverSlot((s) => (s === anchorSlot ? null : s))}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      setDragOverSlot(null)
+                      // Only an activity card from the tile row (`text/plain`)
+                      // lands here now — the pre-existing "drop a new activity
+                      // here" behaviour, unchanged. Reflection-card mapping is
+                      // tap-only (select the activity, then tap a card in the
+                      // Reflection section); it no longer uses drag-and-drop.
+                      const cardName = event.dataTransfer.getData('text/plain')
+                      if (cardName) onDropCard(cardName, anchorSlot)
+                    }}
+                    className={cn(
+                      'pointer-events-auto absolute inset-y-0 left-1/2 z-[5] -translate-x-1/2 cursor-pointer',
+                      period === 'day'
+                        ? [
+                            'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-ink-dim',
+                            'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink',
+                            (isDragOverActivity || isSelectedActivity) &&
+                              'outline outline-2.5 -outline-offset-2.5 outline-ink',
+                          ]
+                        : [
+                            'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-night-strip-fixed-ink',
+                            'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-night-strip-fixed-ink',
+                            (isDragOverActivity || isSelectedActivity) &&
+                              'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
+                          ],
+                    )}
+                    style={{ width: `max(100%, ${MIN_ACTIVITY_HIT_WIDTH_PX}px)` }}
+                  />
+                </div>
               )
             })}
           </div>

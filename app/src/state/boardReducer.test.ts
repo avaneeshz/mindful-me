@@ -4,6 +4,7 @@ import {
   createInitialState,
   isStagingComplete,
   stagingOptions,
+  EMPTY_STAGING,
   type BoardAction,
   type BoardState,
 } from './boardReducer'
@@ -301,7 +302,7 @@ describe('toggleComplete — Phase 3 planned vs. actual', () => {
       startMinutes: 0,
       durationMinutes: 0,
       flags: ['Attack'],
-      quality: [], symptoms: [], notes: null,
+      quality: [], symptoms: [], notes: null, reflections: [],
       status: 'planned',
       timezone: 'UTC',
     }
@@ -423,7 +424,7 @@ describe('drag and drop', () => {
     // Something occupies 11:00-11:30. A card dropped at 10:00 (slot 20) may
     // grow, but must stop dead at 11:00 rather than overwriting or truncating it.
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     const state = run(occupied, DROP, { type: 'stepDuration', delta: 300 })
     expect(state.staging.durationMinutes).toBe(60)
@@ -439,7 +440,7 @@ describe('drag and drop', () => {
     // slot 21. Dropping there selects slot 21 (every cell is independently
     // selectable) but the picker offers nothing, since no time is free there.
     const covered = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     const state = boardReducer(covered, { type: 'dropCard', cardName: 'Errand time', slot: 21 })
     expect(state.selectedSlot).toBe(21)
@@ -584,7 +585,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
   it('clamps a typed value down to the same continuous-block ceiling the stepper respects', () => {
     // Something else starts 50 minutes after 16:00 (the pinned "now" slot).
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     const state = run(
       occupied,
@@ -618,7 +619,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
 
   it('quick-add also clamps to the ceiling rather than creating an overlap', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     let state = run(occupied, { type: 'pickCard', cardName: 'Homework' }) // clamped to 30 already? verify below
     // Add a full 2 hours — far more than the 40-minute ceiling allows.
@@ -657,7 +658,7 @@ describe('setStagingStart — duration drag-block, moving the whole pill', () =>
 
   it('hard-stops at a neighbouring activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00, 30 min
     state = boardReducer(state, { type: 'setStagingStart', minutes: 18 * 60 })
@@ -680,7 +681,7 @@ describe('resizeStagingStart — duration drag-block, resizing from the start ha
 
   it('hard-stops against a preceding activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00-16:30
     state = boardReducer(state, { type: 'resizeStagingStart', minutes: 15 * 60 + 30 })
@@ -857,25 +858,33 @@ describe('setStagingNotes — freeform notes', () => {
   })
 })
 
-describe('selectActivity — clicking an activity’s own rendered timeline segment', () => {
-  it('is exactly "select the slot the activity starts in, then edit that activity"', () => {
-    let state = run(
-      start(),
-      { type: 'selectSlot', slot: 20 },
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'commit' },
-    )
-    const id = real(state)[0].id
-    // Deliberately viewed from an unrelated slot first, so the effect below
-    // can only be `selectActivity`'s own doing.
-    state = boardReducer(state, { type: 'selectSlot', slot: 5 })
-
-    const viaSelectActivity = boardReducer(state, { type: 'selectActivity', id })
-    const viaManualFlow = run(state, { type: 'selectSlot', slot: 20 }, { type: 'editActivity', id })
-    expect(viaSelectActivity).toEqual(viaManualFlow)
+describe('commit never touches reflections — mapping is a separate, later action', () => {
+  it('a brand-new activity always starts with no reflections, regardless of any (nonexistent) staging path for them', () => {
+    const state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    expect(real(state)[0].reflections).toEqual([])
   })
 
-  it('jumps to the activity’s own start slot, and opens it for edit', () => {
+  it('editing time/duration/quality/etc. carries the activity’s EXISTING reflections forward untouched (rule-4-style guarantee)', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, {
+      type: 'mapReflectionCard',
+      scheduledActivityId: id,
+      card: 4,
+      note: 'Kept the boundary.',
+    })
+
+    state = boardReducer(state, { type: 'editActivity', id })
+    state = boardReducer(state, { type: 'toggleStagingQuality', quality: 'Flow' })
+    state = boardReducer(state, { type: 'commit' })
+
+    expect(byId(state, id)?.reflections).toEqual([{ card: 4, note: 'Kept the boundary.' }])
+    expect(byId(state, id)?.quality).toEqual(['Flow'])
+  })
+})
+
+describe('selectScheduledActivity — clicking an activity’s own rendered timeline segment', () => {
+  it('selects the activity WITHOUT opening the edit modal — staging/selectedSlot stay untouched', () => {
     let state = run(
       start(),
       { type: 'selectSlot', slot: 20 },
@@ -885,47 +894,82 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
     const id = real(state)[0].id
     state = boardReducer(state, { type: 'selectSlot', slot: 5 })
 
-    state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.selectedSlot).toBe(20)
-    expect(state.staging.editingId).toBe(id)
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+    expect(state.selectedSlot).toBe(5) // unchanged
+    expect(state.staging.cardName).toBeNull() // no edit modal opened
+  })
+
+  it('clicking the already-selected activity again deselects it (toggle)', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBeNull()
+  })
+
+  it('selecting a different activity replaces the prior selection outright', () => {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+      { type: 'selectSlot', slot: 40 },
+      { type: 'pickCard', cardName: 'Errand time' },
+      { type: 'commit' },
+    )
+    const [first, second] = real(state)
+    state = boardReducer(state, { type: 'selectScheduledActivity', id: first.id })
+    state = boardReducer(state, { type: 'selectScheduledActivity', id: second.id })
+    expect(state.selectedActivityId).toBe(second.id)
+  })
+
+  it('an explicit null always clears the selection', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'selectScheduledActivity', id: null })
+    expect(state.selectedActivityId).toBeNull()
+  })
+
+  it('selecting a slot clears any activity selection — the two modes are mutually exclusive', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+
+    state = boardReducer(state, { type: 'selectSlot', slot: 7 })
+    expect(state.selectedActivityId).toBeNull()
+    expect(state.selectedSlot).toBe(7)
+  })
+
+  it('re-selecting the already-selected slot still clears a lingering activity selection', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    // selectedSlot is still 32 here; select an activity, then click slot 32 again.
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'selectSlot', slot: 32 })
+    expect(state.selectedActivityId).toBeNull()
+    expect(state.selectedSlot).toBe(32)
+  })
+
+  it('editActivity keeps the activity selected — editing happens FROM the summary, over it', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'editActivity', id })
+    expect(state.selectedActivityId).toBe(id)
     expect(state.staging.cardName).toBe('Homework')
   })
 
-  it('jumps to the start slot even when the activity was clicked mid-span, not at its start', () => {
-    // A 90-minute activity anchored at slot 20 (10:00) reaches into slot 22
-    // (11:00-11:30) — clicking that later segment still resolves to slot 20.
-    let state = run(
-      start(),
-      { type: 'selectSlot', slot: 20 },
-      { type: 'pickCard', cardName: 'Homework' },
-      { type: 'stepDuration', delta: 60 }, // 30 -> 90
-      { type: 'commit' },
-    )
-    const id = real(state)[0].id
-    state = boardReducer(state, { type: 'selectSlot', slot: 0 })
-
-    state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.selectedSlot).toBe(20)
-    expect(state.staging.editingId).toBe(id)
+  it('guards against an unknown id — state is returned unchanged', () => {
+    const state = start()
+    const after = boardReducer(state, { type: 'selectScheduledActivity', id: 'does-not-exist' })
+    expect(after).toBe(state)
   })
 
-  it('rule 4 — never touches completion status just by opening the editor', () => {
-    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
-    const id = real(state)[0].id
-    state = { ...state, activities: state.activities.map((a) => (a.id === id ? { ...a, status: 'completed' } : a)) }
-
-    state = boardReducer(state, { type: 'selectActivity', id })
-    expect(state.staging.editingId).toBe(id)
-    expect(byId(state, id)?.status).toBe('completed') // unchanged — nothing committed yet
-  })
-
-  it('guards against an unknown id — state is returned unchanged, selectedSlot untouched', () => {
-    const state = boardReducer(start(), { type: 'selectSlot', slot: 5 })
-    const after = boardReducer(state, { type: 'selectActivity', id: 'does-not-exist' })
-    expect(after).toBe(state) // same reference — no-op, exactly `editActivity`'s own guard
-  })
-
-  it('guards against a flag-only marker (name === null) — never opens it for edit', () => {
+  it('guards against a flag-only marker (name === null) — never selectable', () => {
     const markerActivity: ScheduledActivity = {
       id: 'marker-1',
       name: null,
@@ -935,23 +979,155 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
       flags: ['Attack'],
       quality: [],
       symptoms: [],
-      notes: null,
+      notes: null, reflections: [],
       status: 'planned',
       timezone: 'UTC',
     }
-    const state = boardReducer(start([markerActivity]), { type: 'selectSlot', slot: 5 })
-    const after = boardReducer(state, { type: 'selectActivity', id: 'marker-1' })
+    const state = start([markerActivity])
+    const after = boardReducer(state, { type: 'selectScheduledActivity', id: 'marker-1' })
     expect(after).toBe(state)
   })
+})
 
-  it('never commits — the activity’s own fields are unchanged until an explicit Save', () => {
+describe('mapReflectionCard / unmapReflectionCard — reflection-card mapping (a separate, later action; see the action’s own doc comment)', () => {
+  it('adds a card with its note to an already-logged activity', () => {
     let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     const id = real(state)[0].id
-    const before = byId(state, id)
 
-    state = boardReducer(state, { type: 'selectActivity', id })
-    state = boardReducer(state, { type: 'stepDuration', delta: 15 }) // staged only, not committed
-    expect(byId(state, id)).toEqual(before)
-    expect(state.staging.durationMinutes).toBe(45)
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 3, note: 'Felt tense.' })
+    expect(byId(state, id)?.reflections).toEqual([{ card: 3, note: 'Felt tense.' }])
+  })
+
+  it('adding a second and third card is normal usage — each keeps its own independent note', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'First.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 5, note: 'Second.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 9, note: 'Third.' })
+
+    expect(byId(state, id)?.reflections).toEqual([
+      { card: 1, note: 'First.' },
+      { card: 5, note: 'Second.' },
+      { card: 9, note: 'Third.' },
+    ])
+  })
+
+  it('re-mapping an already-mapped card overwrites just its own note, leaving the others untouched', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'First.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 5, note: 'Second.' })
+
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'Updated.' })
+    expect(byId(state, id)?.reflections).toEqual([
+      { card: 5, note: 'Second.' },
+      { card: 1, note: 'Updated.' },
+    ])
+  })
+
+  it('unmapReflectionCard drops one pairing, leaving every other reflection on the activity untouched', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 1, note: 'First.' })
+    state = boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: id, card: 5, note: 'Second.' })
+
+    state = boardReducer(state, { type: 'unmapReflectionCard', scheduledActivityId: id, card: 1 })
+    expect(byId(state, id)?.reflections).toEqual([{ card: 5, note: 'Second.' }])
+  })
+
+  it('both actions no-op for an unknown activity id', () => {
+    const state = start()
+    expect(boardReducer(state, { type: 'mapReflectionCard', scheduledActivityId: 'missing', card: 1, note: 'x' })).toBe(
+      state,
+    )
+    expect(boardReducer(state, { type: 'unmapReflectionCard', scheduledActivityId: 'missing', card: 1 })).toBe(state)
+  })
+
+  it('unmapReflectionCard no-ops for a card that was never mapped', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    const after = boardReducer(state, { type: 'unmapReflectionCard', scheduledActivityId: id, card: 7 })
+    expect(after).toBe(state)
+  })
+})
+
+describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quick_log)', () => {
+  it('appends a new activity at the exact requested start/duration, bypassing staging entirely', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: 360,
+      durationMinutes: 30,
+    })
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0]).toMatchObject({
+      name: 'Vipassana',
+      path: [],
+      startMinutes: 360,
+      durationMinutes: 30,
+      status: 'planned',
+      flags: [],
+      quality: [],
+      symptoms: [],
+      notes: null,
+    })
+    // Never touches staging/selection — a quick log is a direct write.
+    expect(state.staging).toEqual(EMPTY_STAGING)
+  })
+
+  it('supports multiple sessions of the same quick-log activity in one day', () => {
+    let state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Sun Exposure',
+      startMinutes: 8 * 60,
+      durationMinutes: 20,
+    })
+    state = boardReducer(state, {
+      type: 'quickLogActivity',
+      cardName: 'Sun Exposure',
+      startMinutes: 17 * 60,
+      durationMinutes: 15,
+    })
+    const sessions = real(state).filter((a) => a.name === 'Sun Exposure')
+    expect(sessions).toHaveLength(2)
+    expect(sessions.reduce((sum, a) => sum + a.durationMinutes, 0)).toBe(35)
+    assertNoOverlaps(state, 'two Sun Exposure sessions')
+  })
+
+  it('rejects (no-ops) a requested time that overlaps an existing activity — rule 1, never silently shifted', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const existing = real(state)[0]
+
+    const after = boardReducer(state, {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: existing.startMinutes,
+      durationMinutes: 10,
+    })
+    expect(after).toBe(state) // untouched — never moved to a nearby free instant
+    expect(real(after).filter((a) => a.name === 'Vipassana')).toHaveLength(0)
+  })
+
+  it('a session that fits before local midnight is one row anchored exactly where requested', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Moon Exposure',
+      startMinutes: 23 * 60,
+      durationMinutes: 30, // 23:00 -> 23:30, well within the day
+    })
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0].startMinutes).toBe(23 * 60)
+    expect(real(state)[0].durationMinutes).toBe(30)
+  })
+
+  it('rejects a requested span that would cross local midnight — no partial placement (rule 13, and the shared scheduling module’s own day-boundary ceiling — see domain/scheduling.ts)', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Moon Exposure',
+      startMinutes: 23 * 60 + 30,
+      durationMinutes: 45, // would need to reach 00:15 the next day
+    })
+    expect(real(state)).toHaveLength(0)
   })
 })

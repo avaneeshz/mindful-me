@@ -42,7 +42,7 @@ function activity(startMinutes: number, durationMinutes: number, name = 'Homewor
     startMinutes,
     durationMinutes,
     flags: [],
-    quality: [], symptoms: [], notes: null,
+    quality: [], symptoms: [], notes: null, reflections: [],
     status: 'planned',
     timezone: 'UTC',
   }
@@ -57,7 +57,7 @@ function marker(startMinutes: number, flags: ScheduledActivity['flags']): Schedu
     startMinutes,
     durationMinutes: 0,
     flags,
-    quality: [], symptoms: [], notes: null,
+    quality: [], symptoms: [], notes: null, reflections: [],
     status: 'planned',
     timezone: 'UTC',
   }
