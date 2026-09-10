@@ -159,6 +159,26 @@ export type ActivityQuality =
  */
 export type Symptom = 'Pitta' | 'Inflammation' | 'Right knee pain' | 'Calves pain' | 'Temporal pain' | 'Dryness'
 
+/**
+ * One reflection-card pairing on a logged activity — many-to-many (a
+ * scheduled activity can carry several cards, one card can be used on many
+ * scheduled activities), and unlike quality/symptoms (which share ONE note
+ * field per activity), EACH pairing carries its own freeform note. `card`
+ * names the pairing by the static catalog's own `number` (`data/
+ * reflectionCards.ts`, 1–18) — never the server-side `reflection_cards.id`
+ * — the same reasoning `ScheduledActivity.name` identifies an activity by
+ * its catalog NAME rather than `activities.id`: this client stays fully
+ * usable with zero backend configured (rule 6), and the static catalog's
+ * own number is the one identity that is always available offline.
+ * `api/reflectionCards.ts` resolves `card` to the real DB id only at the
+ * sync boundary, mirroring `api/catalog.ts`'s `catalogIdForName`.
+ */
+export interface ReflectionEntry {
+  card: number
+  /** Optional — an empty string is "no note for this card", same as `ScheduledActivity.notes`'s null. */
+  note: string
+}
+
 export type ScheduleStatus = 'planned' | 'completed'
 
 /**
@@ -217,6 +237,8 @@ export interface ScheduledActivity {
   symptoms: Symptom[]
   /** Freeform notes, optional. Encrypted at rest like quality/flags/symptoms (rule 10). */
   notes: string | null
+  /** Reflection-card pairings, optional, any number at once — see `ReflectionEntry`. */
+  reflections: ReflectionEntry[]
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string

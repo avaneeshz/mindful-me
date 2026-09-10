@@ -11,7 +11,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { ActivityQuality, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
+import type { ActivityQuality, FlagId, ReflectionEntry, ScheduledActivity, Symptom } from '@/domain/types'
 
 /**
  * What is currently staged in the modal but not yet committed. Nothing here
@@ -35,6 +35,8 @@ export interface StagingState {
   symptoms: Symptom[]
   /** Freeform notes textarea — optional, empty string is "nothing typed". */
   notes: string
+  /** Reflection-card pairings — optional, any number at once (see domain/types.ts `ReflectionEntry`). */
+  reflections: ReflectionEntry[]
   /**
    * Id of the activity being edited in place, or null when adding a new one.
    * Saving replaces that activity rather than appending a duplicate. Because
@@ -66,6 +68,7 @@ export const EMPTY_STAGING: StagingState = {
   quality: [],
   symptoms: [],
   notes: '',
+  reflections: [],
   editingId: null,
 }
 
@@ -104,6 +107,15 @@ export type BoardAction =
   /** Multi-select toggle — adds the symptom if absent, removes it if present. */
   | { type: 'toggleStagingSymptom'; symptom: Symptom }
   | { type: 'setStagingNotes'; notes: string }
+  /**
+   * Reflection cards — many-to-many, each pairing carrying its own note
+   * (unlike quality/symptoms' flat toggle). Selecting a card adds it with an
+   * empty note; deselecting removes it and its note together — there is no
+   * "keep the note, drop the pairing" state.
+   */
+  | { type: 'toggleStagingReflection'; card: number }
+  /** No-op if `card` is not currently selected — the note field only ever shows for a selected card. */
+  | { type: 'setStagingReflectionNote'; card: number; note: string }
   | { type: 'commit' }
   | { type: 'editActivity'; id: string }
   | { type: 'removeActivity'; id: string }
@@ -183,6 +195,7 @@ function stageFrom(
     quality: [],
     symptoms: [],
     notes: '',
+    reflections: [],
     editingId: candidate.id,
   }
 }
@@ -325,6 +338,29 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, notes: action.notes } }
     }
 
+    case 'toggleStagingReflection': {
+      if (!state.staging.cardName) return state
+      const { reflections } = state.staging
+      const isSelected = reflections.some((r) => r.card === action.card)
+      const next = isSelected
+        ? reflections.filter((r) => r.card !== action.card)
+        : [...reflections, { card: action.card, note: '' }]
+      return { ...state, staging: { ...state.staging, reflections: next } }
+    }
+
+    case 'setStagingReflectionNote': {
+      if (!state.staging.cardName) return state
+      const { reflections } = state.staging
+      if (!reflections.some((r) => r.card === action.card)) return state
+      return {
+        ...state,
+        staging: {
+          ...state.staging,
+          reflections: reflections.map((r) => (r.card === action.card ? { ...r, note: action.note } : r)),
+        },
+      }
+    }
+
     case 'commit': {
       const { staging } = state
       if (!staging.cardName || !isStagingComplete(staging)) return state
@@ -357,6 +393,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         quality: staging.quality,
         symptoms: staging.symptoms,
         notes: staging.notes.trim() ? staging.notes : null,
+        reflections: staging.reflections,
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
@@ -386,6 +423,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           quality: [...activity.quality],
           symptoms: [...activity.symptoms],
           notes: activity.notes ?? '',
+          reflections: activity.reflections.map((r) => ({ ...r })),
           editingId: activity.id,
         },
       }

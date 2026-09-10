@@ -1,9 +1,17 @@
 import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
 import { supabase } from '@/lib/supabaseClient'
-import type { ActivityQuality, FlagId, ScheduleStatus, ScheduledActivity, Symptom } from '@/domain/types'
+import type {
+  ActivityQuality,
+  FlagId,
+  ReflectionEntry,
+  ScheduleStatus,
+  ScheduledActivity,
+  Symptom,
+} from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
+import { numberForReflectionCardId, reflectionCardIdForNumber } from './reflectionCards'
 
-/** The shape `public.scheduled_activity_dto` (see the Phase 2/quality migrations) hands back. */
+/** The shape `public.scheduled_activity_dto` (see the Phase 2/quality/reflections migrations) hands back. */
 interface ScheduledActivityDto {
   id: string
   activity_id: string | null
@@ -20,10 +28,23 @@ interface ScheduledActivityDto {
   updated_at: string
   symptoms: string[] | null
   notes: string | null
+  reflections: { card_id: string; note: string | null }[] | null
 }
 
 async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity> {
   const name = dto.activity_id ? await nameForCatalogId(dto.activity_id) : null
+  const reflections = (
+    await Promise.all(
+      (dto.reflections ?? []).map(async (r): Promise<ReflectionEntry | null> => {
+        const card = await numberForReflectionCardId(r.card_id)
+        // A card id the client's own catalog doesn't recognize (not yet
+        // loaded, or a personal card from another device) is dropped rather
+        // than surfaced as a broken entry — same defensive posture
+        // `nameForCatalogId` already has for `activity_id`.
+        return card === null ? null : { card, note: r.note ?? '' }
+      }),
+    )
+  ).filter((r): r is ReflectionEntry => r !== null)
   return {
     id: dto.id,
     name,
@@ -34,9 +55,31 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     quality: (dto.quality ?? []) as ActivityQuality[],
     symptoms: (dto.symptoms ?? []) as Symptom[],
     notes: dto.notes ?? null,
+    reflections,
     status: (dto.status as ScheduleStatus) ?? 'planned',
     timezone: dto.timezone,
   }
+}
+
+/**
+ * `ScheduledActivity.reflections` (catalog-number-keyed) -> the JSON shape
+ * `create_scheduled_activity`/`reschedule_scheduled_activity`/
+ * `set_scheduled_activity_reflections` accept (`{card_id, note}[]`, real DB
+ * ids). A card number the catalog can't resolve yet (offline, not loaded) is
+ * dropped from this SYNC call only — it stays intact in local state and
+ * catches up on the next successful sync, same as `scheduleParams`'
+ * `activity_id` resolution.
+ */
+async function reflectionsParam(
+  reflections: readonly ReflectionEntry[],
+): Promise<{ card_id: string; note: string | null }[]> {
+  const resolved = await Promise.all(
+    reflections.map(async (r) => {
+      const cardId = await reflectionCardIdForNumber(r.card)
+      return cardId ? { card_id: cardId, note: r.note.trim() ? r.note : null } : null
+    }),
+  )
+  return resolved.filter((r): r is { card_id: string; note: string | null } => r !== null)
 }
 
 /**
@@ -93,6 +136,7 @@ export async function apiCreateScheduledActivity(activity: ScheduledActivity, re
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
+    p_reflections: await reflectionsParam(activity.reflections),
   })
   if (error) throw error
 }
@@ -103,17 +147,18 @@ export async function apiRescheduleScheduledActivity(
 ): Promise<void> {
   if (!supabase) return
   const params = await scheduleParams(activity, reference)
-  // Quality, symptoms and notes are all bundled into reschedule too (unlike
-  // flags, kept deliberately separate — see the migration's own comment):
-  // the client always sends the full CURRENT value of each on every
-  // reschedule, never omitted, and the RPC unconditionally overwrites them,
-  // same contract every other bundled column has.
+  // Quality, symptoms, notes and reflections are all bundled into reschedule
+  // too (unlike flags, kept deliberately separate — see the migration's own
+  // comment): the client always sends the full CURRENT value of each on
+  // every reschedule, never omitted, and the RPC unconditionally overwrites
+  // them, same contract every other bundled column has.
   const { error } = await supabase.rpc('reschedule_scheduled_activity', {
     p_id: activity.id,
     ...params,
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
+    p_reflections: await reflectionsParam(activity.reflections),
   })
   if (error) throw error
 }
@@ -148,6 +193,16 @@ export async function apiSetScheduledActivitySymptoms(id: string, symptoms: Symp
 export async function apiSetScheduledActivityNotes(id: string, notes: string | null): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('set_scheduled_activity_notes', { p_id: id, p_notes: notes })
+  if (error) throw error
+}
+
+/** Parity with `apiSetScheduledActivitySymptoms` — a reflections-only edit with no accompanying time change. */
+export async function apiSetScheduledActivityReflections(id: string, reflections: ReflectionEntry[]): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('set_scheduled_activity_reflections', {
+    p_id: id,
+    p_reflections: await reflectionsParam(reflections),
+  })
   if (error) throw error
 }
 

@@ -16,7 +16,7 @@ function activity(startMinutes: number, durationMinutes: number, name = 'Homewor
     flags: [],
     quality: [],
     symptoms: [],
-    notes: null,
+    notes: null, reflections: [],
     status: 'planned',
     timezone: 'UTC',
   }
@@ -120,7 +120,7 @@ describe('an activity’s own rendered segment is a real, independently operable
       flags: ['Attack'],
       quality: [],
       symptoms: [],
-      notes: null,
+      notes: null, reflections: [],
       status: 'planned',
       timezone: 'UTC',
     }

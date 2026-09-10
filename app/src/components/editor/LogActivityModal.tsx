@@ -11,6 +11,7 @@ import { DurationDragBlock } from './DurationDragBlock'
 import { DurationStepperFallback } from './DurationStepperFallback'
 import { FlagPicker } from './FlagPicker'
 import { QualityPicker } from './QualityPicker'
+import { ReflectionPicker } from './ReflectionPicker'
 import { SymptomsPicker } from './SymptomsPicker'
 
 /**
@@ -39,6 +40,8 @@ export function LogActivityModal({
   onToggleQuality,
   onToggleSymptom,
   onSetNotes,
+  onToggleReflection,
+  onSetReflectionNote,
   onCommit,
   onCancel,
 }: {
@@ -55,6 +58,8 @@ export function LogActivityModal({
   onToggleQuality: (quality: ActivityQuality) => void
   onToggleSymptom: (symptom: Symptom) => void
   onSetNotes: (notes: string) => void
+  onToggleReflection: (card: number) => void
+  onSetReflectionNote: (card: number, note: string) => void
   onCommit: () => void
   onCancel: () => void
 }) {
@@ -190,6 +195,15 @@ export function LogActivityModal({
               placeholder="Add notes"
               rows={3}
               className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            />
+
+            {/* Reflection — real backend now (Phase 3), scoped to THIS
+                activity; replaces the old static grid that used to sit below
+                the whole board (`ReflectionSection.tsx`, now retired). */}
+            <ReflectionPicker
+              selected={staging.reflections}
+              onToggle={onToggleReflection}
+              onNoteChange={onSetReflectionNote}
             />
 
             {/* Save: a small centered pill, not a full-width bar. Cancel is
