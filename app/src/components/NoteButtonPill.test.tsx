@@ -18,11 +18,10 @@ describe('NoteButtonPill', () => {
     expect(html).not.toContain('role="dialog"')
     expect(html).not.toContain('<textarea')
     expect(html).not.toContain('Store')
-    // Gifts' gift-type picker (a chip radiogroup, not a <select>) is inside
-    // that same closed popover, so none of it leaks either.
+    // The type picker (a chip radiogroup, not a <select>) is inside that same
+    // closed popover, so none of it leaks either.
     expect(html).not.toContain('<select')
     expect(html).not.toContain('role="radiogroup"')
-    expect(html).not.toContain('Gift type')
   })
 
   it('is focusable and keyboard-operable like every other real button (no explicit tabIndex override)', () => {
@@ -30,14 +29,15 @@ describe('NoteButtonPill', () => {
     expect(html).not.toContain('tabindex="-1"')
   })
 
-  it('renders its own given label, whichever of the 6 buttons it is', () => {
+  it('renders its own given label, whichever of the buttons it is', () => {
     for (const [key, label] of [
-      ['gifts', 'Gifts'],
-      ['chits', 'Chits'],
-      ['opportunities', 'Opportunities'],
+      ['gifts', 'Extra Senses'],
       ['learnings', 'Learnings'],
-      ['mirror', 'Mirror'],
+      ['mirror', 'People'],
       ['prayer', 'Prayer'],
+      ['scriptures', 'Scriptures'],
+      ['summons', 'Summons'],
+      ['worship', 'Worship'],
     ] as const) {
       const html = renderToStaticMarkup(<NoteButtonPill buttonKey={key} label={label} />)
       expect(html).toContain(label)

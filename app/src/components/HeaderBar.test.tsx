@@ -10,10 +10,10 @@ function render(): string {
   )
 }
 
-describe('HeaderBar note pills (SCRUM-13)', () => {
-  it('renders exactly the 6 pills, in order: Gifts, Chits, Opportunities, Learnings, Mirror, Prayer', () => {
+describe('HeaderBar note pills', () => {
+  it('renders the 7 note pills, in order — Extra Senses, Learnings, Relational Nutrient, Prayer, Scriptures, Sermons, Worship Singing', () => {
     const html = render()
-    const labels = ['Gifts', 'Chits', 'Opportunities', 'Learnings', 'Mirror', 'Prayer']
+    const labels = ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Prayer', 'Scriptures', 'Sermons', 'Worship Singing']
     let lastIndex = -1
     for (const label of labels) {
       const index = html.indexOf(`>${label}<`)
@@ -22,14 +22,27 @@ describe('HeaderBar note pills (SCRUM-13)', () => {
     }
   })
 
-  it('never renders "Feedback" any more — it was renamed to Mirror, not kept alongside it', () => {
-    expect(render()).not.toContain('Feedback')
+  it('no longer carries Gifts, Mirror, Chits, Opportunities or Feedback as pill labels', () => {
+    const html = render()
+    for (const gone of ['aria-label="Gifts notes"', 'aria-label="Mirror notes"', 'aria-label="Chits notes"', 'aria-label="Opportunities notes"', 'Feedback']) {
+      expect(html).not.toContain(gone)
+    }
   })
 
-  it('every pill is a real, focusable <button> now, not an inert <span>', () => {
+  it('every note pill is a real, focusable <button>', () => {
     const html = render()
-    for (const label of ['Gifts', 'Chits', 'Opportunities', 'Learnings', 'Mirror', 'Prayer']) {
+    for (const label of ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Prayer', 'Scriptures', 'Sermons', 'Worship Singing']) {
       expect(html).toMatch(new RegExp(`<button[^>]*aria-label="${label} notes"`))
     }
+  })
+})
+
+describe('HeaderBar display buttons', () => {
+  it('renders Vipassana and Steps, each showing a face value (an em dash when unset)', () => {
+    const html = render()
+    expect(html).toMatch(/<button[^>]*aria-label="Vipassana — set value"/)
+    expect(html).toMatch(/<button[^>]*aria-label="Steps — set value"/)
+    expect(html).toContain('>Vipassana<')
+    expect(html).toContain('>Steps<')
   })
 })

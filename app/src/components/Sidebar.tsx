@@ -6,12 +6,14 @@ import {
   Home,
   LayoutGrid,
   Leaf,
+  Lightbulb,
   Menu,
   PanelLeftClose,
   PieChart,
   Settings,
   Sparkles,
   Sprout,
+  StickyNote,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -32,8 +34,19 @@ interface NavEntry {
   to?: string
 }
 
-const NAV_ENTRIES: NavEntry[] = [
-  { label: 'Today', icon: Home, to: '/' },
+const NAV_TODAY: NavEntry[] = [{ label: 'Today', icon: Home, to: '/' }]
+
+/**
+ * Its own group directly below "Today". Non-functional for now (no
+ * destination) — these were moved out of the header's note-pill row and just
+ * need a home in the nav; wiring comes later.
+ */
+const NAV_NOTES: NavEntry[] = [
+  { label: 'Opportunities', icon: Lightbulb },
+  { label: 'Chits', icon: StickyNote },
+]
+
+const NAV_REST: NavEntry[] = [
   { label: 'My Slots', icon: Clock },
   { label: 'Activity Library', icon: LayoutGrid },
   { label: 'Progress', icon: PieChart },
@@ -44,6 +57,43 @@ const NAV_ENTRIES: NavEntry[] = [
 
 const navItemClass =
   'flex items-center gap-md rounded-md px-md py-md text-left text-btn font-medium text-ink-dim'
+
+/**
+ * One nav row. A `to` entry is a real link; everything else is a disabled
+ * button — non-functional but honest about it, so keyboard users are not sent
+ * to a control that does nothing.
+ */
+function renderNavEntry({ label, icon: Icon, to }: NavEntry, onNavigate: () => void) {
+  if (to) {
+    return (
+      <NavLink
+        key={label}
+        to={to}
+        end
+        className={({ isActive }) => cn(navItemClass, isActive && 'bg-ink/10 font-semibold text-ink')}
+        onClick={onNavigate}
+        title={label}
+      >
+        <Icon aria-hidden="true" className="size-[18px] shrink-0" />
+        <span className="sidebar-label">{label}</span>
+      </NavLink>
+    )
+  }
+  return (
+    <button
+      key={label}
+      type="button"
+      disabled
+      title={`${label} (not yet available)`}
+      aria-label={`${label}, not yet available`}
+      className={cn(navItemClass, 'cursor-not-allowed opacity-70')}
+    >
+      <Icon aria-hidden="true" className="size-[18px] shrink-0" />
+      <span className="sidebar-label">{label}</span>
+      <span className="sr-only">(not yet available)</span>
+    </button>
+  )
+}
 
 export function Sidebar() {
   // Collapsed by default on every viewport (desktop, tablet, mobile) — the
@@ -198,39 +248,14 @@ export function Sidebar() {
       </div>
 
       <nav id="primary-navigation" aria-label="Main" className="relative z-10 flex flex-1 flex-col gap-xs px-lg">
-        {NAV_ENTRIES.map(({ label, icon: Icon, to }) =>
-          to ? (
-            <NavLink
-              key={label}
-              to={to}
-              end
-              className={({ isActive }) =>
-                cn(navItemClass, isActive && 'bg-ink/10 font-semibold text-ink')
-              }
-              onClick={() => setMobileOpen(false)}
-              title={label}
-            >
-              <Icon aria-hidden="true" className="size-[18px] shrink-0" />
-              <span className="sidebar-label">{label}</span>
-            </NavLink>
-          ) : (
-            // Placeholder destinations, non-functional exactly as today. They
-            // are disabled rather than silently inert so keyboard users are not
-            // sent to a control that does nothing.
-            <button
-              key={label}
-              type="button"
-              disabled
-              title={`${label} (not yet available)`}
-              aria-label={`${label}, not yet available`}
-              className={cn(navItemClass, 'cursor-not-allowed opacity-70')}
-            >
-              <Icon aria-hidden="true" className="size-[18px] shrink-0" />
-              <span className="sidebar-label">{label}</span>
-              <span className="sr-only">(not yet available)</span>
-            </button>
-          ),
-        )}
+        {NAV_TODAY.map((entry) => renderNavEntry(entry, () => setMobileOpen(false)))}
+
+        {/* Opportunities / Chits — their own group right below Today. */}
+        {NAV_NOTES.map((entry) => renderNavEntry(entry, () => setMobileOpen(false)))}
+
+        <div className="my-sm border-t border-line-soft" aria-hidden="true" />
+
+        {NAV_REST.map((entry) => renderNavEntry(entry, () => setMobileOpen(false)))}
       </nav>
 
       <div className="sidebar-label relative z-10 mx-lg rounded-lg bg-ink/[0.06] p-lg">

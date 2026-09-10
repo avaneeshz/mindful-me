@@ -90,6 +90,14 @@ export default {
       'night-strip-fixed': 'var(--night-strip-fixed)',
       'night-strip-fixed-ink': 'var(--night-strip-fixed-ink)',
       'night-strip-fixed-line': 'var(--night-strip-fixed-line)',
+
+      // Sun / Moon timeline end-caps — fixed light / fixed dark in BOTH
+      // themes (see index.css). The cap is an identity marker, not a themed
+      // surface, so it never switches under `[data-theme]`.
+      'sun-cap': 'var(--sun-cap-bg)',
+      'sun-cap-ink': 'var(--sun-cap-ink)',
+      'moon-cap': 'var(--moon-cap-bg)',
+      'moon-cap-ink': 'var(--moon-cap-ink)',
     },
 
     extend: {
@@ -186,31 +194,9 @@ export default {
           '92%': { opacity: '1' },
           '100%': { opacity: '0' },
         },
-        // The Sun/Moon end-cap for whichever row is the REAL current period
-        // glows. Rest and peak frames both carry a real box-shadow (not
-        // "none") so `motion-reduce:animate-none` (Timeline.tsx) leaves a
-        // static glow in place rather than removing it.
-        'anchor-glow': {
-          '0%, 100%': {
-            boxShadow: '0 0 0 3px rgba(212,168,87,0.18), 0 0 14px 2px rgba(212,168,87,0.45)',
-          },
-          '50%': {
-            boxShadow: '0 0 0 5px rgba(212,168,87,0.28), 0 0 22px 5px rgba(212,168,87,0.7)',
-          },
-        },
-        'anchor-glow-night': {
-          '0%, 100%': {
-            boxShadow: '0 0 0 3px rgba(255,255,255,0.2), 0 0 14px 2px rgba(255,255,255,0.5)',
-          },
-          '50%': {
-            boxShadow: '0 0 0 5px rgba(255,255,255,0.32), 0 0 22px 5px rgba(255,255,255,0.78)',
-          },
-        },
       },
       animation: {
         'undo-fade': 'undo-fade 4000ms linear 1 forwards',
-        'anchor-glow': 'anchor-glow 2600ms ease-in-out infinite',
-        'anchor-glow-night': 'anchor-glow-night 2600ms ease-in-out infinite',
       },
     },
   },

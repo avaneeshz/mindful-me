@@ -3,8 +3,10 @@ import { CalendarDays, User } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
+import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { WeatherPill } from '@/components/WeatherPill'
 import { NOTE_BUTTONS } from '@/domain/notes'
+import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
 import type { AuthUser } from '@/state/AuthContext'
 import { cn } from '@/lib/utils'
 
@@ -45,53 +47,64 @@ export interface HeaderBarProps {
 
 export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: HeaderBarProps) {
   return (
-    <header className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
-      {/* Section E — the greeting heading, renamed from "30-Minute Slotting"
-          to "Consort". This is the greeting text specifically, not the
-          sidebar/sign-in brand mark ("Ritual Board"), which is unrelated. */}
-      <h1 className="pl-0 font-display text-h1 font-semibold text-ink mobile:pl-[52px] mobile:text-h1-sm">
-        Consort
-      </h1>
-      {/* `flex-wrap` — the whole meta row, note pills included, wraps onto a
-          second line if it runs out of horizontal space, rather than
-          overflowing. */}
-      <div className="flex flex-wrap items-center justify-end gap-sm">
-      {/* SCRUM-13 — Gifts, Chits, Opportunities, Learnings, Mirror (renamed
-          from Feedback), Prayer (new). Each is now a real interactive
-          button: clicking one opens a note-entry popover (see
-          `NoteButtonPill`) rather than doing nothing. */}
-      {NOTE_BUTTONS.map(({ key, label }) => (
-        <NoteButtonPill key={key} buttonKey={key} label={label} />
-      ))}
+    <header className="flex flex-col gap-md">
+      {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed
+          from "30-Minute Slotting"; not the sidebar/sign-in brand mark "Ritual
+          Board") sits left; the viewed-date navigator, weather, and account
+          control sit right. Nothing else shares this line. */}
+      <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
+        <h1 className="pl-0 font-display text-h1 font-semibold text-ink mobile:pl-[52px] mobile:text-h1-sm">
+          Consort
+        </h1>
 
-      {/*
-        The date pill is a real navigation control now (BL-2), not display-
-        only text, so — unlike the weather pill beside it — it stays visible
-        on mobile too: it is the only way a phone-width viewport can view a
-        day other than today. Weather remains the phone-only simplification
-        the original comment described (secondary context, not something a
-        narrow header has room to keep alongside the title and the account
-        control).
-      */}
-      <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
+        <div className="flex flex-wrap items-center justify-end gap-sm">
+          {/*
+            The date pill is a real navigation control now (BL-2), not display-
+            only text, so — unlike the weather pill beside it — it stays visible
+            on mobile too: it is the only way a phone-width viewport can view a
+            day other than today. Weather remains the phone-only simplification
+            the original comment described (secondary context, not something a
+            narrow header has room to keep alongside the title and the account
+            control).
+          */}
+          <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
 
-      <WeatherPill className="mobile:hidden" />
+          <WeatherPill className="mobile:hidden" />
 
-      {user ? (
-        <AccountMenu user={user} onSignOut={onSignOut} />
-      ) : (
-        // No real session (local-only mode) — same non-interactive treatment
-        // as before: there is no account menu behind it, so it carries no
-        // hover or focus state and is not focusable. No colour any more
-        // (Section A) — the theme's own invert pair, same as everywhere
-        // else a "primary" mark shows up.
-        <div
-          className="flex size-avatar cursor-default items-center justify-center rounded-full bg-inv-bg"
-          aria-hidden="true"
-        >
-          <User className="size-[16px] text-inv-ink" />
+          {user ? (
+            <AccountMenu user={user} onSignOut={onSignOut} />
+          ) : (
+            // No real session (local-only mode) — same non-interactive treatment
+            // as before: there is no account menu behind it, so it carries no
+            // hover or focus state and is not focusable. No colour any more
+            // (Section A) — the theme's own invert pair, same as everywhere
+            // else a "primary" mark shows up.
+            <div
+              className="flex size-avatar cursor-default items-center justify-center rounded-full bg-inv-bg"
+              aria-hidden="true"
+            >
+              <User className="size-[16px] text-inv-ink" />
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Row 2 — the day's entry controls, on their own wrapping line beneath
+          the header so they read as one group, left-aligned and consistently
+          spaced rather than crammed against the title. Note pills first —
+          Extra Senses (was Gifts), Learnings, People (was Mirror), Prayer,
+          Scriptures, Summons, Worship; each opens a note-entry popover (see
+          `NoteButtonPill`), Chits and Opportunities moved to the sidebar —
+          then the numeric display buttons (Vipassana minutes, Steps count),
+          which always show a stored per-day number and set/replace it on click. */}
+      <div className="flex flex-wrap items-center gap-sm">
+        {NOTE_BUTTONS.map(({ key, label }) => (
+          <NoteButtonPill key={key} buttonKey={key} label={label} />
+        ))}
+
+        {DISPLAY_BUTTONS.map(({ key }) => (
+          <DisplayValueButton key={key} buttonKey={key} viewedDate={viewedDate} />
+        ))}
       </div>
     </header>
   )

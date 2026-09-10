@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiCreateNoteEntry, apiListNoteEntries } from '@/api/notes'
 import { generateId } from '@/domain/scheduling'
-import type { GiftType, NoteButtonKey, NoteEntry } from '@/domain/notes'
+import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
 import { loadLocalNoteEntries, saveLocalNoteEntries } from '@/lib/noteEntriesLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 
@@ -15,7 +15,7 @@ export interface UseNoteEntriesResult {
   error: string | null
   /** True from the moment Store is pressed until the write settles — the Add-button double-submit guard (rule 9's spirit, applied to Store). */
   submitting: boolean
-  addNote: (note: string, giftType: GiftType | null) => Promise<boolean>
+  addNote: (note: string, entryType: string | null) => Promise<boolean>
 }
 
 /**
@@ -62,7 +62,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
   }, [active, buttonKey])
 
   const addNote = useCallback(
-    async (note: string, giftType: GiftType | null): Promise<boolean> => {
+    async (note: string, entryType: string | null): Promise<boolean> => {
       const trimmed = note.trim()
       if (trimmed === '') return false
 
@@ -75,7 +75,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         id: generateId(),
         buttonKey,
         note: trimmed,
-        giftType,
+        entryType,
         createdAt: new Date().toISOString(),
       }
       const withLocal = [local, ...entries]
@@ -83,7 +83,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       saveLocalNoteEntries(buttonKey, withLocal)
 
       if (supabaseConfigured) {
-        const server = await apiCreateNoteEntry(buttonKey, trimmed, giftType)
+        const server = await apiCreateNoteEntry(buttonKey, trimmed, entryType)
         if (server === null) {
           setError('Saved on this device — will sync once you’re back online.')
         } else {

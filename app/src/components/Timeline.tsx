@@ -20,7 +20,7 @@ import {
 } from '@/domain/slots'
 import { isWindowFull } from '@/domain/scheduling'
 import { PERIOD_ICONS } from '@/data/periods'
-import { useTheme } from '@/state/ThemeContext'
+import { SunMoonLogPopover } from '@/components/SunMoonLogPopover'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
@@ -60,6 +60,8 @@ interface TimelineProps {
    * marker computed against the wrong day's timeline.
    */
   now: Date | null
+  /** The calendar day the board is showing — the Sun/Moon light log files entries under it. */
+  viewedDate: Date
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
   /**
@@ -76,6 +78,7 @@ export function Timeline({
   activities,
   selectedSlot,
   now,
+  viewedDate,
   onSelectSlot,
   onDropCard,
   onSelectActivity,
@@ -161,6 +164,7 @@ export function Timeline({
             period={period}
             activities={activities}
             selectedSlot={selectedSlot}
+            viewedDate={viewedDate}
             focusedStop={focusedStop}
             marker={marker && marker.period === period ? marker.ratio : null}
             onFocusStop={setFocusedStop}
@@ -179,6 +183,8 @@ interface TimelineRowProps {
   period: Period
   activities: ActivityList
   selectedSlot: number
+  /** The viewed calendar day — threaded to the Sun/Moon light-log popover. */
+  viewedDate: Date
   /** Last stop the user focused, on either row. Drives the roving tab stop. */
   focusedStop: RowFocusStop | null
   /** 0–1 position of the current-time marker, or null if it is on the other row. */
@@ -194,6 +200,7 @@ function TimelineRow({
   period,
   activities,
   selectedSlot,
+  viewedDate,
   focusedStop,
   marker,
   onFocusStop,
@@ -202,26 +209,12 @@ function TimelineRow({
   onSelectActivity,
   onKeyDown,
 }: TimelineRowProps) {
-  const { theme, setTheme } = useTheme()
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
   const indices = rowSlotIndices(period)
   const stops = rowFocusStops(activities, period)
   const tickLabels = rowHourTickLabels(period)
   const tickPositions = tickLabelPositions()
   const Icon = PERIOD_ICONS[period]
-  // Section A — the theme toggle lives right here, on the Sun/Moon end-caps
-  // already sitting beside each row, not a new settings control. This is a
-  // DIFFERENT axis from `isCurrentPeriod` below: which THEME the user chose
-  // (a preference) versus which period real device time is in right now (a
-  // fact) — the two can disagree (it's genuinely night, but the user prefers
-  // the light theme) and both render independently on the same cap.
-  const isThemeSelected = period === 'day' ? theme === 'light' : theme === 'dark'
-  // This row holds the real current time right now — the exact condition the
-  // Sun/Moon end-cap glow keys off. `marker` is already `null` on whichever
-  // row is NOT the live period (see the `Timeline` component above), so
-  // there's no separate "is this the current period" computation to get out
-  // of sync with the marker itself.
-  const isCurrentPeriod = marker !== null
 
   // Roving tabindex, in priority order: the stop the user last focused on THIS
   // row (so arrow-key movement survives tabbing away and back), else the
@@ -261,39 +254,28 @@ function TimelineRow({
         the strip's rounded end-cap radius and the two read as one continuous
         shape. Day and Night are dimensionally IDENTICAL — a matched pair.
 
-        Also a real button now (Section A): clicking it sets the app's THEME
-        (light for the Sun, dark for the Moon) — `isThemeSelected` inverts
-        the fill exactly like a selected chip elsewhere in the product, the
-        one deliberate "colour" here being the theme's own invert pair, not
-        a new hue. The glow below is a SEPARATE, unchanged concern (rule:
-        "sun/moon glow... unchanged" this round) — it still keys off real
-        device time (`isCurrentPeriod`), never the chosen theme, and both
-        can be true or false independently of each other.
+        The cap is a logging control now: tapping it opens the Sun/Moon light
+        log (`SunMoonLogPopover`) to record a stretch of time in that light
+        for the viewed day. It no longer toggles the theme (that is derived
+        from the selected slot — `components/ThemeFromSlot.tsx`) and no longer
+        carries a current-period glow. Its colours are fixed identity, not
+        themed: the Sun cap is always light, the Moon cap always dark, in both
+        themes (`--sun-cap-*` / `--moon-cap-*`, index.css).
       */}
       <div className="shrink-0 pt-xl">
-        <button
-          type="button"
-          onClick={() => setTheme(period === 'day' ? 'light' : 'dark')}
-          aria-pressed={isThemeSelected}
-          aria-label={period === 'day' ? 'Switch to light theme' : 'Switch to dark theme'}
-          className={cn(
+        <SunMoonLogPopover
+          kind={period === 'day' ? 'sun' : 'moon'}
+          viewedDate={viewedDate}
+          icon={Icon}
+          capClassName={cn(
             'flex size-timeline-row items-center justify-center rounded-full border transition-colors duration-200',
             'mobile:size-timeline-row-sm ipad-land:size-timeline-row-md',
-            isThemeSelected ? 'border-inv-bg bg-inv-bg text-inv-ink' : 'border-line bg-surface text-ink-dim',
-            // Glows only on whichever row is the REAL current period, right
-            // now — unrelated to `isThemeSelected` above. The animated pulse
-            // is disabled under prefers-reduced-motion
-            // (`motion-reduce:animate-none`); the paired `shadow-[...]`
-            // utility then supplies the glow's resting frame as a static
-            // fallback so reduced motion loses the pulse, never the glow.
-            isCurrentPeriod &&
-              (period === 'day'
-                ? 'shadow-[0_0_0_3px_rgba(212,168,87,0.18),0_0_14px_2px_rgba(212,168,87,0.45)] animate-anchor-glow motion-reduce:animate-none'
-                : 'shadow-[0_0_0_3px_rgba(255,255,255,0.2),0_0_14px_2px_rgba(255,255,255,0.5)] animate-anchor-glow-night motion-reduce:animate-none'),
+            // `border-line` (theme-adaptive hairline) keeps the cap's edge
+            // defined in both themes even though its fill is fixed.
+            'border-line',
+            period === 'day' ? 'bg-sun-cap text-sun-cap-ink' : 'bg-moon-cap text-moon-cap-ink',
           )}
-        >
-          <Icon aria-hidden="true" className="size-[18px] mobile:size-[15px]" />
-        </button>
+        />
       </div>
 
       {/*

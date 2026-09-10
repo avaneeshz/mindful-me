@@ -34,7 +34,7 @@ export const REFLECTION_CARDS: ReflectionCard[] = [
   { number: 1, title: 'Somatic', subtitle: 'Sensation, pain, release & embodiment', image: icon01 },
   { number: 2, title: 'Parts', subtitle: 'Inner parts, conflict & harmony', image: icon02 },
   { number: 3, title: 'Internal Systems', subtitle: 'HOS architecture & system interaction', image: icon03 },
-  { number: 4, title: 'Environment', subtitle: 'Physical, social & energetic ecosystem', image: icon04 },
+  { number: 4, title: 'Operating Environment', subtitle: 'Physical, social & energetic ecosystem', image: icon04 },
   { number: 5, title: 'Identities', subtitle: 'Roles, identities & self-concept', image: icon05 },
   { number: 6, title: 'Thoughts', subtitle: 'Rumination, intrusive, scattered & distortions', image: icon06 },
   { number: 7, title: 'Boundaries', subtitle: 'Assert, enforce, negotiate & observe', image: icon07 },
