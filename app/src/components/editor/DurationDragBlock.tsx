@@ -39,7 +39,10 @@ import { cn } from '@/lib/utils'
 
 /** Half the visible ruler window, in minutes either side of the anchor. */
 const WINDOW_HALF_MINUTES = 180
-const MINUTES_PER_DAY = 1440
+// The board (`domain/window.ts`) spans 06:00 → next-day 06:00, so a start /
+// end can legitimately reach board minute 1800 now (a midnight-crosser),
+// not just 1440.
+const BOARD_MAX_MINUTE = 1800
 
 export const DURATION_DRAG_MESSAGE_ID = 'duration-drag-capacity-message'
 
@@ -71,7 +74,7 @@ export function DurationDragBlock({
   // visually re-center under a drag in progress — computed once from the
   // value staging had when this control first mounted.
   const [windowStart] = useState(() =>
-    Math.max(0, Math.min(MINUTES_PER_DAY - WINDOW_HALF_MINUTES * 2, startMinutes - WINDOW_HALF_MINUTES)),
+    Math.max(0, Math.min(BOARD_MAX_MINUTE - WINDOW_HALF_MINUTES * 2, startMinutes - WINDOW_HALF_MINUTES)),
   )
   const windowEnd = windowStart + WINDOW_HALF_MINUTES * 2
   const windowMinutes = windowEnd - windowStart
@@ -215,7 +218,7 @@ export function DurationDragBlock({
             aria-labelledby="duration-drag-label"
             aria-orientation="horizontal"
             aria-valuemin={0}
-            aria-valuemax={MINUTES_PER_DAY}
+            aria-valuemax={BOARD_MAX_MINUTE}
             aria-valuenow={startMinutes}
             aria-valuetext={moveBoundsDesc}
             aria-describedby={pinned ? DURATION_DRAG_MESSAGE_ID : undefined}
@@ -235,7 +238,7 @@ export function DurationDragBlock({
             aria-label={`Resize ${cardName}'s start time`}
             aria-orientation="horizontal"
             aria-valuemin={0}
-            aria-valuemax={MINUTES_PER_DAY}
+            aria-valuemax={BOARD_MAX_MINUTE}
             aria-valuenow={startMinutes}
             aria-valuetext={formatMinutes(startMinutes)}
             aria-describedby={pinned ? DURATION_DRAG_MESSAGE_ID : undefined}

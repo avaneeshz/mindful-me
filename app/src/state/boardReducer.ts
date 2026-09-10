@@ -1,5 +1,5 @@
 import { findCard } from '@/data/activities'
-import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
+import { slotIndexFromDate } from '@/domain/slots'
 import {
   clampDuration,
   clampMove,
@@ -11,6 +11,14 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
+import {
+  activityBoardStart,
+  boardStartToStorage,
+  isoOfDate,
+  slotBoardRange,
+  toBoardActivities,
+} from '@/domain/window'
+import { currentWindowDate } from '@/lib/localTime'
 import type { ActivityQuality, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
 
 /**
@@ -52,6 +60,17 @@ export interface RemovalRecord {
 
 export interface BoardState {
   activities: ScheduledActivity[]
+  /**
+   * `YYYY-MM-DD` of the 6am-to-6am window this board is showing (see
+   * `lib/localTime.ts` `windowRange` / `domain/window.ts`). Every geometry
+   * and scheduling computation in this reducer maps `activities` into
+   * board-minute space for THIS window before touching `domain/scheduling.ts`
+   * or `domain/slots.ts`, and converts a freshly placed activity's board
+   * minute back to `{ localDate, startMinutes }` for storage. Set at init and
+   * replaced by `hydrate` (never by `selectSlot` — that only moves the grid
+   * cursor within the same window).
+   */
+  viewedDate: string
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
@@ -128,7 +147,7 @@ export type BoardAction =
   | { type: 'undoRemoval' }
   | { type: 'dismissRemoval'; id: string }
   | { type: 'dropCard'; cardName: string; slot: number }
-  | { type: 'hydrate'; activities: ScheduledActivity[] }
+  | { type: 'hydrate'; activities: ScheduledActivity[]; viewedDate: string }
   | { type: 'toggleComplete'; id: string }
   /**
    * Clicking (or keyboard-activating) an activity's own rendered segment on
@@ -195,15 +214,25 @@ export function stagingOptions(staging: StagingState): { options: string[]; leve
   return null
 }
 
-export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {
+export function createInitialState(
+  activities: ScheduledActivity[],
+  now: Date,
+  viewedDate: string = isoOfDate(currentWindowDate(now)),
+): BoardState {
   const selectedSlot = slotIndexFromDate(now)
   return {
     activities,
+    viewedDate,
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
     selectedActivityId: null,
   }
+}
+
+/** Every activity mapped into board-minute space for `state.viewedDate`. */
+function boardActivities(state: BoardState): ScheduledActivity[] {
+  return toBoardActivities(state.activities, state.viewedDate)
 }
 
 function stageFrom(
@@ -242,8 +271,8 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'pickCard': {
       const card = findCard(action.cardName)
       if (!card) return state
-      const { start, end } = slotMinuteRange(state.selectedSlot)
-      const candidate = computeCandidateSchedule({ name: card.name, path: [] }, start, state.activities)
+      const { start, end } = slotBoardRange(state.selectedSlot)
+      const candidate = computeCandidateSchedule({ name: card.name, path: [] }, start, boardActivities(state))
       // Refuse rather than silently anchoring somewhere past this grid cell's
       // own window — "add to THIS slot" must never land the activity in a
       // different, later cell just because the resolved free instant wandered
@@ -276,7 +305,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'stepDuration': {
       if (!state.staging.cardName) return state
       const ceiling = maxContiguousDuration(
-        state.activities,
+        boardActivities(state),
         state.staging.startMinutes,
         state.staging.editingId,
       )
@@ -298,7 +327,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'setDuration': {
       if (!state.staging.cardName) return state
       const ceiling = maxContiguousDuration(
-        state.activities,
+        boardActivities(state),
         state.staging.startMinutes,
         state.staging.editingId,
       )
@@ -310,7 +339,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'setStagingStart': {
       if (!state.staging.cardName) return state
       const next = clampMove(
-        state.activities,
+        boardActivities(state),
         state.staging.startMinutes,
         state.staging.durationMinutes,
         action.minutes,
@@ -324,7 +353,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       if (!state.staging.cardName) return state
       const currentEnd = state.staging.startMinutes + state.staging.durationMinutes
       const next = clampResizeStart(
-        state.activities,
+        boardActivities(state),
         state.staging.startMinutes,
         currentEnd,
         action.minutes,
@@ -374,10 +403,13 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       const candidate: CandidateSchedule = {
         id: staging.editingId,
         activity: { name: staging.cardName, path: [...staging.path] },
+        // `staging.startMinutes` is a BOARD minute for the current window
+        // (`domain/window.ts`) — validated in that same space, then split back
+        // into `{ localDate, startMinutes }` for storage after the commit.
         startMinutes: staging.startMinutes,
         durationMinutes: staging.durationMinutes,
       }
-      const validation = validateSchedule(candidate, state.activities)
+      const validation = validateSchedule(candidate, boardActivities(state))
       if (!validation.ok) return state
 
       const prior = staging.editingId
@@ -397,7 +429,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       // committing a time/duration/quality/etc. edit always carries the
       // activity's EXISTING reflections forward untouched, the same rule-4
       // guarantee status/timezone already have.
-      const committed = commitSchedule(candidate, {
+      const boardCommitted = commitSchedule(candidate, {
         id: prior?.id,
         flags: staging.flag ? [staging.flag] : [],
         quality: staging.quality,
@@ -407,6 +439,14 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
+      // Board minute -> the calendar day + minutes-since-its-midnight actually
+      // stored. A placement in the night row's small hours resolves to the
+      // NEXT calendar day (localDate = viewedDate + 1).
+      const { localDate, startMinutes } = boardStartToStorage(
+        boardCommitted.startMinutes,
+        state.viewedDate,
+      )
+      const committed = { ...boardCommitted, localDate, startMinutes }
 
       const activities = prior
         ? state.activities.map((a) => (a.id === committed.id ? committed : a))
@@ -423,7 +463,11 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         staging: {
           cardName: activity.name,
           path: [...activity.path],
-          startMinutes: activity.startMinutes,
+          // Staging works in board-minute space for the current window (so the
+          // drag-block / stepper share one axis with `pickCard`); `commit`
+          // converts back. A small-hours activity (localDate = viewedDate + 1)
+          // loads here at board minute 1440+.
+          startMinutes: activityBoardStart(activity, state.viewedDate),
           durationMinutes: activity.durationMinutes,
           // At most one flag is ever staged (single-select) even if a
           // pre-existing row somehow carries more (see the ScheduledActivity
@@ -465,10 +509,13 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       const candidate: CandidateSchedule = {
         id: null,
         activity: activity.name !== null ? { name: activity.name, path: activity.path } : null,
-        startMinutes: activity.startMinutes,
+        // Re-check in board space — the removed activity may have belonged to
+        // the next calendar day (small hours), so its board minute is what has
+        // to be free.
+        startMinutes: activityBoardStart(activity, state.viewedDate),
         durationMinutes: activity.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities).ok) {
+      if (!validateSchedule(candidate, boardActivities(state)).ok) {
         return { ...state, removal: null }
       }
 
@@ -508,6 +555,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return {
         ...state,
         activities: action.activities,
+        viewedDate: action.viewedDate,
         staging: EMPTY_STAGING,
         removal: null,
         selectedActivityId: null,
@@ -583,15 +631,26 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     }
 
     case 'quickLogActivity': {
+      // `action.startMinutes` is a BOARD minute for the current window (the
+      // caller — `SunMoonLogPopover` / `DisplayValueButton` — resolves its
+      // typed clock time through `domain/window.ts` the same way the tile-row
+      // flow does).
       const candidate: CandidateSchedule = {
         id: null,
         activity: { name: action.cardName, path: [] },
         startMinutes: action.startMinutes,
         durationMinutes: action.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities).ok) return state
-      const committed = commitSchedule(candidate)
-      return { ...state, activities: [...state.activities, committed] }
+      if (!validateSchedule(candidate, boardActivities(state)).ok) return state
+      const boardCommitted = commitSchedule(candidate)
+      const { localDate, startMinutes } = boardStartToStorage(
+        boardCommitted.startMinutes,
+        state.viewedDate,
+      )
+      return {
+        ...state,
+        activities: [...state.activities, { ...boardCommitted, localDate, startMinutes }],
+      }
     }
 
     default:

@@ -20,6 +20,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from './scheduling'
+import { BOARD_END_MIN } from './window'
 import type { ScheduledActivity } from './types'
 
 function make(
@@ -31,6 +32,7 @@ function make(
     id: overrides.id ?? generateId(),
     name: 'Homework',
     path: [],
+    localDate: '2026-01-01',
     startMinutes,
     durationMinutes,
     flags: [],
@@ -72,8 +74,8 @@ describe('nextFreeStart', () => {
 })
 
 describe('maxContiguousDuration — rule 13, the continuous-block ceiling', () => {
-  it('offers the rest of the day when nothing else exists', () => {
-    expect(maxContiguousDuration([], 600)).toBe(MINUTES_PER_DAY - 600)
+  it('offers the rest of the window when nothing else exists (6am-to-6am board -> BOARD_END_MIN)', () => {
+    expect(maxContiguousDuration([], 600)).toBe(BOARD_END_MIN - 600)
   })
 
   it('is 0 when the start minute itself is already occupied', () => {
@@ -87,7 +89,7 @@ describe('maxContiguousDuration — rule 13, the continuous-block ceiling', () =
 
   it('ignores an activity that starts before the requested start', () => {
     const existing = [make(500, 30)] // ends 8:30, well before 10:00
-    expect(maxContiguousDuration(existing, 600)).toBe(MINUTES_PER_DAY - 600)
+    expect(maxContiguousDuration(existing, 600)).toBe(BOARD_END_MIN - 600)
   })
 
   it('excludes the activity being edited, including from being its own ceiling', () => {

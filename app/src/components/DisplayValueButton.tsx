@@ -13,6 +13,7 @@ import {
 } from '@/domain/displayButtons'
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
+import { clockMinutesToBoard } from '@/domain/window'
 import type { ActivityList } from '@/domain/types'
 import { loadDisplayValue, saveDisplayValue } from '@/lib/displayValuesLocalStore'
 import { localDateISO } from '@/lib/localTime'
@@ -151,8 +152,10 @@ export function DisplayValueButton({
 
     if (quickLogName) {
       const durationMinutes = durationBetween(start, end)
-      const startMinutes = clockToMinutes(start)
-      if (durationMinutes === null || startMinutes === null || !canSave) return
+      const clockMinutes = clockToMinutes(start)
+      if (durationMinutes === null || clockMinutes === null || !canSave) return
+      // 06:00-anchored board: pre-6am clock times are the next morning.
+      const startMinutes = clockMinutesToBoard(clockMinutes)
 
       // Validated here (not just inside the reducer) so a real conflict can
       // show an inline message rather than the request silently no-oping —

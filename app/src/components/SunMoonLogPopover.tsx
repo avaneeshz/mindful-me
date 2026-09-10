@@ -3,6 +3,7 @@ import { X, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatClock, formatDuration } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
+import { clockMinutesToBoard } from '@/domain/window'
 import type { ActivityList } from '@/domain/types'
 import { TimeField } from '@/components/ui/TimeField'
 
@@ -110,9 +111,12 @@ export function SunMoonLogPopover({
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const durationMinutes = durationBetween(start, end)
-    const startMinutes = clockToMinutes(start)
-    if (!canSubmit || durationMinutes === null || startMinutes === null) return
+    const clockMinutes = clockToMinutes(start)
+    if (!canSubmit || durationMinutes === null || clockMinutes === null) return
 
+    // The board (`domain/window.ts`) runs 06:00 → 06:00: a "02:00" here means
+    // the small hours of the following morning, board minute 1560.
+    const startMinutes = clockMinutesToBoard(clockMinutes)
     const candidate: CandidateSchedule = {
       id: null,
       activity: { name: cardName, path: [] },

@@ -17,9 +17,15 @@ import {
 } from './boardReducer'
 import { createSeedActivities } from './seed'
 import { slotIndexFromDate } from '@/domain/slots'
+import { isoOfDate } from '@/domain/window'
 import { deriveSyncIntents, runSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
-import { isSameLocalDay, localDayRange, shouldRolloverViewedDate } from '@/lib/localTime'
+import {
+  currentWindowDate,
+  isSameLocalDay,
+  shouldRolloverWindowDate,
+  windowRange,
+} from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 import type { ScheduledActivity } from '@/domain/types'
 
@@ -67,16 +73,15 @@ function useDeviceClock(fixed?: Date): Date {
 }
 
 /**
- * The activities to show for `date` — local-first (rule 6), never the
- * network. Demo seed content is a first-ever-run "today" concept only: any
- * OTHER date with nothing in local storage (past, future, or "today" again
- * after storage was cleared on some other day) starts genuinely empty, never
- * silently reseeded with the demo schedule.
+ * The activities to show for window-day `date` (its 06:00 → next day 06:00) —
+ * local-first (rule 6), never the network. Demo seed content is a
+ * first-ever-run "current window" concept only: any OTHER window-day with
+ * nothing in local storage starts genuinely empty, never silently reseeded.
  */
 function loadActivitiesForDate(date: Date, now: Date): ScheduledActivity[] {
   const local = loadLocalActivities(date)
   if (local) return local
-  return isSameLocalDay(date, now) ? createSeedActivities() : []
+  return isSameLocalDay(date, currentWindowDate(now)) ? createSeedActivities(isoOfDate(date)) : []
 }
 
 export interface BoardProviderProps {
@@ -103,7 +108,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // `isViewingToday`/`setViewedDate` below for how navigating away from it
   // works. Always normalized to local midnight so it can be compared and
   // used as a local-storage/fetch-range key the same way everywhere.
-  const [viewedDate, setViewedDateState] = useState<Date>(() => localDayRange(now).start)
+  const [viewedDate, setViewedDateState] = useState<Date>(() => currentWindowDate(now))
 
   // Phase 1 -> Phase 2 persistence boundary: an in-memory-only board used to
   // be seeded fresh on every load. Now the FIRST render prefers whatever was
@@ -112,8 +117,11 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // reconciles against the server. Only a genuinely first-ever run (nothing
   // in local storage yet, viewing today) falls back to the demo seed content.
   const [state, dispatch] = useReducer(boardReducer, undefined, () => {
-    const activities = isTest ? createSeedActivities() : loadActivitiesForDate(viewedDate, now)
-    return createInitialState(activities, now)
+    const windowISO = isoOfDate(viewedDate)
+    const activities = isTest
+      ? createSeedActivities(windowISO)
+      : loadActivitiesForDate(viewedDate, now)
+    return createInitialState(activities, now, windowISO)
   })
 
   // Tracks the most recently dispatched action so the effect below can derive
@@ -168,10 +176,10 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     if (isTest) return
     let cancelled = false
     ;(async () => {
-      const { start, end } = localDayRange(viewedDate)
+      const { start, end } = windowRange(viewedDate)
       const server = await apiListScheduledActivities(start, end)
       if (!cancelled && server !== null) {
-        dispatch({ type: 'hydrate', activities: server })
+        dispatch({ type: 'hydrate', activities: server, viewedDate: isoOfDate(viewedDate) })
       }
     })()
     return () => {
@@ -198,8 +206,8 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     if (isTest) return
     const prevNow = prevNowRef.current
     prevNowRef.current = now
-    if (shouldRolloverViewedDate(viewedDate, prevNow, now)) {
-      setViewedDate(now)
+    if (shouldRolloverWindowDate(viewedDate, prevNow, now)) {
+      setViewedDate(currentWindowDate(now))
     }
     // `viewedDate`/`setViewedDate` are read for their CURRENT render value
     // only at the moment `now` actually changes (see the doc comment above)
@@ -210,7 +218,12 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   }, [now, isTest])
 
   const nowSlot = useMemo(() => slotIndexFromDate(now), [now])
-  const isViewingToday = useMemo(() => isSameLocalDay(viewedDate, now), [viewedDate, now])
+  // "Today" is the 6am-to-6am window that currently contains `now` — which,
+  // before 06:00, is the PREVIOUS calendar date.
+  const isViewingToday = useMemo(
+    () => isSameLocalDay(viewedDate, currentWindowDate(now)),
+    [viewedDate, now],
+  )
 
   /**
    * Switches the whole board (timeline + editor) to a different calendar
@@ -223,9 +236,13 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
    */
   function setViewedDate(date: Date): void {
     if (isTest) return
-    const normalized = localDayRange(date).start
+    const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate())
     setViewedDateState(normalized)
-    trackedDispatch({ type: 'hydrate', activities: loadActivitiesForDate(normalized, now) })
+    trackedDispatch({
+      type: 'hydrate',
+      activities: loadActivitiesForDate(normalized, now),
+      viewedDate: isoOfDate(normalized),
+    })
   }
 
   const value = useMemo(

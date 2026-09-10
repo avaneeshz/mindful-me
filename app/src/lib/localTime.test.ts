@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  currentWindowDate,
   dateFromLocalMinutes,
   isSameLocalDay,
   localDateISO,
   localDayRange,
   localMinutesOf,
   shouldRolloverViewedDate,
+  shouldRolloverWindowDate,
+  windowRange,
 } from './localTime'
 
 describe('dateFromLocalMinutes', () => {
@@ -131,5 +134,53 @@ describe('shouldRolloverViewedDate', () => {
     // Once `viewedDate` has been advanced to Day 2, the next same-day tick
     // must not re-trigger.
     expect(shouldRolloverViewedDate(day2Midnight, day2Midnight, day2Morning)).toBe(false)
+  })
+})
+
+describe('currentWindowDate — the 6am-to-6am window containing `now`', () => {
+  it('after 06:00 the window day is today', () => {
+    expect(localDateISO(currentWindowDate(new Date(2026, 8, 11, 6, 0)))).toBe('2026-09-11')
+    expect(localDateISO(currentWindowDate(new Date(2026, 8, 11, 23, 59)))).toBe('2026-09-11')
+  })
+
+  it('before 06:00 the window day is the PREVIOUS calendar date', () => {
+    expect(localDateISO(currentWindowDate(new Date(2026, 8, 12, 0, 1)))).toBe('2026-09-11')
+    expect(localDateISO(currentWindowDate(new Date(2026, 8, 12, 5, 59)))).toBe('2026-09-11')
+  })
+
+  it('is normalized to local midnight', () => {
+    const d = currentWindowDate(new Date(2026, 8, 11, 14, 30))
+    expect([d.getHours(), d.getMinutes(), d.getSeconds()]).toEqual([0, 0, 0])
+  })
+})
+
+describe('windowRange', () => {
+  it('spans reference 06:00 to the next day 06:00', () => {
+    const { start, end } = windowRange(new Date(2026, 8, 11))
+    expect([start.getMonth(), start.getDate(), start.getHours()]).toEqual([8, 11, 6])
+    expect([end.getMonth(), end.getDate(), end.getHours()]).toEqual([8, 12, 6])
+  })
+})
+
+describe('shouldRolloverWindowDate — advances a "following today" board at 06:00', () => {
+  const viewed = new Date(2026, 8, 11) // window day 2026-09-11
+
+  it('rolls when a tick crosses 06:00 into the next window and the board was following today', () => {
+    const before = new Date(2026, 8, 12, 5, 59) // still window 09-11
+    const after = new Date(2026, 8, 12, 6, 1) // now window 09-12
+    expect(shouldRolloverWindowDate(viewed, before, after)).toBe(true)
+  })
+
+  it('does not roll on a tick that stays within the same window (e.g. across midnight)', () => {
+    const before = new Date(2026, 8, 11, 23, 59)
+    const after = new Date(2026, 8, 12, 0, 1)
+    expect(shouldRolloverWindowDate(viewed, before, after)).toBe(false)
+  })
+
+  it('leaves a board pinned to another window day undisturbed', () => {
+    const pinned = new Date(2026, 8, 5)
+    const before = new Date(2026, 8, 12, 5, 59)
+    const after = new Date(2026, 8, 12, 6, 1)
+    expect(shouldRolloverWindowDate(pinned, before, after)).toBe(false)
   })
 })

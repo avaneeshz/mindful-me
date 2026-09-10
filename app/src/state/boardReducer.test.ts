@@ -159,9 +159,10 @@ describe('editing an existing activity', () => {
     )
     const id = real(state)[0].id
     state = boardReducer(state, { type: 'editActivity', id })
-    state = boardReducer(state, { type: 'stepDuration', delta: 500 })
-    // Nothing else exists today, so it can grow all the way to day's end.
-    expect(state.staging.durationMinutes).toBe(1440 - 16 * 60)
+    state = boardReducer(state, { type: 'stepDuration', delta: 2000 })
+    // Nothing else exists, so it can grow all the way to the window's end
+    // (6am-to-6am board -> BOARD_END_MIN 1800). 16:00 is board minute 960.
+    expect(state.staging.durationMinutes).toBe(1800 - 16 * 60)
   })
 
   it('rule 4 — editing time/duration never silently clears completion', () => {
@@ -299,6 +300,7 @@ describe('toggleComplete — Phase 3 planned vs. actual', () => {
       id: 'legacy-marker',
       name: null,
       path: [],
+      localDate: '2026-08-25',
       startMinutes: 0,
       durationMinutes: 0,
       flags: ['Attack'],
@@ -424,7 +426,7 @@ describe('drag and drop', () => {
     // Something occupies 11:00-11:30. A card dropped at 10:00 (slot 20) may
     // grow, but must stop dead at 11:00 rather than overwriting or truncating it.
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], localDate: '2026-08-25', startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     const state = run(occupied, DROP, { type: 'stepDuration', delta: 300 })
     expect(state.staging.durationMinutes).toBe(60)
@@ -440,7 +442,7 @@ describe('drag and drop', () => {
     // slot 21. Dropping there selects slot 21 (every cell is independently
     // selectable) but the picker offers nothing, since no time is free there.
     const covered = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], localDate: '2026-08-25', startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     const state = boardReducer(covered, { type: 'dropCard', cardName: 'Errand time', slot: 21 })
     expect(state.selectedSlot).toBe(21)
@@ -450,22 +452,22 @@ describe('drag and drop', () => {
 
 describe('a slot partially covered by an earlier, longer activity', () => {
   it('accepts a new activity into its genuine leftover minutes, resolved to the real free instant', () => {
-    // A 45-minute activity anchored at slot 10 (05:00) covers all of slot 10
-    // and the first 15 minutes of slot 11, leaving slot 11 with 15 free
+    // A 45-minute activity anchored at slot 20 (10:00) covers all of slot 20
+    // and the first 15 minutes of slot 21, leaving slot 21 with 15 free
     // minutes of its own.
     let state = run(
       start(),
-      { type: 'selectSlot', slot: 10 },
+      { type: 'selectSlot', slot: 20 },
       { type: 'pickCard', cardName: 'Homework' },
       { type: 'stepDuration', delta: 15 }, // 30 -> 45
       { type: 'commit' },
     )
-    state = boardReducer(state, { type: 'selectSlot', slot: 11 })
-    expect(state.selectedSlot).toBe(11)
+    state = boardReducer(state, { type: 'selectSlot', slot: 21 })
+    expect(state.selectedSlot).toBe(21)
 
     state = run(state, { type: 'pickCard', cardName: 'Errand time' }, { type: 'commit' })
     const errand = real(state).find((a) => a.name === 'Errand time')!
-    expect(errand.startMinutes).toBe(5 * 60 + 45) // the real free instant, not the raw slot boundary
+    expect(errand.startMinutes).toBe(10 * 60 + 45) // the real free instant, not the raw slot boundary
     // Unlike the old 30-minutes-per-cell cap, nothing else caps the default
     // duration here — it is free to run past this grid cell's own boundary,
     // since no other activity blocks it.
@@ -530,15 +532,15 @@ describe('an activity spanning three or more grid cells', () => {
   it('leaves every spanned cell independently selectable, with the one real activity reachable from any of them', () => {
     let state = run(
       start(),
-      { type: 'selectSlot', slot: 10 },
+      { type: 'selectSlot', slot: 20 },
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'stepDuration', delta: 60 }, // 30 -> 90, spans slots 10, 11, 12
+      { type: 'stepDuration', delta: 60 }, // 30 -> 90, spans slots 20, 21, 22
       { type: 'commit' },
     )
     expect(real(state)[0].durationMinutes).toBe(90)
     const id = real(state)[0].id
 
-    for (const slot of [11, 12]) {
+    for (const slot of [21, 22]) {
       const selected = boardReducer(state, { type: 'selectSlot', slot })
       expect(selected.selectedSlot).toBe(slot)
       // The one real activity is unchanged and still reachable by id.
@@ -585,7 +587,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
   it('clamps a typed value down to the same continuous-block ceiling the stepper respects', () => {
     // Something else starts 50 minutes after 16:00 (the pinned "now" slot).
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], localDate: '2026-08-25', startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     const state = run(
       occupied,
@@ -619,7 +621,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
 
   it('quick-add also clamps to the ceiling rather than creating an overlap', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], localDate: '2026-08-25', startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     let state = run(occupied, { type: 'pickCard', cardName: 'Homework' }) // clamped to 30 already? verify below
     // Add a full 2 hours — far more than the 40-minute ceiling allows.
@@ -658,7 +660,7 @@ describe('setStagingStart — duration drag-block, moving the whole pill', () =>
 
   it('hard-stops at a neighbouring activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], localDate: '2026-08-25', startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00, 30 min
     state = boardReducer(state, { type: 'setStagingStart', minutes: 18 * 60 })
@@ -681,7 +683,7 @@ describe('resizeStagingStart — duration drag-block, resizing from the start ha
 
   it('hard-stops against a preceding activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], localDate: '2026-08-25', startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00-16:30
     state = boardReducer(state, { type: 'resizeStagingStart', minutes: 15 * 60 + 30 })
@@ -974,6 +976,7 @@ describe('selectScheduledActivity — clicking an activity’s own rendered time
       id: 'marker-1',
       name: null,
       path: [],
+      localDate: '2026-08-25',
       startMinutes: 600,
       durationMinutes: 0,
       flags: ['Attack'],
@@ -1121,13 +1124,30 @@ describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quic
     expect(real(state)[0].durationMinutes).toBe(30)
   })
 
-  it('rejects a requested span that would cross local midnight — no partial placement (rule 13, and the shared scheduling module’s own day-boundary ceiling — see domain/scheduling.ts)', () => {
+  it('accepts a span that crosses midnight as ONE row — the 6am-to-6am window makes it contiguous (Variant B)', () => {
     const state = boardReducer(start(), {
       type: 'quickLogActivity',
       cardName: 'Moon Exposure',
       startMinutes: 23 * 60 + 30,
-      durationMinutes: 45, // would need to reach 00:15 the next day
+      durationMinutes: 45, // 23:30 -> 00:15 next morning, one continuous stretch
     })
-    expect(real(state)).toHaveLength(0)
+    expect(real(state)).toHaveLength(1)
+    // Its start is still on the window day (board minute 1410 < 1440), so
+    // `boardStartToStorage` keeps `localDate` = the window day and
+    // `durationMinutes` carries the end past midnight.
+    expect(real(state)[0]).toMatchObject({ startMinutes: 23 * 60 + 30, durationMinutes: 45 })
+  })
+
+  it('places a small-hours quick log on the NEXT calendar day (window small hours = next day)', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Moon Exposure',
+      startMinutes: 1560, // board minute for 02:00 the following morning
+      durationMinutes: 20,
+    })
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0]).toMatchObject({ startMinutes: 120, durationMinutes: 20 })
+    // 2026-08-25 window -> the row belongs to 2026-08-26.
+    expect(real(state)[0].localDate).toBe('2026-08-26')
   })
 })

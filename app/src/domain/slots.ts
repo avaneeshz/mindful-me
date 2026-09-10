@@ -1,4 +1,5 @@
 import { isWindowFull } from './scheduling'
+import { BOARD_END_MIN, MINUTES_PER_DAY, slotBoardRange } from './window'
 import type { ActivityList, Period, ScheduledActivity } from './types'
 
 /* ------------------------------------------------------------------ *
@@ -197,9 +198,17 @@ function isReal(a: ScheduledActivity): boolean {
   return a.durationMinutes > 0
 }
 
+/*
+ * The functions below take activities whose `startMinutes` has ALREADY been
+ * mapped into board-minute space for the current window (`domain/window.ts`
+ * `toBoardActivities` — the day + evening keep 0–1439, the small hours become
+ * 1440–1800). `slotBoardRange` gives the matching board range for a 0–47 grid
+ * cell, so nothing here has to know the calendar date any more.
+ */
+
 /** Real activities (flag markers excluded) whose time range overlaps this grid cell. */
 export function activitiesTouchingSlot(activities: ActivityList, slot: number): ScheduledActivity[] {
-  const { start, end } = slotMinuteRange(slot)
+  const { start, end } = slotBoardRange(slot)
   return activities.filter(
     (a) => isReal(a) && a.startMinutes < end && a.startMinutes + a.durationMinutes > start,
   )
@@ -207,7 +216,7 @@ export function activitiesTouchingSlot(activities: ActivityList, slot: number): 
 
 /** Minutes of `slot`'s own 30-minute window actually covered by `activity`. */
 export function minutesInSlot(activity: ScheduledActivity, slot: number): number {
-  const { start, end } = slotMinuteRange(slot)
+  const { start, end } = slotBoardRange(slot)
   const overlapStart = Math.max(start, activity.startMinutes)
   const overlapEnd = Math.min(end, activity.startMinutes + activity.durationMinutes)
   return Math.max(0, overlapEnd - overlapStart)
@@ -215,7 +224,7 @@ export function minutesInSlot(activity: ScheduledActivity, slot: number): number
 
 /** True when `activity` visually STARTS within this grid cell (vs. merely continuing through it). */
 export function startsInSlot(activity: ScheduledActivity, slot: number): boolean {
-  const { start, end } = slotMinuteRange(slot)
+  const { start, end } = slotBoardRange(slot)
   return activity.startMinutes >= start && activity.startMinutes < end
 }
 
@@ -225,7 +234,7 @@ export function startsInSlot(activity: ScheduledActivity, slot: number): boolean
  * duration, no schedule cost, independent of any real activity.
  */
 export function flagMarkerAt(activities: ActivityList, slot: number): ScheduledActivity | undefined {
-  const { start } = slotMinuteRange(slot)
+  const { start } = slotBoardRange(slot)
   return activities.find((a) => a.name === null && a.durationMinutes === 0 && a.startMinutes === start)
 }
 
@@ -256,21 +265,29 @@ interface RowPiece {
 }
 
 function rowPieces(period: Period): RowPiece[] {
+  const dayStart = DAY_ROW_START_SLOT * SLOT_MINUTES // 360 = 06:00
+  const nightStart = NIGHT_ROW_START_SLOT * SLOT_MINUTES // 1080 = 18:00
   if (period === 'day') {
-    return [{ absStart: DAY_ROW_START_SLOT * SLOT_MINUTES, absEnd: NIGHT_ROW_START_SLOT * SLOT_MINUTES, rowStart: 0 }]
+    return [{ absStart: dayStart, absEnd: nightStart, rowStart: 0 }]
   }
-  const eveningLength = 1440 - NIGHT_ROW_START_SLOT * SLOT_MINUTES // 18:00 -> midnight
+  // The night row is one contiguous board span now: 18:00 → midnight →
+  // (next day) 06:00. The second piece is the small hours, which belong to
+  // the following calendar day (board minutes 1440–1800).
+  const eveningLength = MINUTES_PER_DAY - nightStart // 360 (18:00 -> midnight)
   return [
-    { absStart: NIGHT_ROW_START_SLOT * SLOT_MINUTES, absEnd: 1440, rowStart: 0 },
-    { absStart: 0, absEnd: DAY_ROW_START_SLOT * SLOT_MINUTES, rowStart: eveningLength },
+    { absStart: nightStart, absEnd: MINUTES_PER_DAY, rowStart: 0 },
+    { absStart: MINUTES_PER_DAY, absEnd: BOARD_END_MIN, rowStart: eveningLength },
   ]
 }
 
 /**
- * Visible piece(s) of one activity's real [start, start+duration) span within
- * a Day or Night row, clipped to the visible 24-hour board. `startPosition`
- * is in grid-cell units (may be fractional, since durations are no longer
- * stepped) and `minutes` is the real span this piece covers.
+ * Visible piece(s) of one activity's [start, start+duration) span within a
+ * Day or Night row, clipped to the visible window (board minutes
+ * 360–1800). `startMinutes` here is a BOARD minute (see `domain/window.ts`)
+ * — a midnight-crossing activity's tail lands in the night row's small-hours
+ * piece rather than being cut off at midnight. `startPosition` is in
+ * grid-cell units (may be fractional) and `minutes` is the span this piece
+ * covers.
  */
 export function activityRowSegments(
   startMinutes: number,
@@ -278,7 +295,7 @@ export function activityRowSegments(
   period: Period,
 ): Array<{ startPosition: number; minutes: number }> {
   const activityStart = startMinutes
-  const activityEnd = Math.min(startMinutes + durationMinutes, 1440)
+  const activityEnd = startMinutes + durationMinutes
   if (activityEnd <= activityStart) return []
 
   const segments: Array<{ startPosition: number; minutes: number }> = []
@@ -362,7 +379,7 @@ export function rowFocusStops(activities: ActivityList, period: Period): RowFocu
   const positioned: Array<{ position: number; stop: RowFocusStop }> = []
 
   for (const slot of rowSlotIndices(period)) {
-    const { start } = slotMinuteRange(slot)
+    const { start } = slotBoardRange(slot)
     if (!isWindowFull(activities, start, SLOT_MINUTES)) {
       positioned.push({ position: positionInRow(slot), stop: { kind: 'slot', slot } })
     }

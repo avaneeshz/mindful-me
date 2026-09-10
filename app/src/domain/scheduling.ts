@@ -23,6 +23,7 @@
  * does not fit contiguously, the candidate is clamped to the longest
  * contiguous run available from its start, never split into two ranges.
  */
+import { BOARD_END_MIN } from './window'
 import type {
   ActivityList,
   ActivityQuality,
@@ -136,7 +137,12 @@ export function maxContiguousDuration(
 ): number {
   if (blockerAt(existing, start, excludeId)) return 0
 
-  let ceiling = MINUTES_PER_DAY - start
+  // `start` is a board minute (`domain/window.ts`). The hard stop is the end
+  // of the visible 6am-to-6am window (`BOARD_END_MIN` = next day 06:00), not
+  // local midnight — an activity anchored in the evening may now run straight
+  // through the midnight tick (rule 13 still holds: it is clamped to the
+  // longest CONTIGUOUS run, never split).
+  let ceiling = BOARD_END_MIN - start
   for (const a of existing) {
     if (a.id === excludeId || !isReal(a)) continue
     if (a.startMinutes >= start && a.startMinutes - start < ceiling) {
@@ -290,6 +296,13 @@ export function validateSchedule(
 }
 
 export interface CommitContext {
+  /**
+   * `YYYY-MM-DD` the activity started on (rule 2 / DB `local_date`). The
+   * reducer normally leaves this out and derives it from the resolved board
+   * minute afterwards (`domain/window.ts` `boardStartToStorage`) — passing it
+   * here is only for a caller that already knows the calendar day.
+   */
+  localDate?: string
   flags?: FlagId[]
   /** "Activity quality" — optional, multi-select (see domain/types.ts). */
   quality?: ActivityQuality[]
@@ -325,6 +338,10 @@ export function commitSchedule(
     id: context.id ?? candidate.id ?? generateId(),
     name: candidate.activity?.name ?? null,
     path: candidate.activity?.path ?? [],
+    // The reducer overwrites both of these via `boardStartToStorage` right
+    // after this call (it holds the resolved board minute + the window date);
+    // `''` is a deliberate "caller will fill it" placeholder, never stored.
+    localDate: context.localDate ?? '',
     startMinutes: candidate.startMinutes,
     durationMinutes: candidate.durationMinutes,
     flags: context.flags ?? [],
