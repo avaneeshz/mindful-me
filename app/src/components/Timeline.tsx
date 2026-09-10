@@ -51,6 +51,22 @@ function activityDataSelector(activityId: string): string {
   return `[data-activity="${CSS.escape(activityId)}"]`
 }
 
+/**
+ * The floor an activity segment's INTERACTIVE hit area (click, keyboard
+ * focus, and both drop kinds — a reflection card or a tile-row activity
+ * card) never shrinks below, regardless of how thin its VISUAL fill renders
+ * at short durations (rule 5 allows any duration down to a single minute).
+ * Native HTML5 drag-and-drop has no built-in tolerance for a target this
+ * thin, so without a floor a short activity is effectively undroppable in
+ * practice even though a long one works fine — see the segment markup
+ * below for how this is applied without changing the drawn box itself.
+ * No existing sizing token fits this (they're all sized for a discrete
+ * tap target like a button or chip, not "a floor under a proportional
+ * width"), so this is a deliberate one-off pixel value, the same reasoning
+ * `chip.tsx`'s `xs` size documents for its own arbitrary value.
+ */
+const MIN_ACTIVITY_HIT_WIDTH_PX = 24
+
 interface TimelineProps {
   activities: ActivityList
   selectedSlot: number
@@ -429,8 +445,8 @@ function TimelineRow({
             elsewhere, `SlotActivityList`'s own edit control). The wrapping
             div stays `pointer-events-none` so a click on the empty
             (uncovered) part of a slot still reaches the plain slot button
-            underneath — each activity button re-enables its own pointer
-            events individually.
+            underneath — each activity's own interactive button re-enables
+            its own pointer events individually.
 
             z-[5] — above the slot's own isSelected (z-2) and isDragOver (z-4)
             states — so a click or keyboard Enter on the segment always
@@ -448,6 +464,15 @@ function TimelineRow({
             forward past busy time (rule 5), so the actual placement resolves
             correctly even though the drop's pixel position is not what
             determines it.
+
+            Each segment is now TWO stacked elements, not one: an outer
+            positioning box sized EXACTLY duration-proportional (the visual
+            fill lives here, unchanged from before) and an inner `<button>`
+            centered on it whose width floors at `MIN_ACTIVITY_HIT_WIDTH_PX`
+            (`width: max(100%, ...)`) — the actual click/keyboard/drop target.
+            A short activity's drawn box still renders exactly as thin as its
+            duration implies; only what responds to a pointer, key, or drop
+            gets a floor under it.
           */}
           <div className="pointer-events-none absolute inset-0 z-[1]">
             {rowActivitySegments(activities, period).map((segment) => {
@@ -458,72 +483,90 @@ function TimelineRow({
               const isSelectedActivity = selectedActivityId === segment.activity.id
 
               return (
-                <button
+                <div
                   key={`${segment.activity.id}-${segment.startPosition}`}
-                  type="button"
-                  data-activity={segment.activity.id}
-                  tabIndex={isFocusableActivity ? 0 : -1}
-                  aria-label={describeActivity(segment.activity)}
-                  aria-pressed={isSelectedActivity}
-                  onClick={() => onSelectActivity(segment.activity.id)}
-                  onFocus={() => onFocusStop({ kind: 'activity', activityId: segment.activity.id })}
-                  onKeyDown={(event) => onKeyDown(event, period, { kind: 'activity', activityId: segment.activity.id })}
-                  onDragOver={(event) => {
-                    event.preventDefault()
-                    event.dataTransfer.dropEffect = 'copy'
-                    setDragOverSlot(anchorSlot)
-                  }}
-                  onDragLeave={() => setDragOverSlot((s) => (s === anchorSlot ? null : s))}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    setDragOverSlot(null)
-                    // Two different things can land here: a reflection card
-                    // (its own MIME type — maps it onto THIS activity, the
-                    // drag path of reflection mapping) or an activity card
-                    // from the tile row (`text/plain` — the pre-existing
-                    // "drop a new activity here" behaviour, untouched).
-                    const reflectionCard = event.dataTransfer.getData(REFLECTION_CARD_MIME)
-                    if (reflectionCard) {
-                      const card = Number(reflectionCard)
-                      if (Number.isFinite(card)) onDropReflectionCard(segment.activity.id, card)
-                      return
-                    }
-                    const cardName = event.dataTransfer.getData('text/plain')
-                    if (cardName) onDropCard(cardName, anchorSlot)
-                  }}
-                  className={cn(
-                    'pointer-events-auto absolute inset-y-0 z-[5] cursor-pointer',
-                    period === 'day'
-                      ? [
-                          'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-ink-dim',
-                          'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink',
-                          (isDragOverActivity || isSelectedActivity) &&
-                            'outline outline-2.5 -outline-offset-2.5 outline-ink',
-                        ]
-                      : [
-                          'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-night-strip-fixed-ink',
-                          'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-night-strip-fixed-ink',
-                          (isDragOverActivity || isSelectedActivity) &&
-                            'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
-                        ],
-                  )}
+                  className="absolute inset-y-0"
                   style={{
                     left: `${(segment.startPosition / SLOTS_PER_ROW) * 100}%`,
                     width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
-                    // No more per-item colour (Section A) — every real
-                    // activity's segment is the same flat, theme-aware wash,
-                    // with a matching hairline for its edges. The Night row's
-                    // background is the one fixed, theme-independent surface
-                    // (Section C), so segments drawn on it reach for that
-                    // surface's own fixed companion tokens instead, the same
-                    // reasoning the slot states above already follow.
-                    background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
-                    boxShadow:
-                      period === 'day'
-                        ? 'inset 0 0 0 1px var(--line)'
-                        : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
                   }}
-                />
+                >
+                  {/* The VISUAL fill — exactly this box, never resized by the
+                      hit-area floor on the button below. No more per-item
+                      colour (Section A) — every real activity's segment is
+                      the same flat, theme-aware wash, with a matching
+                      hairline for its edges. The Night row's background is
+                      the one fixed, theme-independent surface (Section C),
+                      so segments drawn on it reach for that surface's own
+                      fixed companion tokens instead, the same reasoning the
+                      slot states above already follow. */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
+                      boxShadow:
+                        period === 'day'
+                          ? 'inset 0 0 0 1px var(--line)'
+                          : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
+                    }}
+                  />
+
+                  {/* The INTERACTIVE hit target, centred on the visual box
+                      above but floored at MIN_ACTIVITY_HIT_WIDTH_PX. */}
+                  <button
+                    type="button"
+                    data-activity={segment.activity.id}
+                    tabIndex={isFocusableActivity ? 0 : -1}
+                    aria-label={describeActivity(segment.activity)}
+                    aria-pressed={isSelectedActivity}
+                    onClick={() => onSelectActivity(segment.activity.id)}
+                    onFocus={() => onFocusStop({ kind: 'activity', activityId: segment.activity.id })}
+                    onKeyDown={(event) =>
+                      onKeyDown(event, period, { kind: 'activity', activityId: segment.activity.id })
+                    }
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'copy'
+                      setDragOverSlot(anchorSlot)
+                    }}
+                    onDragLeave={() => setDragOverSlot((s) => (s === anchorSlot ? null : s))}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      setDragOverSlot(null)
+                      // Two different things can land here: a reflection card
+                      // (its own MIME type — maps it onto THIS activity, the
+                      // drag path of reflection mapping) or an activity card
+                      // from the tile row (`text/plain` — the pre-existing
+                      // "drop a new activity here" behaviour, untouched).
+                      const reflectionCard = event.dataTransfer.getData(REFLECTION_CARD_MIME)
+                      if (reflectionCard) {
+                        const card = Number(reflectionCard)
+                        if (Number.isFinite(card)) onDropReflectionCard(segment.activity.id, card)
+                        return
+                      }
+                      const cardName = event.dataTransfer.getData('text/plain')
+                      if (cardName) onDropCard(cardName, anchorSlot)
+                    }}
+                    className={cn(
+                      'pointer-events-auto absolute inset-y-0 left-1/2 z-[5] -translate-x-1/2 cursor-pointer',
+                      period === 'day'
+                        ? [
+                            'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-ink-dim',
+                            'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink',
+                            (isDragOverActivity || isSelectedActivity) &&
+                              'outline outline-2.5 -outline-offset-2.5 outline-ink',
+                          ]
+                        : [
+                            'hover:outline hover:outline-1.5 hover:-outline-offset-1.5 hover:outline-night-strip-fixed-ink',
+                            'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-night-strip-fixed-ink',
+                            (isDragOverActivity || isSelectedActivity) &&
+                              'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
+                          ],
+                    )}
+                    style={{ width: `max(100%, ${MIN_ACTIVITY_HIT_WIDTH_PX}px)` }}
+                  />
+                </div>
               )
             })}
           </div>
