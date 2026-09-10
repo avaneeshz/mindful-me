@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { applyThemeAttribute, DEFAULT_THEME, loadStoredTheme, storeTheme, type Theme } from '@/lib/theme'
+import { applyThemeAttribute, initialThemeFromClock, type Theme } from '@/lib/theme'
 
 interface ThemeContextValue {
   theme: Theme
@@ -9,26 +9,28 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 /**
- * The monochrome light/dark theme, toggled by the Sun/Moon icons next to the
- * Day/Night timeline rows (`Timeline.tsx`) — not a separate settings screen.
- * Applies app-wide (sidebar, header, timeline, tiles, popups) via the CSS
- * custom properties `styles/index.css` defines under `:root`/
- * `:root[data-theme="light"]`; this provider's only job is choosing which
- * one is active and persisting that choice per-device.
+ * The monochrome light/dark theme. It is DERIVED, not chosen: whichever
+ * timeline slot is selected decides it — Day row ⇒ light, Night row ⇒ dark —
+ * and `components/ThemeFromSlot.tsx` (mounted inside `BoardProvider`) is what
+ * calls `setTheme` as that selection changes. There is no manual toggle and
+ * nothing persisted per-device any more.
  *
- * `useState(() => ...)` reads `localStorage` lazily, once, on mount — safe
- * under SSR (`renderToStaticMarkup`, this app's whole test suite) because
- * the initializer only runs client-side; `typeof window === 'undefined'`
- * guards it explicitly regardless, same as `state/localPersistence.ts`.
+ * This provider's only jobs: hold the current value, expose `setTheme` for
+ * `ThemeFromSlot`, and mirror it onto the `<html data-theme>` attribute that
+ * `styles/index.css` keys off. The initial value is a wall-clock guess
+ * (`initialThemeFromClock`) so the very first frame — before the board has
+ * mounted, and on the signed-out `AuthScreen` — already matches the slot the
+ * board will select on mount.
+ *
+ * `useState(() => ...)` runs the initializer once, client-side only; it is
+ * safe under SSR (`renderToStaticMarkup`, the whole test suite) because
+ * `initialThemeFromClock` touches only `Date`, never `window`.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() =>
-    typeof window === 'undefined' ? DEFAULT_THEME : loadStoredTheme(),
-  )
+  const [theme, setThemeState] = useState<Theme>(() => initialThemeFromClock())
 
   useEffect(() => {
     applyThemeAttribute(theme)
-    storeTheme(theme)
   }, [theme])
 
   return <ThemeContext.Provider value={{ theme, setTheme: setThemeState }}>{children}</ThemeContext.Provider>

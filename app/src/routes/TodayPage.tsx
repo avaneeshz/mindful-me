@@ -1,5 +1,6 @@
 import { HeaderBar } from '@/components/HeaderBar'
 import { ReflectionSection } from '@/components/ReflectionSection'
+import { ThemeFromSlot } from '@/components/ThemeFromSlot'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
 import { useAuth } from '@/state/AuthContext'
@@ -11,6 +12,8 @@ export function TodayPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+      {/* Derives the light/dark theme from the selected slot; renders nothing. */}
+      <ThemeFromSlot />
       <HeaderBar
         now={now}
         viewedDate={viewedDate}
@@ -23,6 +26,7 @@ export function TodayPage() {
         <Timeline
           activities={state.activities}
           selectedSlot={state.selectedSlot}
+          viewedDate={viewedDate}
           // BL-2: the NOW marker only ever belongs on the real current day —
           // `null` here means Timeline draws none at all.
           now={isViewingToday ? now : null}
