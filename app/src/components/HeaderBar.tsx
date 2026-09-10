@@ -7,6 +7,7 @@ import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { WeatherPill } from '@/components/WeatherPill'
 import { NOTE_BUTTONS } from '@/domain/notes'
 import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
+import type { ActivityList } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
 import { cn } from '@/lib/utils'
 
@@ -43,9 +44,13 @@ export interface HeaderBarProps {
   /** The signed-in user, or `null` in local-only mode (no backend configured). */
   user: AuthUser | null
   onSignOut: () => void
+  /** Today's board — read by the Vipassana display button for its computed total and to validate a new entry. */
+  activities: ActivityList
+  /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. */
+  onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }
 
-export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: HeaderBarProps) {
+export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut, activities, onQuickLog }: HeaderBarProps) {
   return (
     <header className="flex flex-col gap-md">
       {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed
@@ -103,7 +108,13 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut }: He
         ))}
 
         {DISPLAY_BUTTONS.map(({ key }) => (
-          <DisplayValueButton key={key} buttonKey={key} viewedDate={viewedDate} />
+          <DisplayValueButton
+            key={key}
+            buttonKey={key}
+            viewedDate={viewedDate}
+            activities={activities}
+            onQuickLog={onQuickLog}
+          />
         ))}
       </div>
     </header>

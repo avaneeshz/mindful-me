@@ -121,6 +121,19 @@ export type BoardAction =
    * leaves the state untouched) verbatim, and can never drift from it.
    */
   | { type: 'selectActivity'; id: string }
+  /**
+   * A quick-log entry (Sun/Moon exposure, Vipassana — `entry_mode:
+   * 'quick_log'` catalog activities) — an exact start/end clock time typed
+   * directly into that control's own popover, never the tile-row/staging
+   * modal. Always creates a NEW activity (these are logged as multiple
+   * sessions per day, never edited in place from here); the caller
+   * (`DisplayValueButton`/`SunMoonLogPopover`) is expected to have already
+   * validated the exact requested placement with `validateSchedule` itself
+   * so it can show an inline conflict error instead of a silent no-op — this
+   * re-validates anyway (belt and braces, same reasoning `commit` re-checks
+   * a staged candidate that was already validated when it was computed).
+   */
+  | { type: 'quickLogActivity'; cardName: string; startMinutes: number; durationMinutes: number }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -475,6 +488,18 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         slot: slotIndexFromMinutes(activity.startMinutes),
       })
       return boardReducer(selected, { type: 'editActivity', id: action.id })
+    }
+
+    case 'quickLogActivity': {
+      const candidate: CandidateSchedule = {
+        id: null,
+        activity: { name: action.cardName, path: [] },
+        startMinutes: action.startMinutes,
+        durationMinutes: action.durationMinutes,
+      }
+      if (!validateSchedule(candidate, state.activities).ok) return state
+      const committed = commitSchedule(candidate)
+      return { ...state, activities: [...state.activities, committed] }
     }
 
     default:

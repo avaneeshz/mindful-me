@@ -60,8 +60,6 @@ interface TimelineProps {
    * marker computed against the wrong day's timeline.
    */
   now: Date | null
-  /** The calendar day the board is showing — the Sun/Moon light log files entries under it. */
-  viewedDate: Date
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
   /**
@@ -71,16 +69,18 @@ interface TimelineProps {
    * `selectActivity` action.
    */
   onSelectActivity: (id: string) => void
+  /** Dispatches `quickLogActivity` — threaded to the Sun/Moon end-cap popovers. See `state/boardReducer.ts`. */
+  onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }
 
 export function Timeline({
   activities,
   selectedSlot,
   now,
-  viewedDate,
   onSelectSlot,
   onDropCard,
   onSelectActivity,
+  onQuickLog,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
   /**
@@ -163,13 +163,13 @@ export function Timeline({
             period={period}
             activities={activities}
             selectedSlot={selectedSlot}
-            viewedDate={viewedDate}
             focusedStop={focusedStop}
             marker={marker && marker.period === period ? marker.ratio : null}
             onFocusStop={setFocusedStop}
             onSelectSlot={onSelectSlot}
             onDropCard={onDropCard}
             onSelectActivity={onSelectActivity}
+            onQuickLog={onQuickLog}
             onKeyDown={handleKeyDown}
           />
         ))}
@@ -182,8 +182,6 @@ interface TimelineRowProps {
   period: Period
   activities: ActivityList
   selectedSlot: number
-  /** The viewed calendar day — threaded to the Sun/Moon light-log popover. */
-  viewedDate: Date
   /** Last stop the user focused, on either row. Drives the roving tab stop. */
   focusedStop: RowFocusStop | null
   /** 0–1 position of the current-time marker, or null if it is on the other row. */
@@ -192,6 +190,7 @@ interface TimelineRowProps {
   onSelectSlot: (slot: number) => void
   onDropCard: (cardName: string, slot: number) => void
   onSelectActivity: (id: string) => void
+  onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
   onKeyDown: (event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) => void
 }
 
@@ -199,13 +198,13 @@ function TimelineRow({
   period,
   activities,
   selectedSlot,
-  viewedDate,
   focusedStop,
   marker,
   onFocusStop,
   onSelectSlot,
   onDropCard,
   onSelectActivity,
+  onQuickLog,
   onKeyDown,
 }: TimelineRowProps) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
@@ -264,7 +263,8 @@ function TimelineRow({
       <div className="shrink-0 pt-xl">
         <SunMoonLogPopover
           kind={period === 'day' ? 'sun' : 'moon'}
-          viewedDate={viewedDate}
+          activities={activities}
+          onQuickLog={onQuickLog}
           icon={Icon}
           capClassName={cn(
             'flex size-timeline-row items-center justify-center rounded-full border transition-colors duration-200',

@@ -6,7 +6,15 @@ const FIXED_NOW = new Date(2026, 8, 5, 10, 0)
 
 function render(): string {
   return renderToStaticMarkup(
-    <HeaderBar now={FIXED_NOW} viewedDate={FIXED_NOW} onSelectDate={() => {}} user={null} onSignOut={() => {}} />,
+    <HeaderBar
+      now={FIXED_NOW}
+      viewedDate={FIXED_NOW}
+      onSelectDate={() => {}}
+      user={null}
+      onSignOut={() => {}}
+      activities={[]}
+      onQuickLog={() => {}}
+    />,
   )
 }
 

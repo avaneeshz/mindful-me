@@ -3,7 +3,7 @@
  * time" field in the app (Sun / Moon exposure, Vipassana duration). No React,
  * no DOM: parsing loose digits into a 12-hour clock time, converting to and
  * from the `HH:MM` 24-hour string the rest of the domain speaks
- * (`domain/sunMoonLog.ts`), and picking the AM/PM a fresh field should start
+ * (`domain/quickLog.ts`), and picking the AM/PM a fresh field should start
  * on. Mirrors how `domain/notes.ts` keeps header-pill logic component-free.
  */
 

@@ -1,17 +1,26 @@
 /**
  * "Display buttons" — header controls that always show a stored number on
- * their face (not just when opened) and take a single set/replace value per
- * day. Two today: Vipassana (minutes) and Steps (a plain integer). Pure
- * types + formatting only; persistence is `lib/displayValuesLocalStore.ts`.
+ * their face (not just when opened). Two today: Vipassana (minutes) and
+ * Steps (a plain integer). Pure types + formatting only.
  *
  * `input` is HOW the value is entered: `'number'` types the number straight
  * in; `'duration'` enters a start and end clock time (like the Sun / Moon
  * exposure log) and stores the minutes between them. The stored value and its
  * face format are the same either way — a `'min'` count.
+ *
+ * `quickLogName`, when set, means this button is `entry_mode: 'quick_log'`
+ * in `public.activities` (see the full-stack-engineer agent definition's
+ * Phase 2 scope) — its face value is a COMPUTED sum of today's real
+ * `ScheduledActivity` rows for this catalog name, and Save creates a new one
+ * of those (via the shared scheduling module) rather than writing to
+ * `lib/displayValuesLocalStore.ts`. `Steps` has no catalog counterpart at
+ * all — it stays the plain per-day local counter it always was (out of
+ * scope per the agent definition's own instruction not to scope-creep), so
+ * it alone still goes through `displayValuesLocalStore.ts`.
  */
 
 export const DISPLAY_BUTTONS = [
-  { key: 'vipassana', label: 'Vipassana', unit: 'min', input: 'duration' },
+  { key: 'vipassana', label: 'Vipassana', unit: 'min', input: 'duration', quickLogName: 'Vipassana' },
   { key: 'steps', label: 'Steps', unit: 'int', input: 'number' },
 ] as const
 
@@ -25,6 +34,12 @@ export function displayButtonUnit(key: DisplayButtonKey): DisplayButtonUnit {
 
 export function displayButtonInput(key: DisplayButtonKey): DisplayButtonInput {
   return DISPLAY_BUTTONS.find((button) => button.key === key)?.input ?? 'number'
+}
+
+/** The catalog name this button quick-logs real activities under, or `null` for a plain local counter (Steps). */
+export function displayButtonQuickLogName(key: DisplayButtonKey): string | null {
+  const button = DISPLAY_BUTTONS.find((b) => b.key === key)
+  return button && 'quickLogName' in button ? button.quickLogName : null
 }
 
 /** `75` minutes → `"1h 15m"`, `40` → `"40m"`, `120` → `"2h"`. */

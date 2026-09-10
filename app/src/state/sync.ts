@@ -80,6 +80,16 @@ export function deriveSyncIntents(
       return activity ? [{ kind: 'status', activity }] : []
     }
 
+    // A quick-log entry (Sun/Moon exposure, Vipassana) always appends a
+    // brand-new activity — same "diff the id sets" derivation `commit`'s own
+    // create branch uses, since a quick log never carries an id of its own
+    // until the reducer mints one.
+    case 'quickLogActivity': {
+      const prevIds = new Set(prevState.activities.map((a) => a.id))
+      const created = nextState.activities.find((a) => !prevIds.has(a.id))
+      return created ? [{ kind: 'create', activity: created }] : []
+    }
+
     default:
       return []
   }

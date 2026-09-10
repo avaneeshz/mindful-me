@@ -28,11 +28,11 @@ function renderTimeline(now: Date | null = null, activities: ActivityList = NO_A
       <Timeline
         activities={activities}
         selectedSlot={20}
-        viewedDate={new Date(2026, 8, 8)}
         now={now}
         onSelectSlot={() => {}}
         onDropCard={() => {}}
         onSelectActivity={() => {}}
+        onQuickLog={() => {}}
       />
     </ThemeProvider>,
   )

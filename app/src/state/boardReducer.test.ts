@@ -4,6 +4,7 @@ import {
   createInitialState,
   isStagingComplete,
   stagingOptions,
+  EMPTY_STAGING,
   type BoardAction,
   type BoardState,
 } from './boardReducer'
@@ -953,5 +954,85 @@ describe('selectActivity — clicking an activity’s own rendered timeline segm
     state = boardReducer(state, { type: 'stepDuration', delta: 15 }) // staged only, not committed
     expect(byId(state, id)).toEqual(before)
     expect(state.staging.durationMinutes).toBe(45)
+  })
+})
+
+describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quick_log)', () => {
+  it('appends a new activity at the exact requested start/duration, bypassing staging entirely', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: 360,
+      durationMinutes: 30,
+    })
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0]).toMatchObject({
+      name: 'Vipassana',
+      path: [],
+      startMinutes: 360,
+      durationMinutes: 30,
+      status: 'planned',
+      flags: [],
+      quality: [],
+      symptoms: [],
+      notes: null,
+    })
+    // Never touches staging/selection — a quick log is a direct write.
+    expect(state.staging).toEqual(EMPTY_STAGING)
+  })
+
+  it('supports multiple sessions of the same quick-log activity in one day', () => {
+    let state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Sun Exposure',
+      startMinutes: 8 * 60,
+      durationMinutes: 20,
+    })
+    state = boardReducer(state, {
+      type: 'quickLogActivity',
+      cardName: 'Sun Exposure',
+      startMinutes: 17 * 60,
+      durationMinutes: 15,
+    })
+    const sessions = real(state).filter((a) => a.name === 'Sun Exposure')
+    expect(sessions).toHaveLength(2)
+    expect(sessions.reduce((sum, a) => sum + a.durationMinutes, 0)).toBe(35)
+    assertNoOverlaps(state, 'two Sun Exposure sessions')
+  })
+
+  it('rejects (no-ops) a requested time that overlaps an existing activity — rule 1, never silently shifted', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const existing = real(state)[0]
+
+    const after = boardReducer(state, {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: existing.startMinutes,
+      durationMinutes: 10,
+    })
+    expect(after).toBe(state) // untouched — never moved to a nearby free instant
+    expect(real(after).filter((a) => a.name === 'Vipassana')).toHaveLength(0)
+  })
+
+  it('a session that fits before local midnight is one row anchored exactly where requested', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Moon Exposure',
+      startMinutes: 23 * 60,
+      durationMinutes: 30, // 23:00 -> 23:30, well within the day
+    })
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0].startMinutes).toBe(23 * 60)
+    expect(real(state)[0].durationMinutes).toBe(30)
+  })
+
+  it('rejects a requested span that would cross local midnight — no partial placement (rule 13, and the shared scheduling module’s own day-boundary ceiling — see domain/scheduling.ts)', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Moon Exposure',
+      startMinutes: 23 * 60 + 30,
+      durationMinutes: 45, // would need to reach 00:15 the next day
+    })
+    expect(real(state)).toHaveLength(0)
   })
 })

@@ -20,19 +20,25 @@ export function TodayPage() {
         onSelectDate={setViewedDate}
         user={user}
         onSignOut={signOut}
+        activities={state.activities}
+        onQuickLog={(cardName, startMinutes, durationMinutes) =>
+          dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
+        }
       />
 
       <div className="mt-xl ipad-land:mt-md">
         <Timeline
           activities={state.activities}
           selectedSlot={state.selectedSlot}
-          viewedDate={viewedDate}
           // BL-2: the NOW marker only ever belongs on the real current day —
           // `null` here means Timeline draws none at all.
           now={isViewingToday ? now : null}
           onSelectSlot={(slot) => dispatch({ type: 'selectSlot', slot })}
           onDropCard={(cardName, slot) => dispatch({ type: 'dropCard', cardName, slot })}
           onSelectActivity={(id) => dispatch({ type: 'selectActivity', id })}
+          onQuickLog={(cardName, startMinutes, durationMinutes) =>
+            dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
+          }
         />
       </div>
 
