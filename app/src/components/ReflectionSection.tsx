@@ -1,48 +1,50 @@
-import type { ReactNode } from 'react'
-import { Check, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check } from 'lucide-react'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
-import { REFLECTION_CARD_MIME } from '@/domain/reflectionDrag'
-import { formatActivityRange } from '@/domain/slots'
-import type { ActivityList, ScheduledActivity } from '@/domain/types'
-import { Chip } from '@/components/ui/chip'
+import type { ActivityList } from '@/domain/types'
 import { cn } from '@/lib/utils'
 
 /**
- * The home-screen reflection section — a static-positioned section below the
- * tile row/timeline editor (never inside the log-activity modal: mapping a
- * reflection card is its own, later action, potentially hours after an
- * activity was logged — see the full-stack-engineer agent definition's
- * revision notes). Two rows of nine cards, same catalog and layout the old
- * static prototype (`data/reflectionCards.ts`) used — now genuinely
- * interactive:
+ * The home-screen reflection section (Frame 2) — a static-positioned section
+ * below the slot editor. It is now PURELY the 18-card grid: it never shows a
+ * selected activity's details (that summary lives in Frame 1 / `SlotEditor`
+ * now — `components/editor/ActivitySummary.tsx`).
  *
- *   - Click a card while an activity is selected on the timeline
- *     (`selectedActivityId`) to map it (opens the note-entry popup the
- *     caller owns — `onRequestMapping`).
- *   - Drag a card directly onto an activity's own timeline segment — no
- *     prior selection needed, since the drop target IS the activity (see
- *     `Timeline.tsx`'s `onDropReflectionCard`).
+ * Mapping a card is tap-only:
+ *   1. Select an activity on the timeline (Frame 1 swaps to its summary).
+ *   2. Tap a card here — opens the note-entry popup the caller owns
+ *      (`onRequestMapping`). Cards already mapped to the selected activity
+ *      show a check; re-tapping one reopens the popup to edit or remove it.
  *
- * When an activity is selected, its own read-only details summary (quality,
- * chronic symptoms, protective response, notes, and reflection cards already
- * mapped) shows above the grid, and every card already mapped to it is
- * outlined here too, so re-clicking one reopens the popup to edit or remove
- * that one note rather than only ever adding.
+ * With no activity selected, tapping a card can't map anything — it shows a
+ * one-line inline hint instead of silently doing nothing.
  */
 export function ReflectionSection({
   activities,
   selectedActivityId,
   onRequestMapping,
-  onDeselect,
 }: {
   activities: ActivityList
   selectedActivityId: string | null
-  /** Click path — the caller (`TodayPage`) only acts on this when an activity is actually selected. */
+  /** Tap path — the caller (`TodayPage`) only acts on this when an activity is actually selected. */
   onRequestMapping: (card: number) => void
-  onDeselect: () => void
 }) {
   const selected = selectedActivityId ? activities.find((a) => a.id === selectedActivityId) ?? null : null
   const mappedCards = new Set(selected?.reflections.map((r) => r.card) ?? [])
+
+  const [showHint, setShowHint] = useState(false)
+  // Selecting an activity resolves the hint's reason — drop it.
+  useEffect(() => {
+    if (selected) setShowHint(false)
+  }, [selected])
+
+  function handleCardClick(card: number) {
+    if (!selected) {
+      setShowHint(true)
+      return
+    }
+    onRequestMapping(card)
+  }
 
   return (
     <section
@@ -53,11 +55,11 @@ export function ReflectionSection({
         Reflection
       </h2>
 
-      {selected ? (
-        <SelectedActivitySummary activity={selected} onClose={onDeselect} />
-      ) : (
-        <p className="mt-md text-caption text-ink-dim">
-          Select an activity on the timeline, or drag a card below onto one, to map it.
+      {/* The ONLY text under the heading: the warning shown after a card is
+          tapped with no activity selected. Nothing otherwise. */}
+      {showHint && !selected && (
+        <p className="mt-md text-caption font-medium text-ink" role="status" aria-live="polite">
+          Select an activity on the timeline first.
         </p>
       )}
 
@@ -72,16 +74,18 @@ export function ReflectionSection({
             <button
               key={card.number}
               type="button"
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.setData(REFLECTION_CARD_MIME, String(card.number))
-                event.dataTransfer.effectAllowed = 'copy'
-              }}
-              onClick={() => onRequestMapping(card.number)}
+              onClick={() => handleCardClick(card.number)}
               aria-pressed={isMapped}
-              aria-label={isMapped ? `${card.title} — already mapped to ${selected?.name}, edit or remove` : card.title}
+              aria-label={
+                isMapped
+                  ? `${card.title} — mapped to ${selected?.name}, tap to edit or remove`
+                  : selected
+                    ? `${card.title} — tap to map to ${selected.name}`
+                    : card.title
+              }
               className={cn(
                 'relative flex flex-col overflow-hidden rounded-md border bg-surface text-left transition-colors',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 isMapped ? 'border-ink ring-2 ring-ink' : 'border-line hover:border-ink hover:shadow-elevation-2',
               )}
             >
@@ -104,95 +108,5 @@ export function ReflectionSection({
         })}
       </div>
     </section>
-  )
-}
-
-/** Read-only — quality/symptoms/protective response/notes/reflections already stored for the selected activity. */
-function SelectedActivitySummary({ activity, onClose }: { activity: ScheduledActivity; onClose: () => void }) {
-  const label = `${activity.name}${activity.path.length ? ` ${activity.path.join(' ')}` : ''}`
-
-  return (
-    <div className="mt-md rounded-md border border-line bg-bg p-md">
-      <div className="flex items-start justify-between gap-md">
-        <div>
-          <p className="text-entry-name font-semibold text-ink">{label}</p>
-          <p className="text-caption text-ink-dim">
-            {formatActivityRange(activity.startMinutes, activity.durationMinutes)}
-            {activity.status === 'completed' && ' · Completed'}
-          </p>
-        </div>
-        <button
-          type="button"
-          aria-label="Deselect activity"
-          onClick={onClose}
-          className="flex size-stepper shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-surface hover:text-ink"
-        >
-          <X aria-hidden="true" className="size-[16px]" />
-        </button>
-      </div>
-
-      {activity.quality.length > 0 && (
-        <SummaryRow label="Activity quality">
-          {activity.quality.map((q) => (
-            <Chip key={q} size="xs" tone="surface">
-              {q}
-            </Chip>
-          ))}
-        </SummaryRow>
-      )}
-
-      {activity.symptoms.length > 0 && (
-        <SummaryRow label="Chronic symptoms">
-          {activity.symptoms.map((s) => (
-            <Chip key={s} size="xs" tone="surface">
-              {s}
-            </Chip>
-          ))}
-        </SummaryRow>
-      )}
-
-      {activity.flags.length > 0 && (
-        <SummaryRow label="Protective response">
-          {activity.flags.map((f) => (
-            <Chip key={f} size="xs" tone="surface">
-              {f}
-            </Chip>
-          ))}
-        </SummaryRow>
-      )}
-
-      {activity.notes && (
-        <div className="mt-sm">
-          <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">Notes</p>
-          <p className="mt-xs text-note text-ink">{activity.notes}</p>
-        </div>
-      )}
-
-      {activity.reflections.length > 0 && (
-        <div className="mt-sm">
-          <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">Reflection cards</p>
-          <ul className="mt-xs flex flex-col gap-xs">
-            {activity.reflections.map((r) => {
-              const card = REFLECTION_CARDS.find((c) => c.number === r.card)
-              return (
-                <li key={r.card} className="text-note text-ink">
-                  <span className="font-semibold">{card?.title ?? `Card ${r.card}`}</span>
-                  {r.note && <span className="text-ink-dim"> — {r.note}</span>}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SummaryRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="mt-sm">
-      <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">{label}</p>
-      <div className="mt-xs flex flex-wrap gap-xs">{children}</div>
-    </div>
   )
 }

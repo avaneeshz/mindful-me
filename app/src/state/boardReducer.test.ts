@@ -933,6 +933,36 @@ describe('selectScheduledActivity — clicking an activity’s own rendered time
     expect(state.selectedActivityId).toBeNull()
   })
 
+  it('selecting a slot clears any activity selection — the two modes are mutually exclusive', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+
+    state = boardReducer(state, { type: 'selectSlot', slot: 7 })
+    expect(state.selectedActivityId).toBeNull()
+    expect(state.selectedSlot).toBe(7)
+  })
+
+  it('re-selecting the already-selected slot still clears a lingering activity selection', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    // selectedSlot is still 32 here; select an activity, then click slot 32 again.
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'selectSlot', slot: 32 })
+    expect(state.selectedActivityId).toBeNull()
+    expect(state.selectedSlot).toBe(32)
+  })
+
+  it('editActivity keeps the activity selected — editing happens FROM the summary, over it', () => {
+    let state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'editActivity', id })
+    expect(state.selectedActivityId).toBe(id)
+    expect(state.staging.cardName).toBe('Homework')
+  })
+
   it('guards against an unknown id — state is returned unchanged', () => {
     const state = start()
     const after = boardReducer(state, { type: 'selectScheduledActivity', id: 'does-not-exist' })

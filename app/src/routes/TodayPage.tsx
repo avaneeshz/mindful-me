@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { HeaderBar } from '@/components/HeaderBar'
 import { ReflectionMappingPopover, type PendingReflectionMapping } from '@/components/ReflectionMappingPopover'
 import { ReflectionSection } from '@/components/ReflectionSection'
@@ -18,6 +18,28 @@ export function TodayPage() {
   // activity's timeline segment). Purely local UI state: it never affects
   // `state.activities` until Save/Remove actually dispatches.
   const [pendingMapping, setPendingMapping] = useState<PendingReflectionMapping | null>(null)
+
+  // The mapping popup targets an activity by id. A `hydrate` (date switch,
+  // midnight rollover, background server reconcile) can swap a client UUID
+  // for a server id or drop the activity entirely — if the pending target is
+  // no longer in `state.activities`, close the popup rather than let Save
+  // dispatch against a stale id (which the reducer would silently no-op,
+  // losing the typed note).
+  useEffect(() => {
+    if (pendingMapping && !state.activities.some((a) => a.id === pendingMapping.scheduledActivityId)) {
+      setPendingMapping(null)
+    }
+  }, [state.activities, pendingMapping])
+
+  // Opens the note-entry popup for a (selected activity, card) pairing.
+  // Shared by both entry points — tapping a card in the Reflection grid, and
+  // tapping a mapped thumbnail in the activity summary. Only ever fires with
+  // an activity selected (the grid shows its own inline hint otherwise).
+  function openMapping(card: number) {
+    if (state.selectedActivityId) {
+      setPendingMapping({ scheduledActivityId: state.selectedActivityId, card })
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
@@ -46,7 +68,6 @@ export function TodayPage() {
           onDropCard={(cardName, slot) => dispatch({ type: 'dropCard', cardName, slot })}
           onSelectActivity={(id) => dispatch({ type: 'selectScheduledActivity', id })}
           selectedActivityId={state.selectedActivityId}
-          onDropReflectionCard={(scheduledActivityId, card) => setPendingMapping({ scheduledActivityId, card })}
           onQuickLog={(cardName, startMinutes, durationMinutes) =>
             dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
           }
@@ -67,6 +88,7 @@ export function TodayPage() {
           // selected slot only means something while viewing today.
           nowSlot={isViewingToday ? nowSlot : -1}
           viewedDate={viewedDate}
+          onOpenReflectionNote={openMapping}
         />
       </div>
 
@@ -74,15 +96,7 @@ export function TodayPage() {
         <ReflectionSection
           activities={state.activities}
           selectedActivityId={state.selectedActivityId}
-          onRequestMapping={(card) => {
-            // Click path — only meaningful while an activity is selected;
-            // the drag path (Timeline's onDropReflectionCard above) already
-            // names its own target directly and never goes through this.
-            if (state.selectedActivityId) {
-              setPendingMapping({ scheduledActivityId: state.selectedActivityId, card })
-            }
-          }}
-          onDeselect={() => dispatch({ type: 'selectScheduledActivity', id: null })}
+          onRequestMapping={openMapping}
         />
       </div>
 

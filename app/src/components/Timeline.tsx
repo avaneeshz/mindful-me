@@ -19,7 +19,6 @@ import {
   type RowFocusStop,
 } from '@/domain/slots'
 import { isWindowFull } from '@/domain/scheduling'
-import { REFLECTION_CARD_MIME } from '@/domain/reflectionDrag'
 import { PERIOD_ICONS } from '@/data/periods'
 import { SunMoonLogPopover } from '@/components/SunMoonLogPopover'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
@@ -81,22 +80,16 @@ interface TimelineProps {
   onDropCard: (cardName: string, slot: number) => void
   /**
    * Clicking (or keyboard-activating) a specific activity's own rendered
-   * segment — selects it for VIEWING (a read-only details summary) and as
-   * the target for reflection-card mapping, WITHOUT opening its edit modal
-   * (that stays reachable elsewhere — `SlotActivityList`'s own edit
-   * control). See `state/boardReducer.ts`'s `selectScheduledActivity`
-   * action — clicking the already-selected activity again deselects it.
+   * segment — selects it for VIEWING (Frame 1 swaps to its read-only
+   * summary) and as the target for reflection-card mapping, WITHOUT opening
+   * its edit modal (that stays reachable from the summary's own Edit
+   * control). Clicking a FULLY-covered slot resolves here too. See
+   * `state/boardReducer.ts`'s `selectScheduledActivity` action — clicking
+   * the already-selected activity again deselects it.
    */
   onSelectActivity: (id: string) => void
   /** The currently selected activity (if any) — outlined distinctly from hover/focus so the mapping target is visible at a glance. */
   selectedActivityId: string | null
-  /**
-   * A reflection card dropped directly onto this activity's own segment —
-   * the "drag" path of reflection-card mapping (no prior selection needed,
-   * since the drop target IS the activity). See `state/boardReducer.ts`'s
-   * `mapReflectionCard` action; the caller owns the actual note-entry popup.
-   */
-  onDropReflectionCard: (scheduledActivityId: string, card: number) => void
   /** Dispatches `quickLogActivity` — threaded to the Sun/Moon end-cap popovers. See `state/boardReducer.ts`. */
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }
@@ -109,7 +102,6 @@ export function Timeline({
   onDropCard,
   onSelectActivity,
   selectedActivityId,
-  onDropReflectionCard,
   onQuickLog,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
@@ -200,7 +192,6 @@ export function Timeline({
             onDropCard={onDropCard}
             onSelectActivity={onSelectActivity}
             selectedActivityId={selectedActivityId}
-            onDropReflectionCard={onDropReflectionCard}
             onQuickLog={onQuickLog}
             onKeyDown={handleKeyDown}
           />
@@ -223,7 +214,6 @@ interface TimelineRowProps {
   onDropCard: (cardName: string, slot: number) => void
   onSelectActivity: (id: string) => void
   selectedActivityId: string | null
-  onDropReflectionCard: (scheduledActivityId: string, card: number) => void
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
   onKeyDown: (event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) => void
 }
@@ -239,7 +229,6 @@ function TimelineRow({
   onDropCard,
   onSelectActivity,
   selectedActivityId,
-  onDropReflectionCard,
   onQuickLog,
   onKeyDown,
 }: TimelineRowProps) {
@@ -353,6 +342,13 @@ function TimelineRow({
             const isDragOver = dragOverSlot === slot
             const windowFull = isWindowFull(activities, slotMinuteRange(slot).start, SLOT_MINUTES)
             const isRovingSlot = rovingStop?.kind === 'slot' && rovingStop.slot === slot
+            // When the slot has no free minutes left, a plain click on it
+            // (i.e. one that didn't land on a specific activity segment's own
+            // button) resolves to the real activity covering it — "click a
+            // filled time slot -> select that activity". A partially-free or
+            // empty slot still selects the slot itself, so its remaining time
+            // stays fillable from the tile row.
+            const coveringActivity = windowFull ? touching.find((a) => a.name !== null) ?? null : null
 
             return (
               <button
@@ -370,7 +366,7 @@ function TimelineRow({
                 tabIndex={windowFull ? -1 : isRovingSlot ? 0 : -1}
                 aria-current={isSelected ? 'true' : undefined}
                 aria-label={`${describeSlot(slot, touching, flags)}${isSelected ? ', selected slot' : ''}`}
-                onClick={() => onSelectSlot(slot)}
+                onClick={() => (coveringActivity ? onSelectActivity(coveringActivity.id) : onSelectSlot(slot))}
                 onFocus={() => onFocusStop({ kind: 'slot', slot })}
                 onKeyDown={(event) => onKeyDown(event, period, { kind: 'slot', slot })}
                 onDragOver={(event) => {
@@ -453,17 +449,16 @@ function TimelineRow({
             resolves to the activity, even when it also happens to sit inside
             the currently-selected or drag-hovered slot.
 
-            Two independent drops land here (see the `onDrop` handler below):
-            a reflection card (its own MIME type, mapping it onto THIS
-            activity — the drag path of reflection mapping) and, unchanged,
-            an activity card dropped from the tile-row popup onto a point
-            that sits under one of these buttons — wiring the identical
+            One kind of drop lands here (see the `onDrop` handler below): an
+            activity card dropped from the tile-row popup onto a point that
+            sits under one of these buttons — wiring the identical
             onDragOver/onDragLeave/onDrop handlers here, anchored at the
             covering activity's own start slot (`slotIndexFromMinutes`), is
             sufficient — `computeCandidateSchedule` already snaps a placement
             forward past busy time (rule 5), so the actual placement resolves
             correctly even though the drop's pixel position is not what
-            determines it.
+            determines it. (Reflection-card mapping is tap-only now — it
+            never reaches the timeline.)
 
             Each segment is now TWO stacked elements, not one: an outer
             positioning box sized EXACTLY duration-proportional (the visual
@@ -534,17 +529,11 @@ function TimelineRow({
                     onDrop={(event) => {
                       event.preventDefault()
                       setDragOverSlot(null)
-                      // Two different things can land here: a reflection card
-                      // (its own MIME type — maps it onto THIS activity, the
-                      // drag path of reflection mapping) or an activity card
-                      // from the tile row (`text/plain` — the pre-existing
-                      // "drop a new activity here" behaviour, untouched).
-                      const reflectionCard = event.dataTransfer.getData(REFLECTION_CARD_MIME)
-                      if (reflectionCard) {
-                        const card = Number(reflectionCard)
-                        if (Number.isFinite(card)) onDropReflectionCard(segment.activity.id, card)
-                        return
-                      }
+                      // Only an activity card from the tile row (`text/plain`)
+                      // lands here now — the pre-existing "drop a new activity
+                      // here" behaviour, unchanged. Reflection-card mapping is
+                      // tap-only (select the activity, then tap a card in the
+                      // Reflection section); it no longer uses drag-and-drop.
                       const cardName = event.dataTransfer.getData('text/plain')
                       if (cardName) onDropCard(cardName, anchorSlot)
                     }}

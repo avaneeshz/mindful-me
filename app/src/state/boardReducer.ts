@@ -59,17 +59,18 @@ export interface BoardState {
    * Id of the scheduled activity currently selected for VIEWING (a read-only
    * details summary — quality/symptoms/protective response/notes/reflection
    * cards already mapped) and as the target for reflection-card mapping —
-   * see `selectScheduledActivity`/`mapReflectionCard` below. Deliberately
-   * independent of `selectedSlot`/`staging`: this is NOT the "add/edit an
-   * activity" flow (that stays slot- and staging-based, unchanged).
+   * see `selectScheduledActivity`/`mapReflectionCard` below.
    *
-   * This is one mode of what the product owner has described as a future
-   * TWO-mode timeline click behavior ("select a ~13-15 min time slot" vs.
-   * "select an existing activity") — a mode switch to be specified later.
-   * Nothing here builds that toggle; `selectedActivityId` only has to not
-   * foreclose it, which a single independent nullable field does (adding a
-   * `selectionMode` union later is a additive change, not a rework of this
-   * field). Never assume this and `selectedSlot` are mutually exclusive.
+   * This is the "activity mode" half of the timeline's two-mode click model:
+   * clicking an activity (or a fully-covered slot) selects it here and Frame
+   * 1 (`SlotEditor`) swaps its whole body for that activity's summary;
+   * clicking an empty slot selects a slot instead and clears this. The two
+   * are mutually exclusive by construction — every `selectSlot` clears this,
+   * and `selectScheduledActivity` never touches `selectedSlot`/`staging`
+   * (which stay as they were, purely so the light/dark theme and the "Now"
+   * badge still have a slot to derive from). `editActivity` is the one
+   * deliberate exception: editing FROM the summary keeps this set so the log
+   * modal opens over the summary and returns to it on save/cancel.
    */
   selectedActivityId: string | null
 }
@@ -227,10 +228,15 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
   switch (action.type) {
     case 'selectSlot': {
       const slot = ((action.slot % 48) + 48) % 48
-      if (slot === state.selectedSlot) return state
-      // Selecting a different slot abandons anything staged for the old one —
-      // staged picks are scoped to a slot and were never committed.
-      return { ...state, selectedSlot: slot, staging: EMPTY_STAGING }
+      // Selecting a slot is the "slot mode" gesture — it always clears any
+      // activity that was selected for viewing (the two modes are mutually
+      // exclusive: Frame 1 shows EITHER the slot's tile row OR a selected
+      // activity's summary, never both). A same-slot click while an activity
+      // is selected still has to fall through here to do that clearing.
+      if (slot === state.selectedSlot && state.selectedActivityId === null) return state
+      // Selecting a different slot also abandons anything staged for the old
+      // one — staged picks are scoped to a slot and were never committed.
+      return { ...state, selectedSlot: slot, staging: EMPTY_STAGING, selectedActivityId: null }
     }
 
     case 'pickCard': {

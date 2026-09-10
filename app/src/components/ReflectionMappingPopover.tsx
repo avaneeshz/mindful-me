@@ -12,11 +12,10 @@ export interface PendingReflectionMapping {
 }
 
 /**
- * The note-entry popup opened by EITHER path of reflection-card mapping
- * (clicking a card in `ReflectionSection` while an activity is selected, or
- * dragging one onto an activity's own timeline segment — `Timeline.tsx`'s
- * `onDropReflectionCard`) — both funnel into this one component, owned by
- * `TodayPage` since it is the shared ancestor of both trigger sites.
+ * The note-entry popup opened when a reflection card is tapped in
+ * `ReflectionSection` while an activity is selected — owned by `TodayPage`
+ * since it is the shared ancestor of the timeline (where the activity is
+ * selected) and the reflection grid (where the card is tapped).
  *
  * Prefills the existing note when the card is ALREADY mapped to this
  * activity (re-clicking/re-dropping an already-mapped card reopens this to
