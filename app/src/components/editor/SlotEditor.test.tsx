@@ -33,6 +33,7 @@ function renderEditor(state: BoardState): string {
       nowSlot={32}
       viewedDate={AT_4PM}
       onOpenReflectionNote={() => {}}
+      syncQueue={[]}
     />,
   )
 }

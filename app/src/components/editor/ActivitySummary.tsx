@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Activity, HeartPulse, Pencil, Shield, X } from 'lucide-react'
+import { Activity, AlertTriangle, CloudUpload, HeartPulse, Pencil, Shield, X } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { formatActivityRange } from '@/domain/slots'
@@ -28,6 +28,7 @@ export function ActivitySummary({
   onRemove,
   onClose,
   onOpenNote,
+  syncState = 'synced',
 }: {
   activity: ScheduledActivity
   onEdit: () => void
@@ -35,6 +36,15 @@ export function ActivitySummary({
   onClose: () => void
   /** Tap a mapped reflection thumbnail — opens its note-entry popup (edit/remove that pairing). */
   onOpenNote: (card: number) => void
+  /**
+   * Bug B (write-failure-visibility incident) — this ONE activity's
+   * background-sync status (`state/syncQueue.ts`'s `activitySyncState`).
+   * `'synced'` renders no badge at all (same "nothing to show once nothing
+   * is wrong" restraint as `SyncStatusPill`); optional/defaulted so every
+   * existing caller (and test) that has no sync queue to check keeps
+   * rendering exactly as before.
+   */
+  syncState?: 'synced' | 'pending' | 'failed'
 }) {
   const name = activity.name ?? 'Activity'
   const card = activity.name ? findCard(activity.name) : undefined
@@ -51,6 +61,19 @@ export function ActivitySummary({
             {isCompleted && (
               <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
                 Completed
+              </span>
+            )}
+            {syncState !== 'synced' && (
+              <span
+                role="status"
+                className="flex items-center gap-xs rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink"
+              >
+                {syncState === 'failed' ? (
+                  <AlertTriangle aria-hidden="true" className="size-[11px]" />
+                ) : (
+                  <CloudUpload aria-hidden="true" className="size-[11px]" />
+                )}
+                {syncState === 'failed' ? "Couldn't sync — retrying" : 'Not yet synced'}
               </span>
             )}
           </div>
