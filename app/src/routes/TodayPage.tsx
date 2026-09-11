@@ -1,16 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { HeaderBar } from '@/components/HeaderBar'
 import { ReflectionMappingPopover, type PendingReflectionMapping } from '@/components/ReflectionMappingPopover'
 import { ReflectionSection } from '@/components/ReflectionSection'
 import { ThemeFromSlot } from '@/components/ThemeFromSlot'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
+import { toBoardActivities } from '@/domain/window'
 import { useAuth } from '@/state/AuthContext'
 import { useBoard } from '@/state/BoardContext'
 
 export function TodayPage() {
   const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate } = useBoard()
   const { user, signOut } = useAuth()
+
+  // The timeline + the quick-log popovers reason about grid positions and
+  // overlaps, so they get activities mapped into board-minute space for the
+  // current 6am-to-6am window (`domain/window.ts`). `SlotEditor` maps its own
+  // (it has the whole `state`); `ReflectionSection` is id-only, so it keeps
+  // the real list.
+  const boardActivities = useMemo(
+    () => toBoardActivities(state.activities, state.viewedDate),
+    [state.activities, state.viewedDate],
+  )
 
   // Which activity + reflection card the note-entry popup is currently open
   // for, if any — set by EITHER path of reflection-card mapping (a grid
@@ -51,7 +62,8 @@ export function TodayPage() {
         onSelectDate={setViewedDate}
         user={user}
         onSignOut={signOut}
-        activities={state.activities}
+        activities={boardActivities}
+        allActivities={state.activities}
         onQuickLog={(cardName, startMinutes, durationMinutes) =>
           dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
         }
@@ -59,7 +71,7 @@ export function TodayPage() {
 
       <div className="mt-xl ipad-land:mt-md">
         <Timeline
-          activities={state.activities}
+          activities={boardActivities}
           selectedSlot={state.selectedSlot}
           // BL-2: the NOW marker only ever belongs on the real current day —
           // `null` here means Timeline draws none at all.

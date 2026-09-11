@@ -206,10 +206,21 @@ export interface ScheduledActivity {
   /** Drill-down path, e.g. ["Oiling", "Body"]. Empty for flat cards or markers. */
   path: string[]
   /**
-   * Minutes since local midnight of the calendar day this activity was
-   * scheduled on (0–1439). This is the WALL-CLOCK time the user saw at
-   * creation, locked in — never recomputed from a stored UTC instant, and
-   * never shifted by a later timezone change or DST transition (rule 3).
+   * `YYYY-MM-DD` of the calendar day this activity STARTED on — rule 2, and
+   * exactly the DB's `local_date`. Distinct from the 6am-to-6am "window day"
+   * that renders it: an activity started at 02:00 on the 12th has
+   * `localDate` "2026-09-12" but is drawn on the 11th's window (its small
+   * hours, right of the midnight tick). `domain/window.ts` converts
+   * (`localDate` + `startMinutes`) to a position on a given window-day's board.
+   */
+  localDate: string
+  /**
+   * Minutes since local midnight of `localDate` (0–1439). This is the
+   * WALL-CLOCK time the user saw at creation, locked in — never recomputed
+   * from a stored UTC instant, and never shifted by a later timezone change
+   * or DST transition (rule 3). A midnight-crossing activity keeps
+   * `startMinutes` in 0–1439 (its start is always within its own day) and
+   * lets `durationMinutes` carry the end past 1440.
    */
   startMinutes: number
   /**

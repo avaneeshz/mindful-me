@@ -33,12 +33,18 @@ import {
 import type { ActivityList, ScheduledActivity } from './types'
 
 let id = 0
+/**
+ * `startMinutes` here is a BOARD minute (see `domain/window.ts`): 0–1439 for
+ * the day + evening, 1440–1800 for the night row's small hours (the next
+ * calendar day). `localDate` is inert for the geometry under test.
+ */
 function activity(startMinutes: number, durationMinutes: number, name = 'Homework'): ScheduledActivity {
   id += 1
   return {
     id: `a${id}`,
     name,
     path: [],
+    localDate: '2026-01-01',
     startMinutes,
     durationMinutes,
     flags: [],
@@ -54,6 +60,7 @@ function marker(startMinutes: number, flags: ScheduledActivity['flags']): Schedu
     id: `m${id}`,
     name: null,
     path: [],
+    localDate: '2026-01-01',
     startMinutes,
     durationMinutes: 0,
     flags,
@@ -216,9 +223,9 @@ describe('flagMarkerAt', () => {
 describe('countMarkedSlots', () => {
   it('counts only grid cells touched by a real activity, not flag-only ones', () => {
     const acts: ActivityList = [
-      activity(90, 30), // slot 3
-      marker(120, ['Triggered']), // slot 4, flagged but unmarked
-      activity(150, 60), // slots 5 and 6
+      activity(480, 30), // 08:00, slot 16
+      marker(510, ['Triggered']), // 08:30, slot 17 — flagged but unmarked
+      activity(540, 60), // 09:00–10:00, slots 18 and 19
     ]
     expect(countMarkedSlots(acts)).toBe(3)
     expect(countMarkedSlots([])).toBe(0)
@@ -250,12 +257,23 @@ describe('activityRowSegments', () => {
     expect(segment.minutes).toBe(20)
   })
 
-  it('clips an activity that would otherwise run past the visible 24-hour board', () => {
-    // 23:45 (1425) for 60 minutes: only 15 minutes remain before the board's
-    // end (midnight) — which sits at the Night row's own midpoint (position 12).
+  it('carries a midnight-crossing activity straight across the tick into the small hours', () => {
+    // 23:45 (board 1425) for 60 minutes -> ends 00:45 next morning (board
+    // 1485). 15 minutes render in the evening piece up to the midnight tick
+    // (position 12), then 45 minutes continue from the tick into the small
+    // hours — one activity, two contiguous pieces, no clipping.
     const segments = activityRowSegments(1425, 60, 'night')
-    expect(segments).toEqual([{ startPosition: 11.5, minutes: 15 }])
-    expect(segments[0].startPosition + segments[0].minutes / SLOT_MINUTES).toBe(SLOTS_PER_ROW / 2)
+    expect(segments).toEqual([
+      { startPosition: 11.5, minutes: 15 },
+      { startPosition: SLOTS_PER_ROW / 2, minutes: 45 },
+    ])
+  })
+
+  it('clips only at the far end of the window (next day 06:00)', () => {
+    // 04:00 next morning (board 1680) for 3 hours would reach 07:00; only the
+    // 120 minutes up to the 06:00 window edge are visible. 04:00 is 10 hours
+    // into the night row -> position 20.
+    expect(activityRowSegments(1680, 180, 'night')).toEqual([{ startPosition: 20, minutes: 120 }])
   })
 
   it('returns nothing for an activity entirely outside the requested row', () => {

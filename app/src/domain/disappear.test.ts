@@ -9,6 +9,7 @@ function activity(name: string | null, overrides: Partial<ScheduledActivity> = {
     id: `a${id}`,
     name,
     path: [],
+    localDate: '2026-01-01',
     startMinutes: 0,
     durationMinutes: 30,
     flags: [],

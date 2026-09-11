@@ -1,14 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   activitiesTouchingSlot,
   flagMarkerAt,
   formatSlotRange,
   minutesInSlot,
   slotIndexFromMinutes,
-  slotMinuteRange,
   SLOT_MINUTES,
 } from '@/domain/slots'
 import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
+import { slotBoardRange, toBoardActivity, toBoardActivities } from '@/domain/window'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { ActivitySummary } from './ActivitySummary'
@@ -68,9 +68,17 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
   const selectedActivity = state.selectedActivityId
     ? activities.find((a) => a.id === state.selectedActivityId) ?? null
     : null
-  const { start: slotStart } = slotMinuteRange(selectedSlot)
-  const touching = activitiesTouchingSlot(activities, selectedSlot)
-  const flags = flagMarkerAt(activities, selectedSlot)?.flags ?? []
+  // All slot geometry / scheduling runs in board-minute space for the
+  // current 6am-to-6am window (`domain/window.ts`). The summary (activity
+  // mode) keeps the REAL activity — `formatActivityRange` wraps mod 1440, so
+  // its clock reads correctly either way.
+  const boardActivities = useMemo(
+    () => toBoardActivities(activities, state.viewedDate),
+    [activities, state.viewedDate],
+  )
+  const { start: slotStart } = slotBoardRange(selectedSlot)
+  const touching = activitiesTouchingSlot(boardActivities, selectedSlot)
+  const flags = flagMarkerAt(boardActivities, selectedSlot)?.flags ?? []
   const { dismissed, toggleDismissed } = useDismissedActivities(viewedDate)
 
   const usedMinutes = touching.reduce((sum, a) => sum + minutesInSlot(a, selectedSlot), 0)
@@ -80,11 +88,11 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
     .map((a) => ({ id: a.id, minutes: minutesInSlot(a, selectedSlot) }))
 
   const maxDuration = staging.cardName
-    ? maxContiguousDuration(activities, staging.startMinutes, staging.editingId)
+    ? maxContiguousDuration(boardActivities, staging.startMinutes, staging.editingId)
     : 0
   // A slot reads as "full" once nothing new could start anywhere within it —
   // never while merely configuring something already staged for it.
-  const atCapacity = isWindowFull(activities, slotStart, SLOT_MINUTES) && staging.cardName === null
+  const atCapacity = isWindowFull(boardActivities, slotStart, SLOT_MINUTES) && staging.cardName === null
   const isNow = selectedSlot === nowSlot
 
   // The undo affordance expires on its own; nothing else clears it.
@@ -161,7 +169,9 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
           <SlotActivityList
             touching={touching}
             selectedSlot={selectedSlot}
-            removal={removal}
+            removal={
+              removal ? { ...removal, activity: toBoardActivity(removal.activity, state.viewedDate) } : null
+            }
             editingId={staging.editingId}
             onEdit={(id) => dispatch({ type: 'editActivity', id })}
             onRemove={(id) => dispatch({ type: 'removeActivity', id })}
@@ -185,7 +195,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
 
       <LogActivityModal
         staging={staging}
-        activities={activities}
+        activities={boardActivities}
         maxDuration={maxDuration}
         canCommit={canCommit}
         onPickOption={(level, value) => dispatch({ type: 'pickOption', level, value })}

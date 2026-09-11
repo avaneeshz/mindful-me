@@ -67,3 +67,28 @@ export async function apiCreateNoteEntry(
   }
   return dtoToClient(data as NoteEntryDto)
 }
+
+/**
+ * Every note entry (any button) whose `created_at` falls inside
+ * `[rangeStart, rangeEnd)` — real instants, e.g. `lib/localTime.ts`'s
+ * `localDayRange(viewedDate)` — for the "download this day's data" export.
+ * Unlike `apiListNoteEntries` (one button's whole history), this is scoped to
+ * a window (rule 8) and spans all buttons in one round trip. Returns `null`
+ * on any failure to reach/read the server — same fail-open contract as every
+ * other `api/*` read here — so a caller (the export assembly) can complete
+ * the rest of the document from whatever it already has (rule 6) rather than
+ * block the whole export on this one optional section.
+ */
+export async function apiListNoteEntriesForDate(rangeStart: Date, rangeEnd: Date): Promise<NoteEntry[] | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('list_note_entries_for_date', {
+    p_range_start: rangeStart.toISOString(),
+    p_range_end: rangeEnd.toISOString(),
+  })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[notes] list_note_entries_for_date failed — export will omit note entries', error.message)
+    return null
+  }
+  return ((data ?? []) as NoteEntryDto[]).map(dtoToClient)
+}

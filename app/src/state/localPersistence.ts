@@ -22,7 +22,16 @@ export function loadLocalActivities(date: Date): ScheduledActivity[] | null {
     const raw = window.localStorage.getItem(keyFor(date))
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as ScheduledActivity[]) : null
+    if (!Array.isArray(parsed)) return null
+    // Rows written before the 6am-to-6am window model carry no `localDate`
+    // and can't be placed on a board — drop them rather than render blanks.
+    // A cache that ends up empty is treated as "nothing stored" (null), so a
+    // first-ever-style reseed can still happen.
+    const rows = (parsed as ScheduledActivity[]).filter(
+      (a) => typeof a?.localDate === 'string' && a.localDate.length > 0,
+    )
+    if (rows.length > 0) return rows
+    return parsed.length === 0 ? [] : null
   } catch {
     return null
   }

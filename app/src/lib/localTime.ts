@@ -59,6 +59,58 @@ export function localDayRange(reference: Date): { start: Date; end: Date } {
 }
 
 /**
+ * The timeline is a 6am-to-6am "window day", not a midnight-to-midnight
+ * calendar day: viewing 11 Sep shows 11 Sep 06:00 → 12 Sep 06:00, so a night
+ * reads as one continuous evening → midnight → next-morning span. An activity
+ * still BELONGS to the calendar day it started on (rule 2 / `local_date`) —
+ * this only changes which window renders it and where.
+ */
+export const WINDOW_START_HOUR = 6
+
+/**
+ * `[reference 06:00, reference+1 day 06:00)` as real instants — the wall-clock
+ * span the timeline for window-day `reference` covers. Pair with
+ * `apiListScheduledActivities` (a range-overlap query, so a midnight-crossing
+ * activity anchored just before the boundary is still returned).
+ */
+export function windowRange(reference: Date): { start: Date; end: Date } {
+  const start = new Date(
+    reference.getFullYear(),
+    reference.getMonth(),
+    reference.getDate(),
+    WINDOW_START_HOUR,
+  )
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start, end }
+}
+
+/**
+ * The window-day that currently contains `now`: the previous calendar day
+ * until 06:00 (you are still inside last night's window at 02:00), then
+ * today. Normalized to local midnight so it keys storage / the date picker
+ * exactly like a plain calendar date does.
+ */
+export function currentWindowDate(now: Date): Date {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (now.getHours() < WINDOW_START_HOUR) d.setDate(d.getDate() - 1)
+  return d
+}
+
+/**
+ * The window-day analogue of `shouldRolloverViewedDate`: a board "following
+ * today" advances the instant the device clock crosses **06:00** into a new
+ * window-day, but a board deliberately pinned to another window-day (rule 12)
+ * is left alone. Told apart using only the state from just before this tick.
+ */
+export function shouldRolloverWindowDate(viewedDate: Date, prevNow: Date, now: Date): boolean {
+  const prevWindow = currentWindowDate(prevNow)
+  const nextWindow = currentWindowDate(now)
+  if (isSameLocalDay(prevWindow, nextWindow)) return false
+  return isSameLocalDay(viewedDate, prevWindow)
+}
+
+/**
  * True when `a` and `b` fall on the same local calendar day, independent of
  * their time-of-day. Drives BL-2's "NOW marker only on the real current
  * day" rule — comparing `viewedDate` against the live device clock.

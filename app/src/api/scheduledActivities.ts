@@ -1,4 +1,5 @@
-import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
+import { dateFromLocalMinutes } from '@/lib/localTime'
+import { dateFromISO } from '@/domain/window'
 import { supabase } from '@/lib/supabaseClient'
 import type {
   ActivityQuality,
@@ -49,6 +50,7 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     id: dto.id,
     name,
     path: dto.path ?? [],
+    localDate: dto.local_date,
     startMinutes: dto.start_minute,
     durationMinutes: dto.duration_minutes,
     flags: (dto.flags ?? []) as FlagId[],
@@ -62,20 +64,23 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
 }
 
 /**
- * The fields every create/reschedule call needs, derived from the client
- * shape plus `reference` — the calendar day `activity.startMinutes` is
- * anchored to (normally "today", i.e. the same `now` the board itself uses;
- * see `lib/localTime.ts` for why this needs no timezone library).
+ * The fields every create/reschedule call needs. Anchored to
+ * `activity.localDate` — the calendar day the activity STARTED on (rule 2),
+ * which the client now carries explicitly — so a midnight-crossing activity
+ * or one placed in the window's small hours writes the correct `local_date`
+ * / `start_at` regardless of which 6am-to-6am window it was entered on. The
+ * `reference` argument is retained for call-site compatibility and no longer
+ * consulted.
  */
-async function scheduleParams(activity: ScheduledActivity, reference: Date) {
+async function scheduleParams(activity: ScheduledActivity, _reference: Date) {
   const activityId = activity.name ? await catalogIdForName(activity.name) : null
-  const startAt = dateFromLocalMinutes(reference, activity.startMinutes)
+  const startAt = dateFromLocalMinutes(dateFromISO(activity.localDate), activity.startMinutes)
   return {
     p_activity_id: activityId,
     p_path: activity.path,
     p_start_at: startAt.toISOString(),
     p_duration_minutes: activity.durationMinutes,
-    p_local_date: localDateISO(startAt),
+    p_local_date: activity.localDate,
     p_start_minute: Math.min(1439, Math.max(0, activity.startMinutes)),
     p_timezone: activity.timezone,
   }

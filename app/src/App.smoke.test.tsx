@@ -80,10 +80,10 @@ describe('Today screen', () => {
 
   it('renders one anchored visual span per real seeded activity — no 2-activity-per-cell cap', () => {
     // The seed's 11 real activities (flag markers render no span of their
-    // own), plus ONE extra span: Night Sleep is now genuinely one 8-hour
-    // activity (00:00-08:00) rather than sixteen artificially separate
-    // 30-minute entries, and it legitimately crosses the Night/Day row
-    // boundary at 06:00 — correctly rendered as two segments, one per row.
+    // own), plus ONE extra span: Night Sleep is genuinely one 8-hour
+    // activity (22:00 -> 06:00) that crosses midnight, rendered as two
+    // contiguous pieces on the Night row — one each side of the midnight
+    // tick — under the 6am-to-6am window (Variant B).
     expect(html.match(/data-activity="[^"]+"/g) ?? []).toHaveLength(12)
     // Two of them — Body Care (self) and Supplements — legitimately share
     // one grid cell without overlapping, which the old capacity rule
@@ -190,6 +190,8 @@ describe('rendering is independent of the wall clock', () => {
     (_, slot) => new Date(2026, 7, 25, Math.floor(slot / 2), (slot % 2) * 30 + 5),
   )
 
+  // 48 full-app renders in one test — comfortably fast on its own, but it can
+  // brush the default 5s cap under a fully parallel run, so it gets headroom.
   it('renders the same structure at every slot of the day', () => {
     for (const now of everyHalfHour) {
       const at = render(now)
@@ -197,7 +199,7 @@ describe('rendering is independent of the wall clock', () => {
       expect(at.match(/>NOW</g) ?? []).toHaveLength(1)
       expect(at.match(/data-slot="\d+"/g) ?? []).toHaveLength(48)
     }
-  })
+  }, 15000)
 })
 
 describe('slot-full notice copy', () => {

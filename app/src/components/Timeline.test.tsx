@@ -6,11 +6,14 @@ import type { ActivityList, ScheduledActivity } from '@/domain/types'
 
 const NO_ACTIVITIES: ActivityList = []
 
+// `activities` handed to <Timeline> are board-minute mapped (`domain/window.ts`):
+// 0–1439 for the day + evening, 1440–1800 for the night row's small hours.
 function activity(startMinutes: number, durationMinutes: number, name = 'Homework'): ScheduledActivity {
   return {
     id: `a-${startMinutes}-${durationMinutes}`,
     name,
     path: [],
+    localDate: '2026-01-01',
     startMinutes,
     durationMinutes,
     flags: [],
@@ -116,6 +119,7 @@ describe('an activity’s own rendered segment is a real, independently operable
       id: 'marker-1',
       name: null,
       path: [],
+      localDate: '2026-01-01',
       startMinutes: 600,
       durationMinutes: 0,
       flags: ['Attack'],

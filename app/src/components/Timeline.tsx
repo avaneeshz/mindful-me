@@ -14,11 +14,11 @@ import {
   rowHourTickLabels,
   rowSlotIndices,
   slotIndexFromMinutes,
-  slotMinuteRange,
   tickLabelPositions,
   type RowFocusStop,
 } from '@/domain/slots'
 import { isWindowFull } from '@/domain/scheduling'
+import { slotBoardRange } from '@/domain/window'
 import { PERIOD_ICONS } from '@/data/periods'
 import { SunMoonLogPopover } from '@/components/SunMoonLogPopover'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
@@ -340,7 +340,7 @@ function TimelineRow({
             const flags = flagMarkerAt(activities, slot)?.flags ?? []
             const isSelected = slot === selectedSlot
             const isDragOver = dragOverSlot === slot
-            const windowFull = isWindowFull(activities, slotMinuteRange(slot).start, SLOT_MINUTES)
+            const windowFull = isWindowFull(activities, slotBoardRange(slot).start, SLOT_MINUTES)
             const isRovingSlot = rovingStop?.kind === 'slot' && rovingStop.slot === slot
             // When the slot has no free minutes left, a plain click on it
             // (i.e. one that didn't land on a specific activity segment's own
