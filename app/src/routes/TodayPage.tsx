@@ -63,6 +63,7 @@ export function TodayPage() {
         user={user}
         onSignOut={signOut}
         activities={boardActivities}
+        allActivities={state.activities}
         onQuickLog={(cardName, startMinutes, durationMinutes) =>
           dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
         }

@@ -4,6 +4,7 @@ import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
+import { DownloadDayButton } from '@/components/DownloadDayButton'
 import { WeatherPill } from '@/components/WeatherPill'
 import { NOTE_BUTTONS } from '@/domain/notes'
 import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
@@ -44,13 +45,29 @@ export interface HeaderBarProps {
   /** The signed-in user, or `null` in local-only mode (no backend configured). */
   user: AuthUser | null
   onSignOut: () => void
-  /** Today's board — read by the Vipassana display button for its computed total and to validate a new entry. */
+  /** Today's board (6am-to-6am window mapping) — read by the Vipassana display button for its computed total and to validate a new entry. */
   activities: ActivityList
+  /**
+   * The full, unfiltered client activity list (`state.activities`, keyed by
+   * real `localDate`) — for the day-export download, which is a full-record
+   * export of one calendar day, not a rendering of the timeline's own
+   * 6am-to-6am window (see `domain/dayExport.ts`).
+   */
+  allActivities: ActivityList
   /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. */
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
 }
 
-export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut, activities, onQuickLog }: HeaderBarProps) {
+export function HeaderBar({
+  now,
+  viewedDate,
+  onSelectDate,
+  user,
+  onSignOut,
+  activities,
+  allActivities,
+  onQuickLog,
+}: HeaderBarProps) {
   return (
     <header className="flex flex-col gap-md">
       {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed
@@ -73,6 +90,8 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut, acti
             control).
           */}
           <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
+
+          <DownloadDayButton viewedDate={viewedDate} activities={allActivities} />
 
           <WeatherPill className="mobile:hidden" />
 
