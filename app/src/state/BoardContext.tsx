@@ -17,11 +17,32 @@ import {
 } from './boardReducer'
 import { createSeedActivities } from './seed'
 import { slotIndexFromDate } from '@/domain/slots'
-import { deriveSyncIntents, runSyncIntents } from './sync'
+import { deriveSyncIntents, runIntent } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
-import { isSameLocalDay, localDayRange, shouldRolloverViewedDate } from '@/lib/localTime'
+import { reconcileServerActivities } from './reconcileServerActivities'
+import {
+  enqueueIntents,
+  markQueueItemFailed,
+  nextItemToAttempt,
+  pendingActivityIds,
+  pendingDeleteActivityIds,
+  removeQueueItem,
+  describeSyncError,
+  type SyncQueue,
+} from './syncQueue'
+import { loadSyncQueue, saveSyncQueue } from './syncQueueStorage'
+import {
+  dateFromLocalDateISO,
+  isSameLocalDay,
+  localDateISO,
+  localDayRange,
+  shouldRolloverViewedDate,
+} from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 import type { ScheduledActivity } from '@/domain/types'
+
+/** How often the queue is woken to check for backed-off items becoming due again — see `drainQueue` below. */
+const SYNC_RETRY_INTERVAL_MS = 15_000
 
 interface BoardContextValue {
   state: BoardState
@@ -43,6 +64,16 @@ interface BoardContextValue {
   isViewingToday: boolean
   /** Switch the whole board (timeline + editor) to a different day's schedule. */
   setViewedDate: (date: Date) => void
+  /**
+   * The durable background-sync retry queue (Bug B/C) — every write that
+   * hasn't yet been CONFIRMED to have reached the server, whether it's
+   * merely waiting its turn or has already failed at least once. Empty means
+   * fully synced. See `state/syncQueue.ts` for the shape and
+   * `SyncStatusPill`/`ActivitySummary` for how it's surfaced.
+   */
+  syncQueue: SyncQueue
+  /** Wakes the queue immediately instead of waiting for the next backoff/interval tick — the sync indicator's "Retry now" action. */
+  retrySyncNow: () => void
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -125,10 +156,86 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   const lastActionRef = useRef<BoardAction | null>(null)
   const prevStateRef = useRef(state)
 
+  // Always the LATEST rendered state, read by async callbacks (the server
+  // reconciliation effect below) that must merge against whatever the user
+  // has done most recently, not a stale closure from whenever the fetch
+  // began. Assigning during render (not inside an effect) is deliberate — an
+  // effect-based assignment would still lag one render behind the async
+  // callback's own read.
+  const latestStateRef = useRef(state)
+  latestStateRef.current = state
+
   const trackedDispatch: Dispatch<BoardAction> = (action) => {
     lastActionRef.current = action
     dispatch(action)
   }
+
+  // Bug B/C (write-failure-visibility incident) — the durable retry queue.
+  // `queue` drives the UI (the sync indicator, `ActivitySummary`'s
+  // per-activity badge); `queueRef` is the single source of truth `drainQueue`
+  // reads/mutates synchronously so a tight retry loop never has to wait for a
+  // render to see its own previous iteration's result. `updateQueue` is the
+  // ONLY thing allowed to write either — every mutation goes through it, so
+  // the two never drift and every mutation is persisted (`saveSyncQueue`)
+  // before anything else observes it.
+  const [queue, setQueue] = useState<SyncQueue>(() => (isTest ? [] : loadSyncQueue()))
+  const queueRef = useRef(queue)
+
+  function updateQueue(updater: (current: SyncQueue) => SyncQueue): void {
+    setQueue((current) => {
+      const next = updater(current)
+      queueRef.current = next
+      if (!isTest) saveSyncQueue(next)
+      return next
+    })
+  }
+
+  // Drains every currently-DUE item, one at a time (never in parallel — see
+  // `nextItemToAttempt`'s own doc comment for why one-at-a-time is enough
+  // here), stopping once nothing is left to attempt right now. `processingRef`
+  // makes concurrent calls (mount + interval + online event all firing close
+  // together, or a retry click while an interval tick is already mid-drain)
+  // a no-op rather than double-sending the same write.
+  const processingRef = useRef(false)
+  async function drainQueue(): Promise<void> {
+    if (isTest || processingRef.current) return
+    processingRef.current = true
+    try {
+      for (;;) {
+        const item = nextItemToAttempt(queueRef.current, Date.now())
+        if (!item) return
+        try {
+          await runIntent(item.intent, dateFromLocalDateISO(item.referenceDateISO))
+          updateQueue((current) => removeQueueItem(current, item.id))
+        } catch (error) {
+          // Never thrown into the UI (rule 6) — recorded durably instead, so
+          // it survives a reload and keeps retrying with backoff until it
+          // clears (Bug C), and stays visible until it does (Bug B).
+          updateQueue((current) => markQueueItemFailed(current, item.id, describeSyncError(error), Date.now()))
+        }
+      }
+    } finally {
+      processingRef.current = false
+    }
+  }
+
+  // Wakes the queue: once on mount (a reload with pending/failed writes must
+  // retry them without waiting for the interval), on an interval (catches
+  // items whose backoff has expired with no other trigger), and the instant
+  // connectivity returns. `retrySyncNow` (exposed below) is the same
+  // function, for the indicator's explicit "Retry now" action.
+  useEffect(() => {
+    if (isTest) return
+    const wake = () => void drainQueue()
+    wake()
+    const interval = window.setInterval(wake, SYNC_RETRY_INTERVAL_MS)
+    window.addEventListener('online', wake)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('online', wake)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTest])
 
   // Local-first write + background sync (rule 6). Runs after every action
   // that actually changed state — persisting is unconditional (any change to
@@ -137,6 +244,13 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // `viewedDate` (BL-2) — never `now` — because `state.activities` describes
   // whichever day is currently being viewed, which may not be today (rule
   // 12: editing a past day is always allowed).
+  //
+  // Every intent is enqueued (never fired directly) — Bug B/C means a write
+  // is only ever considered done once the queue confirms it, not merely
+  // because this effect ran. `drainQueue()` is kicked immediately after
+  // enqueueing purely so a healthy connection still feels instant (no need to
+  // wait for the interval) — it is not what makes the write durable; the
+  // enqueue + persist above already is.
   useEffect(() => {
     const prev = prevStateRef.current
     const action = lastActionRef.current
@@ -147,32 +261,49 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     if (!isTest) saveLocalActivities(viewedDate, state.activities)
     if (!isTest && action) {
       const intents = deriveSyncIntents(action, prev, state)
-      if (intents.length > 0) runSyncIntents(intents, viewedDate)
+      if (intents.length > 0) {
+        const referenceDateISO = localDateISO(viewedDate)
+        updateQueue((current) => enqueueIntents(current, intents, referenceDateISO, Date.now(), () => crypto.randomUUID()))
+        void drainQueue()
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, viewedDate, isTest])
 
-  // Cold-load / date-switch reconciliation: replace the board with the
-  // server's authoritative view of whichever day is being viewed (rule 8 —
-  // bounded to that one day's window, never the full history). `BoardProvider`
-  // only ever mounts once the app-level auth gate (`App.tsx`) has already
-  // resolved to a real signed-in session (or Supabase isn't configured at
-  // all, in which case `apiListScheduledActivities` itself is a no-op) — so
-  // there is no sign-in step to do here any more. A failure at any step
-  // simply leaves the locally seeded/cached board in place; the app already
-  // works from that alone. Re-runs on every `viewedDate` change (BL-2), not
-  // just at mount, so navigating the date picker reconciles the newly viewed
-  // day the exact same way the initial "today" load always has — and this
-  // never depends on the backend being connected (`server` is `null` when
-  // Supabase isn't configured, so local-only mode keeps working unchanged).
+  // Cold-load / date-switch reconciliation: MERGE the server's view of
+  // whichever day is being viewed into the local one (rule 8 — bounded to
+  // that one day's window, never the full history). `BoardProvider` only ever
+  // mounts once the app-level auth gate (`App.tsx`) has already resolved to a
+  // real signed-in session (or Supabase isn't configured at all, in which
+  // case `apiListScheduledActivities` itself is a no-op) — so there is no
+  // sign-in step to do here any more. A failure at any step simply leaves the
+  // locally seeded/cached board in place; the app already works from that
+  // alone. Re-runs on every `viewedDate` change (BL-2), not just at mount, so
+  // navigating the date picker reconciles the newly viewed day the exact same
+  // way the initial "today" load always has — and this never depends on the
+  // backend being connected (`server` is `null` when Supabase isn't
+  // configured, so local-only mode keeps working unchanged).
+  //
+  // Bug A fix: this used to `hydrate` with the server's response verbatim,
+  // wholesale-replacing `state.activities` — a legitimately empty response
+  // and "my own unsynced write never reached the server" were indistinguishable,
+  // so the latter silently erased local data. `reconcileServerActivities`
+  // is what tells them apart, using the durable retry queue as the record of
+  // which activities are still unconfirmed — see its own doc comment.
   useEffect(() => {
     if (isTest) return
     let cancelled = false
     ;(async () => {
       const { start, end } = localDayRange(viewedDate)
       const server = await apiListScheduledActivities(start, end)
-      if (!cancelled && server !== null) {
-        dispatch({ type: 'hydrate', activities: server })
-      }
+      if (cancelled || server === null) return
+      const merged = reconcileServerActivities(
+        latestStateRef.current.activities,
+        server,
+        pendingActivityIds(queueRef.current),
+        pendingDeleteActivityIds(queueRef.current),
+      )
+      dispatch({ type: 'hydrate', activities: merged })
     })()
     return () => {
       cancelled = true
@@ -237,9 +368,11 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       viewedDate,
       isViewingToday,
       setViewedDate,
+      syncQueue: queue,
+      retrySyncNow: () => void drainQueue(),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state, now, nowSlot, viewedDate, isViewingToday],
+    [state, now, nowSlot, viewedDate, isViewingToday, queue],
   )
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>

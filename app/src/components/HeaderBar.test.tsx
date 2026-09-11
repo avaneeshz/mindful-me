@@ -14,6 +14,8 @@ function render(): string {
       onSignOut={() => {}}
       activities={[]}
       onQuickLog={() => {}}
+      syncQueue={[]}
+      onRetrySyncNow={() => {}}
     />,
   )
 }

@@ -45,6 +45,19 @@ export function localDateISO(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Inverse of `localDateISO` — a local midnight `Date` for that calendar day
+ * string. Used to reconstruct the `reference` day a durably-queued sync
+ * intent (`state/syncQueue.ts`) was originally created against, potentially
+ * long after the tab that queued it reloaded — deliberately NOT
+ * `new Date(iso)`, which the spec parses as UTC midnight and would shift the
+ * day backward by one in any timezone ahead of UTC.
+ */
+export function dateFromLocalDateISO(iso: string): Date {
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 /** Minutes since local midnight for a real Date already known to fall on `reference`'s day. */
 export function localMinutesOf(date: Date): number {
   return date.getHours() * 60 + date.getMinutes()

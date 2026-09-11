@@ -113,38 +113,31 @@ export function deriveSyncIntents(
 }
 
 /**
- * Fires each intent's matching API call, best-effort. A failure is logged,
- * never thrown into the UI — the local write already happened (rule 6), and
- * full offline-queue retry hardening is Phase 5, deliberately out of scope
- * here. The next successful sync of the SAME activity (any later edit, or a
- * fresh page load's reconciliation) naturally catches it back up.
+ * Fires ONE intent's matching API call. Local state has already committed
+ * (rule 6) by the time this ever runs — this only decides whether the
+ * background sync succeeded. Throws on failure rather than swallowing it:
+ * `BoardContext`'s durable queue (`state/syncQueue.ts`) is what durably
+ * records a failure and retries it later (Bug C) and surfaces it in the UI
+ * until it clears (Bug B) — this function stays a thin, throwing wrapper so
+ * that logic lives in exactly one place.
  */
-export function runSyncIntents(intents: SyncIntent[], reference: Date): void {
-  for (const intent of intents) {
-    const task = (async () => {
-      switch (intent.kind) {
-        case 'create':
-          return apiCreateScheduledActivity(intent.activity, reference)
-        case 'reschedule':
-          return apiRescheduleScheduledActivity(intent.activity, reference)
-        case 'flags':
-          return apiSetScheduledActivityFlags(intent.activity.id, intent.activity.flags)
-        case 'status':
-          return apiSetScheduledActivityStatus(intent.activity.id, intent.activity.status)
-        case 'delete':
-          return apiSoftDeleteScheduledActivity(intent.id)
-        case 'restore':
-          return apiRestoreScheduledActivity(intent.id)
-        case 'addReflection':
-          return apiAddScheduledActivityReflection(intent.scheduledActivityId, intent.card, intent.note)
-        case 'removeReflection':
-          return apiRemoveScheduledActivityReflection(intent.scheduledActivityId, intent.card)
-      }
-    })()
-
-    task.catch((error: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn(`[sync] ${intent.kind} failed — local state is still correct, will retry on next sync`, error)
-    })
+export function runIntent(intent: SyncIntent, reference: Date): Promise<void> {
+  switch (intent.kind) {
+    case 'create':
+      return apiCreateScheduledActivity(intent.activity, reference)
+    case 'reschedule':
+      return apiRescheduleScheduledActivity(intent.activity, reference)
+    case 'flags':
+      return apiSetScheduledActivityFlags(intent.activity.id, intent.activity.flags)
+    case 'status':
+      return apiSetScheduledActivityStatus(intent.activity.id, intent.activity.status)
+    case 'delete':
+      return apiSoftDeleteScheduledActivity(intent.id)
+    case 'restore':
+      return apiRestoreScheduledActivity(intent.id)
+    case 'addReflection':
+      return apiAddScheduledActivityReflection(intent.scheduledActivityId, intent.card, intent.note)
+    case 'removeReflection':
+      return apiRemoveScheduledActivityReflection(intent.scheduledActivityId, intent.card)
   }
 }

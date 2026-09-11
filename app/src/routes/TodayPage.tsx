@@ -9,7 +9,8 @@ import { useAuth } from '@/state/AuthContext'
 import { useBoard } from '@/state/BoardContext'
 
 export function TodayPage() {
-  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate } = useBoard()
+  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate, syncQueue, retrySyncNow } =
+    useBoard()
   const { user, signOut } = useAuth()
 
   // Which activity + reflection card the note-entry popup is currently open
@@ -55,6 +56,8 @@ export function TodayPage() {
         onQuickLog={(cardName, startMinutes, durationMinutes) =>
           dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
         }
+        syncQueue={syncQueue}
+        onRetrySyncNow={retrySyncNow}
       />
 
       <div className="mt-xl ipad-land:mt-md">
@@ -89,6 +92,7 @@ export function TodayPage() {
           nowSlot={isViewingToday ? nowSlot : -1}
           viewedDate={viewedDate}
           onOpenReflectionNote={openMapping}
+          syncQueue={syncQueue}
         />
       </div>
 

@@ -11,6 +11,7 @@ import {
 import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { useDismissedActivities } from '@/state/dismissedActivities'
+import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
 import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
@@ -39,6 +40,8 @@ interface SlotEditorProps {
    * re-trigger its load effect continuously.
    */
   viewedDate: Date
+  /** Bug B — drives the selected activity's "not yet synced" / "sync failed" badge; see `ActivitySummary`. */
+  syncQueue: SyncQueue
 }
 
 /**
@@ -57,7 +60,7 @@ interface SlotEditorProps {
  * commits instantly. There is no batch save. "Cancel" clears the
  * staged-but-not-yet-saved pick only.
  */
-export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflectionNote }: SlotEditorProps) {
+export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflectionNote, syncQueue }: SlotEditorProps) {
   const { activities, selectedSlot, staging, removal } = state
   // "Activity mode": an activity was selected on the timeline (or by clicking
   // a fully-covered slot). Its summary REPLACES the whole slot body below —
@@ -123,6 +126,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
           }}
           onClose={() => dispatch({ type: 'selectScheduledActivity', id: null })}
           onOpenNote={onOpenReflectionNote}
+          syncState={activitySyncState(syncQueue, selectedActivity.id)}
         />
       ) : (
         <>

@@ -5,10 +5,12 @@ import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { WeatherPill } from '@/components/WeatherPill'
+import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { NOTE_BUTTONS } from '@/domain/notes'
 import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
 import type { ActivityList } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
+import type { SyncQueue } from '@/state/syncQueue'
 import { cn } from '@/lib/utils'
 
 /**
@@ -48,9 +50,23 @@ export interface HeaderBarProps {
   activities: ActivityList
   /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. */
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
+  /** Bug B/C — the durable background-sync retry queue; see `SyncStatusPill`. */
+  syncQueue: SyncQueue
+  /** Wakes the sync queue immediately — the indicator's "Retry now" action. */
+  onRetrySyncNow: () => void
 }
 
-export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut, activities, onQuickLog }: HeaderBarProps) {
+export function HeaderBar({
+  now,
+  viewedDate,
+  onSelectDate,
+  user,
+  onSignOut,
+  activities,
+  onQuickLog,
+  syncQueue,
+  onRetrySyncNow,
+}: HeaderBarProps) {
   return (
     <header className="flex flex-col gap-md">
       {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed
@@ -73,6 +89,8 @@ export function HeaderBar({ now, viewedDate, onSelectDate, user, onSignOut, acti
             control).
           */}
           <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
+
+          <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
 
           <WeatherPill className="mobile:hidden" />
 
