@@ -4,6 +4,7 @@ import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
+import { DownloadDayButton } from '@/components/DownloadDayButton'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { NOTE_BUTTONS } from '@/domain/notes'
@@ -46,7 +47,11 @@ export interface HeaderBarProps {
   /** The signed-in user, or `null` in local-only mode (no backend configured). */
   user: AuthUser | null
   onSignOut: () => void
-  /** Today's board — read by the Vipassana display button for its computed total and to validate a new entry. */
+  /**
+   * The viewed day's board — read by the Vipassana display button for its
+   * computed total and to validate a new entry, and by `DownloadDayButton`
+   * as the activity source for that day's PDF export.
+   */
   activities: ActivityList
   /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. */
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
@@ -89,6 +94,8 @@ export function HeaderBar({
             control).
           */}
           <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
+
+          <DownloadDayButton viewedDate={viewedDate} activities={activities} />
 
           <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
 

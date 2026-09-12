@@ -56,3 +56,11 @@ describe('HeaderBar display buttons', () => {
     expect(html).toContain('>Steps<')
   })
 })
+
+describe('HeaderBar download control', () => {
+  it('renders a real, focusable, labeled button in row 1', () => {
+    const html = render()
+    // The aria-label's apostrophe is HTML-escaped (`&#x27;`) by SSR.
+    expect(html).toMatch(/<button[^>]*aria-label="Download this day&#x27;s data as a PDF"/)
+  })
+})
