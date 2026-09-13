@@ -148,4 +148,32 @@ describe('assembleDayExport', () => {
     })
     expect(result.displayValues).toEqual([])
   })
+
+  it('includes Protein (a synced day value, same local-first cache as Steps) formatted against its daily target', () => {
+    const result = assembleDayExport({
+      viewedDate,
+      activities: [],
+      noteEntries: [],
+      localDisplayValues: { steps: 4200, protein: 45 },
+      reflectionCardTitle,
+    })
+
+    expect(result.displayValues).toEqual(
+      expect.arrayContaining([
+        { label: 'Steps', valueLabel: '4.2k' },
+        { label: 'Protein', valueLabel: '45/80' },
+      ]),
+    )
+  })
+
+  it('omits Protein when it was never set for the day, same as Steps ("if set")', () => {
+    const result = assembleDayExport({
+      viewedDate,
+      activities: [],
+      noteEntries: [],
+      localDisplayValues: { steps: null, protein: null },
+      reflectionCardTitle,
+    })
+    expect(result.displayValues).toEqual([])
+  })
 })

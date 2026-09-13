@@ -103,7 +103,14 @@ export function DownloadDayButton({
         viewedDate,
         activities,
         noteEntries,
-        localDisplayValues: { steps: loadDisplayValue('steps', dateKey) },
+        localDisplayValues: {
+          steps: loadDisplayValue('steps', dateKey),
+          // Protein is `synced: true` exactly like Steps — `useDailyValue`'s
+          // `setValue` writes through `saveDisplayValue` into this SAME local
+          // store (see `lib/displayValuesLocalStore.ts`), so this is the same
+          // instant, always-correct-on-this-device read Steps already uses.
+          protein: loadDisplayValue('protein', dateKey),
+        },
         reflectionCardTitle,
       })
 
