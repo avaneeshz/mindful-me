@@ -18,6 +18,7 @@ import {
   displayButtonUnit,
   formatDisplayValue,
   parseDisplayValue,
+  songCountToMinutes,
   type DisplayButtonKey,
 } from '@/domain/displayButtons'
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration } from '@/domain/quickLog'
@@ -135,6 +136,7 @@ export function DisplayValueButton({
   const [draft, setDraft] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [songCount, setSongCount] = useState('')
   const [type, setType] = useState('')
   const [note, setNote] = useState('')
   const [sleepQuality, setSleepQuality] = useState<SleepQualityId[]>([])
@@ -164,8 +166,19 @@ export function DisplayValueButton({
   const label = labelFor(buttonKey)
   const unit = displayButtonUnit(buttonKey)
   const mode = displayButtonInput(buttonKey)
-  const durationDraft = mode === 'duration' ? durationBetween(start, end) : null
-  const canSave = mode === 'duration' ? canSubmitQuickLog(start, end) : true
+  const parsedSongCount = parseDisplayValue(songCount)
+  const songCountDuration = songCountToMinutes(parsedSongCount)
+  const durationDraft =
+    mode === 'duration' ? durationBetween(start, end) : mode === 'songCount' ? songCountDuration : null
+  // `canSubmitQuickLog` is duration-mode-specific (it takes two clock times),
+  // so `'songCount'` gets its own equivalent: a valid Start time and a
+  // positive whole number of songs.
+  const canSave =
+    mode === 'duration'
+      ? canSubmitQuickLog(start, end)
+      : mode === 'songCount'
+        ? clockToMinutes(start) !== null && songCountDuration !== null
+        : true
 
   // The computed total (quick-log) is derived on every render from the board
   // itself — no separate load effect needed, unlike the local-counter path.
@@ -222,6 +235,7 @@ export function DisplayValueButton({
     setDraft(localValue === null ? '' : String(localValue))
     setStart('')
     setEnd('')
+    setSongCount('')
     setType('')
     setNote('')
     setSleepQuality([])
@@ -251,7 +265,7 @@ export function DisplayValueButton({
     event.preventDefault()
 
     if (quickLogName) {
-      const durationMinutes = durationBetween(start, end)
+      const durationMinutes = mode === 'songCount' ? songCountDuration : durationBetween(start, end)
       const startMinutes = clockToMinutes(start)
       if (durationMinutes === null || startMinutes === null || !canSave) return
 
@@ -282,6 +296,7 @@ export function DisplayValueButton({
       })
       setStart('')
       setEnd('')
+      setSongCount('')
       setType('')
       setNote('')
       setSleepQuality([])
@@ -336,7 +351,7 @@ export function DisplayValueButton({
           )}
         >
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
-            {mode === 'duration' ? (
+            {mode === 'duration' || mode === 'songCount' ? (
               <>
                 <div>
                   <label htmlFor={inputId} className="mb-xs block text-caption font-semibold text-ink-dim">
@@ -344,10 +359,29 @@ export function DisplayValueButton({
                   </label>
                   <TimeField id={inputId} inputRef={inputRef} value={start} onChange={setStart} ariaLabel="Start time" />
                 </div>
-                <div>
-                  <label className="mb-xs block text-caption font-semibold text-ink-dim">End</label>
-                  <TimeField value={end} onChange={setEnd} ariaLabel="End time" />
-                </div>
+
+                {mode === 'duration' ? (
+                  <div>
+                    <label className="mb-xs block text-caption font-semibold text-ink-dim">End</label>
+                    <TimeField value={end} onChange={setEnd} ariaLabel="End time" />
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor={`${inputId}-song-count`} className="mb-xs block text-caption font-semibold text-ink-dim">
+                      Number of songs
+                    </label>
+                    <input
+                      id={`${inputId}-song-count`}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={songCount}
+                      onChange={(event) => setSongCount(event.target.value)}
+                      placeholder="0"
+                      className={fieldClass}
+                    />
+                  </div>
+                )}
+
                 <p className="text-caption text-ink-dim">
                   {durationDraft && durationDraft > 0 ? formatDuration(durationDraft) : 'Duration'}
                 </p>

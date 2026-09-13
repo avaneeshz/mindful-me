@@ -10,10 +10,10 @@ describe('NoteButtonPill', () => {
   })
 
   it('names itself for assistive tech and starts closed', () => {
-    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="prayer" label="Prayer" />)
+    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="scriptures" label="Scriptures" />)
     expect(html).toContain('aria-haspopup="dialog"')
     expect(html).toContain('aria-expanded="false"')
-    expect(html).toContain('aria-label="Prayer notes"')
+    expect(html).toContain('aria-label="Scriptures notes"')
     // The popover (textarea, Store button, history) isn't in the tree at all while closed.
     expect(html).not.toContain('role="dialog"')
     expect(html).not.toContain('<textarea')
@@ -25,7 +25,7 @@ describe('NoteButtonPill', () => {
   })
 
   it('leaks no history edit/remove controls while closed', () => {
-    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="prayer" label="Prayer" />)
+    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="scriptures" label="Scriptures" />)
     expect(html).not.toContain('role="region"')
     expect(html).not.toContain('>History<')
     expect(html).not.toContain('>Edit<')
@@ -43,10 +43,7 @@ describe('NoteButtonPill', () => {
       ['gifts', 'Extra Senses'],
       ['learnings', 'Learnings'],
       ['mirror', 'People'],
-      ['prayer', 'Prayer'],
       ['scriptures', 'Scriptures'],
-      ['summons', 'Summons'],
-      ['worship', 'Worship'],
     ] as const) {
       const html = renderToStaticMarkup(<NoteButtonPill buttonKey={key} label={label} />)
       expect(html).toContain(label)

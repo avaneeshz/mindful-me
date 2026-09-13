@@ -4,18 +4,26 @@
  *
  * `input` is HOW the value is entered: `'number'` types the number straight
  * in; `'duration'` enters a start and end clock time (like the Sun / Moon
- * exposure log) and stores the minutes between them. The stored value and its
- * face format are the same either way — a `'min'` count.
+ * exposure log) and stores the minutes between them; `'songCount'`
+ * (Worship only) enters a start time plus a number of songs and computes the
+ * duration as `count × WORSHIP_MINUTES_PER_SONG` — see that constant below.
+ * The stored value and its face format are the same regardless of entry
+ * mode — a `'min'` count.
  *
  * `quickLogName`, when set, means this button is `entry_mode: 'quick_log'`
  * in `public.activities` (see the full-stack-engineer agent definition's
  * Phase 2 scope) — its face value is a COMPUTED sum of today's real
  * `ScheduledActivity` rows for this catalog name, and Save creates a new one
  * of those (via the shared scheduling module) rather than writing to
- * `lib/displayValuesLocalStore.ts`. Four buttons are quick-log today:
+ * `lib/displayValuesLocalStore.ts`. Seven buttons are quick-log today:
  * Vipassana, Exercise (`'Sports or Exercise'` — an EXISTING catalog card,
  * reused, never a parallel identity), Breathing (`'Breathwork'`, same
- * reasoning) and Sleep (a genuinely new card — see `data/activities.ts`).
+ * reasoning), Sleep, Prayer, Sermons and Worship (all three genuinely new
+ * cards — see `data/activities.ts`). Prayer/Sermons/Worship replace what
+ * used to be pure freeform-note header pills (`domain/notes.ts`'s
+ * `NOTE_BUTTONS`) — a note alone never blocked real time on the Timeline,
+ * so a confirmed product round moved all three onto the same real-scheduling
+ * mechanism every other quick-log button already uses.
  *
  * A quick-log button may additionally carry:
  *   - `quickLogType` — a single-select "type" field, options drawn straight
@@ -95,6 +103,29 @@ export const DISPLAY_BUTTONS = [
     quickLogSleepQuality: true,
     quickLogDreamsNote: true,
   },
+  {
+    key: 'prayer',
+    label: 'Prayer',
+    unit: 'min',
+    input: 'duration',
+    quickLogName: 'Prayer',
+    quickLogType: true,
+    quickLogTypeLabel: 'Type',
+    quickLogNote: true,
+  },
+  {
+    key: 'sermons',
+    label: 'Sermons',
+    unit: 'min',
+    input: 'duration',
+    quickLogName: 'Sermons',
+    quickLogNote: true,
+  },
+  // Worship's entry mode is genuinely different from every other quick-log
+  // button — a Start time plus a NUMBER OF SONGS, not a Start/End pair (see
+  // `'songCount'` and `WORSHIP_MINUTES_PER_SONG` below). No `quickLogType` —
+  // the `Worship` catalog card carries no `sub` list to draw options from.
+  { key: 'worship', label: 'Worship', unit: 'min', input: 'songCount', quickLogName: 'Worship', quickLogNote: true },
   { key: 'protein', label: 'Protein', unit: 'target', input: 'number', target: 80, synced: true },
 ] as const
 
@@ -160,6 +191,20 @@ export function displayButtonSynced(key: DisplayButtonKey): boolean {
 export function displayButtonTarget(key: DisplayButtonKey): number | null {
   const button = findButton(key)
   return button && 'target' in button ? button.target : null
+}
+
+/**
+ * Worship's `'songCount'` entry mode computes duration as `count ×
+ * WORSHIP_MINUTES_PER_SONG` instead of taking a typed End time — a
+ * deliberate, confirmed product number (3 minutes/song), not user-configurable
+ * and not to be revisited without a new product decision.
+ */
+export const WORSHIP_MINUTES_PER_SONG = 3
+
+/** A song count → the duration it logs, per `WORSHIP_MINUTES_PER_SONG`. `null` for anything that isn't a positive whole number of songs. */
+export function songCountToMinutes(count: number | null): number | null {
+  if (count === null || !Number.isInteger(count) || count <= 0) return null
+  return count * WORSHIP_MINUTES_PER_SONG
 }
 
 /** `75` minutes → `"1h 15m"`, `40` → `"40m"`, `120` → `"2h"`. */

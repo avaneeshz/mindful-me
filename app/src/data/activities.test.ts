@@ -6,7 +6,11 @@ import { ACTIVITY_CARDS, CATEGORIES, CATEGORY_ORDER, cardsForCategory, findCard,
  * grew from 5 to 6 when the Sleep quick-log button's own catalog card
  * ('Sleep') was added (see the full-stack-engineer agent definition's
  * Quick-log/Supplements/Protein work) — a genuinely new card, not a
- * reclassification of an existing one.
+ * reclassification of an existing one. `nature` grew from 7 to 10 when
+ * Prayer, Sermons and Worship were promoted from pure freeform-note header
+ * pills to real quick-log catalog cards (same round that renamed Sleep's
+ * "Night sleep" sub-type to "Main sleep") — three more genuinely new cards,
+ * not a reclassification of `Spiritual Care` or anything else already here.
  */
 const EXPECTED_TILE_COUNTS: Record<string, number> = {
   sleep: 6,
@@ -15,16 +19,16 @@ const EXPECTED_TILE_COUNTS: Record<string, number> = {
   downtime: 5,
   movement: 7,
   work: 5,
-  nature: 7,
+  nature: 10,
   growth: 7,
   home: 5,
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/
 
-describe('the 54-item catalog', () => {
-  it('has exactly 54 items total (6+7+5+5+7+5+7+7+5)', () => {
-    expect(ACTIVITY_CARDS).toHaveLength(54)
+describe('the 57-item catalog', () => {
+  it('has exactly 57 items total (6+7+5+5+7+5+10+7+5)', () => {
+    expect(ACTIVITY_CARDS).toHaveLength(57)
   })
 
   it('has exactly 9 tiles, in the documented on-screen order', () => {
@@ -37,7 +41,7 @@ describe('the 54-item catalog', () => {
       expect(cardsForCategory(categoryId), categoryId).toHaveLength(EXPECTED_TILE_COUNTS[categoryId])
     }
     const total = CATEGORY_ORDER.reduce((sum, id) => sum + cardsForCategory(id).length, 0)
-    expect(total).toBe(54)
+    expect(total).toBe(57)
   })
 
   it('has no duplicate item names', () => {
@@ -99,6 +103,45 @@ describe('the 54-item catalog', () => {
   it('Breathwork carries its 9 breath-type sub-options verbatim, in spec order', () => {
     const card = findCard('Breathwork')
     expect(card?.sub).toEqual(['Anulom Vilnulom', 'Sigh', 'Yawn', 'Slow', 'Deep', 'Hold', 'Pranayama', 'Omkaram', 'Brahmari'])
+  })
+
+  it('the Sleep quick-log card’s "Night sleep" sub-type is renamed to "Main sleep"', () => {
+    const card = findCard('Sleep')
+    expect(card?.sub).toEqual(['Main sleep', 'Nap', 'Power Nap'])
+  })
+
+  it('the unrelated, differently-capitalized "Night Sleep" top-level tile card is untouched by that rename', () => {
+    const card = findCard('Night Sleep')
+    expect(card).toBeDefined()
+    expect(card?.categoryId).toBe('sleep')
+    expect(card?.sub).toBeUndefined()
+  })
+
+  it('Prayer, Sermons and Worship are real, genuinely new nature-tile catalog cards (promoted from pure note-pill keys)', () => {
+    const prayer = findCard('Prayer')
+    const sermons = findCard('Sermons')
+    const worship = findCard('Worship')
+    expect(prayer?.categoryId).toBe('nature')
+    expect(sermons?.categoryId).toBe('nature')
+    expect(worship?.categoryId).toBe('nature')
+  })
+
+  it('Prayer carries the old note button’s 7-value type vocabulary verbatim, in the same order', () => {
+    const card = findCard('Prayer')
+    expect(card?.sub).toEqual([
+      'Adoration',
+      'Thanksgiving',
+      'Repentance',
+      'Seeking forgiveness',
+      'Petition/Supplication',
+      'Intercession',
+      'Contemplation',
+    ])
+  })
+
+  it('Sermons and Worship carry no sub list — neither has a type vocabulary', () => {
+    expect(findCard('Sermons')?.sub).toBeUndefined()
+    expect(findCard('Worship')?.sub).toBeUndefined()
   })
 })
 
