@@ -167,19 +167,24 @@ export function describeSyncError(error: unknown): string {
  * reasoning `isStagingComplete`/`stagingOptions` in `boardReducer.ts` are kept
  * pure and separate from the components that read them).
  *
- * `hidden` is deliberate, not an oversight: a fully-synced board must render
- * NOTHING here — a permanent "Synced ✓" badge would be exactly the "anxious
- * status widget" this is trying to avoid. The pill earns its place on screen
- * only once there is something true and useful to say, and then it STAYS
- * (never a toast that auto-dismisses) until that stops being true.
+ * `synced` used to be `hidden` — the original design rendered nothing at all
+ * once the queue drained, on the theory that a permanent "Synced ✓" badge
+ * would be an anxious status widget nobody needed. The product owner
+ * overrode that deliberately: they want to be able to glance at the header
+ * and always know sync state, including the calm case, not just when
+ * something needs attention. So `synced` is a real, always-rendered state
+ * now, not an absence — `SyncStatusPill` never returns `null`. It stays the
+ * quiet one of the three (no animation, minimal chrome) so it reads as
+ * "nothing to worry about" rather than competing with `pending`/`failed` for
+ * attention.
  */
 export type SyncIndicatorState =
-  | { kind: 'hidden' }
+  | { kind: 'synced' }
   | { kind: 'pending'; count: number }
   | { kind: 'failed'; count: number }
 
 export function describeSyncIndicator(queue: SyncQueue): SyncIndicatorState {
-  if (queue.length === 0) return { kind: 'hidden' }
+  if (queue.length === 0) return { kind: 'synced' }
   const failedCount = queue.filter((item) => item.status === 'failed').length
   if (failedCount > 0) return { kind: 'failed', count: failedCount }
   return { kind: 'pending', count: queue.length }

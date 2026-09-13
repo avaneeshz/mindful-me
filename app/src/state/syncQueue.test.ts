@@ -214,8 +214,8 @@ describe('activitySyncState', () => {
 })
 
 describe('describeSyncIndicator', () => {
-  it('is hidden when the queue is empty — a fully-synced board shows nothing', () => {
-    expect(describeSyncIndicator([])).toEqual({ kind: 'hidden' })
+  it('is synced when the queue is empty — a fully-synced board still reports a real, calm state', () => {
+    expect(describeSyncIndicator([])).toEqual({ kind: 'synced' })
   })
 
   it('is pending, with a count, while nothing has failed yet', () => {
@@ -231,11 +231,11 @@ describe('describeSyncIndicator', () => {
     expect(describeSyncIndicator(queue)).toEqual({ kind: 'failed', count: 1 })
   })
 
-  it('clears back to hidden once the last outstanding item resolves', () => {
+  it('clears back to synced once the last outstanding item resolves', () => {
     let queue = enqueueIntents([], [{ kind: 'create', activity: activity('a1') }], '2026-09-12', NOW, makeId)
     queue = markQueueItemFailed(queue, queue[0].id, 'boom', NOW)
     queue = removeQueueItem(queue, queue[0].id)
-    expect(describeSyncIndicator(queue)).toEqual({ kind: 'hidden' })
+    expect(describeSyncIndicator(queue)).toEqual({ kind: 'synced' })
   })
 })
 

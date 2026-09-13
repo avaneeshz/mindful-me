@@ -1,4 +1,4 @@
-import { AlertTriangle, CloudUpload } from 'lucide-react'
+import { CloudAlert, CloudCheck, CloudUpload } from 'lucide-react'
 import { Chip } from '@/components/ui/chip'
 import { describeSyncIndicator, type SyncQueue } from '@/state/syncQueue'
 import { cn } from '@/lib/utils'
@@ -8,12 +8,18 @@ import { cn } from '@/lib/utils'
  * mute-and-invisible: a failed write logged a `console.warn` and nothing on
  * screen ever said so. This is the persistent, visible signal the product
  * owner mandated — "not a toast that disappears, something that stays until
- * it resolves." It renders NOTHING while every write is either synced or has
- * never needed to leave the device unconfirmed for long enough to matter
- * (see `describeSyncIndicator`'s own doc comment for why "hidden" is
- * deliberate, not a missing state) — it only earns a place in the header once
- * there's something true and useful to say, and then it stays exactly as
- * long as that stays true, never on a timer.
+ * it resolves."
+ *
+ * It used to render NOTHING while the queue was empty (see the git history —
+ * or `describeSyncIndicator`'s doc comment — for that original reasoning).
+ * The product owner has since overridden that: they want an always-visible
+ * icon near the account control so sync state is a glance away at all times,
+ * including the calm "everything's saved" case, not only when something
+ * needs attention. So this now always renders one of three states —
+ * synced / syncing / failed — never `null`. The calm state stays visually
+ * quiet (a static icon, no animation, no loud label) so the always-on
+ * indicator still reads as "restrained," per CLAUDE.md, rather than turning
+ * into an anxious status widget shouting "OK!" at every glance.
  *
  * Deliberately visible at every width, unlike `WeatherPill` (`mobile:hidden`
  * there is fine — losing sight of the temperature costs nothing; losing sight
@@ -31,7 +37,14 @@ export function SyncStatusPill({
 }) {
   const indicator = describeSyncIndicator(queue)
 
-  if (indicator.kind === 'hidden') return null
+  if (indicator.kind === 'synced') {
+    return (
+      <Chip size="sm" className={className} role="status" aria-live="polite" title="Synced">
+        <CloudCheck aria-hidden="true" className="size-[14px] text-ink-dim" />
+        <span className="sr-only">All changes synced</span>
+      </Chip>
+    )
+  }
 
   const isFailed = indicator.kind === 'failed'
   const label =
@@ -51,9 +64,9 @@ export function SyncStatusPill({
       aria-live="polite"
     >
       {isFailed ? (
-        <AlertTriangle aria-hidden="true" className="size-[14px] text-ink-dim" />
+        <CloudAlert aria-hidden="true" className="size-[14px] text-ink-dim" />
       ) : (
-        <CloudUpload aria-hidden="true" className="size-[14px] text-ink-dim" />
+        <CloudUpload aria-hidden="true" className="size-[14px] animate-pulse text-ink-dim" />
       )}
       <span>{label}</span>
       {isFailed && (

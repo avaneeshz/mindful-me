@@ -33,6 +33,7 @@ import {
   Lightbulb,
   Magnet,
   Moon,
+  MonitorPlay,
   PenLine,
   Pill,
   Repeat,
@@ -61,7 +62,6 @@ import {
   Video,
   Waves,
   Wind,
-  Youtube,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -281,7 +281,10 @@ export const ACTIVITY_CARDS: ActivityCard[] = [
   { name: 'Body Care (outsourced)', categoryId: 'care', icon: HandHeart, color: '#D9A987', onColor: 'text-charcoal', disappear: { mode: 'manual' } },
 
   // --- Tile 4: Downtime & Errands ---------------------------------------
-  { name: 'Entertainment (YouTube)', categoryId: 'downtime', icon: Youtube, color: '#E12E3C', onColor: 'text-white', disappear: { mode: 'manual' } },
+  // `Youtube` (the brand glyph) doesn't exist in lucide-react 1.x — brand/logo
+  // icons were dropped from the core set. `MonitorPlay` (a screen with a play
+  // control) is the closest generic equivalent for "watching video content."
+  { name: 'Entertainment (YouTube)', categoryId: 'downtime', icon: MonitorPlay, color: '#E12E3C', onColor: 'text-white', disappear: { mode: 'manual' } },
   {
     name: 'Commuting',
     categoryId: 'downtime',

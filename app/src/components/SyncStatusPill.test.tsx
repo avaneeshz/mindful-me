@@ -41,9 +41,19 @@ function failedQueue(count: number): SyncQueue {
 }
 
 describe('SyncStatusPill', () => {
-  it('renders nothing at all when fully synced — never a permanent "Synced" badge', () => {
+  it('renders a calm, always-visible synced state instead of nothing — product override of the original hidden-when-synced design', () => {
     const html = renderToStaticMarkup(<SyncStatusPill queue={[]} onRetryNow={noop} />)
-    expect(html).toBe('')
+    expect(html).not.toBe('')
+    expect(html).toContain('role="status"')
+    expect(html).toContain('title="Synced"')
+    expect(html).toContain('All changes synced')
+    expect(html).not.toContain('<button')
+  })
+
+  it('does not animate the synced icon — only syncing/failed states carry motion', () => {
+    const html = renderToStaticMarkup(<SyncStatusPill queue={[]} onRetryNow={noop} />)
+    expect(html).not.toContain('animate-pulse')
+    expect(html).not.toContain('animate-spin')
   })
 
   it('shows a pending state with no Retry action while nothing has failed yet', () => {
@@ -55,6 +65,11 @@ describe('SyncStatusPill', () => {
   it('uses singular wording for exactly one pending change', () => {
     const html = renderToStaticMarkup(<SyncStatusPill queue={pendingQueue(1)} onRetryNow={noop} />)
     expect(html).toContain('Saving 1 change…')
+  })
+
+  it('animates the syncing icon — purposeful motion for an in-progress write', () => {
+    const html = renderToStaticMarkup(<SyncStatusPill queue={pendingQueue(1)} onRetryNow={noop} />)
+    expect(html).toContain('animate-pulse')
   })
 
   it('shows a failed state with a real, labeled Retry action', () => {
