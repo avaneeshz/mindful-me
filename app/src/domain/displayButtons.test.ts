@@ -52,15 +52,16 @@ describe('quick-log buttons (Exercise/Breathing/Sleep)', () => {
     expect(displayButtonQuickLogName('protein')).toBeNull()
   })
 
-  it('offers a type field only for Exercise and Sleep, not Breathing or Vipassana', () => {
+  it('offers a type field for Exercise, Breathing and Sleep, not Vipassana', () => {
     expect(displayButtonQuickLogType('exercise')).toBe(true)
+    expect(displayButtonQuickLogType('breathing')).toBe(true)
     expect(displayButtonQuickLogType('sleep')).toBe(true)
-    expect(displayButtonQuickLogType('breathing')).toBe(false)
     expect(displayButtonQuickLogType('vipassana')).toBe(false)
   })
 
   it('labels the type field per button', () => {
     expect(displayButtonQuickLogTypeLabel('exercise')).toBe('Type')
+    expect(displayButtonQuickLogTypeLabel('breathing')).toBe('Type')
     expect(displayButtonQuickLogTypeLabel('sleep')).toBe('Sleep type')
   })
 

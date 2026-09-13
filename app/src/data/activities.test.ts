@@ -95,6 +95,11 @@ describe('the 54-item catalog', () => {
   it('the old "Nature connect" wrapper is fully dissolved — no card by that name', () => {
     expect(findCard('Nature connect')).toBeUndefined()
   })
+
+  it('Breathwork carries its 9 breath-type sub-options verbatim, in spec order', () => {
+    const card = findCard('Breathwork')
+    expect(card?.sub).toEqual(['Anulom Vilnulom', 'Sigh', 'Yawn', 'Slow', 'Deep', 'Hold', 'Pranayama', 'Omkaram', 'Brahmari'])
+  })
 })
 
 describe('itemFillColor', () => {

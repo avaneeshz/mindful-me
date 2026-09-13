@@ -22,8 +22,7 @@
  *     from that catalog card's own `sub` list (`data/activities.ts`) so the
  *     type vocabulary lives in exactly one place; the chosen value becomes
  *     the logged activity's `path`, identically to picking a sub-option via
- *     the tile-row drill-down. Exercise and Sleep have one; Breathing (no
- *     `sub` on 'Breathwork') does not.
+ *     the tile-row drill-down. Exercise, Breathing and Sleep all have one.
  *   - `quickLogNote` — a plain freeform note field, stored on the logged
  *     activity's existing `notes` field (rule 10 encrypted, same as every
  *     other activity's notes).
@@ -80,6 +79,8 @@ export const DISPLAY_BUTTONS = [
     unit: 'min',
     input: 'duration',
     quickLogName: 'Breathwork',
+    quickLogType: true,
+    quickLogTypeLabel: 'Type',
     quickLogNote: true,
   },
   {
