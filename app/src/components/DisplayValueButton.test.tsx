@@ -111,4 +111,69 @@ describe('DisplayValueButton', () => {
     // 6h + 45m = 6h 45m
     expect(html).toContain('6h 45m')
   })
+
+  // --- Sleep popover: Dreams/Note reorder + label removal + scroll fix ---
+  //
+  // Every test above only ever renders this popover CLOSED — `open` is
+  // internal `useState`, and this suite (like `SupplementsButton.test.tsx`)
+  // is SSR-string based with no `fireEvent.click` to actually open one.
+  // `defaultOpen` is a test-only seam added for exactly this (see its own
+  // doc comment on the component) — never passed by `HeaderBar` in the real
+  // app — so these tests can assert what the OPEN popover actually renders.
+  function renderOpenSleep() {
+    return renderToStaticMarkup(
+      <DisplayValueButton
+        buttonKey="sleep"
+        viewedDate={VIEWED_DATE}
+        activities={NO_ACTIVITIES}
+        onQuickLog={() => {}}
+        onEditActivity={() => {}}
+        defaultOpen
+      />,
+    )
+  }
+
+  it('puts Dreams before the general Note field in the Sleep popover', () => {
+    const html = renderOpenSleep()
+    const dreamsIndex = html.indexOf('placeholder="Dreams"')
+    const noteIndex = html.indexOf('placeholder="Add a note"')
+    expect(dreamsIndex).toBeGreaterThan(-1)
+    expect(noteIndex).toBeGreaterThan(-1)
+    expect(dreamsIndex).toBeLessThan(noteIndex)
+  })
+
+  it('carries no visible "Note"/"Dreams" heading — only an sr-only label, placeholder text carries the meaning (mirrors LogActivityModal’s own Notes field)', () => {
+    const html = renderOpenSleep()
+    expect(html).toMatch(/<label[^>]*class="sr-only"[^>]*>Dreams<\/label>/)
+    expect(html).toMatch(/<label[^>]*class="sr-only"[^>]*>Note<\/label>/)
+    // The OLD visible caption heading is gone for both fields.
+    expect(html).not.toMatch(/text-caption font-semibold text-ink-dim">\s*Dreams\s*</)
+    expect(html).not.toMatch(/text-caption font-semibold text-ink-dim">\s*Note\s*</)
+  })
+
+  it('constrains the popover panel’s height and scrolls internally, so History can never sit off-screen with no way back', () => {
+    const html = renderOpenSleep()
+    const panel = html.match(/<div role="dialog"[^>]*class="([^"]*)"/)?.[1] ?? ''
+    expect(panel).toContain('overflow-y-auto')
+    expect(panel).toContain('max-h-[min(560px,calc(100vh-32px))]')
+    // History is still present in the (scrollable) panel markup.
+    expect(html).toContain('>History<')
+  })
+
+  it('applies the same placeholder-only convention to the shared Note field on Exercise/Breathing — it is the same JSX branch as Sleep’s, not a Sleep-only special case', () => {
+    const html = renderToStaticMarkup(
+      <DisplayValueButton
+        buttonKey="exercise"
+        viewedDate={VIEWED_DATE}
+        activities={NO_ACTIVITIES}
+        onQuickLog={() => {}}
+        onEditActivity={() => {}}
+        defaultOpen
+      />,
+    )
+    expect(html).toContain('placeholder="Add a note"')
+    expect(html).not.toMatch(/text-caption font-semibold text-ink-dim">\s*Note\s*</)
+    // Exercise never had a Dreams field to begin with.
+    expect(html).not.toContain('placeholder="Dreams"')
+  })
 })

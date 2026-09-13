@@ -49,13 +49,21 @@ describe('SyncStatusPill', () => {
     expect(html).toContain('role="status"')
     expect(html).toContain('title="Synced"')
     expect(html).toContain('All changes synced')
-    expect(html).not.toContain('<button')
   })
 
-  it('does not animate the synced icon — only syncing/failed states carry motion', () => {
+  it('does not animate the synced icon — only the syncing state carries motion', () => {
     const html = renderToStaticMarkup(<SyncStatusPill queue={[]} onRetryNow={noop} />)
     expect(html).not.toContain('animate-pulse')
     expect(html).not.toContain('animate-spin')
+  })
+
+  it('tints the synced icon green via the shared status token, not the whole chip', () => {
+    const html = renderToStaticMarkup(<SyncStatusPill queue={[]} onRetryNow={noop} />)
+    expect(html).toContain('text-status-success')
+    // The chip's own fill/border stay the neutral, theme-agnostic tone —
+    // colour lands on the icon only (CLAUDE.md's "no colour anywhere" still
+    // governs the chrome; this is a narrow, icon-only exception).
+    expect(html).toContain('bg-surface')
   })
 
   it('shows a pending state with no Retry action while nothing has failed yet', () => {
@@ -69,17 +77,19 @@ describe('SyncStatusPill', () => {
     expect(html).toContain('Saving 1 change…')
   })
 
-  it('animates the syncing icon — purposeful motion for an in-progress write', () => {
+  it('animates and tints the syncing icon amber', () => {
     const html = renderToStaticMarkup(<SyncStatusPill queue={pendingQueue(1)} onRetryNow={noop} />)
     expect(html).toContain('animate-pulse')
+    expect(html).toContain('text-status-syncing')
   })
 
-  it('shows a failed state with a real, labeled Retry action', () => {
+  it('shows a failed state, tinted red, closed with no popover content yet', () => {
     const html = renderToStaticMarkup(<SyncStatusPill queue={failedQueue(3)} onRetryNow={noop} />)
     expect(html).toContain('Couldn&#x27;t sync 3 changes')
-    expect(html).toContain('<button')
-    expect(html).toContain('Retry now')
-    expect(html).toMatch(/aria-label="Retry syncing now[^"]*"/)
+    expect(html).toContain('text-status-error')
+    // "Retry now" now lives inside the click-to-open popover, not inline in
+    // the collapsed label — see the component's own doc comment for why.
+    expect(html).not.toContain('Retry now')
   })
 
   it('uses singular wording for exactly one failed change', () => {
@@ -98,4 +108,35 @@ describe('SyncStatusPill', () => {
     const html = renderToStaticMarkup(<SyncStatusPill queue={pendingQueue(1)} onRetryNow={noop} />)
     expect(html).not.toContain('mobile:hidden')
   })
+
+  // --- Click-to-explain popover -------------------------------------------
+  //
+  // This suite (like every other popover in this file's neighbours —
+  // `SupplementsButton.test.tsx`, and `HeaderBar`'s own `DatePill`/
+  // `AccountMenu`, neither of which have dedicated interaction tests) is
+  // SSR-string based (`renderToStaticMarkup`), which never mounts real DOM
+  // event handlers — there is no `fireEvent.click` anywhere in this
+  // codebase's test suite to actually simulate opening a popover. What IS
+  // verifiable statically, and is what these tests assert: the trigger is a
+  // genuine `<button>` (so Enter/Space activate it and outside-click/Escape
+  // close it via the exact same mechanic `SupplementsButton` already uses,
+  // not a new one), it exposes `aria-haspopup`/`aria-expanded` like every
+  // other popover trigger in this app, and the popover's own content is
+  // absent from the markup until `open` flips true (mirroring
+  // `SupplementsButton`'s "shows no checklist... while closed" test).
+  const cases: [string, SyncQueue][] = [
+    ['synced', []],
+    ['syncing', pendingQueue(1)],
+    ['failed', failedQueue(1)],
+  ]
+  for (const [name, queue] of cases) {
+    it(`${name} state: renders a real, keyboard-operable <button> that starts closed`, () => {
+      const html = renderToStaticMarkup(<SyncStatusPill queue={queue} onRetryNow={noop} />)
+      expect(html).toMatch(/<button[^>]*>/)
+      expect(html).not.toContain('tabindex="-1"')
+      expect(html).toContain('aria-haspopup="dialog"')
+      expect(html).toContain('aria-expanded="false"')
+      expect(html).not.toContain('role="dialog"')
+    })
+  }
 })
