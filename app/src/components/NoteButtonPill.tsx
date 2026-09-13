@@ -1,12 +1,14 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { ChevronDown, Loader2, X } from 'lucide-react'
+import { ChevronDown, Loader2, Pencil, X } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
   canSubmitNote,
   formatNoteTimestamp,
   noteButtonTypes,
+  noteEntryWasEdited,
   type NoteButtonKey,
+  type NoteEntry,
 } from '@/domain/notes'
 import { useNoteEntries } from '@/state/useNoteEntries'
 import { cn } from '@/lib/utils'
@@ -42,6 +44,13 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   // straight to the Store form; the log of past notes is a click away
   // rather than always taking up space underneath it.
   const [historyOpen, setHistoryOpen] = useState(false)
+  // Which past entry (if any) the history list currently has open as an
+  // inline edit form — mutually exclusive with the Store form above; only
+  // ever one row at a time, same "one thing being edited" shape the
+  // timeline's own `LogActivityModal` follows.
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [editNoteText, setEditNoteText] = useState('')
+  const [editEntryType, setEditEntryType] = useState('')
 
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -51,10 +60,15 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const textareaId = useId()
   const historyHeadingId = useId()
   const historyListId = useId()
+  const editTextareaId = useId()
 
-  const { entries, status, error, submitting, addNote } = useNoteEntries(buttonKey, open)
+  const { entries, status, error, submitting, addNote, pendingEntryId, updateNote, deleteNote } = useNoteEntries(
+    buttonKey,
+    open,
+  )
   const types = noteButtonTypes(buttonKey)
   const canSubmit = canSubmitNote(buttonKey, noteText, entryType === '' ? null : entryType)
+  const canSubmitEdit = canSubmitNote(buttonKey, editNoteText, editEntryType === '' ? null : editEntryType)
 
   useEffect(() => {
     if (!open) return
@@ -82,7 +96,10 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   // form the user opened specifically to write in, not a menu to browse.
   useEffect(() => {
     if (open) textareaRef.current?.focus()
-    else setHistoryOpen(false) // Collapsed again next time this popover opens.
+    else {
+      setHistoryOpen(false) // Collapsed again next time this popover opens.
+      setEditingEntryId(null) // Same — a stale edit form never survives a close/reopen.
+    }
   }, [open])
 
   useEffect(() => {
@@ -118,6 +135,23 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     setJustSaved(true)
     window.clearTimeout(savedFlashTimeoutRef.current)
     savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 2500)
+  }
+
+  function startEdit(entry: NoteEntry) {
+    setEditingEntryId(entry.id)
+    setEditNoteText(entry.note)
+    setEditEntryType(entry.entryType ?? '')
+  }
+
+  function cancelEdit() {
+    setEditingEntryId(null)
+  }
+
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault()
+    if (editingEntryId === null || pendingEntryId !== null || !canSubmitEdit) return
+    const ok = await updateNote(editingEntryId, editNoteText, editEntryType === '' ? null : editEntryType)
+    if (ok) setEditingEntryId(null)
   }
 
   return (
@@ -255,20 +289,112 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                 )}
 
                 {entries.length > 0 && (
-                  <ul className="flex max-h-[220px] flex-col gap-sm overflow-y-auto">
-                    {entries.map((entry) => (
-                      <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
-                        <div className="flex items-center justify-between gap-sm">
-                          <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
-                            {formatNoteTimestamp(new Date(entry.createdAt))}
-                          </time>
-                          {entry.entryType && (
-                            <span className="text-nano font-semibold text-ink-dim">{entry.entryType}</span>
-                          )}
-                        </div>
-                        <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
-                      </li>
-                    ))}
+                  <ul className="flex max-h-[320px] flex-col gap-sm overflow-y-auto">
+                    {entries.map((entry) =>
+                      editingEntryId === entry.id ? (
+                        <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
+                          <form onSubmit={saveEdit} className="flex flex-col gap-sm">
+                            {types && (
+                              <fieldset className="flex flex-col gap-sm">
+                                <legend className="sr-only">Type</legend>
+                                <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-xs">
+                                  {types.map((type) => {
+                                    const isSelected = editEntryType === type
+                                    return (
+                                      <Chip
+                                        key={type}
+                                        as="button"
+                                        size="xs"
+                                        tone={isSelected ? 'active' : 'surface'}
+                                        interactive
+                                        role="radio"
+                                        aria-checked={isSelected}
+                                        onClick={() => setEditEntryType(isSelected ? '' : type)}
+                                      >
+                                        {type}
+                                      </Chip>
+                                    )
+                                  })}
+                                </div>
+                              </fieldset>
+                            )}
+                            <label htmlFor={editTextareaId} className="sr-only">
+                              Edit note
+                            </label>
+                            <textarea
+                              id={editTextareaId}
+                              value={editNoteText}
+                              onChange={(event) => setEditNoteText(event.target.value)}
+                              rows={3}
+                              autoFocus
+                              disabled={pendingEntryId === entry.id}
+                              className={cn(fieldClass, 'resize-none text-caption disabled:opacity-60')}
+                            />
+                            <div className="flex items-center gap-md">
+                              <Button
+                                type="submit"
+                                variant="accent"
+                                size="inline"
+                                disabled={pendingEntryId === entry.id || !canSubmitEdit}
+                              >
+                                {pendingEntryId === entry.id ? (
+                                  <>
+                                    <Loader2 aria-hidden="true" className="size-[13px] animate-spin" />
+                                    Saving…
+                                  </>
+                                ) : (
+                                  'Save'
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="inline"
+                                onClick={cancelEdit}
+                                disabled={pendingEntryId === entry.id}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </form>
+                        </li>
+                      ) : (
+                        <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
+                          <div className="flex items-center justify-between gap-sm">
+                            <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
+                              {formatNoteTimestamp(new Date(entry.createdAt))}
+                              {noteEntryWasEdited(entry) && ' · edited'}
+                            </time>
+                            {entry.entryType && (
+                              <span className="text-nano font-semibold text-ink-dim">{entry.entryType}</span>
+                            )}
+                          </div>
+                          <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
+                          <div className="mt-xs flex items-center gap-lg">
+                            <Button
+                              variant="accent"
+                              size="inline"
+                              onClick={() => startEdit(entry)}
+                              disabled={pendingEntryId !== null}
+                              aria-label={`Edit this ${label} note`}
+                            >
+                              <Pencil aria-hidden="true" className="size-[12px]" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="inline"
+                              onClick={() => void deleteNote(entry.id)}
+                              disabled={pendingEntryId !== null}
+                              aria-label={`Remove this ${label} note`}
+                            >
+                              <X aria-hidden="true" className="size-[12px]" />
+                              {pendingEntryId === entry.id ? 'Removing…' : 'Remove'}
+                            </Button>
+                          </div>
+                        </li>
+                      ),
+                    )}
                   </ul>
                 )}
               </div>

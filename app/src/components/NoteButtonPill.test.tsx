@@ -24,6 +24,15 @@ describe('NoteButtonPill', () => {
     expect(html).not.toContain('role="radiogroup"')
   })
 
+  it('leaks no history edit/remove controls while closed', () => {
+    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="prayer" label="Prayer" />)
+    expect(html).not.toContain('role="region"')
+    expect(html).not.toContain('>History<')
+    expect(html).not.toContain('>Edit<')
+    expect(html).not.toContain('>Remove<')
+    expect(html).not.toContain('>Save<')
+  })
+
   it('is focusable and keyboard-operable like every other real button (no explicit tabIndex override)', () => {
     const html = renderToStaticMarkup(<NoteButtonPill buttonKey="gifts" label="Gifts" />)
     expect(html).not.toContain('tabindex="-1"')

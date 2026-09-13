@@ -42,3 +42,39 @@ export function saveDisplayValue(buttonKey: DisplayButtonKey, date: string, valu
     // In-memory state is still correct; only cross-reload durability is lost.
   }
 }
+
+/** One past day's stored value, for the history list. */
+export interface DisplayValueHistoryEntry {
+  date: string
+  value: number
+}
+
+/**
+ * Pure: turns a raw `{ 'YYYY-MM-DD': number }` day-map into a history list,
+ * most recent day first. Split out from `listLocalDisplayValues` below so it
+ * can be tested without a `window.localStorage` to read from — the same
+ * "pure logic separated from its I/O wrapper" shape
+ * `state/dismissedActivities.ts`'s own `toggleDismissedName` already
+ * establishes. ISO date strings sort correctly as plain strings, so no date
+ * parsing is needed here.
+ */
+export function sortDisplayValueHistory(map: Readonly<DayMap>): DisplayValueHistoryEntry[] {
+  return Object.entries(map)
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
+
+/**
+ * Every day this button has ever had a value for on THIS device, most
+ * recent first — the local day-map's own history, nothing extra tracked.
+ * For a `synced: true` button (Protein — see `state/useDisplayValueHistory.ts`)
+ * this is the local-first cache the server reconciles into; for a local-only
+ * button (Steps) it is the only history that exists at all, since nothing
+ * about Steps syncs off this device. Unbounded on purpose, like every other
+ * "one row per calendar day" history in this app (`list_daily_values`'s own
+ * reasoning) — a device's own day-value log doesn't grow the way a user's
+ * full activity history would.
+ */
+export function listLocalDisplayValues(buttonKey: DisplayButtonKey): DisplayValueHistoryEntry[] {
+  return sortDisplayValueHistory(readMap(buttonKey))
+}

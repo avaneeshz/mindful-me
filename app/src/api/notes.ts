@@ -1,13 +1,18 @@
 import { supabase } from '@/lib/supabaseClient'
 import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
 
-/** The shape `public.note_entry_dto` (see `20260905090000_note_entries.sql`) hands back. */
+/**
+ * The shape `public.note_entry_dto` hands back (see
+ * `20260905090000_note_entries.sql`; `updated_at` added by
+ * `20260913070000_note_entries_edit_delete.sql`).
+ */
 interface NoteEntryDto {
   id: string
   button_key: string
   note: string
   gift_type: string | null
   created_at: string
+  updated_at: string
 }
 
 function dtoToClient(dto: NoteEntryDto): NoteEntry {
@@ -19,6 +24,7 @@ function dtoToClient(dto: NoteEntryDto): NoteEntry {
     // field is the generic `entryType` now that Prayer/Learnings feed it too.
     entryType: dto.gift_type ?? null,
     createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
   }
 }
 
@@ -66,6 +72,52 @@ export async function apiCreateNoteEntry(
     return null
   }
   return dtoToClient(data as NoteEntryDto)
+}
+
+/**
+ * Edits an existing note's text (and, for a typed button, its type) in
+ * place — `20260913070000_note_entries_edit_delete.sql`'s `update_note_entry`.
+ * Returns `null` on failure to reach/read the server (no backend configured,
+ * or the write didn't land), same fail-open contract as `apiCreateNoteEntry`
+ * — the caller keeps its own local-first optimistic edit either way.
+ */
+export async function apiUpdateNoteEntry(
+  id: string,
+  note: string,
+  entryType: string | null,
+): Promise<NoteEntry | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('update_note_entry', {
+    p_id: id,
+    p_note: note,
+    p_gift_type: entryType,
+  })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[notes] update_note_entry failed — kept locally, will retry on next load', error.message)
+    return null
+  }
+  return dtoToClient(data as NoteEntryDto)
+}
+
+/**
+ * Removes a note from the user's view (rule 11 — soft-deleted server-side,
+ * recoverable for 30 days, then purged; never a real DELETE from here).
+ * Returns `true` once the request has succeeded; `false` when there was
+ * nothing to reach or the write didn't land — the caller has already
+ * removed the entry from its own local-first list regardless of this
+ * result, mirroring every other `api/*` write's "local-first, background
+ * sync" contract.
+ */
+export async function apiDeleteNoteEntry(id: string): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('delete_note_entry', { p_id: id })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[notes] delete_note_entry failed — removed locally, will retry on next load', error.message)
+    return false
+  }
+  return true
 }
 
 /**

@@ -70,6 +70,8 @@ export interface HeaderBarProps {
   syncQueue: SyncQueue
   /** Wakes the sync queue immediately — the indicator's "Retry now" action. */
   onRetrySyncNow: () => void
+  /** Dispatches `editActivity` — a `DisplayValueButton`'s session-history row opens the same `LogActivityModal` edit flow the Timeline itself uses. */
+  onEditActivity: (id: string) => void
 }
 
 export function HeaderBar({
@@ -82,6 +84,7 @@ export function HeaderBar({
   onQuickLog,
   syncQueue,
   onRetrySyncNow,
+  onEditActivity,
 }: HeaderBarProps) {
   return (
     <header className="flex flex-col gap-md">
@@ -150,6 +153,7 @@ export function HeaderBar({
             viewedDate={viewedDate}
             activities={activities}
             onQuickLog={onQuickLog}
+            onEditActivity={onEditActivity}
           />
         ))}
 

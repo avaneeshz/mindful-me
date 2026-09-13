@@ -7,6 +7,7 @@ import {
   NOTE_BUTTONS,
   noteButtonLabel,
   noteButtonTypes,
+  noteEntryWasEdited,
   PRAYER_TYPES,
   requiresEntryType,
   type NoteButtonKey,
@@ -111,6 +112,20 @@ describe('canSubmitNote', () => {
     expect(canSubmitNote('gifts', 'A gift I noticed', 'The Voice')).toBe(true)
     expect(canSubmitNote('prayer', 'Grateful today', 'Thanksgiving')).toBe(true)
     expect(canSubmitNote('learnings', 'Something new', 'Realized')).toBe(true)
+  })
+})
+
+describe('noteEntryWasEdited', () => {
+  it('is false when updatedAt still equals createdAt (never edited)', () => {
+    expect(
+      noteEntryWasEdited({ createdAt: '2026-09-11T10:00:00.000Z', updatedAt: '2026-09-11T10:00:00.000Z' }),
+    ).toBe(false)
+  })
+
+  it('is true once updatedAt has moved past createdAt', () => {
+    expect(
+      noteEntryWasEdited({ createdAt: '2026-09-11T10:00:00.000Z', updatedAt: '2026-09-11T10:05:00.000Z' }),
+    ).toBe(true)
   })
 })
 

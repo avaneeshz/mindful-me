@@ -8,7 +8,13 @@ const NO_ACTIVITIES: ActivityList = []
 
 function render(buttonKey: 'vipassana' | 'steps' | 'exercise' | 'breathing' | 'sleep' | 'protein') {
   return renderToStaticMarkup(
-    <DisplayValueButton buttonKey={buttonKey} viewedDate={VIEWED_DATE} activities={NO_ACTIVITIES} onQuickLog={() => {}} />,
+    <DisplayValueButton
+      buttonKey={buttonKey}
+      viewedDate={VIEWED_DATE}
+      activities={NO_ACTIVITIES}
+      onQuickLog={() => {}}
+      onEditActivity={() => {}}
+    />,
   )
 }
 
@@ -38,6 +44,14 @@ describe('DisplayValueButton', () => {
       expect(html).not.toContain('role="dialog"')
       expect(html).not.toContain('<textarea')
       expect(html).not.toContain('role="radiogroup"')
+    }
+  })
+
+  it('leaks no History section (session list or day-value edit rows) while closed, for any button', () => {
+    for (const key of ['vipassana', 'steps', 'exercise', 'breathing', 'sleep', 'protein'] as const) {
+      const html = render(key)
+      expect(html).not.toContain('role="region"')
+      expect(html).not.toContain('>History<')
     }
   })
 
@@ -86,7 +100,13 @@ describe('DisplayValueButton', () => {
       },
     ]
     const html = renderToStaticMarkup(
-      <DisplayValueButton buttonKey="sleep" viewedDate={VIEWED_DATE} activities={activities} onQuickLog={() => {}} />,
+      <DisplayValueButton
+        buttonKey="sleep"
+        viewedDate={VIEWED_DATE}
+        activities={activities}
+        onQuickLog={() => {}}
+        onEditActivity={() => {}}
+      />,
     )
     // 6h + 45m = 6h 45m
     expect(html).toContain('6h 45m')

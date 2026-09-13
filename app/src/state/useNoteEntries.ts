@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiCreateNoteEntry, apiListNoteEntries } from '@/api/notes'
+import { apiCreateNoteEntry, apiDeleteNoteEntry, apiListNoteEntries, apiUpdateNoteEntry } from '@/api/notes'
 import { generateId } from '@/domain/scheduling'
 import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
 import { loadLocalNoteEntries, saveLocalNoteEntries } from '@/lib/noteEntriesLocalStore'
@@ -16,6 +16,10 @@ export interface UseNoteEntriesResult {
   /** True from the moment Store is pressed until the write settles — the Add-button double-submit guard (rule 9's spirit, applied to Store). */
   submitting: boolean
   addNote: (note: string, entryType: string | null) => Promise<boolean>
+  /** The id of the entry currently being saved (edit) or removed, if any — the same double-submit guard as `submitting`, scoped per-row since a history list has many independent rows. */
+  pendingEntryId: string | null
+  updateNote: (id: string, note: string, entryType: string | null) => Promise<boolean>
+  deleteNote: (id: string) => Promise<boolean>
 }
 
 /**
@@ -34,6 +38,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
   const [status, setStatus] = useState<NoteHistoryStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [pendingEntryId, setPendingEntryId] = useState<string | null>(null)
   const hasFetchedRef = useRef(false)
 
   useEffect(() => {
@@ -71,12 +76,14 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
 
       // Local-first (rule 6): the new entry is visible and durable on this
       // device before any network round-trip even starts.
+      const now = new Date().toISOString()
       const local: NoteEntry = {
         id: generateId(),
         buttonKey,
         note: trimmed,
         entryType,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       }
       const withLocal = [local, ...entries]
       setEntries(withLocal)
@@ -102,5 +109,69 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
     [buttonKey, entries],
   )
 
-  return { entries, status, error, submitting, addNote }
+  const updateNote = useCallback(
+    async (id: string, note: string, entryType: string | null): Promise<boolean> => {
+      const trimmed = note.trim()
+      if (trimmed === '') return false
+      if (pendingEntryId !== null) return false // Rule 9's guard, per-row.
+
+      setPendingEntryId(id)
+      setError(null)
+
+      // Local-first (rule 6): the edit is visible and durable on this device
+      // before any network round-trip even starts. `updatedAt` moves right
+      // away too, so `noteEntryWasEdited` reads true immediately rather than
+      // waiting on the server's own timestamp.
+      const now = new Date().toISOString()
+      const withLocal = entries.map((entry) =>
+        entry.id === id ? { ...entry, note: trimmed, entryType, updatedAt: now } : entry,
+      )
+      setEntries(withLocal)
+      saveLocalNoteEntries(buttonKey, withLocal)
+
+      if (supabaseConfigured) {
+        const server = await apiUpdateNoteEntry(id, trimmed, entryType)
+        if (server === null) {
+          setError('Saved on this device — will sync once you’re back online.')
+        } else {
+          const reconciled = withLocal.map((entry) => (entry.id === id ? server : entry))
+          setEntries(reconciled)
+          saveLocalNoteEntries(buttonKey, reconciled)
+        }
+      }
+
+      setPendingEntryId(null)
+      return true
+    },
+    [buttonKey, entries, pendingEntryId],
+  )
+
+  const deleteNote = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (pendingEntryId !== null) return false // Rule 9's guard, per-row.
+
+      setPendingEntryId(id)
+      setError(null)
+
+      // Rule 11 — immediate from the user's view. Local-first removal happens
+      // before the network round-trip; the server side is a real soft
+      // delete (recoverable for 30 days, then purged), not a hard delete.
+      const withoutEntry = entries.filter((entry) => entry.id !== id)
+      setEntries(withoutEntry)
+      saveLocalNoteEntries(buttonKey, withoutEntry)
+
+      if (supabaseConfigured) {
+        const ok = await apiDeleteNoteEntry(id)
+        if (!ok) {
+          setError('Removed on this device — will sync once you’re back online.')
+        }
+      }
+
+      setPendingEntryId(null)
+      return true
+    },
+    [buttonKey, entries, pendingEntryId],
+  )
+
+  return { entries, status, error, submitting, addNote, pendingEntryId, updateNote, deleteNote }
 }

@@ -58,6 +58,7 @@ export function TodayPage() {
         }
         syncQueue={syncQueue}
         onRetrySyncNow={retrySyncNow}
+        onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
       />
 
       <div className="mt-xl ipad-land:mt-md">

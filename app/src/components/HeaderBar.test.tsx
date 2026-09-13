@@ -16,6 +16,7 @@ function render(): string {
       onQuickLog={() => {}}
       syncQueue={[]}
       onRetrySyncNow={() => {}}
+      onEditActivity={() => {}}
     />,
   )
 }

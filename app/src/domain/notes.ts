@@ -67,6 +67,14 @@ export interface NoteEntry {
   /** The chosen type for buttons that have a selector (`gifts`/`prayer`/`learnings`); `null` otherwise. */
   entryType: string | null
   createdAt: string
+  /**
+   * Bumped by the DB on every `update_note_entry` (see
+   * `20260913070000_note_entries_edit_delete.sql`) — equal to `createdAt`
+   * for a note that has never been edited. `noteEntryWasEdited` below is the
+   * one place that comparison happens, so the history list never re-derives
+   * it inline.
+   */
+  updatedAt: string
 }
 
 export function noteButtonLabel(key: NoteButtonKey): string {
@@ -101,4 +109,9 @@ export function formatNoteTimestamp(date: Date): string {
   const datePart = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
   const timePart = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
   return `${datePart} · ${timePart}`
+}
+
+/** Whether a note has ever been edited since it was first stored — `updatedAt` only ever moves once `update_note_entry` touches a row. */
+export function noteEntryWasEdited(entry: Pick<NoteEntry, 'createdAt' | 'updatedAt'>): boolean {
+  return entry.updatedAt !== entry.createdAt
 }
