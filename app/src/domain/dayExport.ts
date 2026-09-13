@@ -94,11 +94,13 @@ export interface DayExportInput {
   noteEntries: NoteEntry[]
   /**
    * Raw values for display buttons that are NOT derivable from `activities`
-   * (Steps — a plain local-only per-day counter, see
-   * `lib/displayValuesLocalStore.ts`). A quick-log button (Vipassana) is
-   * always computed from `activities` instead, so it never needs an entry
-   * here. `null`/omitted means "not set" — the button is left out of the
-   * export entirely, per "if set".
+   * (Steps — a plain per-day counter; synced to `public.daily_values` but
+   * still read from its local-first cache here, see
+   * `lib/displayValuesLocalStore.ts`, since this export's assembly is pure
+   * and synchronous). A quick-log button (Vipassana) is always computed from
+   * `activities` instead, so it never needs an entry here. `null`/omitted
+   * means "not set" — the button is left out of the export entirely, per "if
+   * set".
    */
   localDisplayValues?: Partial<Record<DisplayButtonKey, number | null>>
   /** Resolves a reflection card number to its display title (`data/reflectionCards.ts`, kept out of this pure module). */

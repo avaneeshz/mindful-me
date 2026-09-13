@@ -67,14 +67,29 @@ export function sortDisplayValueHistory(map: Readonly<DayMap>): DisplayValueHist
 /**
  * Every day this button has ever had a value for on THIS device, most
  * recent first — the local day-map's own history, nothing extra tracked.
- * For a `synced: true` button (Protein — see `state/useDisplayValueHistory.ts`)
- * this is the local-first cache the server reconciles into; for a local-only
- * button (Steps) it is the only history that exists at all, since nothing
- * about Steps syncs off this device. Unbounded on purpose, like every other
- * "one row per calendar day" history in this app (`list_daily_values`'s own
- * reasoning) — a device's own day-value log doesn't grow the way a user's
- * full activity history would.
+ * For a `synced: true` button (Steps, Protein — see
+ * `state/useDisplayValueHistory.ts`) this is the local-first cache the
+ * server reconciles into; for a non-synced button (none today, but the
+ * store stays generic) it would be the only history that exists at all.
+ * Unbounded on purpose, like every other "one row per calendar day" history
+ * in this app (`list_daily_values`'s own reasoning) — a device's own
+ * day-value log doesn't grow the way a user's full activity history would.
  */
 export function listLocalDisplayValues(buttonKey: DisplayButtonKey): DisplayValueHistoryEntry[] {
   return sortDisplayValueHistory(readMap(buttonKey))
+}
+
+/**
+ * Which of this device's local day-values for a button aren't in the given
+ * set of server dates yet — the pure diff behind
+ * `state/useStepsBackfill.ts`'s one-time upload of pre-migration local-only
+ * Steps data. Split out the same way `sortDisplayValueHistory` above is (no
+ * I/O), so every edge case — nothing local, nothing missing, a genuine mix —
+ * is directly testable without a `window.localStorage` or a network call.
+ */
+export function localOnlyDisplayValues(
+  localEntries: readonly DisplayValueHistoryEntry[],
+  serverDates: ReadonlySet<string>,
+): DisplayValueHistoryEntry[] {
+  return localEntries.filter((entry) => !serverDates.has(entry.date))
 }

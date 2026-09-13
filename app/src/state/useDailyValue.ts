@@ -5,7 +5,7 @@ import { loadDisplayValue, saveDisplayValue } from '@/lib/displayValuesLocalStor
 import { supabaseConfigured } from '@/lib/supabaseClient'
 
 /**
- * A `synced: true` display-value button's (currently: Protein) per-day
+ * A `synced: true` display-value button's (Steps, Protein) per-day
  * number — local-first (rule 6) with a background sync to `public.
  * daily_values`, generalizing `DisplayValueButton`'s own local-counter
  * pattern (`lib/displayValuesLocalStore.ts`) rather than replacing it: the
@@ -15,8 +15,8 @@ import { supabaseConfigured } from '@/lib/supabaseClient'
  * the exact same shape `state/useNoteEntries.ts` already established for
  * note entries.
  *
- * `metricKey` is the `public.daily_values.metric_key` value (currently only
- * `'protein'`); `buttonKey`/`dayKey` key the LOCAL cache, same as every
+ * `metricKey` is the `public.daily_values.metric_key` value (`'protein'` or
+ * `'steps'`); `buttonKey`/`dayKey` key the LOCAL cache, same as every
  * other display-value button. `enabled` lets `DisplayValueButton` call this
  * hook unconditionally (rules of hooks) while skipping every effect for a
  * button that isn't actually a synced one — never issuing a request for an

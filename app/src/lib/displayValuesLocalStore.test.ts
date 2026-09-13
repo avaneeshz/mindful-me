@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sortDisplayValueHistory } from './displayValuesLocalStore'
+import { localOnlyDisplayValues, sortDisplayValueHistory } from './displayValuesLocalStore'
 
 /**
  * `sortDisplayValueHistory` is the one piece of real logic behind a
@@ -43,5 +43,47 @@ describe('sortDisplayValueHistory', () => {
       { date: '2026-01-01', value: 2 },
       { date: '2025-12-31', value: 1 },
     ])
+  })
+})
+
+/**
+ * The pure diff behind `state/useStepsBackfill.ts`'s one-time upload of
+ * pre-migration local-only Steps data — see that file for the full backfill
+ * shape (fetch server dates, then keep only what this returns).
+ */
+describe('localOnlyDisplayValues', () => {
+  it('is empty when there is no local data', () => {
+    expect(localOnlyDisplayValues([], new Set())).toEqual([])
+  })
+
+  it('keeps every local entry when the server has none of them (first-ever backfill)', () => {
+    const local = [
+      { date: '2026-09-13', value: 8200 },
+      { date: '2026-09-12', value: 6100 },
+    ]
+    expect(localOnlyDisplayValues(local, new Set())).toEqual(local)
+  })
+
+  it('drops any local entry whose date the server already has — server wins, never overwritten', () => {
+    const local = [
+      { date: '2026-09-13', value: 8200 },
+      { date: '2026-09-12', value: 6100 },
+    ]
+    expect(localOnlyDisplayValues(local, new Set(['2026-09-13']))).toEqual([
+      { date: '2026-09-12', value: 6100 },
+    ])
+  })
+
+  it('is empty (a safe no-op re-run) once every local date has already migrated', () => {
+    const local = [
+      { date: '2026-09-13', value: 8200 },
+      { date: '2026-09-12', value: 6100 },
+    ]
+    expect(localOnlyDisplayValues(local, new Set(['2026-09-13', '2026-09-12']))).toEqual([])
+  })
+
+  it('is unaffected by server dates that have no local counterpart', () => {
+    const local = [{ date: '2026-09-12', value: 6100 }]
+    expect(localOnlyDisplayValues(local, new Set(['2026-09-01', '2026-08-15']))).toEqual(local)
   })
 })

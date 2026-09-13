@@ -81,10 +81,10 @@ describe('quick-log buttons (Exercise/Breathing/Sleep)', () => {
   })
 })
 
-describe('synced vs. local-only day-value buttons', () => {
-  it('Protein is synced; Steps stays local-only', () => {
+describe('synced day-value buttons', () => {
+  it('both Steps and Protein are synced to public.daily_values', () => {
     expect(displayButtonSynced('protein')).toBe(true)
-    expect(displayButtonSynced('steps')).toBe(false)
+    expect(displayButtonSynced('steps')).toBe(true)
   })
 
   it('every quick-log button is unaffected by the synced flag (its value is always computed, never stored directly)', () => {

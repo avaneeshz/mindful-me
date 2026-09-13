@@ -35,16 +35,26 @@
  *
  * `Steps` and `Protein` are plain per-day set/replace numbers (re-entering
  * REPLACES the day's value, never adds to it) with no catalog counterpart —
- * `input: 'number'`. They differ in where that value lives: `Steps` stays
- * the local-only counter it always was (`lib/displayValuesLocalStore.ts`,
- * out of scope per the agent definition's own instruction not to
- * scope-creep an unrelated legacy control). `Protein` is a BRAND NEW button
- * with no such legacy exception to preserve, so it is `synced: true` — a
- * real per-user row in `public.daily_values`, local-first (instant on this
- * device) with a background sync, mirroring every other Phase-2+ control
- * (see `state/useDailyValue.ts`). This is a deliberate, explicitly-flagged
- * architecture call, not an accident — see the full-stack-engineer agent
- * definition's Stage-1 plan for the reasoning.
+ * `input: 'number'`. Both are `synced: true` — a real per-user row in
+ * `public.daily_values`, local-first (instant on this device) with a
+ * background sync, mirroring every other Phase-2+ control (see
+ * `state/useDailyValue.ts`). `Steps` was, for a while, an explicitly-flagged
+ * exception that stayed on purely local storage
+ * (`lib/displayValuesLocalStore.ts`) while `Protein` got the real table —
+ * that was a deliberate, scoped call at the time (not an oversight), but it
+ * left Steps as the one control whose data never reached the database: lost
+ * on every device switch, browser change, or reinstall. A full audit
+ * flagged that as the app's one confirmed data-loss gap, so Steps now
+ * follows the exact same `synced: true` path Protein already does — see the
+ * migration that widened `public.daily_values.metric_key` to allow
+ * `'steps'`. Any Steps value already sitting in a browser's `localStorage`
+ * from before this migration is picked up by a one-time backfill
+ * (`state/useStepsBackfill.ts`), not silently dropped.
+ *
+ * `lib/displayValuesLocalStore.ts` itself hasn't gone anywhere — it's still
+ * the local-first cache BOTH synced buttons read/write through instantly
+ * (rule 6), same as before; only "does a background sync happen at all" was
+ * ever the Steps/Protein difference, and now there is none.
  *
  * `unit: 'target'` (Protein only) formats against a fixed daily `target`
  * rather than showing the bare number — `formatTargetRelativeValue` below,
@@ -53,7 +63,7 @@
 
 export const DISPLAY_BUTTONS = [
   { key: 'vipassana', label: 'Vipassana', unit: 'min', input: 'duration', quickLogName: 'Vipassana' },
-  { key: 'steps', label: 'Steps', unit: 'int', input: 'number' },
+  { key: 'steps', label: 'Steps', unit: 'int', input: 'number', synced: true },
   {
     key: 'exercise',
     label: 'Exercise',
@@ -139,7 +149,7 @@ export function displayButtonQuickLogDreamsNote(key: DisplayButtonKey): boolean 
   return !!(button && 'quickLogDreamsNote' in button && button.quickLogDreamsNote)
 }
 
-/** Whether this button's value is a per-user server row (`public.daily_values`) rather than purely local (Steps). */
+/** Whether this button's value is a per-user server row (`public.daily_values`), local-first with a background sync — currently every day-value button (Steps, Protein). */
 export function displayButtonSynced(key: DisplayButtonKey): boolean {
   const button = findButton(key)
   return !!(button && 'synced' in button && button.synced)

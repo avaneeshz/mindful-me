@@ -13,6 +13,7 @@ import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
 import type { ActivityList, SleepQualityId } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
+import { useStepsBackfill } from '@/state/useStepsBackfill'
 import { cn } from '@/lib/utils'
 
 /**
@@ -86,6 +87,11 @@ export function HeaderBar({
   onRetrySyncNow,
   onEditActivity,
 }: HeaderBarProps) {
+  // One-time upload of any pre-migration Steps data still sitting only in
+  // this browser's localStorage — see `state/useStepsBackfill.ts`. A no-op
+  // once that's done (or if there was never anything local to begin with).
+  useStepsBackfill()
+
   return (
     <header className="flex flex-col gap-md">
       {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed

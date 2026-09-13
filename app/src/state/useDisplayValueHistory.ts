@@ -26,17 +26,17 @@ export interface UseDisplayValueHistoryResult {
  * Reuses the SAME local-first store `useDailyValue`/the plain local-counter
  * path already write through (`lib/displayValuesLocalStore.ts`) rather than
  * a parallel cache — that store already holds one row per calendar day
- * forever (nothing prunes it), so it is already this button's own history,
- * for BOTH a synced button (Protein) and a local-only one (Steps). A synced
- * button additionally reconciles against the server's authoritative list
- * once per time this history is opened, mirroring `useDailyValue`'s own
- * "server wins once it answers" shape; a local-only button (`metricKey`
- * irrelevant) never issues a request at all — Steps' history is, and stays,
- * device-only, the same explicitly-scoped exception `Steps` already is
- * everywhere else in this app (see `domain/displayButtons.ts`'s own doc
- * comment). Flagged rather than silently decided: putting Steps on
- * `daily_values` too is a real architecture call, not something to make by
- * building its history view a particular way — out of scope here.
+ * forever (nothing prunes it), so it is already this button's own history.
+ * A synced button (currently both Steps and Protein — see
+ * `domain/displayButtons.ts`'s `synced` flag) additionally reconciles
+ * against the server's authoritative list once per time this history is
+ * opened, mirroring `useDailyValue`'s own "server wins once it answers"
+ * shape; a non-synced button (none today, but the shape stays generic —
+ * `metricKey` irrelevant for one) would never issue a request at all and
+ * its history would stay device-only. Branches purely on the `synced`
+ * param passed in, never on which specific button this is, so a future
+ * button either gets the real sync path or doesn't without this file
+ * changing at all.
  */
 export function useDisplayValueHistory(
   buttonKey: DisplayButtonKey,
