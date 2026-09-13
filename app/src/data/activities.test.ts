@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { ACTIVITY_CARDS, CATEGORIES, CATEGORY_ORDER, cardsForCategory, findCard, FLAGS, itemFillColor, QUALITIES } from './activities'
 
-/** Tile Redesign §3 — the per-tile item counts, in on-screen order. */
+/**
+ * Tile Redesign §3 — the per-tile item counts, in on-screen order. `sleep`
+ * grew from 5 to 6 when the Sleep quick-log button's own catalog card
+ * ('Sleep') was added (see the full-stack-engineer agent definition's
+ * Quick-log/Supplements/Protein work) — a genuinely new card, not a
+ * reclassification of an existing one.
+ */
 const EXPECTED_TILE_COUNTS: Record<string, number> = {
-  sleep: 5,
+  sleep: 6,
   food: 7,
   care: 5,
   downtime: 5,
@@ -16,9 +22,9 @@ const EXPECTED_TILE_COUNTS: Record<string, number> = {
 
 const HEX = /^#[0-9a-fA-F]{6}$/
 
-describe('the 53-item catalog', () => {
-  it('has exactly 53 items total (5+7+5+5+7+5+7+7+5)', () => {
-    expect(ACTIVITY_CARDS).toHaveLength(53)
+describe('the 54-item catalog', () => {
+  it('has exactly 54 items total (6+7+5+5+7+5+7+7+5)', () => {
+    expect(ACTIVITY_CARDS).toHaveLength(54)
   })
 
   it('has exactly 9 tiles, in the documented on-screen order', () => {
@@ -31,7 +37,7 @@ describe('the 53-item catalog', () => {
       expect(cardsForCategory(categoryId), categoryId).toHaveLength(EXPECTED_TILE_COUNTS[categoryId])
     }
     const total = CATEGORY_ORDER.reduce((sum, id) => sum + cardsForCategory(id).length, 0)
-    expect(total).toBe(53)
+    expect(total).toBe(54)
   })
 
   it('has no duplicate item names', () => {

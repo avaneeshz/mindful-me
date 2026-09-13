@@ -302,7 +302,7 @@ describe('toggleComplete — Phase 3 planned vs. actual', () => {
       startMinutes: 0,
       durationMinutes: 0,
       flags: ['Attack'],
-      quality: [], symptoms: [], notes: null, reflections: [],
+      quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null,
       status: 'planned',
       timezone: 'UTC',
     }
@@ -424,7 +424,7 @@ describe('drag and drop', () => {
     // Something occupies 11:00-11:30. A card dropped at 10:00 (slot 20) may
     // grow, but must stop dead at 11:00 rather than overwriting or truncating it.
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 11 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null, status: 'planned', timezone: 'UTC' },
     ])
     const state = run(occupied, DROP, { type: 'stepDuration', delta: 300 })
     expect(state.staging.durationMinutes).toBe(60)
@@ -440,7 +440,7 @@ describe('drag and drop', () => {
     // slot 21. Dropping there selects slot 21 (every cell is independently
     // selectable) but the picker offers nothing, since no time is free there.
     const covered = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 10 * 60, durationMinutes: 60, flags: [], quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null, status: 'planned', timezone: 'UTC' },
     ])
     const state = boardReducer(covered, { type: 'dropCard', cardName: 'Errand time', slot: 21 })
     expect(state.selectedSlot).toBe(21)
@@ -585,7 +585,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
   it('clamps a typed value down to the same continuous-block ceiling the stepper respects', () => {
     // Something else starts 50 minutes after 16:00 (the pinned "now" slot).
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 50, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null, status: 'planned', timezone: 'UTC' },
     ])
     const state = run(
       occupied,
@@ -619,7 +619,7 @@ describe('setDuration — R2.3 free-form entry and R2.4 quick-add', () => {
 
   it('quick-add also clamps to the ceiling rather than creating an overlap', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 16 * 60 + 40, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null, status: 'planned', timezone: 'UTC' },
     ])
     let state = run(occupied, { type: 'pickCard', cardName: 'Homework' }) // clamped to 30 already? verify below
     // Add a full 2 hours — far more than the 40-minute ceiling allows.
@@ -658,7 +658,7 @@ describe('setStagingStart — duration drag-block, moving the whole pill', () =>
 
   it('hard-stops at a neighbouring activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 17 * 60, durationMinutes: 30, flags: [], quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null, status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00, 30 min
     state = boardReducer(state, { type: 'setStagingStart', minutes: 18 * 60 })
@@ -681,7 +681,7 @@ describe('resizeStagingStart — duration drag-block, resizing from the start ha
 
   it('hard-stops against a preceding activity rather than overlapping it', () => {
     const occupied = start([
-      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, reflections: [], status: 'planned', timezone: 'UTC' },
+      { id: 'x', name: 'Meal Prep', path: [], startMinutes: 15 * 60 + 45, durationMinutes: 10, flags: [], quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null, status: 'planned', timezone: 'UTC' },
     ])
     let state = boardReducer(occupied, { type: 'pickCard', cardName: 'Homework' }) // 16:00-16:30
     state = boardReducer(state, { type: 'resizeStagingStart', minutes: 15 * 60 + 30 })
@@ -858,6 +858,87 @@ describe('setStagingNotes — freeform notes', () => {
   })
 })
 
+describe('toggleStagingSleepQuality / setStagingDreamsNote — Sleep-quick-log-only fields', () => {
+  it('default to an empty array / empty string for a freshly picked card', () => {
+    const state = boardReducer(start(), { type: 'pickCard', cardName: 'Sleep' })
+    expect(state.staging.sleepQuality).toEqual([])
+    expect(state.staging.dreamsNote).toBe('')
+  })
+
+  it('toggleStagingSleepQuality accumulates like quality/symptoms, not single-select like flag', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Sleep' })
+    state = boardReducer(state, { type: 'toggleStagingSleepQuality', quality: 'Deep Restorative' })
+    state = boardReducer(state, { type: 'toggleStagingSleepQuality', quality: 'Dream-Intense' })
+    expect(state.staging.sleepQuality).toEqual(['Deep Restorative', 'Dream-Intense'])
+  })
+
+  it('toggleStagingSleepQuality removes an already-staged value on a second toggle, leaving the rest', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Sleep' })
+    state = boardReducer(state, { type: 'toggleStagingSleepQuality', quality: 'Deep Restorative' })
+    state = boardReducer(state, { type: 'toggleStagingSleepQuality', quality: 'Dream-Intense' })
+    state = boardReducer(state, { type: 'toggleStagingSleepQuality', quality: 'Deep Restorative' })
+    expect(state.staging.sleepQuality).toEqual(['Dream-Intense'])
+  })
+
+  it('setStagingDreamsNote stages exactly the typed text, replacing any prior draft — a SEPARATE field from notes', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Sleep' })
+    state = boardReducer(state, { type: 'setStagingNotes', notes: 'Slept in the guest room.' })
+    state = boardReducer(state, { type: 'setStagingDreamsNote', note: 'Flying again.' })
+    expect(state.staging.notes).toBe('Slept in the guest room.')
+    expect(state.staging.dreamsNote).toBe('Flying again.')
+  })
+
+  it('commit attaches both staged fields to the real activity; an empty/blank dreams draft commits as null, never an empty string', () => {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Sleep' },
+      { type: 'pickOption', level: 0, value: 'Night sleep' },
+      { type: 'toggleStagingSleepQuality', quality: 'Deep Restorative' },
+      { type: 'setStagingDreamsNote', note: 'Flying again.' },
+      { type: 'commit' },
+    )
+    expect(real(state)[0].sleepQuality).toEqual(['Deep Restorative'])
+    expect(real(state)[0].dreamsNote).toBe('Flying again.')
+
+    state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Sleep' },
+      { type: 'pickOption', level: 0, value: 'Nap' },
+      { type: 'commit' },
+    )
+    expect(real(state)[0].sleepQuality).toEqual([])
+    expect(real(state)[0].dreamsNote).toBeNull()
+  })
+
+  it('editing an activity re-stages its own existing sleepQuality/dreamsNote', () => {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Sleep' },
+      { type: 'pickOption', level: 0, value: 'Power Nap' },
+      { type: 'toggleStagingSleepQuality', quality: 'Short but Restorative' },
+      { type: 'setStagingDreamsNote', note: 'No dreams.' },
+      { type: 'commit' },
+    )
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'editActivity', id })
+    expect(state.staging.sleepQuality).toEqual(['Short but Restorative'])
+    expect(state.staging.dreamsNote).toBe('No dreams.')
+  })
+
+  it('editing an activity with no prior sleepQuality/dreamsNote re-stages [] / empty string', () => {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Sleep' },
+      { type: 'pickOption', level: 0, value: 'Night sleep' },
+      { type: 'commit' },
+    )
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'editActivity', id })
+    expect(state.staging.sleepQuality).toEqual([])
+    expect(state.staging.dreamsNote).toBe('')
+  })
+})
+
 describe('commit never touches reflections — mapping is a separate, later action', () => {
   it('a brand-new activity always starts with no reflections, regardless of any (nonexistent) staging path for them', () => {
     const state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
@@ -979,7 +1060,7 @@ describe('selectScheduledActivity — clicking an activity’s own rendered time
       flags: ['Attack'],
       quality: [],
       symptoms: [],
-      notes: null, reflections: [],
+      notes: null, reflections: [], sleepQuality: [], dreamsNote: null,
       status: 'planned',
       timezone: 'UTC',
     }
@@ -1129,5 +1210,88 @@ describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quic
       durationMinutes: 45, // would need to reach 00:15 the next day
     })
     expect(real(state)).toHaveLength(0)
+  })
+})
+
+describe('quickLogActivity — Exercise/Sleep (path/type), and notes/sleepQuality/dreamsNote passthrough', () => {
+  it('stages no type/note by default — Vipassana-style quick log unaffected', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Vipassana',
+      startMinutes: 6 * 60,
+      durationMinutes: 30,
+    })
+    expect(real(state)[0]).toMatchObject({ path: [], notes: null, sleepQuality: [], dreamsNote: null })
+  })
+
+  it('carries the chosen type through as `path`, same shape a tile-row sub-pick produces', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Sports or Exercise',
+      startMinutes: 6 * 60,
+      durationMinutes: 30,
+      path: ['HIIT'],
+    })
+    expect(real(state)[0].path).toEqual(['HIIT'])
+  })
+
+  it('carries a plain note through to the real activity notes field', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Breathwork',
+      startMinutes: 6 * 60,
+      durationMinutes: 10,
+      notes: 'Box breathing.',
+    })
+    expect(real(state)[0].notes).toBe('Box breathing.')
+  })
+
+  it('a blank/whitespace-only note commits as null, never an empty string', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Breathwork',
+      startMinutes: 6 * 60,
+      durationMinutes: 10,
+      notes: '   ',
+    })
+    expect(real(state)[0].notes).toBeNull()
+  })
+
+  it('Sleep carries type/sleepQuality/dreamsNote all together in one write', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Sleep',
+      startMinutes: 0,
+      durationMinutes: 7 * 60,
+      path: ['Night sleep'],
+      sleepQuality: ['Deep Restorative'],
+      dreamsNote: 'Flying again.',
+    })
+    expect(real(state)[0]).toMatchObject({
+      path: ['Night sleep'],
+      sleepQuality: ['Deep Restorative'],
+      dreamsNote: 'Flying again.',
+    })
+  })
+
+  it('multiple Sleep sessions in one day (Night sleep + a Nap) are two separate rows, both counted in the Sleep total', () => {
+    let state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Sleep',
+      startMinutes: 0,
+      durationMinutes: 6 * 60,
+      path: ['Night sleep'],
+    })
+    state = boardReducer(state, {
+      type: 'quickLogActivity',
+      cardName: 'Sleep',
+      startMinutes: 13 * 60,
+      durationMinutes: 45,
+      path: ['Nap'],
+    })
+    const sessions = real(state).filter((a) => a.name === 'Sleep')
+    expect(sessions).toHaveLength(2)
+    expect(sessions.reduce((sum, a) => sum + a.durationMinutes, 0)).toBe(6 * 60 + 45)
+    assertNoOverlaps(state, 'Night sleep + Nap')
   })
 })

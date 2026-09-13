@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { findCard } from '@/data/activities'
 import { SHOW_DURATION_STEPPER_FALLBACK } from '@/lib/featureFlags'
 import { stagingOptions, type StagingState } from '@/state/boardReducer'
-import type { ActivityList, ActivityQuality, FlagId, Symptom } from '@/domain/types'
+import type { ActivityList, ActivityQuality, FlagId, SleepQualityId, Symptom } from '@/domain/types'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,7 @@ import { DurationDragBlock } from './DurationDragBlock'
 import { DurationStepperFallback } from './DurationStepperFallback'
 import { FlagPicker } from './FlagPicker'
 import { QualityPicker } from './QualityPicker'
+import { SleepQualityPicker } from './SleepQualityPicker'
 import { SymptomsPicker } from './SymptomsPicker'
 
 /**
@@ -39,6 +40,8 @@ export function LogActivityModal({
   onToggleQuality,
   onToggleSymptom,
   onSetNotes,
+  onToggleSleepQuality,
+  onSetDreamsNote,
   onCommit,
   onCancel,
 }: {
@@ -55,6 +58,9 @@ export function LogActivityModal({
   onToggleQuality: (quality: ActivityQuality) => void
   onToggleSymptom: (symptom: Symptom) => void
   onSetNotes: (notes: string) => void
+  /** Sleep-quick-log-only in practice — see the section below, gated on `staging.cardName === 'Sleep'`. */
+  onToggleSleepQuality: (quality: SleepQualityId) => void
+  onSetDreamsNote: (note: string) => void
   onCommit: () => void
   onCancel: () => void
 }) {
@@ -191,6 +197,31 @@ export function LogActivityModal({
               rows={3}
               className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             />
+
+            {/* Sleep-quick-log-only fields — its own 11-value quality
+                vocabulary (deliberately separate from `QualityPicker` above)
+                plus a SECOND, separate note field ("Dreams") from the plain
+                notes textarea above. Gated on the card name, not a separate
+                flag, exactly like the sub/third drill-down chips above are
+                gated on `options`. */}
+            {staging.cardName === 'Sleep' && (
+              <>
+                <SleepQualityPicker selected={staging.sleepQuality} onToggle={onToggleSleepQuality} />
+                <div>
+                  <label htmlFor="dreams-note" className="sr-only">
+                    Dreams
+                  </label>
+                  <textarea
+                    id="dreams-note"
+                    value={staging.dreamsNote}
+                    onChange={(event) => onSetDreamsNote(event.target.value)}
+                    placeholder="Dreams"
+                    rows={3}
+                    className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  />
+                </div>
+              </>
+            )}
 
             {/* Save: a small centered pill, not a full-width bar. Cancel is
                 gone — the X close icon above is the only way to dismiss

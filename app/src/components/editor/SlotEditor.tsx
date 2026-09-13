@@ -201,6 +201,8 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
         onToggleQuality={(quality) => dispatch({ type: 'toggleStagingQuality', quality })}
         onToggleSymptom={(symptom) => dispatch({ type: 'toggleStagingSymptom', symptom })}
         onSetNotes={(notes) => dispatch({ type: 'setStagingNotes', notes })}
+        onToggleSleepQuality={(quality) => dispatch({ type: 'toggleStagingSleepQuality', quality })}
+        onSetDreamsNote={(note) => dispatch({ type: 'setStagingDreamsNote', note })}
         onCommit={() => dispatch({ type: 'commit' })}
         onCancel={() => dispatch({ type: 'cancelStaging' })}
       />

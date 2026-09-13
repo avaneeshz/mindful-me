@@ -1,8 +1,10 @@
 import {
   Activity,
+  AlarmClock,
   Bath,
   BatteryLow,
   BatteryCharging,
+  Bed,
   BedDouble,
   BedSingle,
   Bone,
@@ -11,11 +13,13 @@ import {
   Building2,
   CircleDashed,
   CircleSlash,
+  CloudMoon,
   Coffee,
   Droplet,
   Droplets,
   Dumbbell,
   EyeOff,
+  Feather,
   Flame,
   Flower2,
   Footprints,
@@ -36,6 +40,7 @@ import {
   MonitorPlay,
   PenLine,
   Pill,
+  Puzzle,
   Repeat,
   Rocket,
   Scissors,
@@ -49,6 +54,7 @@ import {
   Sparkles,
   Sprout,
   Sun,
+  Sunrise,
   Syringe,
   Table2,
   Thermometer,
@@ -65,7 +71,15 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActivityCard, ActivityQuality, Category, CategoryId, FlagId, Symptom } from '@/domain/types'
+import type {
+  ActivityCard,
+  ActivityQuality,
+  Category,
+  CategoryId,
+  FlagId,
+  SleepQualityId,
+  Symptom,
+} from '@/domain/types'
 
 /* ------------------------------------------------------------------ *
  * Colour system — SUPERSEDED, kept as inert data only.
@@ -210,6 +224,20 @@ export const ACTIVITY_CARDS: ActivityCard[] = [
   // like its column-mates in this tile. Flagged in the PR description;
   // cheap to change to an `auto:N` rule later if that turns out wrong.
   { name: 'Slow down', categoryId: 'sleep', icon: Wind, color: '#9CA4B4', onColor: 'text-charcoal', disappear: { mode: 'manual' } },
+  // The Sleep header quick-log button's underlying catalog identity — a
+  // genuinely new card (its 3-value type vocabulary doesn't match 'Night
+  // Sleep'/'Day Sleep'/'Bed Exercise' above; see the migration's own
+  // comment). Reachable from the tile picker too, same as every other
+  // quick-log-eligible card (Vipassana, Sports or Exercise, Breathwork).
+  {
+    name: 'Sleep',
+    categoryId: 'sleep',
+    icon: Bed,
+    color: '#5C6B8A',
+    onColor: 'text-white',
+    disappear: { mode: 'manual' },
+    sub: ['Night sleep', 'Nap', 'Power Nap'],
+  },
 
   // --- Tile 2: Food & Nourishment --------------------------------------
   { name: 'Soaking/Sprouting/Grinding', categoryId: 'food', icon: Sprout, color: '#E8DCC0', onColor: 'text-charcoal', disappear: { mode: 'auto', limit: 2 } },
@@ -559,4 +587,31 @@ export const SYMPTOMS: SymptomDefinition[] = [
   { id: 'Calves pain', icon: Footprints },
   { id: 'Temporal pain', icon: Brain },
   { id: 'Dryness', icon: Sun },
+]
+
+/* ------------------------------------------------------------------ *
+ * "How was your sleep?" — a multi-select, optional reflection on the Sleep
+ * quick-log button, deliberately its OWN vocabulary from `ActivityQuality`
+ * (see `SleepQualityId` in domain/types.ts). Icon choices are a judgement
+ * call (none were prescribed), same as quality/symptoms' own — cheap to
+ * swap later.
+ * ------------------------------------------------------------------ */
+
+export interface SleepQualityDefinition {
+  id: SleepQualityId
+  icon: LucideIcon
+}
+
+export const SLEEP_QUALITIES: SleepQualityDefinition[] = [
+  { id: 'Deep Restorative', icon: Moon },
+  { id: 'Light & Restful', icon: CloudMoon },
+  { id: 'Light & Restless', icon: Waves },
+  { id: 'Fragmented', icon: Puzzle },
+  { id: 'Interrupted', icon: AlarmClock },
+  { id: 'Long but Unrefreshing', icon: BatteryLow },
+  { id: 'Short but Restorative', icon: BatteryCharging },
+  { id: 'Dream-Intense', icon: Feather },
+  { id: 'Delayed', icon: Timer },
+  { id: 'Early Awakening', icon: Sunrise },
+  { id: 'Unusually Deep', icon: Sparkles },
 ]

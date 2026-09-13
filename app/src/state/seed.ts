@@ -27,6 +27,8 @@ function activity(
     symptoms: [],
     notes: null,
     reflections: [],
+    sleepQuality: [],
+    dreamsNote: null,
     status: 'planned',
     timezone: TIMEZONE,
   }
@@ -50,6 +52,8 @@ function flagMarker(startMinutes: number, flags: FlagId[]): ScheduledActivity {
     symptoms: [],
     notes: null,
     reflections: [],
+    sleepQuality: [],
+    dreamsNote: null,
     status: 'planned',
     timezone: TIMEZONE,
   }

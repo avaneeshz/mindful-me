@@ -53,8 +53,8 @@ export function TodayPage() {
         user={user}
         onSignOut={signOut}
         activities={state.activities}
-        onQuickLog={(cardName, startMinutes, durationMinutes) =>
-          dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
+        onQuickLog={(cardName, startMinutes, durationMinutes, extra) =>
+          dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes, ...extra })
         }
         syncQueue={syncQueue}
         onRetrySyncNow={retrySyncNow}

@@ -17,6 +17,7 @@ function activity(startMinutes: number, durationMinutes: number, name = 'Homewor
     quality: [],
     symptoms: [],
     notes: null, reflections: [],
+    sleepQuality: [], dreamsNote: null,
     status: 'planned',
     timezone: 'UTC',
   }
@@ -122,6 +123,7 @@ describe('an activity’s own rendered segment is a real, independently operable
       quality: [],
       symptoms: [],
       notes: null, reflections: [],
+      sleepQuality: [], dreamsNote: null,
       status: 'planned',
       timezone: 'UTC',
     }

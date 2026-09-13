@@ -160,6 +160,31 @@ export type ActivityQuality =
 export type Symptom = 'Pitta' | 'Inflammation' | 'Right knee pain' | 'Calves pain' | 'Temporal pain' | 'Dryness'
 
 /**
+ * "How was your sleep?" — a multi-select, optional reflection specific to
+ * the Sleep quick-log button. Deliberately a SEPARATE vocabulary from
+ * `ActivityQuality` ("Activity quality") — conflating the two would either
+ * pollute the general 18-value picker with sleep-only values that make no
+ * sense on a non-sleep activity, or silently reinterpret a subset of it as
+ * sleep-specific. Present on every `ScheduledActivity` (empty array default)
+ * like `quality`/`symptoms` are, but only ever populated by a 'Sleep'-named
+ * entry — the UI gates the picker to `staging.cardName === 'Sleep'`, not the
+ * schema (see `domain/scheduling.ts`'s `CommitContext` and the
+ * `scheduled_activity_sleep_fields` migration).
+ */
+export type SleepQualityId =
+  | 'Deep Restorative'
+  | 'Light & Restful'
+  | 'Light & Restless'
+  | 'Fragmented'
+  | 'Interrupted'
+  | 'Long but Unrefreshing'
+  | 'Short but Restorative'
+  | 'Dream-Intense'
+  | 'Delayed'
+  | 'Early Awakening'
+  | 'Unusually Deep'
+
+/**
  * One reflection-card pairing on a logged activity — many-to-many (a
  * scheduled activity can carry several cards, one card can be used on many
  * scheduled activities), and unlike quality/symptoms (which share ONE note
@@ -242,6 +267,10 @@ export interface ScheduledActivity {
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string
+  /** "How was your sleep?" — optional multi-select, Sleep-quick-log-only in practice. See `SleepQualityId`. */
+  sleepQuality: SleepQualityId[]
+  /** A SEPARATE freeform note from `notes` — Sleep-quick-log-only in practice ("Dreams"). Encrypted at rest like `notes` (rule 10). */
+  dreamsNote: string | null
 }
 
 export type ActivityList = readonly ScheduledActivity[]

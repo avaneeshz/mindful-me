@@ -6,6 +6,7 @@ import type {
   ReflectionEntry,
   ScheduleStatus,
   ScheduledActivity,
+  SleepQualityId,
   Symptom,
 } from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
@@ -29,6 +30,8 @@ interface ScheduledActivityDto {
   symptoms: string[] | null
   notes: string | null
   reflections: { card_id: string; note: string | null }[] | null
+  sleep_quality: string[] | null
+  dreams: string | null
 }
 
 async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity> {
@@ -56,6 +59,8 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     symptoms: (dto.symptoms ?? []) as Symptom[],
     notes: dto.notes ?? null,
     reflections,
+    sleepQuality: (dto.sleep_quality ?? []) as SleepQualityId[],
+    dreamsNote: dto.dreams ?? null,
     status: (dto.status as ScheduleStatus) ?? 'planned',
     timezone: dto.timezone,
   }
@@ -115,6 +120,8 @@ export async function apiCreateScheduledActivity(activity: ScheduledActivity, re
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
+    p_sleep_quality: activity.sleepQuality,
+    p_dreams: activity.dreamsNote,
   })
   if (error) throw error
 }
@@ -140,6 +147,8 @@ export async function apiRescheduleScheduledActivity(
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
+    p_sleep_quality: activity.sleepQuality,
+    p_dreams: activity.dreamsNote,
   })
   if (error) throw error
 }
@@ -174,6 +183,20 @@ export async function apiSetScheduledActivitySymptoms(id: string, symptoms: Symp
 export async function apiSetScheduledActivityNotes(id: string, notes: string | null): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('set_scheduled_activity_notes', { p_id: id, p_notes: notes })
+  if (error) throw error
+}
+
+/** Parity with `apiSetScheduledActivityQuality` — a sleep-quality-only edit with no accompanying time change. */
+export async function apiSetScheduledActivitySleepQuality(id: string, sleepQuality: SleepQualityId[]): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('set_scheduled_activity_sleep_quality', { p_id: id, p_sleep_quality: sleepQuality })
+  if (error) throw error
+}
+
+/** Parity with `apiSetScheduledActivityNotes` — a Dreams-only edit with no accompanying time change. */
+export async function apiSetScheduledActivityDreams(id: string, dreams: string | null): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('set_scheduled_activity_dreams', { p_id: id, p_dreams: dreams })
   if (error) throw error
 }
 

@@ -30,6 +30,7 @@ import type {
   ReflectionEntry,
   ScheduledActivity,
   ScheduleStatus,
+  SleepQualityId,
   Symptom,
 } from './types'
 
@@ -302,6 +303,10 @@ export interface CommitContext {
   status?: ScheduleStatus
   timezone?: string
   id?: string
+  /** "How was your sleep?" — optional, multi-select, Sleep-quick-log-only in practice. */
+  sleepQuality?: SleepQualityId[]
+  /** A SEPARATE freeform note from `notes` — Sleep-quick-log-only in practice ("Dreams"). */
+  dreamsNote?: string | null
 }
 
 export function generateId(): string {
@@ -332,6 +337,8 @@ export function commitSchedule(
     symptoms: context.symptoms ?? [],
     notes: context.notes ?? null,
     reflections: context.reflections ?? [],
+    sleepQuality: context.sleepQuality ?? [],
+    dreamsNote: context.dreamsNote ?? null,
     status: context.status ?? 'planned',
     timezone:
       context.timezone ??

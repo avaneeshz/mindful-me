@@ -28,6 +28,8 @@ function activity(id: string, overrides: Partial<ScheduledActivity> = {}): Sched
     symptoms: [],
     notes: null,
     reflections: [],
+    sleepQuality: [],
+    dreamsNote: null,
     status: 'planned',
     timezone: 'UTC',
     ...overrides,

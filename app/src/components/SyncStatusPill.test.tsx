@@ -18,6 +18,8 @@ function activity(id: string): ScheduledActivity {
     symptoms: [],
     notes: null,
     reflections: [],
+    sleepQuality: [],
+    dreamsNote: null,
     status: 'planned',
     timezone: 'UTC',
   }

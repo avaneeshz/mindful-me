@@ -11,7 +11,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { ActivityQuality, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
+import type { ActivityQuality, FlagId, ScheduledActivity, SleepQualityId, Symptom } from '@/domain/types'
 
 /**
  * What is currently staged in the modal but not yet committed. Nothing here
@@ -35,6 +35,10 @@ export interface StagingState {
   symptoms: Symptom[]
   /** Freeform notes textarea — optional, empty string is "nothing typed". */
   notes: string
+  /** "How was your sleep?" — optional multi-select, Sleep-quick-log-only in practice. */
+  sleepQuality: SleepQualityId[]
+  /** "Dreams" — a SEPARATE freeform note from `notes`, Sleep-quick-log-only in practice. */
+  dreamsNote: string
   /**
    * Id of the activity being edited in place, or null when adding a new one.
    * Saving replaces that activity rather than appending a duplicate. Because
@@ -84,6 +88,8 @@ export const EMPTY_STAGING: StagingState = {
   quality: [],
   symptoms: [],
   notes: '',
+  sleepQuality: [],
+  dreamsNote: '',
   editingId: null,
 }
 
@@ -122,6 +128,10 @@ export type BoardAction =
   /** Multi-select toggle — adds the symptom if absent, removes it if present. */
   | { type: 'toggleStagingSymptom'; symptom: Symptom }
   | { type: 'setStagingNotes'; notes: string }
+  /** Multi-select toggle — adds the sleep-quality value if absent, removes it if present. Sleep-quick-log-only in practice. */
+  | { type: 'toggleStagingSleepQuality'; quality: SleepQualityId }
+  /** Sleep-quick-log-only in practice — a SEPARATE field from `setStagingNotes`. */
+  | { type: 'setStagingDreamsNote'; note: string }
   | { type: 'commit' }
   | { type: 'editActivity'; id: string }
   | { type: 'removeActivity'; id: string }
@@ -168,8 +178,24 @@ export type BoardAction =
    * so it can show an inline conflict error instead of a silent no-op — this
    * re-validates anyway (belt and braces, same reasoning `commit` re-checks
    * a staged candidate that was already validated when it was computed).
+   *
+   * `path`/`notes`/`sleepQuality`/`dreamsNote` are all optional — Vipassana
+   * (no type, no note) never passes them; Exercise/Sleep pass `path` (the
+   * chosen type, single-element, same shape a tile-row sub-pick produces)
+   * and `notes`; Sleep additionally passes `sleepQuality`/`dreamsNote`. See
+   * `domain/displayButtons.ts`'s `quickLogType`/`quickLogNote`/
+   * `quickLogSleepQuality`/`quickLogDreamsNote`.
    */
-  | { type: 'quickLogActivity'; cardName: string; startMinutes: number; durationMinutes: number }
+  | {
+      type: 'quickLogActivity'
+      cardName: string
+      startMinutes: number
+      durationMinutes: number
+      path?: string[]
+      notes?: string | null
+      sleepQuality?: SleepQualityId[]
+      dreamsNote?: string | null
+    }
 
 /** Is the staged path deep enough to name a concrete leaf activity? */
 export function isStagingComplete(staging: StagingState): boolean {
@@ -220,6 +246,8 @@ function stageFrom(
     quality: [],
     symptoms: [],
     notes: '',
+    sleepQuality: [],
+    dreamsNote: '',
     editingId: candidate.id,
   }
 }
@@ -367,6 +395,21 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, notes: action.notes } }
     }
 
+    case 'toggleStagingSleepQuality': {
+      if (!state.staging.cardName) return state
+      const { sleepQuality } = state.staging
+      const next = sleepQuality.includes(action.quality)
+        ? sleepQuality.filter((q) => q !== action.quality)
+        : [...sleepQuality, action.quality]
+      return { ...state, staging: { ...state.staging, sleepQuality: next } }
+    }
+
+    case 'setStagingDreamsNote': {
+      if (!state.staging.cardName) return state
+      if (state.staging.dreamsNote === action.note) return state
+      return { ...state, staging: { ...state.staging, dreamsNote: action.note } }
+    }
+
     case 'commit': {
       const { staging } = state
       if (!staging.cardName || !isStagingComplete(staging)) return state
@@ -404,6 +447,8 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         symptoms: staging.symptoms,
         notes: staging.notes.trim() ? staging.notes : null,
         reflections: prior?.reflections ?? [],
+        sleepQuality: staging.sleepQuality,
+        dreamsNote: staging.dreamsNote.trim() ? staging.dreamsNote : null,
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
@@ -433,6 +478,8 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           quality: [...activity.quality],
           symptoms: [...activity.symptoms],
           notes: activity.notes ?? '',
+          sleepQuality: [...activity.sleepQuality],
+          dreamsNote: activity.dreamsNote ?? '',
           editingId: activity.id,
         },
       }
@@ -585,12 +632,16 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'quickLogActivity': {
       const candidate: CandidateSchedule = {
         id: null,
-        activity: { name: action.cardName, path: [] },
+        activity: { name: action.cardName, path: action.path ?? [] },
         startMinutes: action.startMinutes,
         durationMinutes: action.durationMinutes,
       }
       if (!validateSchedule(candidate, state.activities).ok) return state
-      const committed = commitSchedule(candidate)
+      const committed = commitSchedule(candidate, {
+        notes: action.notes?.trim() ? action.notes : null,
+        sleepQuality: action.sleepQuality ?? [],
+        dreamsNote: action.dreamsNote?.trim() ? action.dreamsNote : null,
+      })
       return { ...state, activities: [...state.activities, committed] }
     }
 
