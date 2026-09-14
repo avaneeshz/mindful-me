@@ -41,7 +41,7 @@ describe('NoteButtonPill', () => {
   })
 
   it('leaks no Recent/History section content at all while closed', () => {
-    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="prayer" label="Prayer" />)
+    const html = renderToStaticMarkup(<NoteButtonPill buttonKey="learnings" label="Learnings" />)
     expect(html).not.toContain('>Recent<')
     expect(html).not.toContain('No notes yet today')
     expect(html).not.toContain('No earlier notes yet')
