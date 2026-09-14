@@ -110,6 +110,50 @@ export async function apiListScheduledActivities(
   return Promise.all(((data ?? []) as ScheduledActivityDto[]).map(dtoToClient))
 }
 
+/** One row from `apiListScheduledActivitiesWithDates` — see its own doc comment for why the date rides along. */
+export interface ScheduledActivityWithDate {
+  activity: ScheduledActivity
+  /** The calendar day this activity belongs to (rule 2 — the day it started on), `YYYY-MM-DD` local to when it was scheduled. */
+  localDate: string
+}
+
+/**
+ * Same bounded-range read as `apiListScheduledActivities` (rule 8 still
+ * applies — the caller must still pass a bounded window), but keeps each
+ * row's own `local_date` alongside it. Every existing caller of
+ * `apiListScheduledActivities` only ever queries a single calendar day
+ * (`lib/localTime.ts`'s `localDayRange(viewedDate)`), where
+ * `ScheduledActivity.startMinutes` (minutes since ITS OWN midnight) is enough
+ * on its own. `useSessionHistory`'s cross-day lookback is the first caller
+ * that spans MULTIPLE days in one query, so it needs the actual calendar day
+ * each row belongs to — to sort chronologically across days and to exclude
+ * one specific day (the one already shown as "Recent") — which the plain
+ * `ScheduledActivity` shape alone can't tell you. A separate function rather
+ * than changing `apiListScheduledActivities`'s return shape, so every
+ * existing single-day call site is untouched.
+ */
+export async function apiListScheduledActivitiesWithDates(
+  rangeStart: Date,
+  rangeEnd: Date,
+): Promise<ScheduledActivityWithDate[] | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('list_scheduled_activities', {
+    p_range_start: rangeStart.toISOString(),
+    p_range_end: rangeEnd.toISOString(),
+  })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[sync] list_scheduled_activities failed — staying on local data', error.message)
+    return null
+  }
+  return Promise.all(
+    ((data ?? []) as ScheduledActivityDto[]).map(async (dto) => ({
+      activity: await dtoToClient(dto),
+      localDate: dto.local_date,
+    })),
+  )
+}
+
 export async function apiCreateScheduledActivity(activity: ScheduledActivity, reference: Date): Promise<void> {
   if (!supabase) return
   const params = await scheduleParams(activity, reference)
