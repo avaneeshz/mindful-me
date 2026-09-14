@@ -11,6 +11,7 @@ import {
   Brain,
   Briefcase,
   Building2,
+  Church,
   CircleDashed,
   CircleSlash,
   CloudMoon,
@@ -38,6 +39,7 @@ import {
   Magnet,
   Moon,
   MonitorPlay,
+  Music4,
   PenLine,
   Pill,
   Puzzle,
@@ -236,7 +238,7 @@ export const ACTIVITY_CARDS: ActivityCard[] = [
     color: '#5C6B8A',
     onColor: 'text-white',
     disappear: { mode: 'manual' },
-    sub: ['Night sleep', 'Nap', 'Power Nap'],
+    sub: ['Main sleep', 'Nap', 'Power Nap'],
   },
 
   // --- Tile 2: Food & Nourishment --------------------------------------
@@ -417,6 +419,42 @@ export const ACTIVITY_CARDS: ActivityCard[] = [
     disappear: { mode: 'auto', limit: 5 },
     sub: ['Singing / worship time', 'Prayer', 'Bible reading', 'Gratitude', 'Manifestation'],
   },
+  // Prayer, Sermons and Worship were, until now, pure freeform-note header
+  // pills (`domain/notes.ts`'s `NOTE_BUTTONS` — keys `prayer`/`summons`/
+  // `worship`) that never blocked real time on the Timeline. A confirmed
+  // product round promotes all three to genuinely new top-level catalog
+  // cards — reachable from the tile picker too, same as every other
+  // quick-log-eligible card (Vipassana, Sports or Exercise, Breathwork,
+  // Sleep) — so their header buttons move to `DISPLAY_BUTTONS` instead (see
+  // `domain/displayButtons.ts`) and each Save now creates a real
+  // `ScheduledActivity`. `Spiritual Care`'s own sub-list above is untouched —
+  // these are separate, standalone activities, not a reclassification of it.
+  {
+    name: 'Prayer',
+    categoryId: 'nature',
+    icon: Hand,
+    color: '#C1793D',
+    onColor: 'text-white',
+    disappear: { mode: 'manual' },
+    // Mirrors the old `prayer` note button's own type vocabulary
+    // (`PRAYER_TYPES` in `domain/notes.ts`) verbatim, duplicated here as
+    // plain string literals per this file's existing convention (every
+    // sub-list here is inline, never a shared/imported constant).
+    sub: [
+      'Adoration',
+      'Thanksgiving',
+      'Repentance',
+      'Seeking forgiveness',
+      'Petition/Supplication',
+      'Intercession',
+      'Contemplation',
+    ],
+  },
+  { name: 'Sermons', categoryId: 'nature', icon: Church, color: '#8B5E3C', onColor: 'text-white', disappear: { mode: 'manual' } },
+  // No `sub` list — Worship's quick-log popover uses a "Start time + number
+  // of songs" entry mode instead of a type selector (see
+  // `domain/displayButtons.ts`'s `WORSHIP_MINUTES_PER_SONG`).
+  { name: 'Worship', categoryId: 'nature', icon: Music4, color: '#A5678E', onColor: 'text-white', disappear: { mode: 'manual' } },
   // The old "Nature connect" wrapper (sub: Sunlight/Breathwork/Star
   // sleeping) is dissolved — these were three independent items per the
   // PDF. Breathwork moved into Movement & Body Therapy above; Sunlight and

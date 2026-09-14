@@ -98,6 +98,14 @@ export default {
       'sun-cap-ink': 'var(--sun-cap-ink)',
       'moon-cap': 'var(--moon-cap-bg)',
       'moon-cap-ink': 'var(--moon-cap-ink)',
+
+      // `SyncStatusPill`'s narrow, approved exception to "no colour
+      // anywhere" — system-sync semantics only (see index.css for the
+      // light/dark values and that component's doc comment). Never reach
+      // for these outside that one component.
+      'status-success': 'var(--status-success)',
+      'status-syncing': 'var(--status-syncing)',
+      'status-error': 'var(--status-error)',
     },
 
     extend: {

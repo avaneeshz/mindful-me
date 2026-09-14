@@ -28,7 +28,7 @@ function activity(overrides: Partial<ScheduledActivity> = {}): ScheduledActivity
 function note(overrides: Partial<NoteEntry> = {}): NoteEntry {
   return {
     id: 'n1',
-    buttonKey: 'prayer',
+    buttonKey: 'mirror',
     note: 'Grateful for today.',
     entryType: null,
     createdAt: '2026-09-11T10:00:00.000Z',
@@ -91,7 +91,7 @@ describe('assembleDayExport', () => {
     expect(result.activities[1].notes).toBe('Felt good.')
     expect(result.activities[1].reflections).toEqual([{ card: 3, title: 'Card 3', note: 'System check-in.' }])
     expect(result.noteEntries).toHaveLength(1)
-    expect(result.noteEntries[0].buttonLabel).toBe('Prayer')
+    expect(result.noteEntries[0].buttonLabel).toBe('Relational Nutrient')
     expect(result.isEmpty).toBe(false)
   })
 

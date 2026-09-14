@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  displayButtonInput,
   displayButtonQuickLogDreamsNote,
   displayButtonQuickLogName,
   displayButtonQuickLogNote,
@@ -11,6 +12,8 @@ import {
   formatDisplayValue,
   formatTargetRelativeValue,
   parseDisplayValue,
+  songCountToMinutes,
+  WORSHIP_MINUTES_PER_SONG,
 } from './displayButtons'
 
 describe('formatDisplayValue', () => {
@@ -42,43 +45,81 @@ describe('formatDisplayValue', () => {
   })
 })
 
-describe('quick-log buttons (Exercise/Breathing/Sleep)', () => {
-  it('maps each to its EXISTING catalog identity — no parallel identity minted', () => {
+describe('quick-log buttons (Exercise/Breathing/Sleep/Prayer/Sermons/Worship)', () => {
+  it('maps each to its catalog identity — Exercise/Breathing reuse an EXISTING card, Sleep/Prayer/Sermons/Worship are genuinely new ones, never a parallel identity', () => {
     expect(displayButtonQuickLogName('exercise')).toBe('Sports or Exercise')
     expect(displayButtonQuickLogName('breathing')).toBe('Breathwork')
     expect(displayButtonQuickLogName('sleep')).toBe('Sleep')
     expect(displayButtonQuickLogName('vipassana')).toBe('Vipassana')
+    expect(displayButtonQuickLogName('prayer')).toBe('Prayer')
+    expect(displayButtonQuickLogName('sermons')).toBe('Sermons')
+    expect(displayButtonQuickLogName('worship')).toBe('Worship')
     expect(displayButtonQuickLogName('steps')).toBeNull()
     expect(displayButtonQuickLogName('protein')).toBeNull()
   })
 
-  it('offers a type field for Exercise, Breathing and Sleep, not Vipassana', () => {
+  it('offers a type field for Exercise, Breathing, Sleep and Prayer, not Vipassana/Sermons/Worship', () => {
     expect(displayButtonQuickLogType('exercise')).toBe(true)
     expect(displayButtonQuickLogType('breathing')).toBe(true)
     expect(displayButtonQuickLogType('sleep')).toBe(true)
+    expect(displayButtonQuickLogType('prayer')).toBe(true)
     expect(displayButtonQuickLogType('vipassana')).toBe(false)
+    expect(displayButtonQuickLogType('sermons')).toBe(false)
+    expect(displayButtonQuickLogType('worship')).toBe(false)
   })
 
   it('labels the type field per button', () => {
     expect(displayButtonQuickLogTypeLabel('exercise')).toBe('Type')
     expect(displayButtonQuickLogTypeLabel('breathing')).toBe('Type')
     expect(displayButtonQuickLogTypeLabel('sleep')).toBe('Sleep type')
+    expect(displayButtonQuickLogTypeLabel('prayer')).toBe('Type')
   })
 
-  it('offers a plain note field for Exercise, Breathing and Sleep, not Vipassana', () => {
+  it('offers a plain note field for Exercise, Breathing, Sleep, Prayer, Sermons and Worship, not Vipassana', () => {
     expect(displayButtonQuickLogNote('exercise')).toBe(true)
     expect(displayButtonQuickLogNote('breathing')).toBe(true)
     expect(displayButtonQuickLogNote('sleep')).toBe(true)
+    expect(displayButtonQuickLogNote('prayer')).toBe(true)
+    expect(displayButtonQuickLogNote('sermons')).toBe(true)
+    expect(displayButtonQuickLogNote('worship')).toBe(true)
     expect(displayButtonQuickLogNote('vipassana')).toBe(false)
   })
 
   it('offers sleep-quality and dreams fields only for Sleep', () => {
-    for (const key of ['exercise', 'breathing', 'vipassana', 'steps', 'protein'] as const) {
+    for (const key of ['exercise', 'breathing', 'vipassana', 'prayer', 'sermons', 'worship', 'steps', 'protein'] as const) {
       expect(displayButtonQuickLogSleepQuality(key)).toBe(false)
       expect(displayButtonQuickLogDreamsNote(key)).toBe(false)
     }
     expect(displayButtonQuickLogSleepQuality('sleep')).toBe(true)
     expect(displayButtonQuickLogDreamsNote('sleep')).toBe(true)
+  })
+})
+
+describe('Worship’s songCount entry mode', () => {
+  it('is the only button using the songCount input mode', () => {
+    expect(displayButtonInput('worship')).toBe('songCount')
+    for (const key of ['vipassana', 'exercise', 'breathing', 'sleep', 'prayer', 'sermons'] as const) {
+      expect(displayButtonInput(key)).toBe('duration')
+    }
+    expect(displayButtonInput('steps')).toBe('number')
+    expect(displayButtonInput('protein')).toBe('number')
+  })
+
+  it('WORSHIP_MINUTES_PER_SONG is the confirmed product number, 3', () => {
+    expect(WORSHIP_MINUTES_PER_SONG).toBe(3)
+  })
+
+  it('songCountToMinutes multiplies a song count by WORSHIP_MINUTES_PER_SONG', () => {
+    expect(songCountToMinutes(1)).toBe(3)
+    expect(songCountToMinutes(4)).toBe(12)
+    expect(songCountToMinutes(10)).toBe(30)
+  })
+
+  it('songCountToMinutes rejects null, zero, negative and non-integer counts', () => {
+    expect(songCountToMinutes(null)).toBeNull()
+    expect(songCountToMinutes(0)).toBeNull()
+    expect(songCountToMinutes(-2)).toBeNull()
+    expect(songCountToMinutes(1.5)).toBeNull()
   })
 })
 

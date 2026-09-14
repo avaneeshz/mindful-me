@@ -142,11 +142,14 @@ export function HeaderBar({
       {/* Row 2 — the day's entry controls, on their own wrapping line beneath
           the header so they read as one group, left-aligned and consistently
           spaced rather than crammed against the title. Note pills first —
-          Extra Senses (was Gifts), Learnings, People (was Mirror), Prayer,
-          Scriptures, Summons, Worship; each opens a note-entry popover (see
-          `NoteButtonPill`), Chits and Opportunities moved to the sidebar —
-          then the numeric display buttons (Vipassana minutes, Steps count),
-          which always show a stored per-day number and set/replace it on click. */}
+          Extra Senses (was Gifts), Learnings, People (was Mirror), Scriptures;
+          each opens a note-entry popover (see `NoteButtonPill`), Chits and
+          Opportunities moved to the sidebar — then the display buttons
+          (Vipassana/Exercise/Breathing/Sleep/Prayer/Sermons/Worship minutes,
+          Steps/Protein counts), which always show a stored per-day number
+          (computed, for the quick-log ones) and log/set it on click. Prayer,
+          Sermons and Worship moved here from the note-pill row — see
+          `domain/notes.ts`'s own doc comment. */}
       <div className="flex flex-wrap items-center gap-sm">
         {NOTE_BUTTONS.map(({ key, label }) => (
           <NoteButtonPill key={key} buttonKey={key} label={label} />

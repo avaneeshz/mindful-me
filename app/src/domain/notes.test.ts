@@ -8,30 +8,18 @@ import {
   noteButtonLabel,
   noteButtonTypes,
   noteEntryWasEdited,
-  PRAYER_TYPES,
   requiresEntryType,
   type NoteButtonKey,
 } from './notes'
 
 describe('NOTE_BUTTONS', () => {
-  it('is the 7 header pills, in render order — Gifts→Extra Senses, Mirror→Relational Nutrient, Chits/Opportunities gone', () => {
-    expect(NOTE_BUTTONS.map((button) => button.key)).toEqual([
-      'gifts',
-      'learnings',
-      'mirror',
-      'prayer',
-      'scriptures',
-      'summons',
-      'worship',
-    ])
+  it('is the 4 header pills, in render order — Gifts→Extra Senses, Mirror→Relational Nutrient, Chits/Opportunities gone, Prayer/Sermons/Worship promoted to real quick-log buttons', () => {
+    expect(NOTE_BUTTONS.map((button) => button.key)).toEqual(['gifts', 'learnings', 'mirror', 'scriptures'])
     expect(NOTE_BUTTONS.map((button) => button.label)).toEqual([
       'Extra Senses',
       'Learnings',
       'Relational Nutrient',
-      'Prayer',
       'Scriptures',
-      'Sermons',
-      'Worship Singing',
     ])
   })
 
@@ -40,23 +28,18 @@ describe('NOTE_BUTTONS', () => {
     expect(keys).not.toContain('chits')
     expect(keys).not.toContain('opportunities')
   })
+
+  it('no longer carries Prayer, Sermons or Worship (promoted to real DISPLAY_BUTTONS quick-log buttons)', () => {
+    const keys = NOTE_BUTTONS.map((button) => button.key) as string[]
+    expect(keys).not.toContain('prayer')
+    expect(keys).not.toContain('summons')
+    expect(keys).not.toContain('worship')
+  })
 })
 
 describe('type enumerations', () => {
   it('GIFT_TYPES is the original 5 values', () => {
     expect(GIFT_TYPES).toEqual(['Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 'Amplifier'])
-  })
-
-  it('PRAYER_TYPES is the 7 given values', () => {
-    expect(PRAYER_TYPES).toEqual([
-      'Adoration',
-      'Thanksgiving',
-      'Repentance',
-      'Seeking forgiveness',
-      'Petition/Supplication',
-      'Intercession',
-      'Contemplation',
-    ])
   })
 
   it('LEARNING_TYPES is Given / Realized / Revealed', () => {
@@ -73,18 +56,17 @@ describe('noteButtonLabel', () => {
 })
 
 describe('noteButtonTypes / requiresEntryType', () => {
-  it('offers a type list for gifts, prayer and learnings only', () => {
+  it('offers a type list for gifts and learnings only', () => {
     expect(noteButtonTypes('gifts')).toBe(GIFT_TYPES)
-    expect(noteButtonTypes('prayer')).toBe(PRAYER_TYPES)
     expect(noteButtonTypes('learnings')).toBe(LEARNING_TYPES)
-    for (const key of ['mirror', 'scriptures', 'summons', 'worship'] as NoteButtonKey[]) {
+    for (const key of ['mirror', 'scriptures'] as NoteButtonKey[]) {
       expect(noteButtonTypes(key)).toBeNull()
       expect(requiresEntryType(key)).toBe(false)
     }
   })
 
-  it('requiresEntryType is true for the three typed buttons', () => {
-    for (const key of ['gifts', 'prayer', 'learnings'] as NoteButtonKey[]) {
+  it('requiresEntryType is true for the two typed buttons', () => {
+    for (const key of ['gifts', 'learnings'] as NoteButtonKey[]) {
       expect(requiresEntryType(key)).toBe(true)
     }
   })
@@ -104,13 +86,11 @@ describe('canSubmitNote', () => {
 
   it('rejects a typed button with a note but no type chosen', () => {
     expect(canSubmitNote('gifts', 'A gift I noticed', null)).toBe(false)
-    expect(canSubmitNote('prayer', 'Grateful today', '')).toBe(false)
     expect(canSubmitNote('learnings', 'Something new', null)).toBe(false)
   })
 
   it('accepts a typed button once both a note and a type are present', () => {
     expect(canSubmitNote('gifts', 'A gift I noticed', 'The Voice')).toBe(true)
-    expect(canSubmitNote('prayer', 'Grateful today', 'Thanksgiving')).toBe(true)
     expect(canSubmitNote('learnings', 'Something new', 'Realized')).toBe(true)
   })
 })

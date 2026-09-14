@@ -18,6 +18,7 @@ import {
   displayButtonUnit,
   formatDisplayValue,
   parseDisplayValue,
+  songCountToMinutes,
   type DisplayButtonKey,
 } from '@/domain/displayButtons'
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration } from '@/domain/quickLog'
@@ -83,6 +84,7 @@ export function DisplayValueButton({
   activities,
   onQuickLog,
   onEditActivity,
+  defaultOpen,
 }: {
   buttonKey: DisplayButtonKey
   viewedDate: Date
@@ -102,6 +104,17 @@ export function DisplayValueButton({
   ) => void
   /** Dispatches `editActivity` — opens the SAME `LogActivityModal` the Timeline's own Edit does, for a `quickLogName` button's session history. Unused for a day-value button. */
   onEditActivity: (id: string) => void
+  /**
+   * Test-only seam. This popover's `open` state is otherwise entirely
+   * internal (click the trigger to open it), same as `SupplementsButton`/
+   * `HeaderBar`'s own popovers — there is no `fireEvent.click` anywhere in
+   * this codebase's SSR-string test suite (see `DisplayValueButton.test.tsx`)
+   * to actually open one by simulating a click. Never passed in production —
+   * `HeaderBar` never sets it — it exists solely so tests can render the
+   * popover's own content (field order, labels, the History scroll
+   * constraint) instead of only ever asserting the closed state.
+   */
+  defaultOpen?: boolean
 }) {
   const dayKey = localDateISO(viewedDate)
   const quickLogName = displayButtonQuickLogName(buttonKey)
@@ -119,10 +132,11 @@ export function DisplayValueButton({
   // internally for every other button (see `useDailyValue`'s own `enabled`).
   const dailyValue = useDailyValue(buttonKey, buttonKey, dayKey, synced)
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen ?? false)
   const [draft, setDraft] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [songCount, setSongCount] = useState('')
   const [type, setType] = useState('')
   const [note, setNote] = useState('')
   const [sleepQuality, setSleepQuality] = useState<SleepQualityId[]>([])
@@ -152,8 +166,19 @@ export function DisplayValueButton({
   const label = labelFor(buttonKey)
   const unit = displayButtonUnit(buttonKey)
   const mode = displayButtonInput(buttonKey)
-  const durationDraft = mode === 'duration' ? durationBetween(start, end) : null
-  const canSave = mode === 'duration' ? canSubmitQuickLog(start, end) : true
+  const parsedSongCount = parseDisplayValue(songCount)
+  const songCountDuration = songCountToMinutes(parsedSongCount)
+  const durationDraft =
+    mode === 'duration' ? durationBetween(start, end) : mode === 'songCount' ? songCountDuration : null
+  // `canSubmitQuickLog` is duration-mode-specific (it takes two clock times),
+  // so `'songCount'` gets its own equivalent: a valid Start time and a
+  // positive whole number of songs.
+  const canSave =
+    mode === 'duration'
+      ? canSubmitQuickLog(start, end)
+      : mode === 'songCount'
+        ? clockToMinutes(start) !== null && songCountDuration !== null
+        : true
 
   // The computed total (quick-log) is derived on every render from the board
   // itself — no separate load effect needed, unlike the local-counter path.
@@ -210,6 +235,7 @@ export function DisplayValueButton({
     setDraft(localValue === null ? '' : String(localValue))
     setStart('')
     setEnd('')
+    setSongCount('')
     setType('')
     setNote('')
     setSleepQuality([])
@@ -239,7 +265,7 @@ export function DisplayValueButton({
     event.preventDefault()
 
     if (quickLogName) {
-      const durationMinutes = durationBetween(start, end)
+      const durationMinutes = mode === 'songCount' ? songCountDuration : durationBetween(start, end)
       const startMinutes = clockToMinutes(start)
       if (durationMinutes === null || startMinutes === null || !canSave) return
 
@@ -270,6 +296,7 @@ export function DisplayValueButton({
       })
       setStart('')
       setEnd('')
+      setSongCount('')
       setType('')
       setNote('')
       setSleepQuality([])
@@ -308,12 +335,23 @@ export function DisplayValueButton({
           role="dialog"
           aria-label={`${label} value`}
           className={cn(
-            'absolute top-[calc(100%+8px)] z-30 w-[min(280px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2',
+            // Bounded height + internal scroll — without this, the Sleep
+            // popover's tall content (start/end time, duration, type chips,
+            // sleep quality, two notes, Save, then History) could run off
+            // the bottom of a short/mobile viewport with no way to reach
+            // History below the fold. Every OTHER button's popover here is
+            // short enough that this changes nothing visible for them, so
+            // it's applied to the shared panel rather than only the Sleep
+            // case — one rule, consistently short of the viewport edge,
+            // same reasoning `.scroll-cue-bottom`/`item-chip-row` elsewhere
+            // in this app already use for "don't let content go off-screen
+            // with no way back".
+            'absolute top-[calc(100%+8px)] z-30 max-h-[min(560px,calc(100vh-32px))] w-[min(280px,calc(100vw-32px))] overflow-y-auto rounded-md border border-line bg-surface p-md shadow-elevation-2',
             align === 'left' ? 'left-0' : 'right-0',
           )}
         >
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
-            {mode === 'duration' ? (
+            {mode === 'duration' || mode === 'songCount' ? (
               <>
                 <div>
                   <label htmlFor={inputId} className="mb-xs block text-caption font-semibold text-ink-dim">
@@ -321,10 +359,29 @@ export function DisplayValueButton({
                   </label>
                   <TimeField id={inputId} inputRef={inputRef} value={start} onChange={setStart} ariaLabel="Start time" />
                 </div>
-                <div>
-                  <label className="mb-xs block text-caption font-semibold text-ink-dim">End</label>
-                  <TimeField value={end} onChange={setEnd} ariaLabel="End time" />
-                </div>
+
+                {mode === 'duration' ? (
+                  <div>
+                    <label className="mb-xs block text-caption font-semibold text-ink-dim">End</label>
+                    <TimeField value={end} onChange={setEnd} ariaLabel="End time" />
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor={`${inputId}-song-count`} className="mb-xs block text-caption font-semibold text-ink-dim">
+                      Number of songs
+                    </label>
+                    <input
+                      id={`${inputId}-song-count`}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={songCount}
+                      onChange={(event) => setSongCount(event.target.value)}
+                      placeholder="0"
+                      className={fieldClass}
+                    />
+                  </div>
+                )}
+
                 <p className="text-caption text-ink-dim">
                   {durationDraft && durationDraft > 0 ? formatDuration(durationDraft) : 'Duration'}
                 </p>
@@ -358,25 +415,16 @@ export function DisplayValueButton({
 
                 {hasSleepQuality && <SleepQualityPicker selected={sleepQuality} onToggle={(q) => setSleepQuality((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]))} />}
 
-                {hasNote && (
-                  <div>
-                    <label htmlFor={`${inputId}-note`} className="mb-xs block text-caption font-semibold text-ink-dim">
-                      Note
-                    </label>
-                    <textarea
-                      id={`${inputId}-note`}
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      placeholder="Add a note"
-                      rows={2}
-                      className={textareaClass}
-                    />
-                  </div>
-                )}
-
+                {/* Dreams before the general Note (swapped per product
+                    feedback), and neither carries a visible heading any
+                    more — same convention `LogActivityModal.tsx`'s own
+                    top-level Notes textarea already uses: no expand/
+                    collapse, no separate caption line, the placeholder
+                    alone carries the label. An `sr-only` `<label>` keeps
+                    each field named for assistive tech. */}
                 {hasDreamsNote && (
                   <div>
-                    <label htmlFor={`${inputId}-dreams`} className="mb-xs block text-caption font-semibold text-ink-dim">
+                    <label htmlFor={`${inputId}-dreams`} className="sr-only">
                       Dreams
                     </label>
                     <textarea
@@ -384,6 +432,22 @@ export function DisplayValueButton({
                       value={dreamsNote}
                       onChange={(event) => setDreamsNote(event.target.value)}
                       placeholder="Dreams"
+                      rows={2}
+                      className={textareaClass}
+                    />
+                  </div>
+                )}
+
+                {hasNote && (
+                  <div>
+                    <label htmlFor={`${inputId}-note`} className="sr-only">
+                      Note
+                    </label>
+                    <textarea
+                      id={`${inputId}-note`}
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      placeholder="Add a note"
                       rows={2}
                       className={textareaClass}
                     />

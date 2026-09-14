@@ -7,12 +7,20 @@
  * React, no Supabase, no `localStorage` — see `state/useNoteEntries.ts` for
  * where those live.
  *
- * `Extra Senses` (key `gifts`), `Relational Nutrient` (key `mirror`),
- * `Sermons` (key `summons`) and `Worship Singing` (key `worship`) are display
- * renames only — their storage keys are unchanged so existing entries and the
- * (unchanged) DB CHECK constraint still line up. `Opportunities` and `Chits`
- * were removed from this row and now live as inert sidebar entries
- * (`components/Sidebar.tsx`). `Scriptures` / `Sermons` / `Worship Singing` are new.
+ * `Extra Senses` (key `gifts`) and `Relational Nutrient` (key `mirror`) are
+ * display renames only — their storage keys are unchanged so existing
+ * entries and the (unchanged) DB CHECK constraint still line up.
+ * `Opportunities` and `Chits` were removed from this row and now live as
+ * inert sidebar entries (`components/Sidebar.tsx`). `Scriptures` is new.
+ *
+ * `Prayer` (key `prayer`), `Sermons` (key `summons`) and `Worship Singing`
+ * (key `worship`) are GONE from this row entirely — a confirmed product
+ * round replaced them with real time-logging header buttons instead (see
+ * `domain/displayButtons.ts`'s `DISPLAY_BUTTONS` and the three new catalog
+ * cards in `data/activities.ts`), since a pure freeform note never blocked
+ * real time on the Timeline the way every other quick-log button does. Any
+ * note entries already stored under those keys stay in the DB untouched —
+ * this is a display/entry-point change, not a data migration.
  */
 
 /** The header pills, in the order they render. */
@@ -20,10 +28,7 @@ export const NOTE_BUTTONS = [
   { key: 'gifts', label: 'Extra Senses' },
   { key: 'learnings', label: 'Learnings' },
   { key: 'mirror', label: 'Relational Nutrient' },
-  { key: 'prayer', label: 'Prayer' },
   { key: 'scriptures', label: 'Scriptures' },
-  { key: 'summons', label: 'Sermons' },
-  { key: 'worship', label: 'Worship Singing' },
 ] as const
 
 export type NoteButtonKey = (typeof NOTE_BUTTONS)[number]['key']
@@ -33,29 +38,28 @@ export const GIFT_TYPES = ['Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 
 
 export type GiftType = (typeof GIFT_TYPES)[number]
 
-/** `Prayer` types. */
-export const PRAYER_TYPES = [
-  'Adoration',
-  'Thanksgiving',
-  'Repentance',
-  'Seeking forgiveness',
-  'Petition/Supplication',
-  'Intercession',
-  'Contemplation',
-] as const
-
 /** `Learnings` types. */
 export const LEARNING_TYPES = ['Given', 'Realized', 'Revealed'] as const
+
+// `PRAYER_TYPES` (Adoration/Thanksgiving/Repentance/Seeking forgiveness/
+// Petition-Supplication/Intercession/Contemplation) lived here as the old
+// `prayer` note button's type vocabulary. Now that Prayer is a real
+// `DISPLAY_BUTTONS` quick-log button (see `domain/displayButtons.ts`), that
+// same 7-value list moved to the `Prayer` catalog card's own `sub` list in
+// `data/activities.ts` — `quickLogType`'s options are always drawn from
+// there (`findCard(quickLogName)?.sub`), never from this file. Nothing else
+// references a Prayer type vocabulary here any more, so the export was
+// dropped rather than kept as dead code; the values themselves are not
+// lost, just relocated to their new single source of truth.
 
 /**
  * Which buttons carry a single-select "type" chip radiogroup above the note
  * field, and the values each offers. A button absent here has no type
- * selector at all. The stored value is a plain string (three different lists
- * feed it) — see `NoteEntry.entryType`.
+ * selector at all. The stored value is a plain string — see
+ * `NoteEntry.entryType`.
  */
 export const NOTE_BUTTON_TYPES: Partial<Record<NoteButtonKey, readonly string[]>> = {
   gifts: GIFT_TYPES,
-  prayer: PRAYER_TYPES,
   learnings: LEARNING_TYPES,
 }
 
