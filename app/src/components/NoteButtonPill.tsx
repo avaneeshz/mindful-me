@@ -7,6 +7,7 @@ import {
   formatNoteTimestamp,
   noteButtonTypes,
   noteEntryWasEdited,
+  partitionNoteEntriesByToday,
   type NoteButtonKey,
   type NoteEntry,
 } from '@/domain/notes'
@@ -58,6 +59,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const savedFlashTimeoutRef = useRef<number | undefined>(undefined)
 
   const textareaId = useId()
+  const recentHeadingId = useId()
   const historyHeadingId = useId()
   const historyListId = useId()
   const editTextareaId = useId()
@@ -69,6 +71,12 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const types = noteButtonTypes(buttonKey)
   const canSubmit = canSubmitNote(buttonKey, noteText, entryType === '' ? null : entryType)
   const canSubmitEdit = canSubmitNote(buttonKey, editNoteText, editEntryType === '' ? null : editEntryType)
+  // "Today" here is the real device-current calendar day — notes aren't
+  // day-scoped like a `ScheduledActivity` (no `viewedDate` concept exists in
+  // this component at all), so this is deliberately NOT the header's viewed
+  // date. Recomputed every render; cheap, and this popover isn't open long
+  // enough for a stale local midnight to matter.
+  const { recent: recentEntries, earlier: earlierEntries } = partitionNoteEntriesByToday(entries, new Date())
 
   useEffect(() => {
     if (!open) return
@@ -116,7 +124,28 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
       if (!wasOpen) {
         const rect = triggerRef.current?.getBoundingClientRect()
         if (rect) {
-          setAlign(rect.left + PANEL_WIDTH <= window.innerWidth - 16 ? 'left' : 'right')
+          // Prefer whichever edge actually keeps the panel on screen — a
+          // trigger near the RIGHT edge that also fails the 'right' check
+          // (a narrow viewport, or a trigger sitting close to both edges at
+          // once) used to fall through to 'right' unconditionally, which
+          // could push the panel off the LEFT edge instead (confirmed on a
+          // 390px mobile viewport). `effectiveWidth` matches the panel's own
+          // `calc(100vw-32px)` shrink so this check stays accurate on a
+          // viewport narrower than `PANEL_WIDTH` itself; when a trigger
+          // sits far enough into the middle of a narrow row that NEITHER
+          // side fits cleanly, picking whichever spills less keeps the
+          // visible clipping to a minimum rather than always favouring one
+          // edge.
+          const effectiveWidth = Math.min(PANEL_WIDTH, window.innerWidth - 32)
+          const fitsLeft = rect.left + effectiveWidth <= window.innerWidth - 16
+          const fitsRight = rect.right - effectiveWidth >= 16
+          if (fitsLeft) setAlign('left')
+          else if (fitsRight) setAlign('right')
+          else {
+            const leftOverflow = rect.left + effectiveWidth - (window.innerWidth - 16)
+            const rightOverflow = 16 - (rect.right - effectiveWidth)
+            setAlign(leftOverflow <= rightOverflow ? 'left' : 'right')
+          }
         }
       }
       return !wasOpen
@@ -152,6 +181,108 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     if (editingEntryId === null || pendingEntryId !== null || !canSubmitEdit) return
     const ok = await updateNote(editingEntryId, editNoteText, editEntryType === '' ? null : editEntryType)
     if (ok) setEditingEntryId(null)
+  }
+
+  /**
+   * One entry's `<li>` — either its inline edit form or its view/edit/remove
+   * row — shared by BOTH the "Recent" and "History" lists below so neither
+   * duplicates this markup (CLAUDE.md's Component Rule).
+   */
+  function renderEntryRow(entry: NoteEntry) {
+    if (editingEntryId === entry.id) {
+      return (
+        <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
+          <form onSubmit={saveEdit} className="flex flex-col gap-sm">
+            {types && (
+              <fieldset className="flex flex-col gap-sm">
+                <legend className="sr-only">Type</legend>
+                <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-xs">
+                  {types.map((type) => {
+                    const isSelected = editEntryType === type
+                    return (
+                      <Chip
+                        key={type}
+                        as="button"
+                        size="xs"
+                        tone={isSelected ? 'active' : 'surface'}
+                        interactive
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => setEditEntryType(isSelected ? '' : type)}
+                      >
+                        {type}
+                      </Chip>
+                    )
+                  })}
+                </div>
+              </fieldset>
+            )}
+            <label htmlFor={editTextareaId} className="sr-only">
+              Edit note
+            </label>
+            <textarea
+              id={editTextareaId}
+              value={editNoteText}
+              onChange={(event) => setEditNoteText(event.target.value)}
+              rows={3}
+              autoFocus
+              disabled={pendingEntryId === entry.id}
+              className={cn(fieldClass, 'resize-none text-caption disabled:opacity-60')}
+            />
+            <div className="flex items-center gap-md">
+              <Button type="submit" variant="accent" size="inline" disabled={pendingEntryId === entry.id || !canSubmitEdit}>
+                {pendingEntryId === entry.id ? (
+                  <>
+                    <Loader2 aria-hidden="true" className="size-[13px] animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  'Save'
+                )}
+              </Button>
+              <Button type="button" variant="ghost" size="inline" onClick={cancelEdit} disabled={pendingEntryId === entry.id}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </li>
+      )
+    }
+
+    return (
+      <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
+        <div className="flex items-center justify-between gap-sm">
+          <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
+            {formatNoteTimestamp(new Date(entry.createdAt))}
+            {noteEntryWasEdited(entry) && ' · edited'}
+          </time>
+          {entry.entryType && <span className="text-nano font-semibold text-ink-dim">{entry.entryType}</span>}
+        </div>
+        <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
+        <div className="mt-xs flex items-center gap-lg">
+          <Button
+            variant="accent"
+            size="inline"
+            onClick={() => startEdit(entry)}
+            disabled={pendingEntryId !== null}
+            aria-label={`Edit this ${label} note`}
+          >
+            <Pencil aria-hidden="true" className="size-[12px]" />
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="inline"
+            onClick={() => void deleteNote(entry.id)}
+            disabled={pendingEntryId !== null}
+            aria-label={`Remove this ${label} note`}
+          >
+            <X aria-hidden="true" className="size-[12px]" />
+            {pendingEntryId === entry.id ? 'Removing…' : 'Remove'}
+          </Button>
+        </div>
+      </li>
+    )
   }
 
   return (
@@ -260,23 +391,12 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
           </form>
 
           <div className="mt-lg border-t border-line pt-md">
-            <button
-              type="button"
-              id={historyHeadingId}
-              aria-expanded={historyOpen}
-              aria-controls={historyListId}
-              onClick={() => setHistoryOpen((value) => !value)}
-              className="flex w-full items-center justify-between text-nano font-semibold uppercase tracking-tag text-ink-dim transition-colors hover:text-ink"
-            >
-              History
-              <ChevronDown
-                aria-hidden="true"
-                className={cn('size-[14px] transition-transform', historyOpen && 'rotate-180')}
-              />
-            </button>
-
-            {historyOpen && (
-              <div id={historyListId} role="region" aria-labelledby={historyHeadingId} className="mt-sm">
+            {/* Recent — always visible, no toggle/collapse; today's notes only. */}
+            <div>
+              <h3 id={recentHeadingId} className="text-nano font-semibold uppercase tracking-tag text-ink-dim">
+                Recent
+              </h3>
+              <div aria-labelledby={recentHeadingId} className="mt-sm">
                 {status === 'loading' && entries.length === 0 && (
                   <p className="flex items-center gap-sm text-caption text-ink-dim">
                     <Loader2 aria-hidden="true" className="size-[14px] animate-spin" />
@@ -284,121 +404,58 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                   </p>
                 )}
 
-                {status !== 'loading' && entries.length === 0 && (
-                  <p className="text-caption text-ink-dim">No notes yet — the first one you store shows up here.</p>
+                {status !== 'loading' && recentEntries.length === 0 && (
+                  <p className="text-caption text-ink-dim">No notes yet today.</p>
                 )}
 
-                {entries.length > 0 && (
+                {recentEntries.length > 0 && (
                   <ul className="flex max-h-[320px] flex-col gap-sm overflow-y-auto">
-                    {entries.map((entry) =>
-                      editingEntryId === entry.id ? (
-                        <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
-                          <form onSubmit={saveEdit} className="flex flex-col gap-sm">
-                            {types && (
-                              <fieldset className="flex flex-col gap-sm">
-                                <legend className="sr-only">Type</legend>
-                                <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-xs">
-                                  {types.map((type) => {
-                                    const isSelected = editEntryType === type
-                                    return (
-                                      <Chip
-                                        key={type}
-                                        as="button"
-                                        size="xs"
-                                        tone={isSelected ? 'active' : 'surface'}
-                                        interactive
-                                        role="radio"
-                                        aria-checked={isSelected}
-                                        onClick={() => setEditEntryType(isSelected ? '' : type)}
-                                      >
-                                        {type}
-                                      </Chip>
-                                    )
-                                  })}
-                                </div>
-                              </fieldset>
-                            )}
-                            <label htmlFor={editTextareaId} className="sr-only">
-                              Edit note
-                            </label>
-                            <textarea
-                              id={editTextareaId}
-                              value={editNoteText}
-                              onChange={(event) => setEditNoteText(event.target.value)}
-                              rows={3}
-                              autoFocus
-                              disabled={pendingEntryId === entry.id}
-                              className={cn(fieldClass, 'resize-none text-caption disabled:opacity-60')}
-                            />
-                            <div className="flex items-center gap-md">
-                              <Button
-                                type="submit"
-                                variant="accent"
-                                size="inline"
-                                disabled={pendingEntryId === entry.id || !canSubmitEdit}
-                              >
-                                {pendingEntryId === entry.id ? (
-                                  <>
-                                    <Loader2 aria-hidden="true" className="size-[13px] animate-spin" />
-                                    Saving…
-                                  </>
-                                ) : (
-                                  'Save'
-                                )}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="inline"
-                                onClick={cancelEdit}
-                                disabled={pendingEntryId === entry.id}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </form>
-                        </li>
-                      ) : (
-                        <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
-                          <div className="flex items-center justify-between gap-sm">
-                            <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
-                              {formatNoteTimestamp(new Date(entry.createdAt))}
-                              {noteEntryWasEdited(entry) && ' · edited'}
-                            </time>
-                            {entry.entryType && (
-                              <span className="text-nano font-semibold text-ink-dim">{entry.entryType}</span>
-                            )}
-                          </div>
-                          <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
-                          <div className="mt-xs flex items-center gap-lg">
-                            <Button
-                              variant="accent"
-                              size="inline"
-                              onClick={() => startEdit(entry)}
-                              disabled={pendingEntryId !== null}
-                              aria-label={`Edit this ${label} note`}
-                            >
-                              <Pencil aria-hidden="true" className="size-[12px]" />
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="inline"
-                              onClick={() => void deleteNote(entry.id)}
-                              disabled={pendingEntryId !== null}
-                              aria-label={`Remove this ${label} note`}
-                            >
-                              <X aria-hidden="true" className="size-[12px]" />
-                              {pendingEntryId === entry.id ? 'Removing…' : 'Remove'}
-                            </Button>
-                          </div>
-                        </li>
-                      ),
-                    )}
+                    {recentEntries.map((entry) => renderEntryRow(entry))}
                   </ul>
                 )}
               </div>
-            )}
+            </div>
+
+            {/* History — collapsed by default, ALWAYS rendered even when
+                empty; scoped to everything other than today (no duplication
+                with Recent above). */}
+            <div className="mt-md">
+              <button
+                type="button"
+                id={historyHeadingId}
+                aria-expanded={historyOpen}
+                aria-controls={historyListId}
+                onClick={() => setHistoryOpen((value) => !value)}
+                className="flex w-full items-center justify-between text-nano font-semibold uppercase tracking-tag text-ink-dim transition-colors hover:text-ink"
+              >
+                History
+                <ChevronDown
+                  aria-hidden="true"
+                  className={cn('size-[14px] transition-transform', historyOpen && 'rotate-180')}
+                />
+              </button>
+
+              {historyOpen && (
+                <div id={historyListId} role="region" aria-labelledby={historyHeadingId} className="mt-sm">
+                  {status === 'loading' && entries.length === 0 && (
+                    <p className="flex items-center gap-sm text-caption text-ink-dim">
+                      <Loader2 aria-hidden="true" className="size-[14px] animate-spin" />
+                      Loading…
+                    </p>
+                  )}
+
+                  {status !== 'loading' && earlierEntries.length === 0 && (
+                    <p className="text-caption text-ink-dim">No earlier notes yet.</p>
+                  )}
+
+                  {earlierEntries.length > 0 && (
+                    <ul className="flex max-h-[320px] flex-col gap-sm overflow-y-auto">
+                      {earlierEntries.map((entry) => renderEntryRow(entry))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

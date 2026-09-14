@@ -8,9 +8,11 @@ import {
   noteButtonLabel,
   noteButtonTypes,
   noteEntryWasEdited,
+  partitionNoteEntriesByToday,
   PRAYER_TYPES,
   requiresEntryType,
   type NoteButtonKey,
+  type NoteEntry,
 } from './notes'
 
 describe('NOTE_BUTTONS', () => {
@@ -126,6 +128,49 @@ describe('noteEntryWasEdited', () => {
     expect(
       noteEntryWasEdited({ createdAt: '2026-09-11T10:00:00.000Z', updatedAt: '2026-09-11T10:05:00.000Z' }),
     ).toBe(true)
+  })
+})
+
+describe('partitionNoteEntriesByToday', () => {
+  const TODAY = new Date(2026, 8, 14, 12, 0) // Mon, 14 Sep 2026, noon local
+
+  function entry(id: string, createdAt: string): NoteEntry {
+    return { id, buttonKey: 'mirror', note: `note ${id}`, entryType: null, createdAt, updatedAt: createdAt }
+  }
+
+  it('returns both halves empty for an empty list', () => {
+    expect(partitionNoteEntriesByToday([], TODAY)).toEqual({ recent: [], earlier: [] })
+  })
+
+  it('puts every entry in recent when all were created today', () => {
+    const entries = [entry('a', '2026-09-14T23:59:00.000'), entry('b', '2026-09-14T00:00:00.000')]
+    const { recent, earlier } = partitionNoteEntriesByToday(entries, TODAY)
+    expect(recent).toEqual(entries)
+    expect(earlier).toEqual([])
+  })
+
+  it('puts every entry in earlier when all were created before today', () => {
+    const entries = [entry('a', '2026-09-13T10:00:00.000'), entry('b', '2026-01-01T00:00:00.000')]
+    const { recent, earlier } = partitionNoteEntriesByToday(entries, TODAY)
+    expect(recent).toEqual([])
+    expect(earlier).toEqual(entries)
+  })
+
+  it('splits a mix, preserving the input order within each half', () => {
+    const today1 = entry('today1', '2026-09-14T08:00:00.000')
+    const yesterday = entry('yesterday', '2026-09-13T08:00:00.000')
+    const today2 = entry('today2', '2026-09-14T18:00:00.000')
+    const lastMonth = entry('lastMonth', '2026-08-01T08:00:00.000')
+    const { recent, earlier } = partitionNoteEntriesByToday([today1, yesterday, today2, lastMonth], TODAY)
+    expect(recent).toEqual([today1, today2])
+    expect(earlier).toEqual([yesterday, lastMonth])
+  })
+
+  it('a future-dated entry (clock skew or timezone edge) is never counted as today unless it truly falls on the same local day', () => {
+    const tomorrow = entry('tomorrow', '2026-09-15T00:30:00.000')
+    const { recent, earlier } = partitionNoteEntriesByToday([tomorrow], TODAY)
+    expect(recent).toEqual([])
+    expect(earlier).toEqual([tomorrow])
   })
 })
 

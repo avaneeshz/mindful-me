@@ -3,6 +3,16 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { DisplayValueButton } from './DisplayValueButton'
 import type { ActivityList } from '@/domain/types'
 
+// This suite runs in a plain Node environment with no jsdom/testing-library
+// (see `vitest.config.ts`), so `renderToStaticMarkup` can only render this
+// component's initial (closed) state — there is no way to drive `open` (or
+// `historyOpen`) to `true` from here. The Recent/History split itself is
+// exercised at the pure-logic level instead: `dayKey`-vs-other-dates for the
+// day-value shape is exactly what `useDisplayValueHistory` already returns
+// unfiltered (the component-level filtering is a one-line `.filter`), and
+// the cross-day session selection/sort/exclude logic has its own dedicated
+// tests against the pure `selectPastSessions` in `state/useSessionHistory.test.ts`.
+
 const VIEWED_DATE = new Date(2026, 8, 13)
 const NO_ACTIVITIES: ActivityList = []
 
@@ -52,6 +62,17 @@ describe('DisplayValueButton', () => {
       const html = render(key)
       expect(html).not.toContain('role="region"')
       expect(html).not.toContain('>History<')
+    }
+  })
+
+  it('leaks no Recent section content while closed, for any button', () => {
+    for (const key of ['vipassana', 'steps', 'exercise', 'breathing', 'sleep', 'protein'] as const) {
+      const html = render(key)
+      expect(html).not.toContain('>Recent<')
+      expect(html).not.toContain('No sessions logged for this day yet')
+      expect(html).not.toContain('No value logged for this day yet')
+      expect(html).not.toContain('No other days logged yet')
+      expect(html).not.toContain('No earlier sessions yet')
     }
   })
 

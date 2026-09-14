@@ -14,6 +14,7 @@
  * were removed from this row and now live as inert sidebar entries
  * (`components/Sidebar.tsx`). `Scriptures` / `Sermons` / `Worship Singing` are new.
  */
+import { isSameLocalDay } from '@/lib/localTime'
 
 /** The header pills, in the order they render. */
 export const NOTE_BUTTONS = [
@@ -114,4 +115,30 @@ export function formatNoteTimestamp(date: Date): string {
 /** Whether a note has ever been edited since it was first stored — `updatedAt` only ever moves once `update_note_entry` touches a row. */
 export function noteEntryWasEdited(entry: Pick<NoteEntry, 'createdAt' | 'updatedAt'>): boolean {
   return entry.updatedAt !== entry.createdAt
+}
+
+/**
+ * Splits a note-entry list (any order) into those created on `today`'s local
+ * calendar day ("Recent") and everything else ("History") — the two-section
+ * split every header note pill's popover uses. Relative order within each
+ * half is preserved from the input list, so a caller that already sorted
+ * `entries` (newest-first, as `useNoteEntries` does) gets both halves in that
+ * same order back. There is no `viewedDate` concept for notes at all (unlike
+ * a `ScheduledActivity`) — the caller decides what "today" means; the real
+ * header pill always passes the actual device-current day.
+ */
+export function partitionNoteEntriesByToday(
+  entries: readonly NoteEntry[],
+  today: Date,
+): { recent: NoteEntry[]; earlier: NoteEntry[] } {
+  const recent: NoteEntry[] = []
+  const earlier: NoteEntry[] = []
+  for (const entry of entries) {
+    if (isSameLocalDay(new Date(entry.createdAt), today)) {
+      recent.push(entry)
+    } else {
+      earlier.push(entry)
+    }
+  }
+  return { recent, earlier }
 }
