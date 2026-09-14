@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { canSubmitQuickLog, clockToMinutes, durationBetween, formatClock, formatDuration } from '@/domain/quickLog'
+import { canSubmitQuickLog, clockToMinutes, durationBetween, formatClock, formatDuration, nowClock } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import type { ActivityList } from '@/domain/types'
-import { TimeField } from '@/components/ui/TimeField'
+import { TimeRangeField } from '@/components/ui/TimeRangeField'
 
 export type SunMoonKind = 'sun' | 'moon'
 
@@ -146,7 +146,17 @@ export function SunMoonLogPopover({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={kind === 'sun' ? 'Log sun exposure' : 'Log moon exposure'}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (open) {
+            setOpen(false)
+            return
+          }
+          // Start defaults to right now, not blank, same reasoning as
+          // `DisplayValueButton`'s own quick-log Start field — the common
+          // case is logging a stretch as it happens.
+          if (start === '') setStart(nowClock())
+          setOpen(true)
+        }}
         className={capClassName}
       >
         <Icon aria-hidden="true" className="size-[18px] mobile:size-[15px]" />
@@ -174,23 +184,17 @@ export function SunMoonLogPopover({
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
-            {/* Stacked, not side-by-side: each row is a time field plus its
-                AM/PM toggle, which two-up overflowed and overlapped inside
-                this ~320px popover on tablet widths. */}
-            <div className="flex flex-col gap-sm">
-              <div>
-                <label htmlFor={startId} className="mb-xs block text-caption font-semibold text-ink-dim">
-                  Start
-                </label>
-                <TimeField id={startId} inputRef={startRef} value={start} onChange={setStart} ariaLabel="Start time" />
-              </div>
-              <div>
-                <label htmlFor={endId} className="mb-xs block text-caption font-semibold text-ink-dim">
-                  End
-                </label>
-                <TimeField id={endId} value={end} onChange={setEnd} ariaLabel="End time" />
-              </div>
-            </div>
+            {/* One unified Start/End bar, not two stacked label+field groups
+                — see `TimeRangeField`'s own doc comment. */}
+            <TimeRangeField
+              startId={startId}
+              endId={endId}
+              startInputRef={startRef}
+              startValue={start}
+              onStartChange={setStart}
+              endValue={end}
+              onEndChange={setEnd}
+            />
 
             {error && (
               <p role="alert" className="rounded-md border border-ink bg-ink/10 px-md py-sm text-caption font-semibold text-ink">

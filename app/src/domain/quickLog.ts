@@ -41,6 +41,11 @@ export function durationBetween(start: string, end: string): number | null {
   return e > s ? e - s : e + 24 * 60 - s
 }
 
+/** The device's current wall-clock time as an `"HH:MM"` (24h) string — what a fresh quick-log Start field defaults to on open (still freely editable, same as any typed value). */
+export function nowClock(now: Date = new Date()): string {
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
 /** `"09:05"` → `"9:05 AM"`, device-locale-independent (fixed 12h clock). */
 export function formatClock(hhmm: string): string {
   const total = clockToMinutes(hhmm)

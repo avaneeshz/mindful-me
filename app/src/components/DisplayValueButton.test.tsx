@@ -248,9 +248,9 @@ describe('DisplayValueButton', () => {
       expect(saveButton).toContain('disabled=""')
     })
 
-    it('shows the generic "Duration" placeholder, not a computed preview, before anything is entered', () => {
+    it('shows no generic "Duration" placeholder — the line is absent until a real duration is computable', () => {
       const html = renderOpenWorship()
-      expect(html).toContain('>Duration<')
+      expect(html).not.toContain('>Duration<')
     })
   })
 

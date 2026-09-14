@@ -3,6 +3,7 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { TimeField } from '@/components/ui/TimeField'
+import { TimeRangeField } from '@/components/ui/TimeRangeField'
 import { SleepQualityPicker } from '@/components/editor/SleepQualityPicker'
 import { findCard } from '@/data/activities'
 import {
@@ -21,7 +22,7 @@ import {
   songCountToMinutes,
   type DisplayButtonKey,
 } from '@/domain/displayButtons'
-import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration } from '@/domain/quickLog'
+import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration, nowClock } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import { formatActivityRange } from '@/domain/slots'
 import type { ActivityList, ScheduledActivity, SleepQualityId } from '@/domain/types'
@@ -65,28 +66,28 @@ function labelFor(key: DisplayButtonKey): string {
  * `domain/displayButtons.ts`), a plain note field, and — Sleep only — the
  * "How was your sleep?" multi-select and a separate "Dreams" note.
  *
- * Below the editor sits a two-part history, split the same way on both
- * shapes this button covers — an always-visible "Recent" list (today/the
- * viewed day, no toggle) and a collapsed-by-default "History" section
- * (`NoteButtonPill`'s own chevron affordance, reused rather than reinvented —
- * CLAUDE.md's Component Rule) for everything else, always rendered even when
- * empty:
- *   - `quickLogName` button (Vipassana/Exercise/Breathing/Sleep): every
- *     session still IS a real `ScheduledActivity`, fully editable on the
- *     Timeline already, so this is a jump list, not a second edit surface —
- *     each row opens the EXISTING `editActivity`/`LogActivityModal` flow via
- *     `onEditActivity`, then closes this popover. No parallel editor is
- *     built here. "Recent" is `viewedDate`'s own sessions (already in the
+ * Below the editor sits a history, whose shape differs by button:
+ *   - `quickLogName` button (Vipassana/Exercise/Breathing/Sleep): a
+ *     two-part list — an always-visible "Recent" (today/the viewed day, no
+ *     toggle) plus a collapsed-by-default "History" (`NoteButtonPill`'s own
+ *     chevron affordance, reused rather than reinvented — CLAUDE.md's
+ *     Component Rule) for everything else, always rendered even when empty.
+ *     Every session still IS a real `ScheduledActivity`, fully editable on
+ *     the Timeline already, so this is a jump list, not a second edit
+ *     surface — each row opens the EXISTING `editActivity`/`LogActivityModal`
+ *     flow via `onEditActivity`, then closes this popover. No parallel editor
+ *     is built here. "Recent" is `viewedDate`'s own sessions (already in the
  *     `activities` prop); "History" is a real cross-day lookback fetched
  *     lazily, once expanded, via `state/useSessionHistory.ts` (a bounded
  *     window — rule 8 — never the user's full history).
- *   - Day-value button (Steps/Protein): one row per past calendar day, each
+ *   - Day-value button (Steps/Protein): no "Recent" section — the face chip
+ *     already shows today's value at a glance, so a separate always-visible
+ *     row for it was a duplicate. Just the same collapsed-by-default
+ *     "History", one row per logged calendar day (today included), each
  *     inline-editable via the SAME set/replace setter this button's own
  *     editor uses (`state/useDisplayValueHistory.ts`, built on
  *     `lib/displayValuesLocalStore.ts` for Steps and additionally
- *     `public.daily_values` for Protein). "Recent" is the one row (if any)
- *     for `dayKey`; "History" is every other date already loaded by that
- *     same hook.
+ *     `public.daily_values` for Protein).
  */
 export function DisplayValueButton({
   buttonKey,
@@ -261,7 +262,10 @@ export function DisplayValueButton({
 
   function openEditor() {
     setDraft(localValue === null ? '' : String(localValue))
-    setStart('')
+    // Start defaults to right now, not blank — the common case is logging a
+    // session as it happens; the field stays freely editable for anything
+    // logged after the fact.
+    setStart(nowClock())
     setEnd('')
     setSongCount('')
     setType('')
@@ -412,42 +416,59 @@ export function DisplayValueButton({
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
             {mode === 'duration' || mode === 'songCount' ? (
               <>
-                <div>
-                  <label htmlFor={inputId} className="mb-xs block text-caption font-semibold text-ink-dim">
-                    Start
-                  </label>
-                  <TimeField id={inputId} inputRef={inputRef} value={start} onChange={setStart} ariaLabel="Start time" />
-                </div>
-
                 {mode === 'duration' ? (
-                  <div>
-                    <label className="mb-xs block text-caption font-semibold text-ink-dim">End</label>
-                    <TimeField value={end} onChange={setEnd} ariaLabel="End time" />
-                  </div>
+                  // Start/End as one unified bar, not two stacked
+                  // label+field groups — see `TimeRangeField`'s own doc
+                  // comment for why this replaced the old shape here.
+                  <TimeRangeField
+                    startId={inputId}
+                    startInputRef={inputRef}
+                    startValue={start}
+                    onStartChange={setStart}
+                    endValue={end}
+                    onEndChange={setEnd}
+                  />
                 ) : (
-                  <div>
-                    <label htmlFor={`${inputId}-song-count`} className="mb-xs block text-caption font-semibold text-ink-dim">
-                      Number of songs
-                    </label>
-                    <input
-                      id={`${inputId}-song-count`}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={songCount}
-                      onChange={(event) => setSongCount(event.target.value)}
-                      placeholder="0"
-                      className={fieldClass}
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label htmlFor={inputId} className="mb-xs block text-caption font-semibold text-ink-dim">
+                        Start
+                      </label>
+                      <TimeField id={inputId} inputRef={inputRef} value={start} onChange={setStart} ariaLabel="Start time" />
+                    </div>
+                    <div>
+                      <label htmlFor={`${inputId}-song-count`} className="mb-xs block text-caption font-semibold text-ink-dim">
+                        Number of songs
+                      </label>
+                      <input
+                        id={`${inputId}-song-count`}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={songCount}
+                        onChange={(event) => setSongCount(event.target.value)}
+                        placeholder="0"
+                        className={fieldClass}
+                      />
+                    </div>
+                  </>
                 )}
 
-                <p className="text-caption text-ink-dim">
-                  {durationDraft && durationDraft > 0 ? formatDuration(durationDraft) : 'Duration'}
-                </p>
+                {/* No generic "Duration" placeholder any more — the line
+                    simply isn't there until a real duration is computable. */}
+                {durationDraft !== null && durationDraft > 0 && (
+                  <p className="text-caption text-ink-dim">{formatDuration(durationDraft)}</p>
+                )}
 
                 {hasType && typeOptions.length > 0 && (
                   <fieldset className="flex flex-col gap-sm">
-                    <legend className="text-caption font-semibold text-ink-dim">
+                    {/* "Sleep type" specifically is gone as visible copy —
+                        the chips sit directly in a popover already headed
+                        "Sleep", so the caption was redundant. Still named for
+                        assistive tech via `sr-only` (and the radiogroup's own
+                        `aria-label` below), same convention as Note/Dreams.
+                        Every other button's generic "Type" legend is
+                        untouched. */}
+                    <legend className={cn('font-semibold text-ink-dim', buttonKey === 'sleep' ? 'sr-only' : 'text-caption')}>
                       {displayButtonQuickLogTypeLabel(buttonKey)}
                     </legend>
                     <div role="radiogroup" aria-label={displayButtonQuickLogTypeLabel(buttonKey)} className="flex flex-wrap gap-sm">
@@ -472,7 +493,13 @@ export function DisplayValueButton({
                   </fieldset>
                 )}
 
-                {hasSleepQuality && <SleepQualityPicker selected={sleepQuality} onToggle={(q) => setSleepQuality((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]))} />}
+                {hasSleepQuality && (
+                  <SleepQualityPicker
+                    selected={sleepQuality}
+                    onToggle={(q) => setSleepQuality((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]))}
+                    compact
+                  />
+                )}
 
                 {/* Dreams before the general Note (swapped per product
                     feedback), and neither carries a visible heading any
@@ -549,13 +576,17 @@ export function DisplayValueButton({
           </form>
 
           <div className="mt-lg border-t border-line pt-md">
-            {/* Recent — always visible, no toggle/collapse. */}
-            <div>
-              <h3 id={recentHeadingId} className="text-nano font-semibold uppercase tracking-tag text-ink-dim">
-                Recent
-              </h3>
-              <div aria-labelledby={recentHeadingId} className="mt-sm">
-                {quickLogName ? (
+            {/* Recent — quick-log buttons only (a jump list onto today's own
+                sessions). Steps/Protein have no Recent section any more: a
+                day-value button's "today" row is just one more row in the
+                same History list below, not a separate section — the face
+                chip already shows today's value at a glance. */}
+            {quickLogName && (
+              <div>
+                <h3 id={recentHeadingId} className="text-nano font-semibold uppercase tracking-tag text-ink-dim">
+                  Recent
+                </h3>
+                <div aria-labelledby={recentHeadingId} className="mt-sm">
                   <SessionHistory
                     activities={activities}
                     quickLogName={quickLogName}
@@ -564,26 +595,15 @@ export function DisplayValueButton({
                       setOpen(false)
                     }}
                   />
-                ) : (
-                  <DayValueEntryList
-                    label={label}
-                    entries={dayValueHistory.entries.filter((entry) => entry.date === dayKey)}
-                    emptyMessage="No value logged for this day yet."
-                    isLoading={dayValueHistory.status === 'loading' && dayValueHistory.entries.length === 0}
-                    error={dayValueHistory.error}
-                    drafts={historyDrafts}
-                    onDraftChange={(date, text) => setHistoryDrafts((prev) => ({ ...prev, [date]: text }))}
-                    pendingDate={dayValueHistory.pendingDate}
-                    updateEntry={dayValueHistory.updateEntry}
-                  />
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* History — collapsed by default, ALWAYS rendered even when
-                empty; scoped to everything other than what Recent already
-                shows (no duplication). */}
-            <div className="mt-md">
+                empty. For a quick-log button this is everything Recent
+                doesn't already cover (other days); for Steps/Protein it's
+                every logged day, today included. */}
+            <div className={cn(quickLogName && 'mt-md')}>
               <button
                 type="button"
                 id={historyHeadingId}
@@ -612,10 +632,10 @@ export function DisplayValueButton({
                   ) : (
                     <DayValueEntryList
                       label={label}
-                      entries={dayValueHistory.entries.filter((entry) => entry.date !== dayKey)}
-                      emptyMessage="No other days logged yet."
+                      entries={dayValueHistory.entries}
+                      emptyMessage="No value logged yet."
                       isLoading={dayValueHistory.status === 'loading' && dayValueHistory.entries.length === 0}
-                      error={null}
+                      error={dayValueHistory.error}
                       drafts={historyDrafts}
                       onDraftChange={(date, text) => setHistoryDrafts((prev) => ({ ...prev, [date]: text }))}
                       pendingDate={dayValueHistory.pendingDate}

@@ -1,12 +1,5 @@
-import { useEffect, useRef, useState, type Ref } from 'react'
-import {
-  currentMeridiem,
-  formatClockText,
-  from24Hour,
-  parseClockText,
-  to24Hour,
-  type Meridiem,
-} from '@/domain/timeInput'
+import type { Ref } from 'react'
+import { useClockField } from './useClockField'
 import { cn } from '@/lib/utils'
 
 /**
@@ -15,6 +8,10 @@ import { cn } from '@/lib/utils'
  * as a device spinner on iPad/iOS with no reliable keyboard path, and its
  * intrinsic width overflowed the narrow popovers it lived in. This is a plain
  * text field on every device, always the same width.
+ *
+ * A single standalone time (Worship's Start-only songCount entry — see
+ * `displayButtonInput`). Every genuine Start/End PAIR uses `TimeRangeField`'s
+ * unified bar instead; this is not that component reduced to one side.
  *
  * The meridiem defaults to the current wall-clock half of the day and flips on
  * tap. `value` is the `HH:MM` 24-hour string the domain speaks
@@ -35,55 +32,7 @@ export function TimeField({
   ariaLabel?: string
   className?: string
 }) {
-  const [text, setText] = useState('')
-  const [meridiem, setMeridiem] = useState<Meridiem>(() => currentMeridiem())
-  const focusedRef = useRef(false)
-  const lastValueRef = useRef(value)
-
-  // Re-sync from `value` only when it changes from the OUTSIDE (a parent
-  // reset to '', or a prefilled edit) — never while the user is typing, so
-  // canonicalising "2" → "2:00" can't fight a half-entered "2:30".
-  useEffect(() => {
-    if (value === lastValueRef.current) return
-    lastValueRef.current = value
-
-    if (value === '') {
-      setText('')
-      setMeridiem(currentMeridiem())
-      return
-    }
-    if (focusedRef.current) return
-    const parts = from24Hour(value)
-    if (parts) {
-      setText(formatClockText(parts.h12, parts.minute))
-      setMeridiem(parts.meridiem)
-    }
-  }, [value])
-
-  function emit(nextText: string, nextMeridiem: Meridiem) {
-    const parsed = parseClockText(nextText)
-    const next = parsed ? to24Hour(parsed.h12, parsed.minute, nextMeridiem) : ''
-    lastValueRef.current = next
-    onChange(next)
-  }
-
-  function handleTextChange(raw: string) {
-    const cleaned = raw.replace(/[^\d:]/g, '').slice(0, 5)
-    setText(cleaned)
-    emit(cleaned, meridiem)
-  }
-
-  function handleBlur() {
-    focusedRef.current = false
-    const parsed = parseClockText(text)
-    if (parsed) setText(formatClockText(parsed.h12, parsed.minute))
-  }
-
-  function toggleMeridiem() {
-    const next: Meridiem = meridiem === 'AM' ? 'PM' : 'AM'
-    setMeridiem(next)
-    emit(text, next)
-  }
+  const { text, meridiem, handleFocus, handleTextChange, handleBlur, toggleMeridiem } = useClockField(value, onChange)
 
   return (
     <div className={cn('flex items-stretch gap-xs', className)}>
@@ -96,9 +45,7 @@ export function TimeField({
         placeholder="0:00"
         aria-label={ariaLabel}
         value={text}
-        onFocus={() => {
-          focusedRef.current = true
-        }}
+        onFocus={handleFocus}
         onChange={(event) => handleTextChange(event.target.value)}
         onBlur={handleBlur}
         className="w-full min-w-0 rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
