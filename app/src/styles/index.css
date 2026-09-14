@@ -57,6 +57,18 @@
        theme — without this the time field's clock icon is dark-on-dark and
        invisible in the dark theme. */
     color-scheme: dark;
+
+    /* `SyncStatusPill`'s three states — a deliberate, narrow exception to
+       "no colour anywhere" (see that component's own doc comment): system-
+       sync status is the one place colour carries real meaning (safe/in-
+       progress/at-risk), never a per-category or per-item accent. Applied to
+       the status ICON only, never the chip's fill/border, so the pill itself
+       stays the same restrained neutral chrome as every other header pill.
+       Each value is picked to clear WCAG non-text (3:1) contrast against its
+       theme's `--surface`, same bar every other token here already clears. */
+    --status-success: #34d399;
+    --status-syncing: #fbbf24;
+    --status-error: #f87171;
   }
 
   :root[data-theme='light'] {
@@ -70,6 +82,9 @@
     --line-soft: rgba(10, 10, 11, 0.08);
     --inv-bg: #17171a;
     --inv-ink: #fafaf8;
+    --status-success: #15803d;
+    --status-syncing: #b45309;
+    --status-error: #dc2626;
   }
 
   html,

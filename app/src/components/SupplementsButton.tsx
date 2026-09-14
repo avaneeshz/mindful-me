@@ -123,9 +123,14 @@ export function SupplementsButton({ viewedDate }: { viewedDate: Date }) {
         className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
       >
         <span>Supplements</span>
-        <span className="text-ink-dim">
-          {doneCount}/{checklist.length}
-        </span>
+        {/* The 0–7 fraction read as a score to chase, not a status — dropped
+            per product feedback. In its place: a quiet tick once the day is
+            "mostly done" (>= 3 of 7), same threshold-not-count treatment as
+            a habit-tracker check-in rather than a running tally. Below 3 the
+            button shows no mark at all — same bare "Supplements" chrome as
+            before anything's been touched. The exact count is still in
+            `aria-label` above for assistive tech, just not painted here. */}
+        {doneCount >= 3 && <Check aria-hidden="true" className="size-[14px] text-ink-dim" />}
       </button>
 
       {open && (

@@ -22,9 +22,9 @@ function render(): string {
 }
 
 describe('HeaderBar note pills', () => {
-  it('renders the 7 note pills, in order — Extra Senses, Learnings, Relational Nutrient, Prayer, Scriptures, Sermons, Worship Singing', () => {
+  it('renders the 4 note pills, in order — Extra Senses, Learnings, Relational Nutrient, Scriptures', () => {
     const html = render()
-    const labels = ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Prayer', 'Scriptures', 'Sermons', 'Worship Singing']
+    const labels = ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Scriptures']
     let lastIndex = -1
     for (const label of labels) {
       const index = html.indexOf(`>${label}<`)
@@ -33,16 +33,26 @@ describe('HeaderBar note pills', () => {
     }
   })
 
-  it('no longer carries Gifts, Mirror, Chits, Opportunities or Feedback as pill labels', () => {
+  it('no longer carries Gifts, Mirror, Chits, Opportunities, Feedback, Prayer, Sermons or Worship as pill labels — the last three are now real DISPLAY_BUTTONS quick-log buttons', () => {
     const html = render()
-    for (const gone of ['aria-label="Gifts notes"', 'aria-label="Mirror notes"', 'aria-label="Chits notes"', 'aria-label="Opportunities notes"', 'Feedback']) {
+    for (const gone of [
+      'aria-label="Gifts notes"',
+      'aria-label="Mirror notes"',
+      'aria-label="Chits notes"',
+      'aria-label="Opportunities notes"',
+      'aria-label="Prayer notes"',
+      'aria-label="Sermons notes"',
+      'aria-label="Worship notes"',
+      'aria-label="Worship Singing notes"',
+      'Feedback',
+    ]) {
       expect(html).not.toContain(gone)
     }
   })
 
   it('every note pill is a real, focusable <button>', () => {
     const html = render()
-    for (const label of ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Prayer', 'Scriptures', 'Sermons', 'Worship Singing']) {
+    for (const label of ['Extra Senses', 'Learnings', 'Relational Nutrient', 'Scriptures']) {
       expect(html).toMatch(new RegExp(`<button[^>]*aria-label="${label} notes"`))
     }
   })
@@ -55,6 +65,16 @@ describe('HeaderBar display buttons', () => {
     expect(html).toMatch(/<button[^>]*aria-label="Steps — set value"/)
     expect(html).toContain('>Vipassana<')
     expect(html).toContain('>Steps<')
+  })
+
+  it('renders Prayer, Sermons and Worship as real time-logging display buttons, not note pills', () => {
+    const html = render()
+    expect(html).toMatch(/<button[^>]*aria-label="Prayer — set value"/)
+    expect(html).toMatch(/<button[^>]*aria-label="Sermons — set value"/)
+    expect(html).toMatch(/<button[^>]*aria-label="Worship — set value"/)
+    expect(html).toContain('>Prayer<')
+    expect(html).toContain('>Sermons<')
+    expect(html).toContain('>Worship<')
   })
 })
 
