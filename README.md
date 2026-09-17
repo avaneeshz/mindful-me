@@ -28,6 +28,21 @@ npm run build          # production build
 
 The app runs fully offline/local-only with zero setup — no backend required to explore the timeline. To connect it to a real Supabase project, copy `app/.env.example` to `app/.env` and fill in `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` (the publishable/anon key — safe to be public; every real permission boundary is enforced by row-level security on the database, not by keeping this key secret).
 
+## Environments & branching
+
+Two environments, kept in sync by hand:
+
+| | Git branch | Supabase project | Used for |
+|---|---|---|---|
+| Production | `main` | `mindful-me` | The real app, real user data |
+| Test | `develop` | `mindful-me-test` | Trying out changes before they reach production |
+
+Workflow: branch features off `develop`, open PRs into `develop`, and verify there first. Once `develop` is confirmed working, merge it into `main` to release.
+
+To point your local `.env` at the test database instead of production: `cp app/.env.test.example app/.env`.
+
+A new migration under `supabase/migrations/` needs to be applied to both projects by hand (there's no automatic promotion) — apply it to `mindful-me-test` when it lands on `develop`, then apply the same file to `mindful-me` when `develop` merges to `main`.
+
 ## Documentation map
 
 | File | What it's for |
