@@ -41,6 +41,7 @@ The app runs fully offline/local-only with zero setup — no backend required to
 | [`OPEN-QUESTIONS.md`](./OPEN-QUESTIONS.md) | Genuinely unresolved product/design decisions |
 | [`PRODUCT-HANDOFF.md`](./PRODUCT-HANDOFF.md) | Historical: the original prototype's full spec, superseded by the above but preserved for context |
 | [`CLAUDE.md`](./CLAUDE.md) | Engineering constitution — product philosophy, design system rules, and the architecture/rules the project's engineering agent works against |
+| [`WORKFLOW.md`](./WORKFLOW.md) | Required branching and release process — cut from `develop`, test against the test database, never merge directly to `main` |
 
 ## Stack
 
