@@ -5,6 +5,16 @@ import { fileURLToPath } from 'node:url'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
+const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
+const supabaseTarget = supabaseUrl.includes('vhaynkgnqcbejiojvujg')
+  ? 'PRODUCTION (vhaynkgnqcbejiojvujg / mindful-me)'
+  : supabaseUrl.includes('iawbubbywkcxwvzyjaar')
+    ? 'TEST (iawbubbywkcxwvzyjaar / mindful-me-test)'
+    : supabaseUrl
+      ? `UNRECOGNIZED (length ${supabaseUrl.length})`
+      : 'UNSET'
+console.log('[deploy-verify] Supabase target =', supabaseTarget)
+
 // The Vite app lives in ./app so that the original vanilla prototype at
 // ./index.html is preserved untouched as a reference artifact.
 export default defineConfig({
