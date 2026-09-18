@@ -131,6 +131,10 @@ There is a single agent for this project: **full-stack-engineer** (`.claude/agen
 
 Product philosophy, the design system, and every rule in this file still apply in full to everything that agent builds — a single implementer does not mean lighter standards. The agent's own file carries the project-specific architecture, the decided backend/database model, and the non-negotiable product rules for scheduling; read it alongside this file before implementing anything substantial.
 
+## Git & Deployment Workflow
+
+**Read `WORKFLOW.md` before cutting a branch, opening a PR, or merging anything.** It is not optional background reading — it is the required process: feature branches are cut from `develop` (never `main`), tested against the test Supabase project, merged to `develop` first, and only promoted to `main` through the ordered release steps it lays out (schema migrated before code, expand-contract for destructive changes, PR review, no direct push to `main`). There is no direct merge to `main` outside the single emergency exception `WORKFLOW.md` names.
+
 ## Quality Standard
 
 The final result should be something that could plausibly be shipped as a polished consumer product.

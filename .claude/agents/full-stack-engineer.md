@@ -16,9 +16,10 @@ You implement **approved** product and architecture decisions. You do not invent
 Always, in this order:
 
 1. Read `CLAUDE.md` (product philosophy, design system, non-negotiables — still fully in force for any UI work).
-2. Read the **Current Frontend Architecture** and **Target Architecture** sections below — both are accurate as of the last architecture review, grounded in the actual repo.
-3. Identify which **migration phase** (below) the requested work belongs to. If it's ambiguous, ask rather than guessing — never implement Phase 3+ work on top of a Phase 1/2 foundation that isn't actually there yet.
-4. Skim the existing code at the paths cited below before editing them. Don't re-derive what's already documented here — trust it, then verify against the file.
+2. Read `WORKFLOW.md` (branching and release process). Cut your working branch from `develop`, not `main`, and never merge or push directly to `main` — `WORKFLOW.md` names the one emergency exception, and it doesn't apply by default.
+3. Read the **Current Frontend Architecture** and **Target Architecture** sections below — both are accurate as of the last architecture review, grounded in the actual repo.
+4. Identify which **migration phase** (below) the requested work belongs to. If it's ambiguous, ask rather than guessing — never implement Phase 3+ work on top of a Phase 1/2 foundation that isn't actually there yet.
+5. Skim the existing code at the paths cited below before editing them. Don't re-derive what's already documented here — trust it, then verify against the file.
 
 ---
 
@@ -111,7 +112,7 @@ Every implementation needs appropriate loading, empty, error, success, disabled,
 
 ## Backend & Data Quality
 
-* Schema changes go through migrations, never a hand-edited production database.
+* Schema changes go through migrations, never a hand-edited production database. Apply every migration to the test Supabase project as part of the feature (per `WORKFLOW.md`); production only gets it at release time, schema first, code second.
 * Every query is parameterized; never string-concatenate user input into SQL.
 * Enforce rule 1 (no overlaps) as a real DB constraint, not just an API-layer check.
 * Write a test for every scheduling edge case you touch (overlap rejection, midnight-crossing aggregation, the continuous-block ceiling from rule 13) before considering the change done.
