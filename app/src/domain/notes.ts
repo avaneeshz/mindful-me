@@ -24,7 +24,7 @@
  */
 import { isSameLocalDay } from '@/lib/localTime'
 
-/** The header pills, in the order they render. */
+/** The header pills, in the order they render — the local-only / pre-fetch fallback; see `domain/headerButtons.ts`'s `DEFAULT_HEADER_BUTTONS` for the unified shape this mirrors. */
 export const NOTE_BUTTONS = [
   { key: 'gifts', label: 'Extra Senses' },
   { key: 'learnings', label: 'Learnings' },
@@ -32,7 +32,20 @@ export const NOTE_BUTTONS = [
   { key: 'scriptures', label: 'Scriptures' },
 ] as const
 
-export type NoteButtonKey = (typeof NOTE_BUTTONS)[number]['key']
+export type NoteButtonKey = string
+
+/**
+ * Populated once `state/useHeaderButtons.ts` has resolved the effective
+ * per-user 'notes' button list — every lookup below reads through this when
+ * it's set, falling back to the hardcoded `NOTE_BUTTONS` before that first
+ * resolution (or with no backend configured at all, rule 6). `null` clears
+ * it back to the hardcoded default list.
+ */
+let registry: readonly { key: string; label: string }[] | null = null
+
+export function setNoteButtonsRegistry(buttons: readonly { key: string; label: string }[] | null): void {
+  registry = buttons
+}
 
 /** `Extra Senses` (key `gifts`) — the original five values, unchanged. */
 export const GIFT_TYPES = ['Dreamer', 'The Voice', 'The Knower', 'Memory Bank', 'Amplifier'] as const
@@ -59,9 +72,20 @@ export const LEARNING_TYPES = ['Given', 'Realized', 'Revealed'] as const
  * selector at all. The stored value is a plain string — see
  * `NoteEntry.entryType`.
  */
-export const NOTE_BUTTON_TYPES: Partial<Record<NoteButtonKey, readonly string[]>> = {
+export const NOTE_BUTTON_TYPES: Partial<Record<string, readonly string[]>> = {
   gifts: GIFT_TYPES,
   learnings: LEARNING_TYPES,
+}
+
+/**
+ * A dynamic button's own type vocabulary (`header_button_note_types`),
+ * keyed the same way `NOTE_BUTTON_TYPES` is — set alongside the registry
+ * above so `noteButtonTypes` below can read through either source uniformly.
+ */
+let typeRegistry: Partial<Record<string, readonly string[]>> | null = null
+
+export function setNoteButtonTypesRegistry(types: Partial<Record<string, readonly string[]>> | null): void {
+  typeRegistry = types
 }
 
 /** One stored note, as the client sees it. */
@@ -83,12 +107,12 @@ export interface NoteEntry {
 }
 
 export function noteButtonLabel(key: NoteButtonKey): string {
-  return NOTE_BUTTONS.find((button) => button.key === key)?.label ?? key
+  return (registry ?? NOTE_BUTTONS).find((button) => button.key === key)?.label ?? key
 }
 
 /** The type values this button offers, or `null` if it has no type selector. */
 export function noteButtonTypes(buttonKey: NoteButtonKey): readonly string[] | null {
-  return NOTE_BUTTON_TYPES[buttonKey] ?? null
+  return (typeRegistry ?? NOTE_BUTTON_TYPES)[buttonKey] ?? null
 }
 
 /** Whether this button requires a type to be chosen before Store is allowed. */
