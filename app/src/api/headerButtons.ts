@@ -19,6 +19,27 @@ export async function apiListHeaderButtons(): Promise<HeaderButtonConfig[] | nul
   return ((data ?? []) as HeaderButtonDto[]).map(headerButtonConfigFromDto)
 }
 
+/**
+ * Gives a user with zero `header_buttons` rows their own copy of the
+ * default set (`public.provision_default_header_buttons()` — see
+ * `20260920080000_header_buttons_per_user_ownership.sql`'s own doc comment
+ * for why this is a client-side bootstrap rather than a DB trigger on
+ * `auth.users`). Idempotent server-side — safe to call speculatively.
+ * Returns `true` once the request has succeeded (the caller should re-fetch
+ * the list after); `false` on any failure to reach the server, mirroring
+ * every other `api/*` write's fail-open contract.
+ */
+export async function apiProvisionDefaultHeaderButtons(): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('provision_default_header_buttons')
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] provision_default_header_buttons failed', error.message)
+    return false
+  }
+  return true
+}
+
 export interface CreateHeaderButtonInput {
   id: string
   category: HeaderButtonConfig['category']

@@ -102,10 +102,12 @@ export function HeaderBar({
   // once that's done (or if there was never anything local to begin with).
   useStepsBackfill()
 
-  // The full customization system (HEADER-CUSTOM-1) — system defaults +
-  // this user's own additions, local-first with a background sync. Row 2
-  // below renders straight off `visible`, grouped by category, instead of
-  // the three previously-separate hardcoded arrays.
+  // The full customization system (HEADER-CUSTOM-1) — every button this
+  // user has, local-first with a background sync; a brand-new user is
+  // provisioned their own copy of the default set on first load (see
+  // `state/useHeaderButtons.ts`). Row 2 below renders straight off
+  // `visible`, grouped by category, instead of the three previously-
+  // separate hardcoded arrays.
   const { visible, hidden, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
   const [editMode, setEditMode] = useState(false)
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(

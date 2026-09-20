@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   apiCreateHeaderButton,
   apiListHeaderButtons,
+  apiProvisionDefaultHeaderButtons,
   apiReorderHeaderButtons,
   apiSetHeaderButtonHidden,
   apiUpdateHeaderButton,
@@ -18,7 +19,7 @@ export type HeaderButtonsStatus = 'idle' | 'loading' | 'ready' | 'error'
 export interface UseHeaderButtonsResult {
   /** This user's effective button list, in their own chosen order — what the header row renders. */
   visible: HeaderButtonConfig[]
-  /** Hidden buttons (system defaults this user hid, or their own buttons they hid) — edit mode's own "Hidden" section, so a hide is never a dead end. */
+  /** Buttons this user has hidden — edit mode's own "Hidden" section, so a hide is never a dead end. */
   hidden: HeaderButtonConfig[]
   status: HeaderButtonsStatus
   error: string | null
@@ -54,8 +55,29 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     hasFetchedRef.current = true
     let cancelled = false
     setStatus('loading')
-    apiListHeaderButtons().then((server) => {
+
+    async function loadAndProvisionIfNeeded(): Promise<void> {
+      let server = await apiListHeaderButtons()
       if (cancelled) return
+      if (server === null) {
+        setStatus('error')
+        setError('Could not load your header buttons — showing what’s saved on this device.')
+        return
+      }
+      // A genuinely empty list (not a failure — see `apiListHeaderButtons`'s
+      // own null-vs-[] contract) means this user has never been provisioned:
+      // give them their own copy of the default set, then re-fetch. Every
+      // `header_buttons` row is unconditionally theirs from the moment it's
+      // created — no "shared default" distinction anywhere downstream of
+      // this (see `domain/headerButtons.ts`'s own doc comment).
+      if (server.length === 0) {
+        const provisioned = await apiProvisionDefaultHeaderButtons()
+        if (cancelled) return
+        if (provisioned) {
+          server = await apiListHeaderButtons()
+          if (cancelled) return
+        }
+      }
       if (server === null) {
         setStatus('error')
         setError('Could not load your header buttons — showing what’s saved on this device.')
@@ -66,7 +88,9 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
       setAll(server)
       saveLocalHeaderButtons(server)
       setStatus('ready')
-    })
+    }
+
+    void loadAndProvisionIfNeeded()
     return () => {
       cancelled = true
     }
@@ -86,7 +110,6 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         category: input.category,
         key: input.key ?? null,
         label: input.label,
-        isSystemDefault: false,
         hidden: false,
         sortOrder: maxSortOrder + 1,
         activityId: input.activityId ?? null,

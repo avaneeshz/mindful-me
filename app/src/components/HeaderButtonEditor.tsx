@@ -28,13 +28,11 @@ const labelClass = 'text-caption font-semibold text-ink-dim'
  * here lives directly in the header row it edits, a phone-home-screen-
  * widget-edit-mode shape rather than a menu buried elsewhere.
  *
- * Judgment call (see the PR this ships with for the fuller version): a
- * SYSTEM DEFAULT button's config can only be hidden here, never edited in
- * place — that row is shared by every user, so an in-place rename would
- * violate "must never affect other users" the same way a silent delete
- * would (`update_header_button` itself only ever succeeds for a button the
- * caller owns, so this UI just doesn't offer the dead-end). To get a
- * customized version of a system default, hide it and add a new button.
+ * Every `header_buttons` row a user has is unconditionally theirs (see
+ * `domain/headerButtons.ts`'s own doc comment) — there is no "shared
+ * default, can't edit in place" distinction anywhere here. The add/edit
+ * form below is the same form whether the button being edited came from
+ * this user's own initial provisioning or was added by hand afterward.
  */
 
 export function EditModeToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
@@ -146,7 +144,6 @@ export function HeaderButtonFormDialog({
 }) {
   const isEdit = mode.kind === 'edit'
   const existing = mode.kind === 'edit' ? mode.button : null
-  const readOnly = isEdit && existing!.isSystemDefault
 
   const [category, setCategory] = useState<HeaderButtonCategory>(existing?.category ?? 'activity')
   const [label, setLabel] = useState(existing?.label ?? '')
@@ -292,26 +289,14 @@ export function HeaderButtonFormDialog({
           {isEdit ? 'Edit this header button.' : 'Choose what kind of header button to add, then configure it.'}
         </Dialog.Description>
 
-        {readOnly ? (
-          <div className="flex flex-col gap-md">
-            <p className="text-body text-ink-dim">
-              “{existing!.label}” is a shared default button, so it can only be renamed or reconfigured by adding your
-              own button in its place — this keeps a change here from affecting every other user. You can still hide
-              it from your own header.
-            </p>
-            <Button variant="ghost" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        ) : (
-          <form
-            className="flex flex-col gap-md"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void handleSubmit()
-            }}
-          >
-            {!isEdit && (
+        <form
+          className="flex flex-col gap-md"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSubmit()
+          }}
+        >
+          {!isEdit && (
               <div className="flex flex-col gap-sm">
                 <span className={labelClass}>Kind of button</span>
                 <div role="radiogroup" aria-label="Kind of button" className="flex flex-wrap gap-sm">
@@ -521,8 +506,7 @@ export function HeaderButtonFormDialog({
                 {submitting ? 'Saving…' : isEdit ? 'Save' : 'Add button'}
               </Button>
             </div>
-          </form>
-        )}
+        </form>
       </Dialog.Content>
     </Dialog.Root>
   )

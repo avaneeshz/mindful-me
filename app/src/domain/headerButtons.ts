@@ -13,9 +13,17 @@
  * formatting/lookup helpers (a "day-value" button's face-value formatting,
  * a "notes" button's submit-gating) — those are unchanged, category-specific
  * concerns. This module owns what's genuinely NEW: the four-category config
- * shape itself, the system-default-plus-per-user-overlay merge
- * (`effectiveHeaderButtons`), and the DTO mapping to/from
+ * shape itself, the visible/hidden partition, and the DTO mapping to/from
  * `list_header_buttons()`.
+ *
+ * Every `HeaderButtonConfig` a user has is unconditionally theirs — there is
+ * no "shared system default" concept (`created_by` is `NOT NULL` in the DB;
+ * see `20260920080000_header_buttons_per_user_ownership.sql`). A brand-new
+ * user starts with zero buttons; `state/useHeaderButtons.ts` provisions
+ * their own copy of the same default set (`DEFAULT_HEADER_BUTTONS` below)
+ * the first time it sees an empty list. Renaming, reconfiguring, or hiding
+ * a provisioned button is identical to doing the same to one the user
+ * added by hand — no special-casing by origin, anywhere.
  */
 import { GIFT_TYPES, LEARNING_TYPES } from '@/domain/notes'
 import { SUPPLEMENT_ITEMS } from '@/domain/supplements'
@@ -62,9 +70,7 @@ export interface HeaderButtonConfig {
   /** `note_entries.button_key` / `daily_values.metric_key` — 'notes'/'day_value' only, else `null`. */
   key: string | null
   label: string
-  /** `true` for a shared system-default row (`created_by is null`); `false` for a button this user added. */
-  isSystemDefault: boolean
-  /** This user's own hide state (server: `header_button_user_state` overlaid on `default_hidden`). */
+  /** This user's own hide state (`header_button_user_state`). */
   hidden: boolean
   sortOrder: number
   // --- 'activity' ---
@@ -92,14 +98,12 @@ function base(input: {
   key?: string | null
   label: string
   sortOrder: number
-  isSystemDefault?: boolean
 }): HeaderButtonConfig {
   return {
     id: input.id,
     category: input.category,
     key: input.key ?? null,
     label: input.label,
-    isSystemDefault: input.isSystemDefault ?? true,
     hidden: false,
     sortOrder: input.sortOrder,
     activityId: null,
@@ -259,7 +263,6 @@ export interface HeaderButtonDto {
   category: string
   key: string | null
   label: string
-  is_system_default: boolean
   sort_order: number
   hidden: boolean
   activity_id: string | null
@@ -281,7 +284,6 @@ export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonCon
     category: dto.category as HeaderButtonCategory,
     key: dto.key,
     label: dto.label,
-    isSystemDefault: dto.is_system_default,
     hidden: dto.hidden,
     sortOrder: dto.sort_order,
     activityId: dto.activity_id,
@@ -299,12 +301,11 @@ export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonCon
 }
 
 /**
- * The effective per-user list: system defaults not hidden by this user, plus
- * this user's own buttons not hidden, in the user's own chosen order —
- * mirrors `list_header_buttons()`'s own ordering exactly so local-only mode
- * and server mode never visibly disagree. Returns BOTH halves (visible +
- * hidden) — a hide is never a dead end; edit mode's own "Hidden" section
- * lists `hidden` so it can be undone.
+ * This user's effective list, split into what's currently shown and what
+ * they've hidden, in their own chosen order — mirrors `list_header_buttons()`'s
+ * own ordering exactly so local-only mode and server mode never visibly
+ * disagree. Returns BOTH halves (visible + hidden) — a hide is never a dead
+ * end; edit mode's own "Hidden" section lists `hidden` so it can be undone.
  */
 export function partitionHeaderButtons(
   buttons: readonly HeaderButtonConfig[],

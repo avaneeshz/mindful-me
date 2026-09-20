@@ -4,9 +4,10 @@ const SNAPSHOT_KEY = 'mindful-me:header-buttons:snapshot'
 
 /**
  * Rule 6 — every write lands locally first, instantly, regardless of
- * connectivity. A single full snapshot of the effective per-user button
- * list (system defaults + this user's own additions, with this user's own
- * hide/reorder state already applied) — the same "one authoritative local
+ * connectivity. A single full snapshot of this user's effective button
+ * list (every button they have — from their own initial provisioning or
+ * added since — with their own hide/reorder state already applied) — the
+ * same "one authoritative local
  * copy, server wins once it answers" shape `useNoteEntries`/`useDailyValue`
  * already use, rather than three separately-reconciled pieces. Absent
  * entirely (nothing ever saved here — first run on this device, or no

@@ -166,12 +166,11 @@ export type DisplayButtonUnit = DisplayButtonLike['unit']
 export type DisplayButtonInput = DisplayButtonLike['input']
 
 /**
- * Populated once `state/useHeaderButtons.ts` has resolved the effective
- * per-user 'activity'/'day_value' button list (system defaults + this
- * user's own additions) — every lookup below reads through this when it's
- * set, falling back to the hardcoded `DISPLAY_BUTTONS` before that first
- * resolution (or with no backend configured at all, rule 6). `null` clears
- * it back to the hardcoded default list.
+ * Populated once `state/useHeaderButtons.ts` has resolved this user's own
+ * 'activity'/'day_value' button list — every lookup below reads through
+ * this when it's set, falling back to the hardcoded `DISPLAY_BUTTONS`
+ * before that first resolution (or with no backend configured at all, rule
+ * 6). `null` clears it back to the hardcoded default list.
  */
 let registry: readonly DisplayButtonLike[] | null = null
 
