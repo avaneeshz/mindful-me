@@ -7,14 +7,16 @@ import { TimeRangeField } from '@/components/ui/TimeRangeField'
 import { SleepQualityPicker } from '@/components/editor/SleepQualityPicker'
 import { findCard } from '@/data/activities'
 import {
-  DISPLAY_BUTTONS,
   displayButtonInput,
+  displayButtonLabel,
+  displayButtonNoteFieldLabel,
   displayButtonQuickLogDreamsNote,
   displayButtonQuickLogName,
   displayButtonQuickLogNote,
   displayButtonQuickLogSleepQuality,
   displayButtonQuickLogType,
   displayButtonQuickLogTypeLabel,
+  displayButtonStorageKey,
   displayButtonSynced,
   displayButtonUnit,
   formatDisplayValue,
@@ -41,10 +43,6 @@ const fieldClass =
 
 const textareaClass =
   'w-full resize-y rounded-md border border-line bg-surface px-md py-sm text-body text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-
-function labelFor(key: DisplayButtonKey): string {
-  return DISPLAY_BUTTONS.find((button) => button.key === key)?.label ?? key
-}
 
 /**
  * A header control that always shows a stored number on its face — for the
@@ -141,7 +139,7 @@ export function DisplayValueButton({
   )
   // Synced buttons (Protein) always call the hook (rules of hooks); it no-ops
   // internally for every other button (see `useDailyValue`'s own `enabled`).
-  const dailyValue = useDailyValue(buttonKey, buttonKey, dayKey, synced)
+  const dailyValue = useDailyValue(displayButtonStorageKey(buttonKey), buttonKey, dayKey, synced)
 
   const [open, setOpen] = useState(defaultOpen ?? false)
   const [draft, setDraft] = useState('')
@@ -182,7 +180,7 @@ export function DisplayValueButton({
   // true for one of those without also never reading `dayValueHistory` below.
   // Fetched as soon as the popover opens (not gated on `historyOpen`) since
   // its OWN "Recent" row (the value for `dayKey`, if any) is always visible.
-  const dayValueHistory = useDisplayValueHistory(buttonKey, buttonKey, synced, open && !quickLogName)
+  const dayValueHistory = useDisplayValueHistory(buttonKey, displayButtonStorageKey(buttonKey), synced, open && !quickLogName)
 
   // Cross-day session history (Vipassana/Exercise/Breathing/Sleep) — always
   // called (rules of hooks), a no-op for a day-value button. Unlike
@@ -192,7 +190,7 @@ export function DisplayValueButton({
   // History is actually expanded (rule 8 — a bounded fetch, made lazily).
   const sessionHistory = useSessionHistory(quickLogName ?? '', viewedDate, historyOpen && Boolean(quickLogName))
 
-  const label = labelFor(buttonKey)
+  const label = displayButtonLabel(buttonKey)
   const unit = displayButtonUnit(buttonKey)
   const mode = displayButtonInput(buttonKey)
   const parsedSongCount = parseDisplayValue(songCount)
@@ -468,7 +466,7 @@ export function DisplayValueButton({
                         `aria-label` below), same convention as Note/Dreams.
                         Every other button's generic "Type" legend is
                         untouched. */}
-                    <legend className={cn('font-semibold text-ink-dim', buttonKey === 'sleep' ? 'sr-only' : 'text-caption')}>
+                    <legend className={cn('font-semibold text-ink-dim', hasSleepQuality ? 'sr-only' : 'text-caption')}>
                       {displayButtonQuickLogTypeLabel(buttonKey)}
                     </legend>
                     <div role="radiogroup" aria-label={displayButtonQuickLogTypeLabel(buttonKey)} className="flex flex-wrap gap-sm">
@@ -511,13 +509,13 @@ export function DisplayValueButton({
                 {hasDreamsNote && (
                   <div>
                     <label htmlFor={`${inputId}-dreams`} className="sr-only">
-                      Dreams
+                      {displayButtonNoteFieldLabel(buttonKey, 'secondary')}
                     </label>
                     <textarea
                       id={`${inputId}-dreams`}
                       value={dreamsNote}
                       onChange={(event) => setDreamsNote(event.target.value)}
-                      placeholder="Dreams"
+                      placeholder={displayButtonNoteFieldLabel(buttonKey, 'secondary')}
                       rows={2}
                       className={textareaClass}
                     />
@@ -527,13 +525,13 @@ export function DisplayValueButton({
                 {hasNote && (
                   <div>
                     <label htmlFor={`${inputId}-note`} className="sr-only">
-                      Note
+                      {displayButtonNoteFieldLabel(buttonKey, 'primary')}
                     </label>
                     <textarea
                       id={`${inputId}-note`}
                       value={note}
                       onChange={(event) => setNote(event.target.value)}
-                      placeholder="Add a note"
+                      placeholder={`Add a ${displayButtonNoteFieldLabel(buttonKey, 'primary').toLowerCase()}`}
                       rows={2}
                       className={textareaClass}
                     />

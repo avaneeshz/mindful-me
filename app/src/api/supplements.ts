@@ -29,9 +29,15 @@ function dtoToClient(dto: SupplementCompletionDto): SupplementCompletion {
  * "couldn't check" and knows not to overwrite local state in the latter
  * case — mirrors `apiListNoteEntries`.
  */
-export async function apiListSupplementCompletions(localDate: string): Promise<SupplementCompletion[] | null> {
+export async function apiListSupplementCompletions(
+  headerButtonId: string,
+  localDate: string,
+): Promise<SupplementCompletion[] | null> {
   if (!supabase) return null
-  const { data, error } = await supabase.rpc('list_supplement_completions', { p_local_date: localDate })
+  const { data, error } = await supabase.rpc('list_supplement_completions', {
+    p_header_button_id: headerButtonId,
+    p_local_date: localDate,
+  })
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[supplements] list_supplement_completions failed — staying on local data', error.message)
@@ -48,6 +54,7 @@ export async function apiListSupplementCompletions(localDate: string): Promise<S
  * caller already holds the local-first copy (rule 6).
  */
 export async function apiSetSupplementCompletion(
+  headerButtonId: string,
   itemKey: SupplementItemKey,
   localDate: string,
   done: boolean,
@@ -55,6 +62,7 @@ export async function apiSetSupplementCompletion(
 ): Promise<SupplementCompletion | null> {
   if (!supabase) return null
   const { data, error } = await supabase.rpc('set_supplement_completion', {
+    p_header_button_id: headerButtonId,
     p_item_key: itemKey,
     p_local_date: localDate,
     p_done: done,

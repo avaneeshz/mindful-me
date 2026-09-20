@@ -24,10 +24,16 @@ export const SUPPLEMENT_ITEMS = [
   { key: 'multivitamin', label: 'MultiVitamin (on Chums days)' },
 ] as const
 
-export type SupplementItemKey = (typeof SUPPLEMENT_ITEMS)[number]['key']
+export type SupplementItemKey = string
 
-export function supplementItemLabel(key: SupplementItemKey): string {
-  return SUPPLEMENT_ITEMS.find((item) => item.key === key)?.label ?? key
+export interface SupplementItemConfig {
+  key: string
+  label: string
+}
+
+/** `items` is a specific checklist's own configured list (`HeaderButtonConfig.checklistItems`) — Supplements' 7 items by default, but any checklist button now carries its own. */
+export function supplementItemLabel(items: readonly SupplementItemConfig[], key: SupplementItemKey): string {
+  return items.find((item) => item.key === key)?.label ?? key
 }
 
 /** One item's state for one calendar day, as the client sees it. */
@@ -45,11 +51,12 @@ export function emptyCompletion(itemKey: SupplementItemKey, localDate: string): 
   return { itemKey, localDate, done: false, note: '', completedAt: null }
 }
 
-/** The full day's checklist, one entry per item, in `SUPPLEMENT_ITEMS`' own order — untouched items fall back to `emptyCompletion`. */
+/** The full day's checklist, one entry per configured item, in `items`' own order — untouched items fall back to `emptyCompletion`. `items` defaults to `SUPPLEMENT_ITEMS` for callers that haven't been threaded through a specific button's own config yet. */
 export function fullDayChecklist(
+  items: readonly SupplementItemConfig[],
   localDate: string,
   existing: readonly SupplementCompletion[],
 ): SupplementCompletion[] {
   const byKey = new Map(existing.map((entry) => [entry.itemKey, entry]))
-  return SUPPLEMENT_ITEMS.map((item) => byKey.get(item.key) ?? emptyCompletion(item.key, localDate))
+  return items.map((item) => byKey.get(item.key) ?? emptyCompletion(item.key, localDate))
 }

@@ -24,7 +24,7 @@ describe('SUPPLEMENT_ITEMS', () => {
 describe('supplementItemLabel', () => {
   it('resolves every real key to its label', () => {
     for (const { key, label } of SUPPLEMENT_ITEMS) {
-      expect(supplementItemLabel(key)).toBe(label)
+      expect(supplementItemLabel(SUPPLEMENT_ITEMS, key)).toBe(label)
     }
   })
 })
@@ -43,7 +43,7 @@ describe('emptyCompletion', () => {
 
 describe('fullDayChecklist', () => {
   it('fills every item with an empty completion when nothing has been touched that day', () => {
-    const checklist = fullDayChecklist('2026-09-13', [])
+    const checklist = fullDayChecklist(SUPPLEMENT_ITEMS, '2026-09-13', [])
     expect(checklist).toHaveLength(SUPPLEMENT_ITEMS.length)
     expect(checklist.every((entry) => !entry.done)).toBe(true)
   })
@@ -53,7 +53,7 @@ describe('fullDayChecklist', () => {
       { itemKey: 'multivitamin', localDate: '2026-09-13', done: true, note: '', completedAt: '2026-09-13T08:00:00Z' },
       { itemKey: 'zinc', localDate: '2026-09-13', done: true, note: '', completedAt: '2026-09-13T07:00:00Z' },
     ]
-    const checklist = fullDayChecklist('2026-09-13', existing)
+    const checklist = fullDayChecklist(SUPPLEMENT_ITEMS, '2026-09-13', existing)
     expect(checklist.map((entry) => entry.itemKey)).toEqual(SUPPLEMENT_ITEMS.map((item) => item.key))
   })
 
@@ -61,14 +61,14 @@ describe('fullDayChecklist', () => {
     const existing: SupplementCompletion[] = [
       { itemKey: 'omega', localDate: '2026-09-13', done: true, note: 'With lunch.', completedAt: '2026-09-13T13:00:00Z' },
     ]
-    const checklist = fullDayChecklist('2026-09-13', existing)
+    const checklist = fullDayChecklist(SUPPLEMENT_ITEMS, '2026-09-13', existing)
     const omega = checklist.find((entry) => entry.itemKey === 'omega')
     expect(omega).toEqual(existing[0])
     expect(checklist.filter((entry) => entry.done)).toHaveLength(1)
   })
 
   it('never fabricates a row for a stale/unknown itemKey beyond the 7 real items', () => {
-    const checklist = fullDayChecklist('2026-09-13', [])
+    const checklist = fullDayChecklist(SUPPLEMENT_ITEMS, '2026-09-13', [])
     const keys = checklist.map((entry) => entry.itemKey)
     expect(keys).toEqual(SUPPLEMENT_ITEMS.map((item) => item.key))
   })
