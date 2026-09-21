@@ -34,7 +34,7 @@ function make(
     startMinutes,
     durationMinutes,
     flags: [],
-    quality: [], symptoms: [], notes: null, reflections: [], sleepQuality: [], dreamsNote: null,
+    quality: [], symptoms: [], notes: null, reflections: [], fieldSelections: {}, dreamsNote: null,
     status: 'planned',
     timezone: 'UTC',
     ...overrides,
@@ -323,18 +323,18 @@ describe('commitSchedule', () => {
     expect(committed.flags).toEqual(['Attack'])
   })
 
-  it('defaults sleepQuality/dreamsNote to empty/null, same as every other optional field', () => {
+  it('defaults fieldSelections/dreamsNote to empty/null, same as every other optional field', () => {
     const committed = commitSchedule(computeCandidateSchedule({ name: 'Sleep', path: ['Night sleep'] }, 0, []))
-    expect(committed.sleepQuality).toEqual([])
+    expect(committed.fieldSelections).toEqual({})
     expect(committed.dreamsNote).toBeNull()
   })
 
-  it('carries sleepQuality/dreamsNote through when the context supplies them', () => {
+  it('carries fieldSelections/dreamsNote through when the context supplies them', () => {
     const committed = commitSchedule(computeCandidateSchedule({ name: 'Sleep', path: ['Night sleep'] }, 0, []), {
-      sleepQuality: ['Deep Restorative', 'Dream-Intense'],
+      fieldSelections: { 'sleep-quality': ['Deep Restorative', 'Dream-Intense'] },
       dreamsNote: 'Flying again.',
     })
-    expect(committed.sleepQuality).toEqual(['Deep Restorative', 'Dream-Intense'])
+    expect(committed.fieldSelections).toEqual({ 'sleep-quality': ['Deep Restorative', 'Dream-Intense'] })
     expect(committed.dreamsNote).toBe('Flying again.')
   })
 })

@@ -9,7 +9,12 @@ import {
   type CreateHeaderButtonInput,
   type UpdateHeaderButtonInput,
 } from '@/api/headerButtons'
-import { DEFAULT_HEADER_BUTTONS, partitionHeaderButtons, type HeaderButtonConfig } from '@/domain/headerButtons'
+import {
+  DEFAULT_HEADER_BUTTONS,
+  partitionHeaderButtons,
+  type HeaderButtonConfig,
+  type HeaderButtonNoteField,
+} from '@/domain/headerButtons'
 import { generateId } from '@/domain/scheduling'
 import { loadLocalHeaderButtons, saveLocalHeaderButtons } from '@/lib/headerButtonsLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
@@ -101,6 +106,24 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     saveLocalHeaderButtons(next)
   }
 
+  /**
+   * Normalizes the form's `HeaderButtonNoteFieldInput[]` (which may omit
+   * `id`/`options` for a brand-new field) into the full local
+   * `HeaderButtonNoteField[]` shape — a locally-generated id for a new field
+   * is provisional (the server assigns its own on create/update, reconciled
+   * on the next fetch) but lets this optimistic write render immediately,
+   * same as every other locally-generated id in this hook (rule 6).
+   */
+  function normalizeNoteFields(fields: CreateHeaderButtonInput['noteFields']): HeaderButtonNoteField[] {
+    return (fields ?? []).map((field) => ({
+      id: field.id ?? generateId(),
+      fieldKind: field.fieldKind,
+      key: field.key ?? null,
+      label: field.label,
+      options: field.options ?? [],
+    }))
+  }
+
   const addButton = useCallback(
     (input: Omit<CreateHeaderButtonInput, 'id'>): HeaderButtonConfig => {
       const id = generateId()
@@ -117,8 +140,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         entryMode: input.entryMode ?? 'duration',
         quickLogType: input.quickLogType ?? false,
         quickLogTypeLabel: input.quickLogTypeLabel ?? 'Type',
-        quickLogSleepQuality: input.quickLogSleepQuality ?? false,
-        noteFields: input.noteFields ?? [],
+        noteFields: normalizeNoteFields(input.noteFields),
         dayValueUnit: input.dayValueUnit ?? null,
         dayValueTarget: input.dayValueTarget ?? null,
         noteTypes: input.noteTypes ?? [],
@@ -150,9 +172,8 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
           ...button,
           label: input.label,
           quickLogTypeLabel: input.quickLogTypeLabel ?? button.quickLogTypeLabel,
-          quickLogSleepQuality: input.quickLogSleepQuality ?? button.quickLogSleepQuality,
           dayValueTarget: input.dayValueTarget ?? button.dayValueTarget,
-          noteFields: input.noteFields ?? button.noteFields,
+          noteFields: input.noteFields ? normalizeNoteFields(input.noteFields) : button.noteFields,
           noteTypes: input.noteTypes ?? button.noteTypes,
           checklistItems: input.checklistItems
             ? input.checklistItems.map((item, index) => ({

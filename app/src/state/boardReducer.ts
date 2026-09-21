@@ -11,7 +11,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { ActivityQuality, FlagId, ScheduledActivity, SleepQualityId, Symptom } from '@/domain/types'
+import type { ActivityQuality, FieldSelections, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
 
 /**
  * What is currently staged in the modal but not yet committed. Nothing here
@@ -35,9 +35,9 @@ export interface StagingState {
   symptoms: Symptom[]
   /** Freeform notes textarea — optional, empty string is "nothing typed". */
   notes: string
-  /** "How was your sleep?" — optional multi-select, Sleep-quick-log-only in practice. */
-  sleepQuality: SleepQualityId[]
-  /** "Dreams" — a SEPARATE freeform note from `notes`, Sleep-quick-log-only in practice. */
+  /** Any multiselect-kind note field's chosen values, keyed by that field's own id — see `domain/types.ts`'s `FieldSelections`. */
+  fieldSelections: FieldSelections
+  /** "Dreams" (or whatever a button's second text field is labeled) — a SEPARATE freeform note from `notes`. */
   dreamsNote: string
   /**
    * Id of the activity being edited in place, or null when adding a new one.
@@ -88,7 +88,7 @@ export const EMPTY_STAGING: StagingState = {
   quality: [],
   symptoms: [],
   notes: '',
-  sleepQuality: [],
+  fieldSelections: {},
   dreamsNote: '',
   editingId: null,
 }
@@ -128,8 +128,8 @@ export type BoardAction =
   /** Multi-select toggle — adds the symptom if absent, removes it if present. */
   | { type: 'toggleStagingSymptom'; symptom: Symptom }
   | { type: 'setStagingNotes'; notes: string }
-  /** Multi-select toggle — adds the sleep-quality value if absent, removes it if present. Sleep-quick-log-only in practice. */
-  | { type: 'toggleStagingSleepQuality'; quality: SleepQualityId }
+  /** Multi-select toggle for one multiselect-kind note field, keyed by its own id — adds the value if absent, removes it if present. */
+  | { type: 'toggleStagingFieldSelection'; fieldId: string; value: string }
   /** Sleep-quick-log-only in practice — a SEPARATE field from `setStagingNotes`. */
   | { type: 'setStagingDreamsNote'; note: string }
   | { type: 'commit' }
@@ -179,12 +179,12 @@ export type BoardAction =
    * re-validates anyway (belt and braces, same reasoning `commit` re-checks
    * a staged candidate that was already validated when it was computed).
    *
-   * `path`/`notes`/`sleepQuality`/`dreamsNote` are all optional — Vipassana
-   * (no type, no note) never passes them; Exercise/Sleep pass `path` (the
-   * chosen type, single-element, same shape a tile-row sub-pick produces)
-   * and `notes`; Sleep additionally passes `sleepQuality`/`dreamsNote`. See
-   * `domain/displayButtons.ts`'s `quickLogType`/`quickLogNote`/
-   * `quickLogSleepQuality`/`quickLogDreamsNote`.
+   * `path`/`notes`/`fieldSelections`/`dreamsNote` are all optional —
+   * Vipassana (no type, no note) never passes them; Exercise/Sleep pass
+   * `path` (the chosen type, single-element, same shape a tile-row sub-pick
+   * produces) and `notes`; Sleep additionally passes
+   * `fieldSelections`/`dreamsNote`. See `domain/displayButtons.ts`'s
+   * `quickLogType`/`displayButtonNoteFields`.
    */
   | {
       type: 'quickLogActivity'
@@ -193,7 +193,7 @@ export type BoardAction =
       durationMinutes: number
       path?: string[]
       notes?: string | null
-      sleepQuality?: SleepQualityId[]
+      fieldSelections?: FieldSelections
       dreamsNote?: string | null
     }
 
@@ -246,7 +246,7 @@ function stageFrom(
     quality: [],
     symptoms: [],
     notes: '',
-    sleepQuality: [],
+    fieldSelections: {},
     dreamsNote: '',
     editingId: candidate.id,
   }
@@ -395,13 +395,16 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, notes: action.notes } }
     }
 
-    case 'toggleStagingSleepQuality': {
+    case 'toggleStagingFieldSelection': {
       if (!state.staging.cardName) return state
-      const { sleepQuality } = state.staging
-      const next = sleepQuality.includes(action.quality)
-        ? sleepQuality.filter((q) => q !== action.quality)
-        : [...sleepQuality, action.quality]
-      return { ...state, staging: { ...state.staging, sleepQuality: next } }
+      const current = state.staging.fieldSelections[action.fieldId] ?? []
+      const next = current.includes(action.value)
+        ? current.filter((v) => v !== action.value)
+        : [...current, action.value]
+      return {
+        ...state,
+        staging: { ...state.staging, fieldSelections: { ...state.staging.fieldSelections, [action.fieldId]: next } },
+      }
     }
 
     case 'setStagingDreamsNote': {
@@ -447,7 +450,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         symptoms: staging.symptoms,
         notes: staging.notes.trim() ? staging.notes : null,
         reflections: prior?.reflections ?? [],
-        sleepQuality: staging.sleepQuality,
+        fieldSelections: staging.fieldSelections,
         dreamsNote: staging.dreamsNote.trim() ? staging.dreamsNote : null,
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
@@ -478,7 +481,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           quality: [...activity.quality],
           symptoms: [...activity.symptoms],
           notes: activity.notes ?? '',
-          sleepQuality: [...activity.sleepQuality],
+          fieldSelections: { ...activity.fieldSelections },
           dreamsNote: activity.dreamsNote ?? '',
           editingId: activity.id,
         },
@@ -639,7 +642,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       if (!validateSchedule(candidate, state.activities).ok) return state
       const committed = commitSchedule(candidate, {
         notes: action.notes?.trim() ? action.notes : null,
-        sleepQuality: action.sleepQuality ?? [],
+        fieldSelections: action.fieldSelections ?? {},
         dreamsNote: action.dreamsNote?.trim() ? action.dreamsNote : null,
       })
       return { ...state, activities: [...state.activities, committed] }

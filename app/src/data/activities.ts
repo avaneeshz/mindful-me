@@ -1,6 +1,5 @@
 import {
   Activity,
-  AlarmClock,
   Bath,
   BatteryLow,
   BatteryCharging,
@@ -14,13 +13,11 @@ import {
   Church,
   CircleDashed,
   CircleSlash,
-  CloudMoon,
   Coffee,
   Droplet,
   Droplets,
   Dumbbell,
   EyeOff,
-  Feather,
   Flame,
   Flower2,
   Footprints,
@@ -42,7 +39,6 @@ import {
   Music4,
   PenLine,
   Pill,
-  Puzzle,
   Repeat,
   Rocket,
   Scissors,
@@ -56,7 +52,6 @@ import {
   Sparkles,
   Sprout,
   Sun,
-  Sunrise,
   Syringe,
   Table2,
   Thermometer,
@@ -79,7 +74,6 @@ import type {
   Category,
   CategoryId,
   FlagId,
-  SleepQualityId,
   Symptom,
 } from '@/domain/types'
 
@@ -636,28 +630,12 @@ export const SYMPTOMS: SymptomDefinition[] = [
 ]
 
 /* ------------------------------------------------------------------ *
- * "How was your sleep?" — a multi-select, optional reflection on the Sleep
- * quick-log button, deliberately its OWN vocabulary from `ActivityQuality`
- * (see `SleepQualityId` in domain/types.ts). Icon choices are a judgement
- * call (none were prescribed), same as quality/symptoms' own — cheap to
- * swap later.
+ * "How was your sleep?" used to live here as a hardcoded, Sleep-only
+ * vocabulary (`SLEEP_QUALITIES`/`SleepQualityId`). It's now an ordinary
+ * `'multiselect'`-kind `header_button_note_fields` row like any other
+ * button can configure — see `domain/headerButtons.ts`'s
+ * `HeaderButtonNoteField` and `20260921060000_dynamic_note_fields.sql`.
+ * Sleep's 11 default option labels live in `domain/headerButtons.ts`'s
+ * `DEFAULT_HEADER_BUTTONS` (mirroring the DB seed) — this file no longer
+ * carries a sleep-specific vocabulary or icon set at all.
  * ------------------------------------------------------------------ */
-
-export interface SleepQualityDefinition {
-  id: SleepQualityId
-  icon: LucideIcon
-}
-
-export const SLEEP_QUALITIES: SleepQualityDefinition[] = [
-  { id: 'Deep Restorative', icon: Moon },
-  { id: 'Light & Restful', icon: CloudMoon },
-  { id: 'Light & Restless', icon: Waves },
-  { id: 'Fragmented', icon: Puzzle },
-  { id: 'Interrupted', icon: AlarmClock },
-  { id: 'Long but Unrefreshing', icon: BatteryLow },
-  { id: 'Short but Restorative', icon: BatteryCharging },
-  { id: 'Dream-Intense', icon: Feather },
-  { id: 'Delayed', icon: Timer },
-  { id: 'Early Awakening', icon: Sunrise },
-  { id: 'Unusually Deep', icon: Sparkles },
-]

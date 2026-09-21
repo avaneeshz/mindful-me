@@ -26,11 +26,11 @@
 import type {
   ActivityList,
   ActivityQuality,
+  FieldSelections,
   FlagId,
   ReflectionEntry,
   ScheduledActivity,
   ScheduleStatus,
-  SleepQualityId,
   Symptom,
 } from './types'
 
@@ -303,9 +303,9 @@ export interface CommitContext {
   status?: ScheduleStatus
   timezone?: string
   id?: string
-  /** "How was your sleep?" — optional, multi-select, Sleep-quick-log-only in practice. */
-  sleepQuality?: SleepQualityId[]
-  /** A SEPARATE freeform note from `notes` — Sleep-quick-log-only in practice ("Dreams"). */
+  /** Any multiselect-kind note field's chosen values, keyed by that field's own id — see `domain/types.ts`'s `FieldSelections`. */
+  fieldSelections?: FieldSelections
+  /** A SEPARATE freeform note from `notes` — driven by whichever button's second text field is configured. */
   dreamsNote?: string | null
 }
 
@@ -337,7 +337,7 @@ export function commitSchedule(
     symptoms: context.symptoms ?? [],
     notes: context.notes ?? null,
     reflections: context.reflections ?? [],
-    sleepQuality: context.sleepQuality ?? [],
+    fieldSelections: context.fieldSelections ?? {},
     dreamsNote: context.dreamsNote ?? null,
     status: context.status ?? 'planned',
     timezone:

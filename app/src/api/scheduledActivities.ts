@@ -2,11 +2,11 @@ import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
 import { supabase } from '@/lib/supabaseClient'
 import type {
   ActivityQuality,
+  FieldSelections,
   FlagId,
   ReflectionEntry,
   ScheduleStatus,
   ScheduledActivity,
-  SleepQualityId,
   Symptom,
 } from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
@@ -30,8 +30,23 @@ interface ScheduledActivityDto {
   symptoms: string[] | null
   notes: string | null
   reflections: { card_id: string; note: string | null }[] | null
+  /** Deprecated — superseded by `field_selections` below. See `20260921060000_dynamic_note_fields.sql`. Never read by the client any more. */
   sleep_quality: string[] | null
   dreams: string | null
+  field_selections: { note_field_id: string; selected_labels: string[] | null }[] | null
+}
+
+/** `ScheduledActivity.fieldSelections`'s wire shape, built from the DTO's `field_selections` array. */
+function fieldSelectionsFromDto(dto: ScheduledActivityDto): FieldSelections {
+  const entries = dto.field_selections ?? []
+  return Object.fromEntries(entries.map((f) => [f.note_field_id, f.selected_labels ?? []]))
+}
+
+/** The inverse — `FieldSelections` -> the jsonb array `p_field_selections` expects. Empty-selection fields are dropped rather than sent as noise. */
+function fieldSelectionsToParam(selections: FieldSelections): { note_field_id: string; selected_labels: string[] }[] {
+  return Object.entries(selections)
+    .filter(([, labels]) => labels.length > 0)
+    .map(([note_field_id, selected_labels]) => ({ note_field_id, selected_labels }))
 }
 
 async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity> {
@@ -59,7 +74,7 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     symptoms: (dto.symptoms ?? []) as Symptom[],
     notes: dto.notes ?? null,
     reflections,
-    sleepQuality: (dto.sleep_quality ?? []) as SleepQualityId[],
+    fieldSelections: fieldSelectionsFromDto(dto),
     dreamsNote: dto.dreams ?? null,
     status: (dto.status as ScheduleStatus) ?? 'planned',
     timezone: dto.timezone,
@@ -164,8 +179,8 @@ export async function apiCreateScheduledActivity(activity: ScheduledActivity, re
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
-    p_sleep_quality: activity.sleepQuality,
     p_dreams: activity.dreamsNote,
+    p_field_selections: fieldSelectionsToParam(activity.fieldSelections),
   })
   if (error) throw error
 }
@@ -191,8 +206,8 @@ export async function apiRescheduleScheduledActivity(
     p_quality: activity.quality,
     p_symptoms: activity.symptoms,
     p_notes: activity.notes,
-    p_sleep_quality: activity.sleepQuality,
     p_dreams: activity.dreamsNote,
+    p_field_selections: fieldSelectionsToParam(activity.fieldSelections),
   })
   if (error) throw error
 }
@@ -230,10 +245,13 @@ export async function apiSetScheduledActivityNotes(id: string, notes: string | n
   if (error) throw error
 }
 
-/** Parity with `apiSetScheduledActivityQuality` — a sleep-quality-only edit with no accompanying time change. */
-export async function apiSetScheduledActivitySleepQuality(id: string, sleepQuality: SleepQualityId[]): Promise<void> {
+/** Parity with `apiSetScheduledActivityQuality` — a field-selections-only edit (any number of multiselect-kind note fields at once) with no accompanying time change. */
+export async function apiSetScheduledActivityFieldSelections(id: string, fieldSelections: FieldSelections): Promise<void> {
   if (!supabase) return
-  const { error } = await supabase.rpc('set_scheduled_activity_sleep_quality', { p_id: id, p_sleep_quality: sleepQuality })
+  const { error } = await supabase.rpc('set_scheduled_activity_field_selections', {
+    p_id: id,
+    p_field_selections: fieldSelectionsToParam(fieldSelections),
+  })
   if (error) throw error
 }
 
