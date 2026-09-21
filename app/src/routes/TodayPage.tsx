@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react'
-import { HeaderBar } from '@/components/HeaderBar'
 import { ReflectionMappingPopover, type PendingReflectionMapping } from '@/components/ReflectionMappingPopover'
 import { ReflectionSection } from '@/components/ReflectionSection'
 import { ThemeFromSlot } from '@/components/ThemeFromSlot'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
-import { useAuth } from '@/state/AuthContext'
 import { useBoard } from '@/state/BoardContext'
 
 export function TodayPage() {
-  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate, syncQueue, retrySyncNow } =
-    useBoard()
-  const { user, signOut } = useAuth()
+  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
 
   // Which activity + reflection card the note-entry popup is currently open
   // for, if any — set by EITHER path of reflection-card mapping (a grid
@@ -43,23 +39,9 @@ export function TodayPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+    <>
       {/* Derives the light/dark theme from the selected slot; renders nothing. */}
       <ThemeFromSlot />
-      <HeaderBar
-        now={now}
-        viewedDate={viewedDate}
-        onSelectDate={setViewedDate}
-        user={user}
-        onSignOut={signOut}
-        activities={state.activities}
-        onQuickLog={(cardName, startMinutes, durationMinutes, extra) =>
-          dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes, ...extra })
-        }
-        syncQueue={syncQueue}
-        onRetrySyncNow={retrySyncNow}
-        onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
-      />
 
       <div className="mt-xl ipad-land:mt-md">
         <Timeline
@@ -122,6 +104,6 @@ export function TodayPage() {
         }}
         onClose={() => setPendingMapping(null)}
       />
-    </div>
+    </>
   )
 }
