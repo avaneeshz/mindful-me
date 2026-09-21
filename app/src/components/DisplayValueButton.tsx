@@ -4,16 +4,16 @@ import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { TimeField } from '@/components/ui/TimeField'
 import { TimeRangeField } from '@/components/ui/TimeRangeField'
-import { SleepQualityPicker } from '@/components/editor/SleepQualityPicker'
+import { MultiselectFieldPicker } from '@/components/editor/MultiselectFieldPicker'
 import { findCard } from '@/data/activities'
 import {
   displayButtonInput,
   displayButtonLabel,
+  displayButtonMultiselectFields,
   displayButtonNoteFieldLabel,
   displayButtonQuickLogDreamsNote,
   displayButtonQuickLogName,
   displayButtonQuickLogNote,
-  displayButtonQuickLogSleepQuality,
   displayButtonQuickLogType,
   displayButtonQuickLogTypeLabel,
   displayButtonStorageKey,
@@ -27,7 +27,7 @@ import {
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration, nowClock } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import { formatActivityRange } from '@/domain/slots'
-import type { ActivityList, ScheduledActivity, SleepQualityId } from '@/domain/types'
+import type { ActivityList, FieldSelections, ScheduledActivity } from '@/domain/types'
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory, type UseDisplayValueHistoryResult } from '@/state/useDisplayValueHistory'
 import { useSessionHistory } from '@/state/useSessionHistory'
@@ -107,7 +107,7 @@ export function DisplayValueButton({
     extra?: {
       path?: string[]
       notes?: string | null
-      sleepQuality?: SleepQualityId[]
+      fieldSelections?: FieldSelections
       dreamsNote?: string | null
     },
   ) => void
@@ -130,8 +130,8 @@ export function DisplayValueButton({
   const synced = displayButtonSynced(buttonKey)
   const hasType = displayButtonQuickLogType(buttonKey)
   const hasNote = displayButtonQuickLogNote(buttonKey)
-  const hasSleepQuality = displayButtonQuickLogSleepQuality(buttonKey)
   const hasDreamsNote = displayButtonQuickLogDreamsNote(buttonKey)
+  const multiselectFields = displayButtonMultiselectFields(buttonKey)
   const typeOptions = hasType ? (findCard(quickLogName ?? '')?.sub ?? []) : []
 
   const [localValue, setLocalValue] = useState<number | null>(() =>
@@ -148,7 +148,7 @@ export function DisplayValueButton({
   const [songCount, setSongCount] = useState('')
   const [type, setType] = useState('')
   const [note, setNote] = useState('')
-  const [sleepQuality, setSleepQuality] = useState<SleepQualityId[]>([])
+  const [fieldSelections, setFieldSelections] = useState<FieldSelections>({})
   const [dreamsNote, setDreamsNote] = useState('')
   const [align, setAlign] = useState<'left' | 'right'>('right')
   const [error, setError] = useState<string | null>(null)
@@ -268,7 +268,7 @@ export function DisplayValueButton({
     setSongCount('')
     setType('')
     setNote('')
-    setSleepQuality([])
+    setFieldSelections({})
     setDreamsNote('')
     setError(null)
     setSubmitting(false)
@@ -350,7 +350,7 @@ export function DisplayValueButton({
       onQuickLog(quickLogName, startMinutes, durationMinutes, {
         path: type ? [type] : [],
         notes: hasNote && note.trim() ? note : null,
-        sleepQuality: hasSleepQuality ? sleepQuality : [],
+        fieldSelections,
         dreamsNote: hasDreamsNote && dreamsNote.trim() ? dreamsNote : null,
       })
       setStart('')
@@ -358,7 +358,7 @@ export function DisplayValueButton({
       setSongCount('')
       setType('')
       setNote('')
-      setSleepQuality([])
+      setFieldSelections({})
       setDreamsNote('')
       setError(null)
       setOpen(false)
@@ -466,7 +466,7 @@ export function DisplayValueButton({
                         `aria-label` below), same convention as Note/Dreams.
                         Every other button's generic "Type" legend is
                         untouched. */}
-                    <legend className={cn('font-semibold text-ink-dim', hasSleepQuality ? 'sr-only' : 'text-caption')}>
+                    <legend className={cn('font-semibold text-ink-dim', multiselectFields.length > 0 ? 'sr-only' : 'text-caption')}>
                       {displayButtonQuickLogTypeLabel(buttonKey)}
                     </legend>
                     <div role="radiogroup" aria-label={displayButtonQuickLogTypeLabel(buttonKey)} className="flex flex-wrap gap-sm">
@@ -491,13 +491,24 @@ export function DisplayValueButton({
                   </fieldset>
                 )}
 
-                {hasSleepQuality && (
-                  <SleepQualityPicker
-                    selected={sleepQuality}
-                    onToggle={(q) => setSleepQuality((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]))}
+                {multiselectFields.map((field) => (
+                  <MultiselectFieldPicker
+                    key={field.id}
+                    label={field.label}
+                    options={field.options}
+                    selected={fieldSelections[field.id] ?? []}
+                    onToggle={(value) =>
+                      setFieldSelections((prev) => {
+                        const current = prev[field.id] ?? []
+                        return {
+                          ...prev,
+                          [field.id]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
+                        }
+                      })
+                    }
                     compact
                   />
-                )}
+                ))}
 
                 {/* Dreams before the general Note (swapped per product
                     feedback), and neither carries a visible heading any

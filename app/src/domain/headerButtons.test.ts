@@ -23,7 +23,6 @@ function makeButton(overrides: Partial<HeaderButtonConfig>): HeaderButtonConfig 
     entryMode: 'duration',
     quickLogType: false,
     quickLogTypeLabel: 'Type',
-    quickLogSleepQuality: false,
     noteFields: [],
     dayValueUnit: null,
     dayValueTarget: null,
@@ -54,13 +53,14 @@ describe('DEFAULT_HEADER_BUTTONS', () => {
     expect(sorted.map((b) => b.id)).toEqual(DEFAULT_HEADER_BUTTONS.map((b) => b.id))
   })
 
-  it('Sleep keeps both its note fields (Note + Dreams) and the sleep-quality picker', () => {
+  it('Sleep keeps its two text fields (Note + Dreams) plus a multiselect sleep-quality field, all as ordinary configured noteFields', () => {
     const sleep = DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'sleep')!
-    expect(sleep.noteFields).toEqual([
-      { key: 'primary', label: 'Note' },
-      { key: 'secondary', label: 'Dreams' },
-    ])
-    expect(sleep.quickLogSleepQuality).toBe(true)
+    expect(sleep.noteFields).toHaveLength(3)
+    expect(sleep.noteFields[0]).toMatchObject({ fieldKind: 'text', key: 'primary', label: 'Note' })
+    expect(sleep.noteFields[1]).toMatchObject({ fieldKind: 'text', key: 'secondary', label: 'Dreams' })
+    expect(sleep.noteFields[2]).toMatchObject({ fieldKind: 'multiselect', key: null, label: 'How was your sleep?' })
+    expect(sleep.noteFields[2].options).toHaveLength(11)
+    expect(sleep.noteFields[2].options).toContain('Deep Restorative')
   })
 
   it('Vipassana has no note field, unlike every other quick-log button', () => {
@@ -146,17 +146,16 @@ describe('headerButtonConfigFromDto', () => {
       entry_mode: 'duration',
       quick_log_type: true,
       quick_log_type_label: 'Type',
-      quick_log_sleep_quality: false,
       day_value_unit: null,
       day_value_target: null,
-      note_fields: [{ key: 'primary', label: 'Note' }],
+      note_fields: [{ id: 'nf-1', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }],
       note_types: [],
       checklist_items: [],
     }
     const config = headerButtonConfigFromDto(dto)
     expect(config.id).toBe('uuid-1')
     expect(config.activityName).toBe('Sports or Exercise')
-    expect(config.noteFields).toEqual([{ key: 'primary', label: 'Note' }])
+    expect(config.noteFields).toEqual([{ id: 'nf-1', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }])
   })
 
   it('maps the server\'s "song_count" entry_mode to the client\'s "songCount"', () => {
@@ -172,7 +171,6 @@ describe('headerButtonConfigFromDto', () => {
       entry_mode: 'song_count',
       quick_log_type: false,
       quick_log_type_label: null,
-      quick_log_sleep_quality: false,
       day_value_unit: null,
       day_value_target: null,
       note_fields: [],

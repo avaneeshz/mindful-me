@@ -1,17 +1,18 @@
 import { X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { findCard } from '@/data/activities'
+import { displayButtonForActivityName } from '@/domain/displayButtons'
 import { SHOW_DURATION_STEPPER_FALLBACK } from '@/lib/featureFlags'
 import { stagingOptions, type StagingState } from '@/state/boardReducer'
-import type { ActivityList, ActivityQuality, FlagId, SleepQualityId, Symptom } from '@/domain/types'
+import type { ActivityList, ActivityQuality, FlagId, Symptom } from '@/domain/types'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { cn } from '@/lib/utils'
 import { DurationDragBlock } from './DurationDragBlock'
 import { DurationStepperFallback } from './DurationStepperFallback'
 import { FlagPicker } from './FlagPicker'
+import { MultiselectFieldPicker } from './MultiselectFieldPicker'
 import { QualityPicker } from './QualityPicker'
-import { SleepQualityPicker } from './SleepQualityPicker'
 import { SymptomsPicker } from './SymptomsPicker'
 
 /**
@@ -40,7 +41,7 @@ export function LogActivityModal({
   onToggleQuality,
   onToggleSymptom,
   onSetNotes,
-  onToggleSleepQuality,
+  onToggleFieldSelection,
   onSetDreamsNote,
   onCommit,
   onCancel,
@@ -58,8 +59,8 @@ export function LogActivityModal({
   onToggleQuality: (quality: ActivityQuality) => void
   onToggleSymptom: (symptom: Symptom) => void
   onSetNotes: (notes: string) => void
-  /** Sleep-quick-log-only in practice — see the section below, gated on `staging.cardName === 'Sleep'`. */
-  onToggleSleepQuality: (quality: SleepQualityId) => void
+  /** One multiselect-kind note field's toggle, keyed by that field's own id — see the section below, gated on whichever activity-category button (if any) is configured for `staging.cardName`. */
+  onToggleFieldSelection: (fieldId: string, value: string) => void
   onSetDreamsNote: (note: string) => void
   onCommit: () => void
   onCancel: () => void
@@ -67,6 +68,18 @@ export function LogActivityModal({
   const isOpen = staging.cardName !== null
   const card = staging.cardName ? findCard(staging.cardName) : undefined
   const options = stagingOptions(staging)
+  // The activity-category button (if any) configured for this activity —
+  // same lookup DisplayValueButton's own quick-log popover uses, so both
+  // entry paths (this modal via the tile row, or the header button) render
+  // the identical set of configured note fields for the same activity.
+  const configuredButton = staging.cardName ? displayButtonForActivityName(staging.cardName) : undefined
+  const hasSecondaryNote = (configuredButton?.noteFields ?? []).some(
+    (field) => field.fieldKind === 'text' && field.key === 'secondary',
+  )
+  const secondaryNoteLabel = (configuredButton?.noteFields ?? []).find(
+    (field) => field.fieldKind === 'text' && field.key === 'secondary',
+  )?.label
+  const multiselectFields = (configuredButton?.noteFields ?? []).filter((field) => field.fieldKind === 'multiselect')
 
   return (
     // Deliberately NO `<Dialog.Portal>`: this whole app's test suite is
@@ -198,30 +211,39 @@ export function LogActivityModal({
               className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             />
 
-            {/* Sleep-quick-log-only fields — its own 11-value quality
-                vocabulary (deliberately separate from `QualityPicker` above)
-                plus a SECOND, separate note field ("Dreams") from the plain
-                notes textarea above. Gated on the card name, not a separate
-                flag, exactly like the sub/third drill-down chips above are
+            {/* Extra fields configured on this activity's header button (if
+                any) — generic now, never hardcoded to Sleep: a second text
+                note (e.g. Sleep's "Dreams") from the plain notes textarea
+                above, plus any multiselect-kind fields (e.g. Sleep's "How
+                was your sleep?"), each rendered with its own configured
+                label/options. Gated on `configuredButton`, not a card-name
+                check, exactly like the sub/third drill-down chips above are
                 gated on `options`. */}
-            {staging.cardName === 'Sleep' && (
-              <>
-                <SleepQualityPicker selected={staging.sleepQuality} onToggle={onToggleSleepQuality} />
-                <div>
-                  <label htmlFor="dreams-note" className="sr-only">
-                    Dreams
-                  </label>
-                  <textarea
-                    id="dreams-note"
-                    value={staging.dreamsNote}
-                    onChange={(event) => onSetDreamsNote(event.target.value)}
-                    placeholder="Dreams"
-                    rows={3}
-                    className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-                  />
-                </div>
-              </>
+            {hasSecondaryNote && (
+              <div>
+                <label htmlFor="secondary-note" className="sr-only">
+                  {secondaryNoteLabel}
+                </label>
+                <textarea
+                  id="secondary-note"
+                  value={staging.dreamsNote}
+                  onChange={(event) => onSetDreamsNote(event.target.value)}
+                  placeholder={secondaryNoteLabel}
+                  rows={3}
+                  className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                />
+              </div>
             )}
+
+            {multiselectFields.map((field) => (
+              <MultiselectFieldPicker
+                key={field.id}
+                label={field.label}
+                options={field.options}
+                selected={staging.fieldSelections[field.id] ?? []}
+                onToggle={(value) => onToggleFieldSelection(field.id, value)}
+              />
+            ))}
 
             {/* Save: a small centered pill, not a full-width bar. Cancel is
                 gone — the X close icon above is the only way to dismiss

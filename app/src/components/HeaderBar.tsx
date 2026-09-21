@@ -20,7 +20,7 @@ import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
 import { toDisplayButtonLike, type HeaderButtonCategory, type HeaderButtonConfig } from '@/domain/headerButtons'
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
 import { useHeaderButtons } from '@/state/useHeaderButtons'
-import type { ActivityList, SleepQualityId } from '@/domain/types'
+import type { ActivityList, FieldSelections } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
@@ -73,7 +73,7 @@ export interface HeaderBarProps {
     extra?: {
       path?: string[]
       notes?: string | null
-      sleepQuality?: SleepQualityId[]
+      fieldSelections?: FieldSelections
       dreamsNote?: string | null
     },
   ) => void

@@ -17,7 +17,7 @@ function activity(overrides: Partial<ScheduledActivity> = {}): ScheduledActivity
     symptoms: [],
     notes: null,
     reflections: [],
-    sleepQuality: [],
+    fieldSelections: {},
     dreamsNote: null,
     status: 'planned',
     timezone: 'UTC',

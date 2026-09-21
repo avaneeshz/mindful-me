@@ -23,7 +23,7 @@ function renderModal(overrides: Partial<ComponentProps<typeof LogActivityModal>>
       onToggleQuality={() => {}}
       onToggleSymptom={() => {}}
       onSetNotes={() => {}}
-      onToggleSleepQuality={() => {}}
+      onToggleFieldSelection={() => {}}
       onSetDreamsNote={() => {}}
       onCommit={() => {}}
       onCancel={() => {}}
@@ -258,6 +258,29 @@ describe('Notes — a real, always-visible textarea (was the inert "Deep log" st
   })
 })
 
+describe('configured note fields (secondary text + multiselect) render generically, driven by the activity-category button config', () => {
+  it('renders no secondary-note textarea or multiselect fields for an activity with no configured button', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Homework' } })
+    expect(html).not.toContain('placeholder="Dreams"')
+    expect(html).not.toContain('How was your sleep?')
+  })
+
+  it('renders Sleep\'s configured secondary note ("Dreams") and multiselect ("How was your sleep?") together', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Sleep' } })
+    expect(html).toContain('placeholder="Dreams"')
+    expect(html).toContain('How was your sleep?')
+    expect(html).toContain('Deep Restorative')
+  })
+
+  it('reflects a currently-staged multiselect value as checked', () => {
+    const html = renderModal({
+      staging: { ...EMPTY_STAGING, cardName: 'Sleep', fieldSelections: { 'sleep-quality': ['Deep Restorative'] } },
+    })
+    const section = html.slice(html.indexOf('How was your sleep?'))
+    expect(section).toContain('aria-checked="true"')
+  })
+})
+
 describe('Save button is a small centered pill, not a full-width bar', () => {
   it('is not `block` (full-width) any more', () => {
     const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep' } })
@@ -319,7 +342,7 @@ describe('feature-flag-gated duration fallback', () => {
         onToggleQuality={() => {}}
         onToggleSymptom={() => {}}
         onSetNotes={() => {}}
-        onToggleSleepQuality={() => {}}
+        onToggleFieldSelection={() => {}}
         onSetDreamsNote={() => {}}
         onCommit={() => {}}
         onCancel={() => {}}

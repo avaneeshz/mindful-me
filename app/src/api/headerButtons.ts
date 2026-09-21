@@ -40,6 +40,23 @@ export async function apiProvisionDefaultHeaderButtons(): Promise<boolean> {
   return true
 }
 
+/**
+ * One configured note field, as sent to `create_header_button`/
+ * `update_header_button` — mirrors `header_button_note_fields`'s own shape
+ * (`20260921060000_dynamic_note_fields.sql`). `id` is present when editing
+ * an EXISTING field (so the server preserves it — see
+ * `domain/headerButtons.ts`'s `HeaderButtonNoteField` doc comment for why
+ * that id must survive an edit) and absent for a brand-new field. `key` is
+ * `'text'`-kind only; `options` is `'multiselect'`-kind only.
+ */
+export interface HeaderButtonNoteFieldInput {
+  id?: string
+  fieldKind: 'text' | 'multiselect'
+  key?: 'primary' | 'secondary' | null
+  label: string
+  options?: string[]
+}
+
 export interface CreateHeaderButtonInput {
   id: string
   category: HeaderButtonConfig['category']
@@ -49,10 +66,9 @@ export interface CreateHeaderButtonInput {
   entryMode?: 'duration' | 'songCount'
   quickLogType?: boolean
   quickLogTypeLabel?: string | null
-  quickLogSleepQuality?: boolean
   dayValueUnit?: 'min' | 'int' | 'target' | null
   dayValueTarget?: number | null
-  noteFields?: { key: 'primary' | 'secondary'; label: string }[]
+  noteFields?: HeaderButtonNoteFieldInput[]
   noteTypes?: string[]
   checklistItems?: { label: string }[]
 }
@@ -75,7 +91,6 @@ export async function apiCreateHeaderButton(input: CreateHeaderButtonInput): Pro
     p_entry_mode: input.entryMode === 'songCount' ? 'song_count' : 'duration',
     p_quick_log_type: input.quickLogType ?? false,
     p_quick_log_type_label: input.quickLogTypeLabel ?? null,
-    p_quick_log_sleep_quality: input.quickLogSleepQuality ?? false,
     p_day_value_unit: input.dayValueUnit ?? null,
     p_day_value_target: input.dayValueTarget ?? null,
     p_note_fields: input.noteFields ?? [],
@@ -94,9 +109,8 @@ export interface UpdateHeaderButtonInput {
   id: string
   label: string
   quickLogTypeLabel?: string | null
-  quickLogSleepQuality?: boolean | null
   dayValueTarget?: number | null
-  noteFields?: { key: 'primary' | 'secondary'; label: string }[] | null
+  noteFields?: HeaderButtonNoteFieldInput[] | null
   noteTypes?: string[] | null
   checklistItems?: { key?: string; label: string }[] | null
 }
@@ -107,7 +121,6 @@ export async function apiUpdateHeaderButton(input: UpdateHeaderButtonInput): Pro
     p_id: input.id,
     p_label: input.label,
     p_quick_log_type_label: input.quickLogTypeLabel ?? null,
-    p_quick_log_sleep_quality: input.quickLogSleepQuality ?? null,
     p_day_value_target: input.dayValueTarget ?? null,
     p_note_fields: input.noteFields ?? null,
     p_note_types: input.noteTypes ?? null,

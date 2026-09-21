@@ -46,15 +46,35 @@ export function headerButtonCategoryLabel(category: HeaderButtonCategory): strin
 
 /**
  * Generalizes Sleep's old hardcoded `quickLogNote`/`quickLogDreamsNote`
- * booleans. Bounded to two slots (`'primary'`/`'secondary'`) because that's
- * genuinely all the physical storage `scheduled_activities` has for a note-
- * shaped value (`notes_encrypted`, `dreams_encrypted`) — see the migration's
- * own doc comment for the full reasoning. Any activity-category button can
- * be configured with zero, one, or both, freely labeled.
+ * booleans AND its old hardcoded `quickLogSleepQuality` "How was your
+ * sleep?" special case into ONE mechanism, two kinds:
+ *   - `'text'` — bounded to two slots (`key: 'primary'|'secondary'`)
+ *     because that's genuinely all the physical storage
+ *     `scheduled_activities` has for a note-shaped value
+ *     (`notes_encrypted`, `dreams_encrypted`) — see the migration's own doc
+ *     comment for the full reasoning.
+ *   - `'multiselect'` — NOT capped (any number of fields, each with any
+ *     number of user-defined `options`), since it's backed by its own child
+ *     tables (`header_button_field_options` /
+ *     `scheduled_activity_field_selections`), not a fixed column. `id` is
+ *     this field's stable identity — the same value
+ *     `scheduled_activity_field_selections.note_field_id` keys selections
+ *     by, so it must be preserved across an edit (see
+ *     `20260921060000_dynamic_note_fields.sql`'s own judgment-call note on
+ *     why `update_header_button` never blindly regenerates it).
+ * Any activity-category button can be configured with any mix of these,
+ * freely labeled — Sleep keeps its three (Note, Dreams, "How was your
+ * sleep?") as ordinary configured fields, no longer a hardcoded special
+ * case anywhere in this module.
  */
 export interface HeaderButtonNoteField {
-  key: 'primary' | 'secondary'
+  id: string
+  fieldKind: 'text' | 'multiselect'
+  /** `'text'` only — which physical column this maps to. `null` for `'multiselect'`. */
+  key: 'primary' | 'secondary' | null
   label: string
+  /** `'multiselect'` only — this field's own user-defined option list. Empty for `'text'`. */
+  options: readonly string[]
 }
 
 export interface HeaderButtonChecklistItemConfig {
@@ -80,8 +100,7 @@ export interface HeaderButtonConfig {
   entryMode: 'duration' | 'songCount'
   quickLogType: boolean
   quickLogTypeLabel: string
-  /** Whether this button shows the fixed 11-value "How was your sleep?" multi-select (vocabulary itself stays hardcoded — see the migration's judgment-call note). */
-  quickLogSleepQuality: boolean
+  /** Every configured note field, text and multiselect alike, in the order they're shown. */
   noteFields: HeaderButtonNoteField[]
   // --- 'day_value' ---
   dayValueUnit: 'min' | 'int' | 'target' | null
@@ -111,7 +130,6 @@ function base(input: {
     entryMode: 'duration',
     quickLogType: false,
     quickLogTypeLabel: 'Type',
-    quickLogSleepQuality: false,
     noteFields: [],
     dayValueUnit: null,
     dayValueTarget: null,
@@ -128,7 +146,6 @@ function activityDefault(input: {
   entryMode?: 'duration' | 'songCount'
   quickLogType?: boolean
   quickLogTypeLabel?: string
-  quickLogSleepQuality?: boolean
   noteFields?: HeaderButtonNoteField[]
 }): HeaderButtonConfig {
   return {
@@ -138,10 +155,39 @@ function activityDefault(input: {
     entryMode: input.entryMode ?? 'duration',
     quickLogType: input.quickLogType ?? false,
     quickLogTypeLabel: input.quickLogTypeLabel ?? 'Type',
-    quickLogSleepQuality: input.quickLogSleepQuality ?? false,
     noteFields: input.noteFields ?? [],
   }
 }
+
+/** Shorthand for a `'text'`-kind field in `DEFAULT_HEADER_BUTTONS`. */
+function textField(id: string, key: 'primary' | 'secondary', label: string): HeaderButtonNoteField {
+  return { id, fieldKind: 'text', key, label, options: [] }
+}
+
+/** Shorthand for a `'multiselect'`-kind field in `DEFAULT_HEADER_BUTTONS`. */
+function multiselectField(id: string, label: string, options: readonly string[]): HeaderButtonNoteField {
+  return { id, fieldKind: 'multiselect', key: null, label, options }
+}
+
+/**
+ * Sleep's "How was your sleep?" 11 options — the local-only-mode mirror of
+ * the same list `provision_default_header_buttons()` seeds server-side.
+ * Values only (this module has no vocabulary of its own to keep in sync
+ * beyond matching the DB seed) — see `20260921060000_dynamic_note_fields.sql`.
+ */
+const SLEEP_QUALITY_OPTIONS = [
+  'Deep Restorative',
+  'Light & Restful',
+  'Light & Restless',
+  'Fragmented',
+  'Interrupted',
+  'Long but Unrefreshing',
+  'Short but Restorative',
+  'Dream-Intense',
+  'Delayed',
+  'Early Awakening',
+  'Unusually Deep',
+] as const
 
 function dayValueDefault(input: {
   id: string
@@ -205,7 +251,7 @@ export const DEFAULT_HEADER_BUTTONS: readonly HeaderButtonConfig[] = [
     sortOrder: 6,
     quickLogType: true,
     quickLogTypeLabel: 'Type',
-    noteFields: [{ key: 'primary', label: 'Note' }],
+    noteFields: [textField('exercise-note', 'primary', 'Note')],
   }),
   activityDefault({
     id: 'breathing',
@@ -214,7 +260,7 @@ export const DEFAULT_HEADER_BUTTONS: readonly HeaderButtonConfig[] = [
     sortOrder: 7,
     quickLogType: true,
     quickLogTypeLabel: 'Type',
-    noteFields: [{ key: 'primary', label: 'Note' }],
+    noteFields: [textField('breathing-note', 'primary', 'Note')],
   }),
   activityDefault({
     id: 'sleep',
@@ -223,10 +269,10 @@ export const DEFAULT_HEADER_BUTTONS: readonly HeaderButtonConfig[] = [
     sortOrder: 8,
     quickLogType: true,
     quickLogTypeLabel: 'Sleep type',
-    quickLogSleepQuality: true,
     noteFields: [
-      { key: 'primary', label: 'Note' },
-      { key: 'secondary', label: 'Dreams' },
+      textField('sleep-note', 'primary', 'Note'),
+      textField('sleep-dreams', 'secondary', 'Dreams'),
+      multiselectField('sleep-quality', 'How was your sleep?', SLEEP_QUALITY_OPTIONS),
     ],
   }),
   activityDefault({
@@ -236,14 +282,14 @@ export const DEFAULT_HEADER_BUTTONS: readonly HeaderButtonConfig[] = [
     sortOrder: 9,
     quickLogType: true,
     quickLogTypeLabel: 'Type',
-    noteFields: [{ key: 'primary', label: 'Note' }],
+    noteFields: [textField('prayer-note', 'primary', 'Note')],
   }),
   activityDefault({
     id: 'sermons',
     activityName: 'Sermons',
     label: 'Sermons',
     sortOrder: 10,
-    noteFields: [{ key: 'primary', label: 'Note' }],
+    noteFields: [textField('sermons-note', 'primary', 'Note')],
   }),
   activityDefault({
     id: 'worship',
@@ -251,7 +297,7 @@ export const DEFAULT_HEADER_BUTTONS: readonly HeaderButtonConfig[] = [
     label: 'Worship',
     sortOrder: 11,
     entryMode: 'songCount',
-    noteFields: [{ key: 'primary', label: 'Note' }],
+    noteFields: [textField('worship-note', 'primary', 'Note')],
   }),
   dayValueDefault({ id: 'protein', key: 'protein', label: 'Protein', sortOrder: 12, unit: 'target', target: 80 }),
   checklistDefault({ id: 'supplements', label: 'Supplements', sortOrder: 13, items: SUPPLEMENT_ITEMS }),
@@ -270,10 +316,9 @@ export interface HeaderButtonDto {
   entry_mode: string
   quick_log_type: boolean
   quick_log_type_label: string | null
-  quick_log_sleep_quality: boolean
   day_value_unit: string | null
   day_value_target: number | null
-  note_fields: { key: string; label: string }[]
+  note_fields: { id: string; fieldKind: string; key: string | null; label: string; options: string[] }[]
   note_types: string[]
   checklist_items: { key: string; label: string }[]
 }
@@ -291,8 +336,13 @@ export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonCon
     entryMode: dto.entry_mode === 'song_count' ? 'songCount' : 'duration',
     quickLogType: dto.quick_log_type,
     quickLogTypeLabel: dto.quick_log_type_label ?? 'Type',
-    quickLogSleepQuality: dto.quick_log_sleep_quality,
-    noteFields: (dto.note_fields ?? []).map((f) => ({ key: f.key as 'primary' | 'secondary', label: f.label })),
+    noteFields: (dto.note_fields ?? []).map((f) => ({
+      id: f.id,
+      fieldKind: f.fieldKind === 'multiselect' ? 'multiselect' : 'text',
+      key: f.key as 'primary' | 'secondary' | null,
+      label: f.label,
+      options: f.options ?? [],
+    })),
     dayValueUnit: (dto.day_value_unit as 'min' | 'int' | 'target' | null) ?? null,
     dayValueTarget: dto.day_value_target,
     noteTypes: dto.note_types ?? [],
@@ -361,7 +411,6 @@ export function toDisplayButtonLike(config: HeaderButtonConfig): {
   quickLogName?: string
   quickLogType?: boolean
   quickLogTypeLabel?: string
-  quickLogSleepQuality?: boolean
   noteFields?: HeaderButtonNoteField[]
   synced?: boolean
   target?: number
@@ -376,7 +425,6 @@ export function toDisplayButtonLike(config: HeaderButtonConfig): {
     quickLogName: config.category === 'activity' ? (config.activityName ?? undefined) : undefined,
     quickLogType: config.quickLogType,
     quickLogTypeLabel: config.quickLogTypeLabel,
-    quickLogSleepQuality: config.quickLogSleepQuality,
     noteFields: config.noteFields,
     synced: isDayValue,
     target: config.dayValueTarget ?? undefined,
