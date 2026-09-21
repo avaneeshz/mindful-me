@@ -2,10 +2,13 @@ import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
+import { HeaderBar } from '@/components/HeaderBar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
 import { TodayPage } from '@/routes/TodayPage'
+import { HealthSyncPage } from '@/routes/HealthSyncPage'
+import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
-import { BoardProvider } from '@/state/BoardContext'
+import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { ThemeProvider } from '@/state/ThemeContext'
 import { cn } from '@/lib/utils'
 
@@ -109,21 +112,28 @@ function AuthedApp({ now }: { now?: Date }) {
             className="min-h-0 flex-1 overflow-y-auto mobile:overflow-visible"
           >
             {/*
-              SHELL NOTE for whoever adds the second screen: the page shell
-              (max-width, horizontal padding, HeaderBar) currently lives inside
-              TodayPage, not here. That is fine while "Today" is the only route,
-              but do NOT copy-paste it into the new route — hoist it to this
-              level first, so both screens share one shell instead of two that
-              drift apart.
+              The page shell: max-width, horizontal padding, and the app-wide
+              HeaderBar (date nav, sync status, user menu) — hoisted here from
+              TodayPage so every route shares one shell instead of each
+              re-implementing its own (see git history for the "SHELL NOTE"
+              this replaced). HeaderBar is genuinely app-wide chrome now, the
+              same way Sidebar already is — Health Sync renders beside it, not
+              a second copy of it.
             */}
-            <Routes>
-              <Route path="/" element={<TodayPage />} />
-              {/*
-                "Today" is the only built screen. The remaining sidebar entries
-                are placeholders with no destination, exactly as they are today.
-              */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+              <AppHeaderBar />
+              <Routes>
+                <Route path="/" element={<TodayPage />} />
+                <Route path="/health-sync" element={<HealthSyncPage />} />
+                <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
+                {/*
+                  "Today" and "Health Sync" are the only built screens. The
+                  remaining sidebar entries are placeholders with no
+                  destination, exactly as they are today.
+                */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </div>
           </main>
 
           {/*
@@ -145,5 +155,33 @@ function AuthedApp({ now }: { now?: Date }) {
         </div>
       </div>
     </BoardProvider>
+  )
+}
+
+/**
+ * Thin adapter between the app-wide providers (`BoardContext`, `AuthContext`)
+ * and `HeaderBar`'s props — kept as its own component (rather than inlined in
+ * `AuthedApp`) purely so `AuthedApp` itself doesn't need to know HeaderBar's
+ * prop list. Must render inside `BoardProvider` (it does — see above).
+ */
+function AppHeaderBar() {
+  const { state, dispatch, now, viewedDate, setViewedDate, syncQueue, retrySyncNow } = useBoard()
+  const { user, signOut } = useAuth()
+
+  return (
+    <HeaderBar
+      now={now}
+      viewedDate={viewedDate}
+      onSelectDate={setViewedDate}
+      user={user}
+      onSignOut={signOut}
+      activities={state.activities}
+      onQuickLog={(cardName, startMinutes, durationMinutes, extra) =>
+        dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes, ...extra })
+      }
+      syncQueue={syncQueue}
+      onRetrySyncNow={retrySyncNow}
+      onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
+    />
   )
 }
