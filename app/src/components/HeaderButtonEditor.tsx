@@ -13,6 +13,7 @@ import {
 import type { CreateHeaderButtonInput, HeaderButtonNoteFieldInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
 import { ACTIVITY_CARDS, findCard } from '@/data/activities'
 import { catalogIdForName } from '@/api/catalog'
+import { fieldClass, labelClass } from '@/components/ui/formField'
 import { cn } from '@/lib/utils'
 
 /** The max number of `'text'`-kind fields a button may carry — the physical
@@ -32,11 +33,6 @@ interface FieldDraft {
   label: string
   options: string[]
 }
-
-const fieldClass =
-  'w-full rounded-md border border-line bg-surface px-md py-sm text-body text-ink transition-colors placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-
-const labelClass = 'text-caption font-semibold text-ink-dim'
 
 /**
  * The header/home-screen "edit mode" toggle and everything it turns on —
