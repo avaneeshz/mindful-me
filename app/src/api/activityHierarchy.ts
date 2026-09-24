@@ -9,6 +9,8 @@ interface ActivityRowDb {
   icon_key: string | null
   hidden: boolean
   sort_order: number
+  disappear_mode: 'manual' | 'auto'
+  disappear_limit: number | null
 }
 
 function fromRow(row: ActivityRowDb): ActivityRow {
@@ -20,6 +22,8 @@ function fromRow(row: ActivityRowDb): ActivityRow {
     iconKey: row.icon_key,
     hidden: row.hidden,
     sortOrder: row.sort_order,
+    disappearMode: row.disappear_mode,
+    disappearLimit: row.disappear_limit,
   }
 }
 
@@ -54,6 +58,9 @@ export async function apiCreateActivity(input: {
   tileId?: string | null
   parentId?: string | null
   iconKey?: string | null
+  /** Top-level only (see `ActivityRow.disappearMode`'s own doc comment) — ignored server-side for a drill-down option. */
+  disappearMode?: 'manual' | 'auto'
+  disappearLimit?: number | null
 }): Promise<string | null> {
   if (!supabase) return null
   const { data, error } = await supabase.rpc('create_activity', {
@@ -62,6 +69,8 @@ export async function apiCreateActivity(input: {
     p_tile_id: input.tileId ?? null,
     p_parent_id: input.parentId ?? null,
     p_icon_key: input.iconKey ?? null,
+    p_disappear_mode: input.disappearMode ?? 'manual',
+    p_disappear_limit: input.disappearLimit ?? null,
   })
   if (error) {
     // eslint-disable-next-line no-console
@@ -71,9 +80,20 @@ export async function apiCreateActivity(input: {
   return data as string
 }
 
-export async function apiUpdateActivity(id: string, name: string, iconKey?: string | null): Promise<boolean> {
+export async function apiUpdateActivity(
+  id: string,
+  name: string,
+  iconKey?: string | null,
+  disappear?: { mode: 'manual' | 'auto'; limit: number | null },
+): Promise<boolean> {
   if (!supabase) return false
-  const { error } = await supabase.rpc('update_activity', { p_id: id, p_name: name, p_icon_key: iconKey ?? null })
+  const { error } = await supabase.rpc('update_activity', {
+    p_id: id,
+    p_name: name,
+    p_icon_key: iconKey ?? null,
+    p_disappear_mode: disappear?.mode ?? null,
+    p_disappear_limit: disappear?.limit ?? null,
+  })
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[activityHierarchy] update_activity failed — kept locally, will retry on next load', error.message)

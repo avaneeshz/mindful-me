@@ -47,10 +47,22 @@ function localOnlyDefaults(): ActivityRow[] {
       iconKey: null,
       hidden: false,
       sortOrder: nextOrder(card.categoryId),
+      disappearMode: card.disappear.mode === 'auto' ? 'auto' : 'manual',
+      disappearLimit: card.disappear.mode === 'auto' ? card.disappear.limit : null,
     })
     for (const sub of card.sub ?? []) {
       const subId = `local:${card.name}/${sub}`
-      rows.push({ id: subId, name: sub, tileId: null, parentId: topId, iconKey: null, hidden: false, sortOrder: nextOrder(topId) })
+      rows.push({
+        id: subId,
+        name: sub,
+        tileId: null,
+        parentId: topId,
+        iconKey: null,
+        hidden: false,
+        sortOrder: nextOrder(topId),
+        disappearMode: 'manual',
+        disappearLimit: null,
+      })
       for (const third of card.third?.[sub] ?? []) {
         rows.push({
           id: `local:${card.name}/${sub}/${third}`,
@@ -60,6 +72,8 @@ function localOnlyDefaults(): ActivityRow[] {
           iconKey: null,
           hidden: false,
           sortOrder: nextOrder(subId),
+          disappearMode: 'manual',
+          disappearLimit: null,
         })
       }
     }
@@ -140,6 +154,11 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
         iconKey: null,
         hidden: false,
         sortOrder: maxSortOrder + 1,
+        // No disappear-rule editing UI yet (deferred — see BACKLOG.md); every
+        // newly-created activity starts `manual` (never auto-hides), the
+        // same safe default the server applies.
+        disappearMode: 'manual',
+        disappearLimit: null,
       }
       setActivities((prev) => [...prev, created])
       if (supabaseConfigured) {

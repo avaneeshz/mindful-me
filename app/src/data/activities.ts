@@ -504,30 +504,114 @@ export const ACTIVITY_CARDS: ActivityCard[] = [
   { name: 'Clean Toilets', categoryId: 'home', icon: Droplets, color: '#D8EEF0', onColor: 'text-charcoal', disappear: { mode: 'manual' } },
 ]
 
-const CARDS_BY_NAME = new Map(ACTIVITY_CARDS.map((card) => [card.name, card]))
-
-export function findCard(name: string): ActivityCard | undefined {
-  return CARDS_BY_NAME.get(name)
+/**
+ * Converts the legacy `sub`/`third` shape (max 2 levels, hand-authored on
+ * each literal above) into the generalized, arbitrary-depth `children` tree
+ * `domain/boardReducer.ts`'s `isStagingComplete`/`stagingOptions` actually
+ * walk (PICKER-CUSTOM-1) — done ONCE here, at module load, so none of the
+ * 53 literals above had to be hand-rewritten. A sub-option with no
+ * corresponding `third` entry is a leaf (`children: undefined`), exactly
+ * matching every drill-down's previous depth.
+ */
+function synthesizeChildren(card: Pick<ActivityCard, 'sub' | 'third'>): ActivityCard['children'] {
+  if (!card.sub) return undefined
+  return card.sub.map((subName) => ({
+    name: subName,
+    // A synthesized sub/third node is never itself rendered as a top-level
+    // tile item — `categoryId`/`icon`/`color`/`onColor`/`disappear` are
+    // structurally required by `ActivityCard` but never read for a
+    // non-top-level node (`domain/disappear.ts` only ever evaluates a
+    // TOP-LEVEL `ActivityCard`, and no component reads a child node's own
+    // icon/colour — only its `name`). Placeholder values, deliberately
+    // inert.
+    categoryId: '',
+    icon: CircleDashed,
+    color: '',
+    onColor: 'text-charcoal',
+    disappear: { mode: 'manual' },
+    children: card.third?.[subName]?.map((thirdName) => ({
+      name: thirdName,
+      categoryId: '',
+      icon: CircleDashed,
+      color: '',
+      onColor: 'text-charcoal',
+      disappear: { mode: 'manual' },
+    })),
+  })) as ActivityCard['children']
 }
 
-/** The 5-7 items belonging to one tile, in on-screen order — never re-sorted. */
+for (const card of ACTIVITY_CARDS) {
+  card.children = synthesizeChildren(card)
+}
+
+// ---------------------------------------------------------------------- *
+// Live registry (PICKER-CUSTOM-1) — every lookup below defaults to the
+// static content above, exactly as it always has, UNLESS a real user's own
+// tile/activity data has been loaded from the server. `state/
+// useLiveActivityCatalogSync.ts` is the one caller of `setLiveActivityCatalog`
+// — it only ever calls it once Supabase is configured AND that data has
+// actually loaded, so local-only mode (rule 6) and every existing test in
+// this codebase (none of which call the setter) see the exact same static
+// catalog they always have, byte for byte.
+// ---------------------------------------------------------------------- */
+let liveCategories: Record<CategoryId, Category> | null = null
+let liveCategoryOrder: CategoryId[] | null = null
+let liveCards: ActivityCard[] | null = null
+let liveCardsByName: Map<string, ActivityCard> | null = null
+
+export function setLiveActivityCatalog(
+  categories: Record<CategoryId, Category>,
+  order: CategoryId[],
+  cards: ActivityCard[],
+): void {
+  liveCategories = categories
+  liveCategoryOrder = order
+  liveCards = cards
+  liveCardsByName = new Map(cards.map((card) => [card.name, card]))
+}
+
+/** Test-only (mirrors `api/catalog.ts`'s own `resetCatalogCache`) — drops any live catalog so the next lookup falls back to the static one. */
+export function resetLiveActivityCatalog(): void {
+  liveCategories = null
+  liveCategoryOrder = null
+  liveCards = null
+  liveCardsByName = null
+}
+
+/** The tiles to actually render — a signed-in user's own live set once loaded, else the static 9-tile default. */
+export function effectiveCategories(): Record<CategoryId, Category> {
+  return liveCategories ?? CATEGORIES
+}
+
+/** Same fallback as `effectiveCategories`, for on-screen tile order. */
+export function effectiveCategoryOrder(): CategoryId[] {
+  return liveCategoryOrder ?? CATEGORY_ORDER
+}
+
+export function findCard(name: string): ActivityCard | undefined {
+  return (liveCardsByName ?? CARDS_BY_NAME).get(name)
+}
+
+/** Every item belonging to one tile, in on-screen order — never re-sorted. */
 export function cardsForCategory(categoryId: CategoryId): ActivityCard[] {
-  return ACTIVITY_CARDS.filter((card) => card.categoryId === categoryId)
+  return (liveCards ?? ACTIVITY_CARDS).filter((card) => card.categoryId === categoryId)
 }
 
 export function categoryOf(name: string): Category {
   const card = findCard(name)
+  const categories = effectiveCategories()
   if (!card && import.meta.env.DEV) {
     // The taxonomy is content the client keeps renaming (PRODUCT-HANDOFF §10),
     // and a rename that misses a call site would otherwise show up only as a
     // tile quietly wearing the wrong category colour. Dev-only: never a
-    // user-facing failure, and the 'sleep' fallback still renders.
+    // user-facing failure, and the first known category's fallback still renders.
     console.warn(
-      `[activities] Unknown activity "${name}" — no card by that name in ACTIVITY_CARDS. ` +
-        `Falling back to the "Sleep & Rest" category colour. Check for a taxonomy rename.`,
+      `[activities] Unknown activity "${name}" — no card by that name in the current catalog. ` +
+        `Falling back to a default category colour. Check for a taxonomy rename.`,
     )
   }
-  return CATEGORIES[card?.categoryId ?? 'sleep']
+  const fallbackId = card?.categoryId ?? effectiveCategoryOrder()[0]
+  return categories[fallbackId] ?? CATEGORIES.sleep
 }
 
 /**
@@ -540,6 +624,8 @@ export function itemFillColor(name: string | null): string {
   const card = findCard(name ?? '')
   return card?.color ?? categoryOf(name ?? '').light
 }
+
+const CARDS_BY_NAME = new Map(ACTIVITY_CARDS.map((card) => [card.name, card]))
 
 /* ------------------------------------------------------------------ *
  * Flags — whole-slot markers. NOT timed activities, no duration, no capacity

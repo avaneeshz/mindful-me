@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   activitiesForTile,
+  activityNodeToCard,
   activityPathNames,
   buildActivityTree,
   collectSubtreeIds,
+  liveActivityCardsFromRows,
+  liveCategoriesFromTiles,
   type ActivityRow,
+  type LiveTile,
 } from './pickerHierarchy'
 
 function row(partial: Partial<ActivityRow> & { id: string; name: string }): ActivityRow {
@@ -14,6 +18,8 @@ function row(partial: Partial<ActivityRow> & { id: string; name: string }): Acti
     iconKey: null,
     hidden: false,
     sortOrder: 0,
+    disappearMode: 'manual',
+    disappearLimit: null,
     ...partial,
   }
 }
@@ -110,5 +116,107 @@ describe('activitiesForTile', () => {
 
   it('returns an empty array for a tile with no activities', () => {
     expect(activitiesForTile([], 't1')).toEqual([])
+  })
+})
+
+function tile(partial: Partial<LiveTile> & { id: string; label: string }): LiveTile {
+  return { iconKey: 'Circle', hidden: false, sortOrder: 0, ...partial }
+}
+
+describe('liveCategoriesFromTiles', () => {
+  it('excludes hidden tiles and sorts the rest by sortOrder', () => {
+    const { order, categories } = liveCategoriesFromTiles([
+      tile({ id: 'b', label: 'B', sortOrder: 1 }),
+      tile({ id: 'hidden', label: 'Hidden', sortOrder: 0, hidden: true }),
+      tile({ id: 'a', label: 'A', sortOrder: 0 }),
+    ])
+    expect(order).toEqual(['a', 'b'])
+    expect(Object.keys(categories).sort()).toEqual(['a', 'b'])
+    expect(categories.hidden).toBeUndefined()
+  })
+
+  it('returns an empty category record and order for no tiles', () => {
+    expect(liveCategoriesFromTiles([])).toEqual({ categories: {}, order: [] })
+  })
+
+  it('carries the tile’s label/id through onto its Category', () => {
+    const { categories } = liveCategoriesFromTiles([tile({ id: 't1', label: 'My Tile' })])
+    expect(categories.t1.id).toBe('t1')
+    expect(categories.t1.label).toBe('My Tile')
+  })
+})
+
+describe('activityNodeToCard', () => {
+  it('carries an auto disappear rule through when the node has both a mode and a positive limit', () => {
+    const node = { id: 'a', name: 'A', tileId: 't1', parentId: null, iconKey: null, hidden: false, sortOrder: 0, disappearMode: 'auto' as const, disappearLimit: 2, children: [] }
+    expect(activityNodeToCard(node, 't1').disappear).toEqual({ mode: 'auto', limit: 2 })
+  })
+
+  it('falls back to manual when disappearMode is auto but the limit is missing (defensive — the DB constraint should prevent this)', () => {
+    const node = { id: 'a', name: 'A', tileId: 't1', parentId: null, iconKey: null, hidden: false, sortOrder: 0, disappearMode: 'auto' as const, disappearLimit: null, children: [] }
+    expect(activityNodeToCard(node, 't1').disappear).toEqual({ mode: 'manual' })
+  })
+
+  it('a leaf node (no children) produces a card with children: undefined, not an empty array', () => {
+    const node = { id: 'a', name: 'A', tileId: 't1', parentId: null, iconKey: null, hidden: false, sortOrder: 0, disappearMode: 'manual' as const, disappearLimit: null, children: [] }
+    expect(activityNodeToCard(node, 't1').children).toBeUndefined()
+  })
+
+  it('recurses through children to arbitrary depth', () => {
+    const node = {
+      id: 'top', name: 'Top', tileId: 't1', parentId: null, iconKey: null, hidden: false, sortOrder: 0,
+      disappearMode: 'manual' as const, disappearLimit: null,
+      children: [
+        {
+          id: 'sub', name: 'Sub', tileId: null, parentId: 'top', iconKey: null, hidden: false, sortOrder: 0,
+          disappearMode: 'manual' as const, disappearLimit: null,
+          children: [
+            { id: 'third', name: 'Third', tileId: null, parentId: 'sub', iconKey: null, hidden: false, sortOrder: 0, disappearMode: 'manual' as const, disappearLimit: null, children: [] },
+          ],
+        },
+      ],
+    }
+    const card = activityNodeToCard(node, 't1')
+    expect(card.children?.[0].name).toBe('Sub')
+    expect(card.children?.[0].children?.[0].name).toBe('Third')
+    expect(card.children?.[0].children?.[0].children).toBeUndefined()
+  })
+})
+
+describe('liveActivityCardsFromRows', () => {
+  it('excludes a hidden top-level activity and everything under it', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'visible', name: 'Visible', tileId: 't1' }),
+      row({ id: 'hidden-top', name: 'HiddenTop', tileId: 't1', hidden: true }),
+      row({ id: 'hidden-sub', name: 'HiddenSub', parentId: 'hidden-top' }),
+    ]
+    const cards = liveActivityCardsFromRows(rows, ['t1'])
+    expect(cards.map((c) => c.name)).toEqual(['Visible'])
+  })
+
+  it('orders cards by tile order, top-level items within a tile by sortOrder', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'a2', name: 'A2', tileId: 't2', sortOrder: 0 }),
+      row({ id: 'a1b', name: 'A1B', tileId: 't1', sortOrder: 1 }),
+      row({ id: 'a1a', name: 'A1A', tileId: 't1', sortOrder: 0 }),
+    ]
+    const cards = liveActivityCardsFromRows(rows, ['t1', 't2'])
+    expect(cards.map((c) => c.name)).toEqual(['A1A', 'A1B', 'A2'])
+  })
+
+  it('produces an arbitrary-depth children tree per card, matching buildActivityTree', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Top', tileId: 't1' }),
+      row({ id: 'sub', name: 'Sub', parentId: 'top' }),
+      row({ id: 'third', name: 'Third', parentId: 'sub' }),
+      row({ id: 'fourth', name: 'Fourth', parentId: 'third' }),
+    ]
+    const cards = liveActivityCardsFromRows(rows, ['t1'])
+    expect(cards).toHaveLength(1)
+    const top = cards[0]
+    expect(top.children?.[0].name).toBe('Sub')
+    expect(top.children?.[0].children?.[0].name).toBe('Third')
+    expect(top.children?.[0].children?.[0].children?.[0].name).toBe('Fourth')
+    expect(top.children?.[0].children?.[0].children?.[0].children).toBeUndefined()
   })
 })

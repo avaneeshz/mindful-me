@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   boardReducer,
   createInitialState,
@@ -8,7 +8,9 @@ import {
   type BoardAction,
   type BoardState,
 } from './boardReducer'
-import type { ScheduledActivity } from '@/domain/types'
+import { resetLiveActivityCatalog, setLiveActivityCatalog } from '@/data/activities'
+import type { ActivityCard, Category, ScheduledActivity } from '@/domain/types'
+import { Sparkles } from 'lucide-react'
 
 const AT_4PM = new Date(2026, 7, 25, 16, 0) // slot 32 (16:00)
 
@@ -124,6 +126,80 @@ describe('drill-down', () => {
     expect(state.staging.path).toEqual([])
     state = boardReducer(state, { type: 'crumbBack' })
     expect(state.staging.cardName).toBeNull()
+  })
+
+  it('rejects (isStagingComplete stays false) a path segment that does not name a real child — never silently treats depth alone as complete', () => {
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Sleep' })
+    state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Not A Real Sub-Option' })
+    expect(isStagingComplete(state.staging)).toBe(false)
+    expect(stagingOptions(state.staging)).toBeNull()
+  })
+})
+
+describe('drill-down — arbitrary depth (PICKER-CUSTOM-1, via a live catalog with a 4-level card)', () => {
+  afterEach(() => {
+    resetLiveActivityCatalog()
+  })
+
+  it('walks a genuinely 4-level-deep card (beyond the old sub/third 2-level cap) to a leaf', () => {
+    const category: Category = { id: 'live', label: 'Live', deep: '', light: '', onDeep: 'text-charcoal', icon: Sparkles }
+    const deepCard: ActivityCard = {
+      name: 'Deep Card',
+      categoryId: 'live',
+      icon: Sparkles,
+      color: '',
+      onColor: 'text-charcoal',
+      disappear: { mode: 'manual' },
+      children: [
+        {
+          name: 'Level 1',
+          categoryId: 'live',
+          icon: Sparkles,
+          color: '',
+          onColor: 'text-charcoal',
+          disappear: { mode: 'manual' },
+          children: [
+            {
+              name: 'Level 2',
+              categoryId: 'live',
+              icon: Sparkles,
+              color: '',
+              onColor: 'text-charcoal',
+              disappear: { mode: 'manual' },
+              children: [
+                {
+                  name: 'Level 3',
+                  categoryId: 'live',
+                  icon: Sparkles,
+                  color: '',
+                  onColor: 'text-charcoal',
+                  disappear: { mode: 'manual' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    setLiveActivityCatalog({ live: category }, ['live'], [deepCard])
+
+    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Deep Card' })
+    expect(isStagingComplete(state.staging)).toBe(false)
+    expect(stagingOptions(state.staging)).toEqual({ options: ['Level 1'], level: 0 })
+
+    state = boardReducer(state, { type: 'pickOption', level: 0, value: 'Level 1' })
+    expect(stagingOptions(state.staging)).toEqual({ options: ['Level 2'], level: 1 })
+
+    state = boardReducer(state, { type: 'pickOption', level: 1, value: 'Level 2' })
+    expect(stagingOptions(state.staging)).toEqual({ options: ['Level 3'], level: 2 })
+    expect(isStagingComplete(state.staging)).toBe(false)
+
+    state = boardReducer(state, { type: 'pickOption', level: 2, value: 'Level 3' })
+    expect(isStagingComplete(state.staging)).toBe(true)
+    expect(stagingOptions(state.staging)).toBeNull()
+
+    state = boardReducer(state, { type: 'commit' })
+    expect(real(state)[0].path).toEqual(['Level 1', 'Level 2', 'Level 3'])
   })
 })
 
@@ -914,7 +990,7 @@ describe('toggleStagingFieldSelection / setStagingDreamsNote — configured note
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Sleep' },
-      { type: 'pickOption', level: 0, value: 'Night sleep' },
+      { type: 'pickOption', level: 0, value: 'Main sleep' },
       { type: 'toggleStagingFieldSelection', fieldId: SLEEP_QUALITY_FIELD_ID, value: 'Deep Restorative' },
       { type: 'setStagingDreamsNote', note: 'Flying again.' },
       { type: 'commit' },
@@ -951,7 +1027,7 @@ describe('toggleStagingFieldSelection / setStagingDreamsNote — configured note
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Sleep' },
-      { type: 'pickOption', level: 0, value: 'Night sleep' },
+      { type: 'pickOption', level: 0, value: 'Main sleep' },
       { type: 'commit' },
     )
     const id = real(state)[0].id

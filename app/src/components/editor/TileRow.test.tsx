@@ -1,9 +1,10 @@
 import type { ComponentProps } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TileRow } from './TileRow'
-import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
-import type { ActivityList } from '@/domain/types'
+import { CATEGORIES, CATEGORY_ORDER, cardsForCategory, resetLiveActivityCatalog, setLiveActivityCatalog } from '@/data/activities'
+import type { ActivityCard, ActivityList, Category } from '@/domain/types'
+import { Sparkles } from 'lucide-react'
 
 const NO_ACTIVITIES: ActivityList = []
 const NO_DISMISSED: ReadonlySet<string> = new Set()
@@ -223,5 +224,49 @@ describe('monochrome, flat-progress-bar tile row (Section A/B — no colour anyw
     expect(html).toContain('width:100%')
     expect(html).not.toContain('saturate')
     expect(html).not.toContain('opacity-80')
+  })
+})
+
+describe('arbitrary tile count (PICKER-CUSTOM-1 — no longer a fixed 9)', () => {
+  afterEach(() => {
+    resetLiveActivityCatalog()
+  })
+
+  function liveCategory(id: string, label: string): Category {
+    return { id, label, deep: '', light: '', onDeep: 'text-charcoal', icon: Sparkles }
+  }
+  function liveCard(name: string, categoryId: string): ActivityCard {
+    return { name, categoryId, icon: Sparkles, color: '', onColor: 'text-charcoal', disappear: { mode: 'manual' } }
+  }
+
+  it('renders fewer than 9 tiles when a live user only has that many', () => {
+    const categories = { t1: liveCategory('t1', 'Only Tile') }
+    setLiveActivityCatalog(categories, ['t1'], [liveCard('Solo Activity', 't1')])
+    const html = renderRow()
+    expect(html.match(/aria-pressed="false"/g) ?? []).toHaveLength(1)
+    expect(html).toContain('Only Tile')
+  })
+
+  it('renders more than 9 tiles when a live user has added extras — every one of them, not truncated', () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `t${i}`)
+    const categories = Object.fromEntries(ids.map((id) => [id, liveCategory(id, `Tile ${id}`)]))
+    const cards = ids.map((id) => liveCard(`Activity ${id}`, id))
+    setLiveActivityCatalog(categories, ids, cards)
+    const html = renderRow()
+    expect(html.match(/aria-pressed="false"/g) ?? []).toHaveLength(12)
+    for (const id of ids) expect(html).toContain(`Tile ${id}`)
+  })
+
+  it('the row container is a reflowing grid, not a single non-wrapping flex row, so an arbitrary count never squeezes/overflows', () => {
+    // The actual reflow behaviour is CSS (`.tile-row` in styles/index.css) —
+    // untestable without a real layout engine (this suite has no jsdom, see
+    // `.claude/agent-memory/full-stack-engineer/feedback_hook_testing_no_jsdom.md`).
+    // What IS verifiable here: the row still renders exactly one `.tile-row`
+    // container regardless of tile count, so nothing pagination/duplicates it.
+    const ids = Array.from({ length: 15 }, (_, i) => `t${i}`)
+    const categories = Object.fromEntries(ids.map((id) => [id, liveCategory(id, `Tile ${id}`)]))
+    setLiveActivityCatalog(categories, ids, ids.map((id) => liveCard(`Activity ${id}`, id)))
+    const html = renderRow()
+    expect(html.match(/class="tile-row/g)).toHaveLength(1)
   })
 })
