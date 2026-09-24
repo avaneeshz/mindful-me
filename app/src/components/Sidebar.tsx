@@ -48,7 +48,7 @@ const NAV_NOTES: NavEntry[] = [
 
 const NAV_REST: NavEntry[] = [
   { label: 'My Slots', icon: Clock },
-  { label: 'Activity Library', icon: LayoutGrid },
+  { label: 'Activity Library', icon: LayoutGrid, to: '/activity-library' },
   { label: 'Progress', icon: PieChart },
   { label: 'Insights', icon: Sparkles },
   { label: 'Flags', icon: Flag },

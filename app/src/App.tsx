@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
+import { ActivityLibraryPage } from '@/routes/ActivityLibraryPage'
 import { TodayPage } from '@/routes/TodayPage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider } from '@/state/BoardContext'
+import { PickerDataProvider } from '@/state/PickerDataContext'
 import { ThemeProvider } from '@/state/ThemeContext'
 import { cn } from '@/lib/utils'
 
@@ -93,6 +95,14 @@ function AuthedApp({ now }: { now?: Date }) {
   const hasContentBelow = useHasContentBelow(mainRef)
 
   return (
+    // `PickerDataProvider` wraps `BoardProvider` (not the other way around)
+    // because `BoardProvider` itself calls `useLiveActivityCatalogSync`,
+    // which reads this context — see `PickerDataContext.tsx`'s own doc
+    // comment for why both `BoardProvider` (the Today screen's live picker)
+    // and `ActivityLibraryPage` (both descendants of this same provider,
+    // via the `<Routes>` below) must share this one instance, not each
+    // mint their own.
+    <PickerDataProvider>
     <BoardProvider now={now}>
       <div className="flex h-full mobile:h-auto mobile:flex-col">
         <Sidebar />
@@ -119,9 +129,13 @@ function AuthedApp({ now }: { now?: Date }) {
             <Routes>
               <Route path="/" element={<TodayPage />} />
               {/*
-                "Today" is the only built screen. The remaining sidebar entries
-                are placeholders with no destination, exactly as they are today.
+                "Activity Library" (PICKER-CUSTOM-1) is the second real
+                screen — see its own file for why it keeps a minimal shell of
+                its own rather than reaching for TodayPage's HeaderBar. Every
+                other sidebar entry is still a placeholder with no
+                destination.
               */}
+              <Route path="/activity-library" element={<ActivityLibraryPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
@@ -145,5 +159,6 @@ function AuthedApp({ now }: { now?: Date }) {
         </div>
       </div>
     </BoardProvider>
+    </PickerDataProvider>
   )
 }

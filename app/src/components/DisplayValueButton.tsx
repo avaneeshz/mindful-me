@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { TimeField } from '@/components/ui/TimeField'
 import { TimeRangeField } from '@/components/ui/TimeRangeField'
 import { MultiselectFieldPicker } from '@/components/editor/MultiselectFieldPicker'
-import { findCard } from '@/data/activities'
+import { findCard, firstLevelOptionNames } from '@/data/activities'
 import {
   displayButtonInput,
   displayButtonLabel,
@@ -132,7 +132,7 @@ export function DisplayValueButton({
   const hasNote = displayButtonQuickLogNote(buttonKey)
   const hasDreamsNote = displayButtonQuickLogDreamsNote(buttonKey)
   const multiselectFields = displayButtonMultiselectFields(buttonKey)
-  const typeOptions = hasType ? (findCard(quickLogName ?? '')?.sub ?? []) : []
+  const typeOptions = hasType ? firstLevelOptionNames(findCard(quickLogName ?? '')) : []
 
   const [localValue, setLocalValue] = useState<number | null>(() =>
     quickLogName || synced ? null : loadDisplayValue(buttonKey, dayKey),

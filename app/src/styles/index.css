@@ -307,16 +307,31 @@
    are retired along with `StagingPane`/the old 3x3 tile grid; duration/
    quality/flags now live in `LogActivityModal`, an overlay, not a column).
 
-   `.tile-row`: the 9 tiles fill the row edge-to-edge (each tile is
-   `flex-1 min-w-0` in TileRow.tsx) — never scrolls, at any breakpoint.
+   `.tile-row`: PICKER-CUSTOM-1 generalized the tile count from a fixed 9 to
+   whatever a user's own `public.tiles` holds — a single non-wrapping flex
+   row (each tile squeezed to `1/N` of the width, no matter how narrow) is
+   exactly the "let a 10th tile overflow/squish" failure mode the brief
+   calls out, so this is a real CSS grid now instead: `auto-fill` lets it
+   reflow into as many rows as it needs, at ANY tile count, on ANY
+   viewport — never a fixed 3x3, never a single squeezed strip. `minmax`'s
+   lower bound is a real touch target size, so a tile is never so small it
+   stops being tappable; the upper `1fr` still lets 9-or-fewer tiles fill
+   the row edge-to-edge exactly as before (verified: 9 columns of `minmax
+   (72px, 1fr)` in a normal content width already exceeds 72px per column,
+   so today's 9-tile case reflows identically to the old single-row
+   layout). Each tile is still `flex-1 min-w-0` in TileRow.tsx — harmless
+   now that the PARENT is a grid, not a flex row, and kept rather than
+   removed so the tile's own internal layout (icon/label/progress-bar
+   stacking) is untouched.
 
-   `.item-chip-row` (the expand panel's 5-7 item chips) keeps the SAME
+   `.item-chip-row` (the expand panel's item chips) keeps the SAME
    horizontal-scroll treatment `.timeline-scroll-region` already established
    — only the scrollbar is hidden (`overflow-x` stays `auto`), so touch/
    trackpad/programmatic scrolling all keep working. This is the one place
    that behaviour still applies; the top-level row above no longer scrolls. */
 .tile-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 12px;
 }
 
