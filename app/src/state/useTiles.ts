@@ -158,7 +158,17 @@ export function useTiles(): UseTilesResult {
 
   const deleteTile = useCallback(
     async (id: string): Promise<{ ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }> => {
-      if (!supabaseConfigured) return { ok: false, reason: 'unreachable' }
+      // Zero backend configured (rule 6): every OTHER mutation here
+      // (add/rename/hide/reorder) updates local state unconditionally —
+      // delete used to be the one exception, returning an `'unreachable'`
+      // error that implied a transient problem a retry could fix, when in
+      // this mode it never can (found in review). There's no real
+      // server-side history to check in this mode either, so the delete
+      // always succeeds locally, consistent with the rest of the preview.
+      if (!supabaseConfigured) {
+        setTiles((prev) => prev.filter((t) => t.id !== id))
+        return { ok: true }
+      }
       const result = await apiDeleteTile(id)
       if (result.ok) setTiles((prev) => prev.filter((t) => t.id !== id))
       return result

@@ -11,7 +11,7 @@ import {
   type HeaderButtonConfig,
 } from '@/domain/headerButtons'
 import type { CreateHeaderButtonInput, HeaderButtonNoteFieldInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
-import { ACTIVITY_CARDS, findCard } from '@/data/activities'
+import { ACTIVITY_CARDS, findCard, firstLevelOptionNames } from '@/data/activities'
 import { catalogIdForName } from '@/api/catalog'
 import { fieldClass, labelClass } from '@/components/ui/formField'
 import { cn } from '@/lib/utils'
@@ -197,7 +197,7 @@ export function HeaderButtonFormDialog({
     el?.focus()
   }, [])
 
-  const typeOptions = category === 'activity' && activityName ? (findCard(activityName)?.sub ?? []) : []
+  const typeOptions = category === 'activity' && activityName ? firstLevelOptionNames(findCard(activityName)) : []
 
   const textFieldCount = fields.filter((f) => f.fieldKind === 'text').length
 

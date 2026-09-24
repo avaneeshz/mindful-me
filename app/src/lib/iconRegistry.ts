@@ -1,70 +1,156 @@
 import {
-  Book,
+  Activity,
+  Bath,
+  Bed,
+  BedSingle,
   Briefcase,
-  Camera,
-  Circle,
+  Building2,
+  Church,
+  CircleDashed,
   Coffee,
   Droplet,
+  Droplets,
   Dumbbell,
+  FlaskConical,
   Flower2,
   Footprints,
-  Heart,
+  GraduationCap,
+  Hand,
+  HandHeart,
+  Headphones,
+  HeartHandshake,
   Home,
+  Image,
   Leaf,
+  Lightbulb,
   Moon,
+  MonitorPlay,
   Music4,
-  Palette,
   PenLine,
+  Pill,
   Rocket,
+  Scissors,
+  ShieldPlus,
+  ShoppingCart,
+  Soup,
+  Sparkle,
   Sparkles,
-  Star,
+  Sprout,
   Sun,
+  Syringe,
+  Table2,
+  Timer,
+  TrainFront,
+  TreePine,
+  Trees,
   Tv,
   Users,
   Utensils,
+  Video,
+  Waves,
+  Wind,
+  Zap,
   type LucideIcon,
+  Circle,
 } from 'lucide-react'
 
 /**
- * A small, curated icon set for user-created tiles/activities in the
- * Activity Library editor (PICKER-CUSTOM-1) — CLAUDE.md's "no random
- * colours" spirit applied to icon choice too: rather than exposing Lucide's
- * full ~1500-icon library as a picker, this offers the same handful of
- * icons the default catalog already uses (see `provision_default_tiles()`'s
- * seed) plus a few generic extras, so a new tile/activity's icon always
- * reads as intentional, not random. `resolveIcon` falls back to a plain
- * circle for any `icon_key` outside this set (a legacy/seeded value this
- * curated list doesn't happen to include, e.g. one of the 53 catalog items'
- * more specific icons) — never a missing/broken icon.
+ * Every icon a real `icon_key` (`public.tiles`/`public.activities`) can
+ * legitimately resolve to — the exact vocabulary the current default tile
+ * set (9 icons) and the full 53-item legacy activity catalog (verified live
+ * against the test project's `activities.icon_key` column — 46 distinct
+ * values there) already use, so `provision_default_activities()`/
+ * `provision_default_tiles()`'s copied `icon_key`s always render their
+ * real, intended icon in the live picker instead of a generic circle stand-
+ * in (found in review: the original ~22-icon curated set only covered a
+ * fraction of the legacy catalog's real icons — a visible downgrade for
+ * most of a newly-provisioned user's activities). This is deliberately NOT
+ * an arbitrary/random expansion (CLAUDE.md's own bar) — it's exactly the
+ * app's own existing, already-shipped icon usage, nothing invented.
+ *
+ * `Youtube` is a special case: the DB's legacy `icon_key` for "Entertainment
+ * (YouTube)" is literally the string `'Youtube'`, but the brand glyph
+ * doesn't exist in the installed lucide-react version (confirmed:
+ * `lucide-react`'s own export list has no `Youtube` — see
+ * `data/activities.ts`'s matching top-of-file note for why the STATIC card
+ * uses `MonitorPlay` instead). Mapped to that same `MonitorPlay` equivalent
+ * here too, rather than falling back to a bare circle for it specifically.
+ *
+ * `ICON_CHOICES` (the Activity Library editor's own icon PICKER for a new
+ * tile/activity) uses this exact same set — not a further-curated subset —
+ * since it's already the app's real, intentional icon vocabulary rather
+ * than an open-ended library browse.
  */
-export const ICON_CHOICES: { key: string; icon: LucideIcon }[] = [
-  { key: 'Moon', icon: Moon },
-  { key: 'Sun', icon: Sun },
-  { key: 'Utensils', icon: Utensils },
-  { key: 'Droplet', icon: Droplet },
-  { key: 'Tv', icon: Tv },
-  { key: 'Footprints', icon: Footprints },
-  { key: 'Rocket', icon: Rocket },
-  { key: 'Leaf', icon: Leaf },
-  { key: 'Sparkles', icon: Sparkles },
-  { key: 'Home', icon: Home },
-  { key: 'Heart', icon: Heart },
-  { key: 'Star', icon: Star },
-  { key: 'Book', icon: Book },
-  { key: 'Music4', icon: Music4 },
-  { key: 'Coffee', icon: Coffee },
-  { key: 'Dumbbell', icon: Dumbbell },
-  { key: 'Briefcase', icon: Briefcase },
-  { key: 'Users', icon: Users },
-  { key: 'Camera', icon: Camera },
-  { key: 'Palette', icon: Palette },
-  { key: 'Flower2', icon: Flower2 },
-  { key: 'PenLine', icon: PenLine },
-]
+const ICON_MAP: Record<string, LucideIcon> = {
+  Activity,
+  Bath,
+  Bed,
+  BedSingle,
+  Briefcase,
+  Building2,
+  Church,
+  CircleDashed,
+  Coffee,
+  Droplet,
+  Droplets,
+  Dumbbell,
+  FlaskConical,
+  Flower2,
+  Footprints,
+  GraduationCap,
+  Hand,
+  HandHeart,
+  Headphones,
+  HeartHandshake,
+  Home,
+  Image,
+  Leaf,
+  Lightbulb,
+  Moon,
+  Music4,
+  PenLine,
+  Pill,
+  Rocket,
+  Scissors,
+  ShieldPlus,
+  ShoppingCart,
+  Soup,
+  Sparkle,
+  Sparkles,
+  Sprout,
+  Sun,
+  Syringe,
+  Table2,
+  Timer,
+  TrainFront,
+  TreePine,
+  Trees,
+  Tv,
+  Users,
+  Utensils,
+  Video,
+  Waves,
+  Wind,
+  Zap,
+  MonitorPlay,
+}
 
-const ICON_MAP = new Map(ICON_CHOICES.map((c) => [c.key, c.icon]))
+/**
+ * Legacy `icon_key` VALUES with no lucide-react component of their own —
+ * resolved to an existing map entry, never offered as a separate choice in
+ * `ICON_CHOICES` (a new tile/activity picks `MonitorPlay` directly instead).
+ */
+const LEGACY_ICON_ALIASES: Record<string, keyof typeof ICON_MAP> = {
+  Youtube: 'MonitorPlay',
+}
 
-/** Any `icon_key` string -> a renderable icon, defaulting to a plain circle for one outside the curated set (never a broken/missing icon). */
+export const ICON_CHOICES: { key: string; icon: LucideIcon }[] = Object.entries(ICON_MAP)
+  .map(([key, icon]) => ({ key, icon }))
+  .sort((a, b) => a.key.localeCompare(b.key))
+
+/** Any `icon_key` string -> a renderable icon, defaulting to a plain circle for one genuinely outside this vocabulary (never a broken/missing icon). */
 export function resolveIcon(iconKey: string | null | undefined): LucideIcon {
-  return (iconKey && ICON_MAP.get(iconKey)) || Circle
+  if (!iconKey) return Circle
+  const resolvedKey = LEGACY_ICON_ALIASES[iconKey] ?? iconKey
+  return ICON_MAP[resolvedKey] ?? Circle
 }

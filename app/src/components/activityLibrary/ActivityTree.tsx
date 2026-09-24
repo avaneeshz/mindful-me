@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
-import { buildActivityTree, type ActivityNode } from '@/domain/pickerHierarchy'
+import { activitiesForTile, activityPathNames, buildActivityTree, type ActivityNode } from '@/domain/pickerHierarchy'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import { cn } from '@/lib/utils'
 
@@ -208,12 +208,23 @@ export function ActivityTree({
 }) {
   const [adding, setAdding] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [showHidden, setShowHidden] = useState(false)
 
   if (tileId === null) {
     return <p className="text-caption text-ink-dim">Select a tile to see its activities.</p>
   }
 
-  const tree = buildActivityTree(activities, tileId)
+  // A hidden node (at ANY depth, not just top-level — unlike `TileList`'s
+  // flat hide) is excluded from the main tree entirely, same as a hidden
+  // tile excludes its activities — found missing in review: this used to
+  // build the tree from every activity regardless of `hidden`, so a hidden
+  // activity looked completely normal, with no way to tell it was hidden or
+  // to unhide it (`unhideActivity` was never called anywhere in this file).
+  const tree = buildActivityTree(
+    activities.filter((a) => !a.hidden),
+    tileId,
+  )
+  const hiddenInTile = activitiesForTile(activities, tileId).filter((a) => a.hidden)
 
   function moveTopLevel(id: string, direction: -1 | 1) {
     const order = tree.map((n) => n.id)
@@ -290,6 +301,29 @@ export function ActivityTree({
           <Plus aria-hidden="true" className="size-[14px]" />
           <span>Add activity</span>
         </Button>
+      )}
+
+      {hiddenInTile.length > 0 && (
+        <div>
+          <Button variant="ghost" size="inline" onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden}>
+            {showHidden ? 'Hide' : 'Show'} {hiddenInTile.length} hidden activit{hiddenInTile.length === 1 ? 'y' : 'ies'}
+          </Button>
+          {showHidden && (
+            <ul className="mt-sm flex flex-col gap-xs">
+              {hiddenInTile.map((activity) => (
+                <li
+                  key={activity.id}
+                  className="flex items-center justify-between rounded-md border border-line-soft bg-bg px-md py-sm"
+                >
+                  <span className="text-body text-ink-dim">{activityPathNames(activities, activity.id).join(' → ')}</span>
+                  <Button variant="accent" size="inline" onClick={() => actions.unhideActivity(activity.id)}>
+                    Unhide
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </section>
   )

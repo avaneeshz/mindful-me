@@ -177,13 +177,23 @@ export function useParameterOptions(activityId: string | null): UseParameterOpti
 
   const deleteOption = useCallback(
     async (id: string, type: ParameterType): Promise<{ ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }> => {
-      if (!supabaseConfigured) return { ok: false, reason: 'unreachable' }
       const target = own[type].find((o) => o.id === id)
-      const result = await apiDeleteParameterOption(id)
-      if (result.ok) {
+      function removeLocally(): void {
         setOwn((prev) => ({ ...prev, [type]: prev[type].filter((o) => o.id !== id) }))
         if (target) setEffective((prev) => ({ ...prev, [type]: prev[type].filter((o) => o.label !== target.label) }))
       }
+      // Zero backend configured (rule 6): `addOption`/`renameOption` above
+      // already update local state unconditionally — delete used to be the
+      // one exception here, returning an `'unreachable'` error that implied
+      // a transient problem a retry could fix, when in this mode it never
+      // can (found in review, same pattern as `useTiles`/
+      // `useActivityHierarchy`'s own `deleteTile`/`deleteActivity`).
+      if (!supabaseConfigured) {
+        removeLocally()
+        return { ok: true }
+      }
+      const result = await apiDeleteParameterOption(id)
+      if (result.ok) removeLocally()
       return result
     },
     [own],

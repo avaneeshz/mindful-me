@@ -4,9 +4,8 @@ import { ActivityTree } from '@/components/activityLibrary/ActivityTree'
 import { ParameterOptionsPanel } from '@/components/activityLibrary/ParameterOptionsPanel'
 import { TileList } from '@/components/activityLibrary/TileList'
 import { activityPathNames, collectSubtreeIds } from '@/domain/pickerHierarchy'
-import { useActivityHierarchy } from '@/state/useActivityHierarchy'
+import { usePickerData } from '@/state/PickerDataContext'
 import { useParameterOptions } from '@/state/useParameterOptions'
-import { useTiles } from '@/state/useTiles'
 
 /**
  * "Activity Library" — full user customization of the activity-picker
@@ -30,8 +29,12 @@ import { useTiles } from '@/state/useTiles'
  * order you'd naturally drill down.
  */
 export function ActivityLibraryPage() {
-  const tilesResult = useTiles()
-  const activitiesResult = useActivityHierarchy()
+  // The SAME `useTiles`/`useActivityHierarchy` instance the live picker's
+  // own `useLiveActivityCatalogSync` reads (`PickerDataContext`, mounted
+  // once in `App.tsx`) — never a second, independent fetch. Editing here
+  // updates that shared state directly, so the Today screen's tile row
+  // reflects it immediately, no reload needed (found missing in review).
+  const { tiles: tilesResult, activities: activitiesResult } = usePickerData()
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
 

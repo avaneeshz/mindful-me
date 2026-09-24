@@ -592,6 +592,22 @@ export function findCard(name: string): ActivityCard | undefined {
   return (liveCardsByName ?? CARDS_BY_NAME).get(name)
 }
 
+/**
+ * The first-level drill-down option NAMES for a card — e.g. the "type"
+ * dropdown `HeaderButtonEditor`/`DisplayValueButton` build for an
+ * activity-category quick-log button. Reads `card.children` (the
+ * canonical, arbitrary-depth shape both the static and live catalogs
+ * populate — see `ActivityCard.children`'s own doc comment), never the
+ * legacy `card.sub` directly: a LIVE card (`domain/pickerHierarchy.ts`'s
+ * `activityNodeToCard`) only ever sets `children`, so a call site still
+ * reading `.sub` would silently see an empty list the moment a signed-in
+ * user's own catalog loads (found in review — PICKER-CUSTOM-1's live-picker
+ * rewiring missed these two call sites originally).
+ */
+export function firstLevelOptionNames(card: ActivityCard | undefined): string[] {
+  return card?.children?.map((child) => child.name) ?? []
+}
+
 /** Every item belonging to one tile, in on-screen order — never re-sorted. */
 export function cardsForCategory(categoryId: CategoryId): ActivityCard[] {
   return (liveCards ?? ACTIVITY_CARDS).filter((card) => card.categoryId === categoryId)

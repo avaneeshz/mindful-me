@@ -204,32 +204,45 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     }
   }, [])
 
+  // A successful delete also cascades to every descendant (server-side,
+  // `activity_has_history` already covered the whole subtree before
+  // allowing it; locally, there's nothing else to check) — drop them all
+  // from local state rather than waiting for a refetch.
+  const removeSubtreeLocally = useCallback((id: string): void => {
+    setActivities((prev) => {
+      const removed = new Set<string>([id])
+      let changed = true
+      while (changed) {
+        changed = false
+        for (const a of prev) {
+          if (a.parentId && removed.has(a.parentId) && !removed.has(a.id)) {
+            removed.add(a.id)
+            changed = true
+          }
+        }
+      }
+      return prev.filter((a) => !removed.has(a.id))
+    })
+  }, [])
+
   const deleteActivity = useCallback(
     async (id: string): Promise<{ ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }> => {
-      if (!supabaseConfigured) return { ok: false, reason: 'unreachable' }
-      const result = await apiDeleteActivity(id)
-      if (result.ok) {
-        // A successful delete also cascades to every descendant server-side
-        // (rule: activity_has_history already covered the whole subtree) —
-        // drop them locally too rather than waiting for a refetch.
-        setActivities((prev) => {
-          const removed = new Set<string>([id])
-          let changed = true
-          while (changed) {
-            changed = false
-            for (const a of prev) {
-              if (a.parentId && removed.has(a.parentId) && !removed.has(a.id)) {
-                removed.add(a.id)
-                changed = true
-              }
-            }
-          }
-          return prev.filter((a) => !removed.has(a.id))
-        })
+      // Zero backend configured (rule 6): every OTHER mutation here
+      // (add/rename/hide/reorder) updates local state unconditionally —
+      // delete used to be the one exception, returning an `'unreachable'`
+      // error that implied a transient problem a retry could fix, when in
+      // this mode it never can (found in review). There's no real
+      // server-side history to check in this mode either, so the delete
+      // always succeeds locally, consistent with the rest of the preview.
+      if (!supabaseConfigured) {
+        removeSubtreeLocally(id)
+        return { ok: true }
       }
+      const result = await apiDeleteActivity(id)
+      if (result.ok) removeSubtreeLocally(id)
       return result
     },
-    [],
+    [removeSubtreeLocally],
   )
 
   return { activities, status, error, addActivity, renameActivity, hideActivity, unhideActivity, reorder, deleteActivity }
