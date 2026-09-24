@@ -23,6 +23,9 @@ const buttonVariants = cva(
           'bg-inv-bg text-inv-ink font-bold text-btn rounded-md hover:opacity-90 active:brightness-95',
         /** Text-only, no border. Secondary actions. */
         ghost: 'text-ink-dim font-semibold text-body rounded-md hover:text-ink',
+        /** Bordered, surface-toned. The "outlined secondary" half of a solid/outlined action pair — e.g. a nested panel's own Cancel, sitting apart from the dialog's own ghost Cancel. */
+        outline:
+          'border border-line bg-surface text-ink font-semibold text-btn rounded-md transition-colors hover:border-ink',
         /**
          * Destructive text action — Remove. No colour any more (Section A) —
          * distinguished from `accent` by weight/underline only, same as

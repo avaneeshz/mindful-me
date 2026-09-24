@@ -2,8 +2,9 @@ import type { SupplementCompletion } from '@/domain/supplements'
 
 const STORAGE_PREFIX = 'mindful-me:supplements:'
 
-function keyFor(localDate: string): string {
-  return `${STORAGE_PREFIX}${localDate}`
+/** Keyed by (checklist button, day) now that more than one checklist can exist — was just `localDate` when Supplements was the only one. */
+function keyFor(headerButtonId: string, localDate: string): string {
+  return `${STORAGE_PREFIX}${headerButtonId}:${localDate}`
 }
 
 /**
@@ -20,9 +21,9 @@ function keyFor(localDate: string): string {
  * quota, or storage blocked by policy degrades to "this session's in-memory
  * state only" rather than crashing the app.
  */
-export function loadLocalSupplementCompletions(localDate: string): SupplementCompletion[] | null {
+export function loadLocalSupplementCompletions(headerButtonId: string, localDate: string): SupplementCompletion[] | null {
   try {
-    const raw = window.localStorage.getItem(keyFor(localDate))
+    const raw = window.localStorage.getItem(keyFor(headerButtonId, localDate))
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as SupplementCompletion[]) : null
@@ -31,9 +32,13 @@ export function loadLocalSupplementCompletions(localDate: string): SupplementCom
   }
 }
 
-export function saveLocalSupplementCompletions(localDate: string, entries: readonly SupplementCompletion[]): void {
+export function saveLocalSupplementCompletions(
+  headerButtonId: string,
+  localDate: string,
+  entries: readonly SupplementCompletion[],
+): void {
   try {
-    window.localStorage.setItem(keyFor(localDate), JSON.stringify(entries))
+    window.localStorage.setItem(keyFor(headerButtonId, localDate), JSON.stringify(entries))
   } catch {
     // In-memory state is still correct; only cross-reload durability is lost.
   }

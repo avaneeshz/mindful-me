@@ -4,13 +4,23 @@ import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
-import { SupplementsButton } from '@/components/SupplementsButton'
+import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
-import { NOTE_BUTTONS } from '@/domain/notes'
-import { DISPLAY_BUTTONS } from '@/domain/displayButtons'
-import type { ActivityList, SleepQualityId } from '@/domain/types'
+import {
+  AddHeaderButtonChip,
+  EditModeControls,
+  EditModeToggle,
+  HeaderButtonFormDialog,
+  HiddenButtonsPanel,
+} from '@/components/HeaderButtonEditor'
+import { setNoteButtonsRegistry, setNoteButtonTypesRegistry } from '@/domain/notes'
+import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
+import { toDisplayButtonLike, type HeaderButtonCategory, type HeaderButtonConfig } from '@/domain/headerButtons'
+import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
+import { useHeaderButtons } from '@/state/useHeaderButtons'
+import type { ActivityList, FieldSelections } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
@@ -63,7 +73,7 @@ export interface HeaderBarProps {
     extra?: {
       path?: string[]
       notes?: string | null
-      sleepQuality?: SleepQualityId[]
+      fieldSelections?: FieldSelections
       dreamsNote?: string | null
     },
   ) => void
@@ -92,6 +102,49 @@ export function HeaderBar({
   // once that's done (or if there was never anything local to begin with).
   useStepsBackfill()
 
+  // The full customization system (HEADER-CUSTOM-1) — every button this
+  // user has, local-first with a background sync; a brand-new user is
+  // provisioned their own copy of the default set on first load (see
+  // `state/useHeaderButtons.ts`). Row 2 below renders straight off
+  // `visible`, grouped by category, instead of the three previously-
+  // separate hardcoded arrays.
+  const { visible, hidden, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
+  const [editMode, setEditMode] = useState(false)
+  const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
+    null,
+  )
+
+  // `DisplayValueButton`/`NoteButtonPill` stay keyed by a plain string prop
+  // (unchanged internals — see the full-stack-engineer report for why) and
+  // read their per-button config through a small runtime registry rather
+  // than threading a config object through every call site. Set on every
+  // render (not in a `useEffect`) so a child never renders one frame behind
+  // on stale/default config — see `domain/displayButtons.ts`'s own doc
+  // comment on `setDisplayButtonsRegistry`.
+  const allButtons = [...visible, ...hidden]
+  setDisplayButtonsRegistry(
+    allButtons.filter((b) => b.category === 'activity' || b.category === 'day_value').map(toDisplayButtonLike),
+  )
+  const noteButtonConfigs = allButtons.filter((b) => b.category === 'notes')
+  setNoteButtonsRegistry(noteButtonConfigs.map((b) => ({ key: b.key ?? b.id, label: b.label })))
+  setNoteButtonTypesRegistry(Object.fromEntries(noteButtonConfigs.map((b) => [b.key ?? b.id, b.noteTypes])))
+
+  const visibleNoteButtons = visible.filter((b) => b.category === 'notes')
+  const visibleQuickLogButtons = visible.filter((b) => b.category === 'activity' || b.category === 'day_value')
+  const visibleChecklistButtons = visible.filter((b) => b.category === 'checklist')
+
+  function openEditForm(button: HeaderButtonConfig) {
+    setFormMode({ kind: 'edit', button })
+  }
+
+  function handleCreate(input: Omit<CreateHeaderButtonInput, 'id'>) {
+    addButton(input)
+  }
+
+  function handleUpdate(input: UpdateHeaderButtonInput & { category: HeaderButtonCategory }) {
+    updateButton(input)
+  }
+
   return (
     <header className="flex flex-col gap-md">
       {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed
@@ -118,6 +171,8 @@ export function HeaderBar({
           <DownloadDayButton viewedDate={viewedDate} activities={activities} />
 
           <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
+
+          <EditModeToggle active={editMode} onToggle={() => setEditMode((value) => !value)} />
 
           <WeatherPill className="mobile:hidden" />
 
@@ -151,23 +206,52 @@ export function HeaderBar({
           Sermons and Worship moved here from the note-pill row — see
           `domain/notes.ts`'s own doc comment. */}
       <div className="flex flex-wrap items-center gap-sm">
-        {NOTE_BUTTONS.map(({ key, label }) => (
-          <NoteButtonPill key={key} buttonKey={key} label={label} />
+        {visibleNoteButtons.map((button) => (
+          <span key={button.id} className="relative">
+            <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
+            {editMode && (
+              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
+            )}
+          </span>
         ))}
 
-        {DISPLAY_BUTTONS.map(({ key }) => (
-          <DisplayValueButton
-            key={key}
-            buttonKey={key}
-            viewedDate={viewedDate}
-            activities={activities}
-            onQuickLog={onQuickLog}
-            onEditActivity={onEditActivity}
-          />
+        {visibleQuickLogButtons.map((button) => (
+          <span key={button.id} className="relative">
+            <DisplayValueButton
+              buttonKey={button.id}
+              viewedDate={viewedDate}
+              activities={activities}
+              onQuickLog={onQuickLog}
+              onEditActivity={onEditActivity}
+            />
+            {editMode && (
+              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
+            )}
+          </span>
         ))}
 
-        <SupplementsButton viewedDate={viewedDate} />
+        {visibleChecklistButtons.map((button) => (
+          <span key={button.id} className="relative">
+            <ChecklistButton button={button} viewedDate={viewedDate} />
+            {editMode && (
+              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
+            )}
+          </span>
+        ))}
+
+        {editMode && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add' })} />}
       </div>
+
+      {editMode && <HiddenButtonsPanel hidden={hidden} onUnhide={unhideButton} />}
+
+      {formMode && (
+        <HeaderButtonFormDialog
+          mode={formMode}
+          onClose={() => setFormMode(null)}
+          onCreate={handleCreate}
+          onUpdate={handleUpdate}
+        />
+      )}
     </header>
   )
 }

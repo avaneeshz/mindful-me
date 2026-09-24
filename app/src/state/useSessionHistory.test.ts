@@ -24,7 +24,7 @@ function session(id: string, localDate: string, startMinutes: number, name = 'Vi
     symptoms: [],
     notes: null,
     reflections: [],
-    sleepQuality: [],
+    fieldSelections: {},
     dreamsNote: null,
     status: 'planned',
     timezone: 'UTC',

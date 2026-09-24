@@ -85,3 +85,19 @@ describe('HeaderBar download control', () => {
     expect(html).toMatch(/<button[^>]*aria-label="Download this day&#x27;s data as a PDF"/)
   })
 })
+
+describe('HeaderBar checklist control', () => {
+  it('renders Supplements as a checklist button, generalized off the dynamic config', () => {
+    const html = render()
+    expect(html).toMatch(/<button[^>]*aria-label="Supplements, 0 of 7 taken"/)
+  })
+})
+
+describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
+  it('starts with edit mode off — no per-button remove/edit affordance, no "Add button" chip', () => {
+    const html = render()
+    expect(html).not.toContain('aria-label="Add a header button"')
+    expect(html).not.toMatch(/aria-label="Remove /)
+    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit header buttons"/)
+  })
+})

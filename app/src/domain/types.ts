@@ -160,29 +160,17 @@ export type ActivityQuality =
 export type Symptom = 'Pitta' | 'Inflammation' | 'Right knee pain' | 'Calves pain' | 'Temporal pain' | 'Dryness'
 
 /**
- * "How was your sleep?" — a multi-select, optional reflection specific to
- * the Sleep quick-log button. Deliberately a SEPARATE vocabulary from
- * `ActivityQuality` ("Activity quality") — conflating the two would either
- * pollute the general 18-value picker with sleep-only values that make no
- * sense on a non-sleep activity, or silently reinterpret a subset of it as
- * sleep-specific. Present on every `ScheduledActivity` (empty array default)
- * like `quality`/`symptoms` are, but only ever populated by a 'Sleep'-named
- * entry — the UI gates the picker to `staging.cardName === 'Sleep'`, not the
- * schema (see `domain/scheduling.ts`'s `CommitContext` and the
- * `scheduled_activity_sleep_fields` migration).
+ * The selected values for one MULTISELECT-kind `header_button_note_fields`
+ * row (Sleep's old hardcoded "How was your sleep?" `SleepQualityId` picker
+ * generalizes onto this same mechanism now — see
+ * `20260921060000_dynamic_note_fields.sql`) — keyed by that field's stable
+ * `id` (`note_field_id`), so any activity-category button can carry any
+ * number of user-defined multiselect fields, not just Sleep's one. A TEXT-
+ * kind field (Note/Dreams) never appears here — it still round-trips
+ * through `ScheduledActivity.notes`/`dreamsNote` exactly as before, since
+ * that mechanism was never the one with a physical-column ceiling.
  */
-export type SleepQualityId =
-  | 'Deep Restorative'
-  | 'Light & Restful'
-  | 'Light & Restless'
-  | 'Fragmented'
-  | 'Interrupted'
-  | 'Long but Unrefreshing'
-  | 'Short but Restorative'
-  | 'Dream-Intense'
-  | 'Delayed'
-  | 'Early Awakening'
-  | 'Unusually Deep'
+export type FieldSelections = Record<string, string[]>
 
 /**
  * One reflection-card pairing on a logged activity — many-to-many (a
@@ -267,9 +255,9 @@ export interface ScheduledActivity {
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string
-  /** "How was your sleep?" — optional multi-select, Sleep-quick-log-only in practice. See `SleepQualityId`. */
-  sleepQuality: SleepQualityId[]
-  /** A SEPARATE freeform note from `notes` — Sleep-quick-log-only in practice ("Dreams"). Encrypted at rest like `notes` (rule 10). */
+  /** Any multiselect-kind note field's chosen values, keyed by that field's own `id` — see `FieldSelections`. Encrypted at rest per field (rule 10). */
+  fieldSelections: FieldSelections
+  /** A SEPARATE freeform note from `notes` — driven by whichever activity-category button's second (`'secondary'`) text field is configured, Sleep's "Dreams" by default. Encrypted at rest like `notes` (rule 10). */
   dreamsNote: string | null
 }
 

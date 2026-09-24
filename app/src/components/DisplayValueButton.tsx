@@ -4,17 +4,19 @@ import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { TimeField } from '@/components/ui/TimeField'
 import { TimeRangeField } from '@/components/ui/TimeRangeField'
-import { SleepQualityPicker } from '@/components/editor/SleepQualityPicker'
+import { MultiselectFieldPicker } from '@/components/editor/MultiselectFieldPicker'
 import { findCard } from '@/data/activities'
 import {
-  DISPLAY_BUTTONS,
   displayButtonInput,
+  displayButtonLabel,
+  displayButtonMultiselectFields,
+  displayButtonNoteFieldLabel,
   displayButtonQuickLogDreamsNote,
   displayButtonQuickLogName,
   displayButtonQuickLogNote,
-  displayButtonQuickLogSleepQuality,
   displayButtonQuickLogType,
   displayButtonQuickLogTypeLabel,
+  displayButtonStorageKey,
   displayButtonSynced,
   displayButtonUnit,
   formatDisplayValue,
@@ -25,7 +27,7 @@ import {
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration, nowClock } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import { formatActivityRange } from '@/domain/slots'
-import type { ActivityList, ScheduledActivity, SleepQualityId } from '@/domain/types'
+import type { ActivityList, FieldSelections, ScheduledActivity } from '@/domain/types'
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory, type UseDisplayValueHistoryResult } from '@/state/useDisplayValueHistory'
 import { useSessionHistory } from '@/state/useSessionHistory'
@@ -41,10 +43,6 @@ const fieldClass =
 
 const textareaClass =
   'w-full resize-y rounded-md border border-line bg-surface px-md py-sm text-body text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-
-function labelFor(key: DisplayButtonKey): string {
-  return DISPLAY_BUTTONS.find((button) => button.key === key)?.label ?? key
-}
 
 /**
  * A header control that always shows a stored number on its face — for the
@@ -109,7 +107,7 @@ export function DisplayValueButton({
     extra?: {
       path?: string[]
       notes?: string | null
-      sleepQuality?: SleepQualityId[]
+      fieldSelections?: FieldSelections
       dreamsNote?: string | null
     },
   ) => void
@@ -132,8 +130,8 @@ export function DisplayValueButton({
   const synced = displayButtonSynced(buttonKey)
   const hasType = displayButtonQuickLogType(buttonKey)
   const hasNote = displayButtonQuickLogNote(buttonKey)
-  const hasSleepQuality = displayButtonQuickLogSleepQuality(buttonKey)
   const hasDreamsNote = displayButtonQuickLogDreamsNote(buttonKey)
+  const multiselectFields = displayButtonMultiselectFields(buttonKey)
   const typeOptions = hasType ? (findCard(quickLogName ?? '')?.sub ?? []) : []
 
   const [localValue, setLocalValue] = useState<number | null>(() =>
@@ -141,7 +139,7 @@ export function DisplayValueButton({
   )
   // Synced buttons (Protein) always call the hook (rules of hooks); it no-ops
   // internally for every other button (see `useDailyValue`'s own `enabled`).
-  const dailyValue = useDailyValue(buttonKey, buttonKey, dayKey, synced)
+  const dailyValue = useDailyValue(displayButtonStorageKey(buttonKey), buttonKey, dayKey, synced)
 
   const [open, setOpen] = useState(defaultOpen ?? false)
   const [draft, setDraft] = useState('')
@@ -150,7 +148,7 @@ export function DisplayValueButton({
   const [songCount, setSongCount] = useState('')
   const [type, setType] = useState('')
   const [note, setNote] = useState('')
-  const [sleepQuality, setSleepQuality] = useState<SleepQualityId[]>([])
+  const [fieldSelections, setFieldSelections] = useState<FieldSelections>({})
   const [dreamsNote, setDreamsNote] = useState('')
   const [align, setAlign] = useState<'left' | 'right'>('right')
   const [error, setError] = useState<string | null>(null)
@@ -182,7 +180,7 @@ export function DisplayValueButton({
   // true for one of those without also never reading `dayValueHistory` below.
   // Fetched as soon as the popover opens (not gated on `historyOpen`) since
   // its OWN "Recent" row (the value for `dayKey`, if any) is always visible.
-  const dayValueHistory = useDisplayValueHistory(buttonKey, buttonKey, synced, open && !quickLogName)
+  const dayValueHistory = useDisplayValueHistory(buttonKey, displayButtonStorageKey(buttonKey), synced, open && !quickLogName)
 
   // Cross-day session history (Vipassana/Exercise/Breathing/Sleep) — always
   // called (rules of hooks), a no-op for a day-value button. Unlike
@@ -192,7 +190,7 @@ export function DisplayValueButton({
   // History is actually expanded (rule 8 — a bounded fetch, made lazily).
   const sessionHistory = useSessionHistory(quickLogName ?? '', viewedDate, historyOpen && Boolean(quickLogName))
 
-  const label = labelFor(buttonKey)
+  const label = displayButtonLabel(buttonKey)
   const unit = displayButtonUnit(buttonKey)
   const mode = displayButtonInput(buttonKey)
   const parsedSongCount = parseDisplayValue(songCount)
@@ -270,7 +268,7 @@ export function DisplayValueButton({
     setSongCount('')
     setType('')
     setNote('')
-    setSleepQuality([])
+    setFieldSelections({})
     setDreamsNote('')
     setError(null)
     setSubmitting(false)
@@ -352,7 +350,7 @@ export function DisplayValueButton({
       onQuickLog(quickLogName, startMinutes, durationMinutes, {
         path: type ? [type] : [],
         notes: hasNote && note.trim() ? note : null,
-        sleepQuality: hasSleepQuality ? sleepQuality : [],
+        fieldSelections,
         dreamsNote: hasDreamsNote && dreamsNote.trim() ? dreamsNote : null,
       })
       setStart('')
@@ -360,7 +358,7 @@ export function DisplayValueButton({
       setSongCount('')
       setType('')
       setNote('')
-      setSleepQuality([])
+      setFieldSelections({})
       setDreamsNote('')
       setError(null)
       setOpen(false)
@@ -468,7 +466,7 @@ export function DisplayValueButton({
                         `aria-label` below), same convention as Note/Dreams.
                         Every other button's generic "Type" legend is
                         untouched. */}
-                    <legend className={cn('font-semibold text-ink-dim', buttonKey === 'sleep' ? 'sr-only' : 'text-caption')}>
+                    <legend className={cn('font-semibold text-ink-dim', multiselectFields.length > 0 ? 'sr-only' : 'text-caption')}>
                       {displayButtonQuickLogTypeLabel(buttonKey)}
                     </legend>
                     <div role="radiogroup" aria-label={displayButtonQuickLogTypeLabel(buttonKey)} className="flex flex-wrap gap-sm">
@@ -493,13 +491,24 @@ export function DisplayValueButton({
                   </fieldset>
                 )}
 
-                {hasSleepQuality && (
-                  <SleepQualityPicker
-                    selected={sleepQuality}
-                    onToggle={(q) => setSleepQuality((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]))}
+                {multiselectFields.map((field) => (
+                  <MultiselectFieldPicker
+                    key={field.id}
+                    label={field.label}
+                    options={field.options}
+                    selected={fieldSelections[field.id] ?? []}
+                    onToggle={(value) =>
+                      setFieldSelections((prev) => {
+                        const current = prev[field.id] ?? []
+                        return {
+                          ...prev,
+                          [field.id]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
+                        }
+                      })
+                    }
                     compact
                   />
-                )}
+                ))}
 
                 {/* Dreams before the general Note (swapped per product
                     feedback), and neither carries a visible heading any
@@ -511,13 +520,13 @@ export function DisplayValueButton({
                 {hasDreamsNote && (
                   <div>
                     <label htmlFor={`${inputId}-dreams`} className="sr-only">
-                      Dreams
+                      {displayButtonNoteFieldLabel(buttonKey, 'secondary')}
                     </label>
                     <textarea
                       id={`${inputId}-dreams`}
                       value={dreamsNote}
                       onChange={(event) => setDreamsNote(event.target.value)}
-                      placeholder="Dreams"
+                      placeholder={displayButtonNoteFieldLabel(buttonKey, 'secondary')}
                       rows={2}
                       className={textareaClass}
                     />
@@ -527,13 +536,13 @@ export function DisplayValueButton({
                 {hasNote && (
                   <div>
                     <label htmlFor={`${inputId}-note`} className="sr-only">
-                      Note
+                      {displayButtonNoteFieldLabel(buttonKey, 'primary')}
                     </label>
                     <textarea
                       id={`${inputId}-note`}
                       value={note}
                       onChange={(event) => setNote(event.target.value)}
-                      placeholder="Add a note"
+                      placeholder={`Add a ${displayButtonNoteFieldLabel(buttonKey, 'primary').toLowerCase()}`}
                       rows={2}
                       className={textareaClass}
                     />

@@ -3,8 +3,8 @@ import {
   displayButtonInput,
   displayButtonQuickLogDreamsNote,
   displayButtonQuickLogName,
+  displayButtonMultiselectFields,
   displayButtonQuickLogNote,
-  displayButtonQuickLogSleepQuality,
   displayButtonQuickLogType,
   displayButtonQuickLogTypeLabel,
   displayButtonSynced,
@@ -85,12 +85,15 @@ describe('quick-log buttons (Exercise/Breathing/Sleep/Prayer/Sermons/Worship)', 
     expect(displayButtonQuickLogNote('vipassana')).toBe(false)
   })
 
-  it('offers sleep-quality and dreams fields only for Sleep', () => {
+  it('offers a sleep-quality multiselect field and a dreams field only for Sleep', () => {
     for (const key of ['exercise', 'breathing', 'vipassana', 'prayer', 'sermons', 'worship', 'steps', 'protein'] as const) {
-      expect(displayButtonQuickLogSleepQuality(key)).toBe(false)
+      expect(displayButtonMultiselectFields(key)).toEqual([])
       expect(displayButtonQuickLogDreamsNote(key)).toBe(false)
     }
-    expect(displayButtonQuickLogSleepQuality('sleep')).toBe(true)
+    const sleepFields = displayButtonMultiselectFields('sleep')
+    expect(sleepFields).toHaveLength(1)
+    expect(sleepFields[0].label).toBe('How was your sleep?')
+    expect(sleepFields[0].options).toContain('Deep Restorative')
     expect(displayButtonQuickLogDreamsNote('sleep')).toBe(true)
   })
 })

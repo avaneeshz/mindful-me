@@ -31,14 +31,14 @@
  *     type vocabulary lives in exactly one place; the chosen value becomes
  *     the logged activity's `path`, identically to picking a sub-option via
  *     the tile-row drill-down. Exercise, Breathing and Sleep all have one.
- *   - `quickLogNote` — a plain freeform note field, stored on the logged
- *     activity's existing `notes` field (rule 10 encrypted, same as every
- *     other activity's notes).
- *   - `quickLogSleepQuality` / `quickLogDreamsNote` — Sleep-only. Its own
- *     11-value vocabulary (`SleepQualityId`, deliberately separate from the
- *     18-value `ActivityQuality` used everywhere else) and a SECOND,
- *     separate note field ("Dreams") from the plain note above. See
- *     `ScheduledActivity.sleepQuality`/`.dreamsNote` in domain/types.ts.
+ *   - `noteFields` — any number of configured note fields (see
+ *     `displayButtonNoteFields` below), `'text'`-kind (a plain freeform
+ *     note, stored on the logged activity's `notes`/`dreamsNote` — rule 10
+ *     encrypted) or `'multiselect'`-kind (a user-defined option list,
+ *     stored via `scheduled_activity_field_selections`, also rule 10
+ *     encrypted). Sleep's "Note", "Dreams" and "How was your sleep?" are
+ *     just three ordinary configured fields now, no longer a hardcoded
+ *     special case — see `domain/headerButtons.ts`'s `HeaderButtonNoteField`.
  *
  * `Steps` and `Protein` are plain per-day set/replace numbers (re-entering
  * REPLACES the day's value, never adds to it) with no catalog counterpart —
@@ -69,8 +69,8 @@
  */
 
 export const DISPLAY_BUTTONS = [
-  { key: 'vipassana', label: 'Vipassana', unit: 'min', input: 'duration', quickLogName: 'Vipassana' },
-  { key: 'steps', label: 'Steps', unit: 'int', input: 'number', synced: true },
+  { key: 'vipassana', label: 'Vipassana', unit: 'min', input: 'duration', quickLogName: 'Vipassana', noteFields: [] as NoteFieldConfig[] },
+  { key: 'steps', label: 'Steps', unit: 'int', input: 'number', synced: true, noteFields: [] as NoteFieldConfig[] },
   {
     key: 'exercise',
     label: 'Exercise',
@@ -79,7 +79,7 @@ export const DISPLAY_BUTTONS = [
     quickLogName: 'Sports or Exercise',
     quickLogType: true,
     quickLogTypeLabel: 'Type',
-    quickLogNote: true,
+    noteFields: [{ id: 'exercise-note', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }] as NoteFieldConfig[],
   },
   {
     key: 'breathing',
@@ -89,7 +89,7 @@ export const DISPLAY_BUTTONS = [
     quickLogName: 'Breathwork',
     quickLogType: true,
     quickLogTypeLabel: 'Type',
-    quickLogNote: true,
+    noteFields: [{ id: 'breathing-note', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }] as NoteFieldConfig[],
   },
   {
     key: 'sleep',
@@ -99,9 +99,29 @@ export const DISPLAY_BUTTONS = [
     quickLogName: 'Sleep',
     quickLogType: true,
     quickLogTypeLabel: 'Sleep type',
-    quickLogNote: true,
-    quickLogSleepQuality: true,
-    quickLogDreamsNote: true,
+    noteFields: [
+      { id: 'sleep-note', fieldKind: 'text', key: 'primary', label: 'Note', options: [] },
+      { id: 'sleep-dreams', fieldKind: 'text', key: 'secondary', label: 'Dreams', options: [] },
+      {
+        id: 'sleep-quality',
+        fieldKind: 'multiselect',
+        key: null,
+        label: 'How was your sleep?',
+        options: [
+          'Deep Restorative',
+          'Light & Restful',
+          'Light & Restless',
+          'Fragmented',
+          'Interrupted',
+          'Long but Unrefreshing',
+          'Short but Restorative',
+          'Dream-Intense',
+          'Delayed',
+          'Early Awakening',
+          'Unusually Deep',
+        ],
+      },
+    ] as NoteFieldConfig[],
   },
   {
     key: 'prayer',
@@ -111,7 +131,7 @@ export const DISPLAY_BUTTONS = [
     quickLogName: 'Prayer',
     quickLogType: true,
     quickLogTypeLabel: 'Type',
-    quickLogNote: true,
+    noteFields: [{ id: 'prayer-note', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }] as NoteFieldConfig[],
   },
   {
     key: 'sermons',
@@ -119,22 +139,93 @@ export const DISPLAY_BUTTONS = [
     unit: 'min',
     input: 'duration',
     quickLogName: 'Sermons',
-    quickLogNote: true,
+    noteFields: [{ id: 'sermons-note', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }] as NoteFieldConfig[],
   },
   // Worship's entry mode is genuinely different from every other quick-log
   // button — a Start time plus a NUMBER OF SONGS, not a Start/End pair (see
   // `'songCount'` and `WORSHIP_MINUTES_PER_SONG` below). No `quickLogType` —
   // the `Worship` catalog card carries no `sub` list to draw options from.
-  { key: 'worship', label: 'Worship', unit: 'min', input: 'songCount', quickLogName: 'Worship', quickLogNote: true },
-  { key: 'protein', label: 'Protein', unit: 'target', input: 'number', target: 80, synced: true },
+  {
+    key: 'worship',
+    label: 'Worship',
+    unit: 'min',
+    input: 'songCount',
+    quickLogName: 'Worship',
+    noteFields: [{ id: 'worship-note', fieldKind: 'text', key: 'primary', label: 'Note', options: [] }] as NoteFieldConfig[],
+  },
+  { key: 'protein', label: 'Protein', unit: 'target', input: 'number', target: 80, synced: true, noteFields: [] as NoteFieldConfig[] },
 ] as const
 
-export type DisplayButtonKey = (typeof DISPLAY_BUTTONS)[number]['key']
-export type DisplayButtonUnit = (typeof DISPLAY_BUTTONS)[number]['unit']
-export type DisplayButtonInput = (typeof DISPLAY_BUTTONS)[number]['input']
+/** A single note field's config — `'text'` (bounded to the 2 physical columns) or `'multiselect'` (any number, its own option list) — see `domain/headerButtons.ts`'s `HeaderButtonNoteField` for the fuller reasoning this mirrors. */
+interface NoteFieldConfig {
+  id: string
+  fieldKind: 'text' | 'multiselect'
+  key: 'primary' | 'secondary' | null
+  label: string
+  options: readonly string[]
+}
 
-function findButton(key: DisplayButtonKey) {
-  return DISPLAY_BUTTONS.find((button) => button.key === key)
+/** One button, in the shape every lookup function below reads — either a `DISPLAY_BUTTONS` literal or a `HeaderButtonConfig`-derived row from the dynamic registry (`setDisplayButtonsRegistry`). */
+export interface DisplayButtonLike {
+  /** The identity every lookup function is keyed by — the `HeaderButtonConfig.id` once dynamic (React key / local-cache key), or the literal string for a `DISPLAY_BUTTONS` default. */
+  key: string
+  /** The `public.daily_values.metric_key` a 'day_value' button actually writes under — `public.header_buttons.key` once dynamic. Falls back to `key` for a `DISPLAY_BUTTONS` default, where the two happen to be the same string. Irrelevant for a `quickLogName` button. */
+  storageKey?: string
+  label: string
+  unit: 'min' | 'int' | 'target'
+  input: 'number' | 'duration' | 'songCount'
+  quickLogName?: string
+  quickLogType?: boolean
+  quickLogTypeLabel?: string
+  noteFields?: readonly NoteFieldConfig[]
+  synced?: boolean
+  target?: number
+}
+
+export type DisplayButtonKey = string
+export type DisplayButtonUnit = DisplayButtonLike['unit']
+export type DisplayButtonInput = DisplayButtonLike['input']
+
+/**
+ * Populated once `state/useHeaderButtons.ts` has resolved this user's own
+ * 'activity'/'day_value' button list — every lookup below reads through
+ * this when it's set, falling back to the hardcoded `DISPLAY_BUTTONS`
+ * before that first resolution (or with no backend configured at all, rule
+ * 6). `null` clears it back to the hardcoded default list.
+ */
+let registry: readonly DisplayButtonLike[] | null = null
+
+export function setDisplayButtonsRegistry(buttons: readonly DisplayButtonLike[] | null): void {
+  registry = buttons
+}
+
+function findButton(key: DisplayButtonKey): DisplayButtonLike | undefined {
+  return (registry ?? DISPLAY_BUTTONS).find((button) => button.key === key)
+}
+
+/**
+ * The quick-log button (if any) configured for a given catalog ACTIVITY
+ * NAME — not to be confused with `findButton`, which looks up by the
+ * button's own id. Needed because the same activity (e.g. "Sleep") can be
+ * logged either through its header quick-log button OR the tile-row
+ * drill-down (`LogActivityModal`), and both entry paths should render the
+ * SAME configured note fields — the fields belong to the ACTIVITY's own
+ * button config, regardless of which surface opened the editor.
+ */
+export function displayButtonForActivityName(name: string): DisplayButtonLike | undefined {
+  return (registry ?? DISPLAY_BUTTONS).find(
+    (button) => 'quickLogName' in button && button.quickLogName === name,
+  )
+}
+
+export function displayButtonLabel(key: DisplayButtonKey): string {
+  return findButton(key)?.label ?? key
+}
+
+/** The real `daily_values.metric_key` to write under — see `DisplayButtonLike.storageKey`'s own doc comment. */
+export function displayButtonStorageKey(key: DisplayButtonKey): string {
+  const button = findButton(key)
+  return button?.storageKey ?? button?.key ?? key
 }
 
 export function displayButtonUnit(key: DisplayButtonKey): DisplayButtonUnit {
@@ -148,7 +239,7 @@ export function displayButtonInput(key: DisplayButtonKey): DisplayButtonInput {
 /** The catalog name this button quick-logs real activities under, or `null` for a plain day-value button (Steps/Protein). */
 export function displayButtonQuickLogName(key: DisplayButtonKey): string | null {
   const button = findButton(key)
-  return button && 'quickLogName' in button ? button.quickLogName : null
+  return (button && 'quickLogName' in button ? button.quickLogName : null) ?? null
 }
 
 /** Whether this quick-log button offers a single-select "type" field (its options come from the catalog card's own `sub` list — see `data/activities.ts`). */
@@ -160,25 +251,41 @@ export function displayButtonQuickLogType(key: DisplayButtonKey): boolean {
 /** Label for the type field (only meaningful when `displayButtonQuickLogType` is true). */
 export function displayButtonQuickLogTypeLabel(key: DisplayButtonKey): string {
   const button = findButton(key)
-  return button && 'quickLogTypeLabel' in button ? button.quickLogTypeLabel : 'Type'
+  return (button && 'quickLogTypeLabel' in button ? button.quickLogTypeLabel : null) ?? 'Type'
 }
 
-/** Whether this quick-log button offers a plain freeform note field. */
+/**
+ * The button's configured note field(s), text and multiselect alike —
+ * generalizes the old hardcoded `quickLogNote`/`quickLogDreamsNote`/
+ * `quickLogSleepQuality` special cases into one mechanism. See
+ * `domain/headerButtons.ts`'s `HeaderButtonNoteField` for the full
+ * text-vs-multiselect reasoning.
+ */
+export function displayButtonNoteFields(key: DisplayButtonKey): readonly NoteFieldConfig[] {
+  return findButton(key)?.noteFields ?? []
+}
+
+/** Just the `'multiselect'`-kind fields — Sleep's "How was your sleep?" by default, any activity button's own configured ones once dynamic. Never capped (unlike the two `'text'` slots). */
+export function displayButtonMultiselectFields(key: DisplayButtonKey): readonly NoteFieldConfig[] {
+  return displayButtonNoteFields(key).filter((field) => field.fieldKind === 'multiselect')
+}
+
+/** Whether this quick-log button offers its `'primary'` text note field (was `quickLogNote`). */
 export function displayButtonQuickLogNote(key: DisplayButtonKey): boolean {
-  const button = findButton(key)
-  return !!(button && 'quickLogNote' in button && button.quickLogNote)
+  return displayButtonNoteFields(key).some((field) => field.fieldKind === 'text' && field.key === 'primary')
 }
 
-/** Sleep-only: whether this button offers the "How was your sleep?" multi-select. */
-export function displayButtonQuickLogSleepQuality(key: DisplayButtonKey): boolean {
-  const button = findButton(key)
-  return !!(button && 'quickLogSleepQuality' in button && button.quickLogSleepQuality)
+/** This button's label for its `'primary'` note field's placeholder — e.g. `"Note"`, or Sleep's own choice if renamed. */
+export function displayButtonNoteFieldLabel(key: DisplayButtonKey, fieldKey: 'primary' | 'secondary'): string {
+  return (
+    displayButtonNoteFields(key).find((field) => field.fieldKind === 'text' && field.key === fieldKey)?.label ??
+    (fieldKey === 'primary' ? 'Note' : 'Dreams')
+  )
 }
 
-/** Sleep-only: whether this button offers the separate "Dreams" note field. */
+/** Whether this button offers its `'secondary'` text note field (was `quickLogDreamsNote`, Sleep-only by default). */
 export function displayButtonQuickLogDreamsNote(key: DisplayButtonKey): boolean {
-  const button = findButton(key)
-  return !!(button && 'quickLogDreamsNote' in button && button.quickLogDreamsNote)
+  return displayButtonNoteFields(key).some((field) => field.fieldKind === 'text' && field.key === 'secondary')
 }
 
 /** Whether this button's value is a per-user server row (`public.daily_values`), local-first with a background sync — currently every day-value button (Steps, Protein). */
@@ -190,7 +297,7 @@ export function displayButtonSynced(key: DisplayButtonKey): boolean {
 /** The fixed daily target for a `unit: 'target'` button, or `null` for anything else. */
 export function displayButtonTarget(key: DisplayButtonKey): number | null {
   const button = findButton(key)
-  return button && 'target' in button ? button.target : null
+  return (button && 'target' in button ? button.target : null) ?? null
 }
 
 /**
