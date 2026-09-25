@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ActivityLibraryPanel } from '@/components/activityLibrary/ActivityLibraryPanel'
 import {
   activitiesTouchingSlot,
   flagMarkerAt,
@@ -72,6 +73,8 @@ interface SlotEditorProps {
   viewedDate: Date
   /** Bug B — drives the selected activity's "not yet synced" / "sync failed" badge; see `ActivitySummary`. */
   syncQueue: SyncQueue
+  /** The one Edit-mode toggle for the whole screen (owned by `TodayPage`) — this component renders its own inline tile/activity management panel (`ActivityLibraryPanel`, at the section level, not inside `TileRow` — see the render site's own comment for why) while it's on. */
+  editMode: boolean
 }
 
 /**
@@ -90,8 +93,24 @@ interface SlotEditorProps {
  * commits instantly. There is no batch save. "Cancel" clears the
  * staged-but-not-yet-saved pick only.
  */
-export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflectionNote, syncQueue }: SlotEditorProps) {
+export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflectionNote, syncQueue, editMode }: SlotEditorProps) {
   const { activities, selectedSlot, staging, removal } = state
+
+  // Lazy-mount-once, then keep alive — `ActivityLibraryPanel` (rendered
+  // near the bottom of this component) is genuinely expensive to remount:
+  // it owns its own `selectedTileId`/`selectedActivityId` state and fires a
+  // `useParameterOptions` fetch. Mounting it unconditionally from the very
+  // first render (so a toggle off/on never loses that state — see the
+  // render site's own comment) would mean EVERY visit to this screen pays
+  // that fetch, even for the vast majority of sessions that never open Edit
+  // mode at all. This ref instead remembers only that Edit mode was opened
+  // at least once THIS session — before that, the panel is never mounted
+  // (zero extra cost); once opened, it mounts and stays mounted (hidden via
+  // the `hidden` attribute, not unmounted) for the rest of the session, so
+  // switching Edit mode off and back on preserves exactly where the user
+  // left off.
+  const everOpenedManagementPanelRef = useRef(false)
+  if (editMode) everOpenedManagementPanelRef.current = true
   // "Activity mode": an activity was selected on the timeline (or by clicking
   // a fully-covered slot). Its summary REPLACES the whole slot body below —
   // the two are mutually exclusive by construction (`selectSlot` always
@@ -139,6 +158,25 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
   // flag option lists. `undefined` (never `[]`) until genuinely `'ready'`,
   // so a brief loading moment falls back to each picker's own static
   // default set instead of flashing zero options.
+  //
+  // While `editMode` is on AND an activity is staged, `ActivityLibraryPanel`
+  // below mounts its OWN separate `useParameterOptions(selectedActivityId)`
+  // instance — unlike `tiles`/`activities` (properly shared via
+  // `PickerDataContext`), this hook has no single shared instance across the
+  // app. Two DIFFERENT concerns were found here in self-review, one fixed,
+  // one accepted as-is: (1) a write through the PANEL's instance used to be
+  // invisible to THIS instance, so `LogActivityModal`'s pickers could keep
+  // offering an option the user had just removed via the panel — fixed by
+  // `state/parameterOptionsInvalidation.ts` (see that module's own doc
+  // comment): every successful, server-backed edit now notifies every OTHER
+  // `useParameterOptions` instance watching the same activity to re-fetch,
+  // regardless of which component owns it. (2) When the staged and the
+  // panel-selected activity are the same node, each still fires its own
+  // independent 4-RPC fetch rather than sharing one — a real, accepted
+  // inefficiency (no correctness impact), left as a documented, lower-
+  // priority follow-up rather than building a full shared, multi-key cache,
+  // which felt like more machinery than this feedback round's scope
+  // justified.
   const stagedActivityId = useStagedActivityId(staging.cardName)
   const parameterOptions = useParameterOptions(stagedActivityId)
   const qualityOptions =
@@ -151,6 +189,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
   // `ipad-land:p-lg` trims padding exactly as `mobile:p-lg` already does: a
   // vertical density adaptation for a short viewport, not a structural change.
   return (
+    <>
     <section
       aria-labelledby={selectedActivity ? undefined : 'slot-editor-heading'}
       aria-label={selectedActivity ? 'Selected activity' : undefined}
@@ -253,5 +292,45 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
         flagOptions={flagOptions}
       />
     </section>
+
+    {/*
+      The unified tile/activity management panel (real user feedback: the
+      same top-bar Edit toggle must manage tiles/activities, not a second
+      page reachable only from the sidebar — see `ActivityLibraryPanel`'s own
+      doc comment). Deliberately rendered as its OWN top-level sibling here,
+      outside the `<section>` above — two things found in self-review: (1)
+      `TileRow` only renders at all in "slot mode" (the `selectedActivity`
+      branch replaces that whole block with `ActivitySummary` instead), so a
+      panel rendered inside `TileRow` vanished the moment any activity was
+      selected; (2) the section above carries an `aria-label`/
+      `aria-labelledby` naming it "Selected activity" or the slot heading —
+      nesting an unrelated tile/activity management UI inside THAT landmark
+      would leave it mislabeled (a screen-reader user landing on "Selected
+      activity" would find a second, unrelated feature living inside it).
+      `ActivityLibraryPanel` has its own `aria-label`, so as a sibling here it
+      is its own honestly-named landmark instead.
+
+      Lazy-mount-once, then kept alive and merely `hidden` (not unmounted)
+      on every subsequent toggle — mirrors `TileRow`'s own established "stays
+      mounted regardless" pattern for a toggled state (see that component's
+      own test file: "the 9-tile row stays mounted regardless of slot
+      capacity"). Plain `{editMode && (...)}` here (found in self-review)
+      unmounted/remounted the panel on every single Edit toggle, resetting
+      its own `selectedTileId`/`selectedActivityId` state to nothing and
+      restarting its `useParameterOptions` fetch each time, so a user who
+      drilled into one activity's options, glanced back at Today, then
+      re-opened Edit mode lost their place every time. See
+      `everOpenedManagementPanelRef`'s own comment above for why this isn't
+      simply "always mounted" instead. `hidden` (a real HTML attribute, not
+      just a visual `display:none` class) correctly drops it from the
+      accessibility tree and tab order while off, same as any other
+      conditionally-relevant region.
+    */}
+    {everOpenedManagementPanelRef.current && (
+      <div className="mt-2xl ipad-land:mt-md" hidden={!editMode}>
+        <ActivityLibraryPanel />
+      </div>
+    )}
+    </>
   )
 }

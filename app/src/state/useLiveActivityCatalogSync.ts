@@ -8,7 +8,7 @@ import { usePickerData } from './PickerDataContext'
  * PICKER-CUSTOM-1's bridge from the real per-user backend
  * (`usePickerData`'s shared `useTiles`/`useActivityHierarchy` instance — see
  * `PickerDataContext.tsx`'s own doc comment for why this MUST be the same
- * instance `ActivityLibraryPage` reads/writes, not a second one) to the
+ * instance `ActivityLibraryPanel` reads/writes, not a second one) to the
  * live-swappable catalog registry `data/activities.ts` exposes
  * (`setLiveActivityCatalog`) — the one place this wiring happens, mounted
  * once near the app root (`BoardContext.tsx`) so `TileRow`/

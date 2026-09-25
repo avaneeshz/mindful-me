@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
-import { ActivityLibraryPage } from '@/routes/ActivityLibraryPage'
 import { TodayPage } from '@/routes/TodayPage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider } from '@/state/BoardContext'
@@ -98,10 +97,10 @@ function AuthedApp({ now }: { now?: Date }) {
     // `PickerDataProvider` wraps `BoardProvider` (not the other way around)
     // because `BoardProvider` itself calls `useLiveActivityCatalogSync`,
     // which reads this context — see `PickerDataContext.tsx`'s own doc
-    // comment for why both `BoardProvider` (the Today screen's live picker)
-    // and `ActivityLibraryPage` (both descendants of this same provider,
-    // via the `<Routes>` below) must share this one instance, not each
-    // mint their own.
+    // comment for why both the live picker (`useLiveActivityCatalogSync`)
+    // and the inline `ActivityLibraryPanel` (`SlotEditor`'s edit-mode panel,
+    // also a descendant of this provider) must share this one instance, not
+    // each mint their own.
     <PickerDataProvider>
     <BoardProvider now={now}>
       <div className="flex h-full mobile:h-auto mobile:flex-col">
@@ -129,13 +128,14 @@ function AuthedApp({ now }: { now?: Date }) {
             <Routes>
               <Route path="/" element={<TodayPage />} />
               {/*
-                "Activity Library" (PICKER-CUSTOM-1) is the second real
-                screen — see its own file for why it keeps a minimal shell of
-                its own rather than reaching for TodayPage's HeaderBar. Every
-                other sidebar entry is still a placeholder with no
-                destination.
+                "Activity Library" (PICKER-CUSTOM-1) used to be a second real
+                screen here, reachable only from the sidebar. Real user
+                feedback: the same top-bar Edit toggle should also manage
+                tiles/activities, not a second hidden path — it's now
+                `ActivityLibraryPanel`, rendered inline by `SlotEditor` when
+                that Edit toggle is on. Every other sidebar entry is still a
+                placeholder with no destination; "Today" is the only route.
               */}
-              <Route path="/activity-library" element={<ActivityLibraryPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
