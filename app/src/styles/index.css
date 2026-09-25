@@ -4,68 +4,39 @@
 
 @layer base {
   :root {
-    /* ---------------------------------------------------------------------
-       Monochrome theme system (confirmed product decision) — replaces the
-       old forest-green/warm-ivory palette AND the per-category (`--cat-*`)
-       and per-tile (`--tile-accent`) colour systems entirely. No colour
-       anywhere: both themes are this same neutral bg/surface/ink/line set,
-       just inverted, exactly the prototype's final CSS custom-property
-       scheme. These are the ONLY hex literals in the application source —
-       every component reaches them through the Tailwind tokens in
-       tailwind.config.js (`bg-surface`, `text-ink`, etc.), never a literal.
-
-       DARK is the default (`:root`, no attribute) — the app's first-ever
-       load, with nothing yet in localStorage, opens in dark, matching the
-       prototype's own default. `[data-theme="light"]` overrides every
-       token below to the light pair. `ThemeContext` (state/) is what sets
-       that attribute and persists the choice per-device.
-       --------------------------------------------------------------------- */
+    /* Enhanced monochrome theme system with premium polish
+       Base tokens remain monochrome but with refined depth and sophistication */
     --bg: #0a0a0b;
     --surface: #17171a;
     --surface-2: #1e1e21;
+    --surface-3: #242427;
     --ink: #f2f1ec;
     --ink-dim: #8c8c90;
     --line: rgba(255, 255, 255, 0.14);
     --line-soft: rgba(255, 255, 255, 0.08);
+    --line-softer: rgba(255, 255, 255, 0.05);
     --inv-bg: #f2f1ec;
     --inv-ink: #0a0a0b;
 
-    /* The Night timeline strip's one deliberate exception (approved this
-       round): a fixed grey, independent of the light/dark theme toggle —
-       stays grey whether the app is in light or dark mode, never switched
-       under `[data-theme="light"]` below. Its two companions are what stays
-       legible drawn ON that fixed surface (the midnight tick, the Night
-       row's own NOW marker) regardless of which theme the rest of the app
-       is in — a light-toned pair that reads against the fixed mid-grey
-       either way, the same reasoning that makes the surface itself fixed. */
+    /* Refined accent colors - intentional, restrained, semantic */
+    --accent-primary: #e4c1fd;
+    --accent-primary-dim: rgba(228, 193, 253, 0.12);
+    --accent-success: #86efac;
+    --accent-success-dim: rgba(134, 239, 172, 0.12);
+    --accent-warm: #fbbf24;
+    --accent-warm-dim: rgba(251, 191, 36, 0.12);
+
     --night-strip-fixed: #4b4b50;
     --night-strip-fixed-ink: #f2f1ec;
     --night-strip-fixed-line: rgba(255, 255, 255, 0.28);
 
-    /* The Sun / Moon timeline end-caps read as identity, not as themed
-       surfaces: the Sun cap is ALWAYS light, the Moon cap ALWAYS dark, in
-       both themes — same "deliberate fixed exception" reasoning as
-       `--night-strip-fixed` above. Each carries its own legible-ink
-       companion. */
     --sun-cap-bg: #f2f1ec;
     --sun-cap-ink: #3a3a3e;
     --moon-cap-bg: #1b1b1f;
     --moon-cap-ink: #f2f1ec;
 
-    /* Native form controls (the `<input type="time">` picker indicator in
-       the Sun/Moon log popover, scrollbars, etc.) must follow the active
-       theme — without this the time field's clock icon is dark-on-dark and
-       invisible in the dark theme. */
     color-scheme: dark;
 
-    /* `SyncStatusPill`'s three states — a deliberate, narrow exception to
-       "no colour anywhere" (see that component's own doc comment): system-
-       sync status is the one place colour carries real meaning (safe/in-
-       progress/at-risk), never a per-category or per-item accent. Applied to
-       the status ICON only, never the chip's fill/border, so the pill itself
-       stays the same restrained neutral chrome as every other header pill.
-       Each value is picked to clear WCAG non-text (3:1) contrast against its
-       theme's `--surface`, same bar every other token here already clears. */
     --status-success: #34d399;
     --status-syncing: #fbbf24;
     --status-error: #f87171;
@@ -76,12 +47,22 @@
     --bg: #fafaf8;
     --surface: #ffffff;
     --surface-2: #f1f0ec;
+    --surface-3: #e8e7e2;
     --ink: #17171a;
     --ink-dim: #75757a;
     --line: rgba(10, 10, 11, 0.14);
     --line-soft: rgba(10, 10, 11, 0.08);
+    --line-softer: rgba(10, 10, 11, 0.05);
     --inv-bg: #17171a;
     --inv-ink: #fafaf8;
+
+    --accent-primary: #a855f7;
+    --accent-primary-dim: rgba(168, 85, 247, 0.12);
+    --accent-success: #16a34a;
+    --accent-success-dim: rgba(22, 163, 74, 0.12);
+    --accent-warm: #d97706;
+    --accent-warm-dim: rgba(217, 119, 6, 0.12);
+
     --status-success: #15803d;
     --status-syncing: #b45309;
     --status-error: #dc2626;

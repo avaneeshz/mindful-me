@@ -169,26 +169,29 @@ export function TileRow({
 function PanelHeader({ category, progress }: { category: Category; progress: TileProgress }) {
   const Icon = category.icon
   return (
-    <div className="flex items-center gap-sm">
-      {/* The connector — repeats the active tile's own icon, so the dialog
-          unambiguously belongs to it. */}
-      <span
-        aria-hidden="true"
-        className="flex size-[28px] shrink-0 items-center justify-center rounded-full bg-inv-bg text-inv-ink"
+    <div className="flex items-start gap-md">
+      {/* Enhanced icon container with accent glow */}
+      <div
+        className={cn(
+          'flex size-[36px] shrink-0 items-center justify-center rounded-lg transition-all duration-200',
+          'bg-accent-primary-dim border border-accent-primary/30 text-accent-primary',
+        )}
       >
-        <Icon className="size-[15px]" />
-      </span>
-      {/* `asChild` hands the heading element itself to Radix so the dialog
-          gets a real `aria-labelledby`-linked accessible name, same visual
-          markup as before. */}
-      <Dialog.Title asChild>
-        <h3 className="text-meta font-semibold text-ink">{category.label}</h3>
-      </Dialog.Title>
-      {progress.done > 0 && (
-        <p role="status" className="text-note font-medium text-ink-dim">
-          {describeProgress(progress)} for today.
-        </p>
-      )}
+        <Icon className="size-[18px]" strokeWidth={2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        {/* `asChild` hands the heading element itself to Radix so the dialog
+            gets a real `aria-labelledby`-linked accessible name, same visual
+            markup as before. */}
+        <Dialog.Title asChild>
+          <h3 className="text-entry-name font-semibold text-ink">{category.label}</h3>
+        </Dialog.Title>
+        {progress.done > 0 && (
+          <p role="status" className="text-note font-medium text-ink-dim mt-xs">
+            {describeProgress(progress)} for today.
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -208,7 +211,6 @@ function Tile({
 }) {
   const Icon = category.icon
   const locked = isTileLocked(progress)
-  // A real proportional gauge — done/total, not a fixed decorative value.
   const fillPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
@@ -222,34 +224,67 @@ function Tile({
         aria-label={`${category.label}, ${describeProgress(progress)}`}
         className={cn(
           'relative flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-sm overflow-hidden',
-          'rounded-lg border bg-bg p-sm transition-colors',
-          'hover:border-ink',
-          // Active: an ink ring, exactly the same treatment a selected chip
-          // uses elsewhere — no colour swap, no separate accent hue.
-          isActive ? 'border-ink shadow-[0_0_0_1px_var(--ink)]' : 'border-line',
+          'rounded-xl border transition-all duration-200 p-sm',
+          'group',
+          // Base state: refined surface with subtle line
+          'bg-surface-2/40 border-line-soft hover:border-line hover:bg-surface-2/60',
+          // Active state: enhanced visual with accent glow
+          isActive && [
+            'bg-accent-primary-dim border-accent-primary shadow-glow-accent',
+            'ring-2 ring-accent-primary/20',
+          ],
+          // Disabled/locked state
+          locked && 'opacity-50 cursor-default hover:bg-surface-2/40 hover:border-line-soft',
         )}
       >
-        <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
-        <span
+        {/* Background gradient for premium feel */}
+        <div
           aria-hidden="true"
-          className="w-full line-clamp-2 px-xs text-center text-micro font-bold leading-tight text-ink"
-        >
-          {category.label}
-        </span>
+          className={cn(
+            'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none',
+            'bg-gradient-to-br from-accent-primary/5 to-transparent',
+          )}
+        />
 
-        {/* Section B — a flat progress bar (fill width = done/total)
-            replaces the old water-fill gauge. Always rendered, even at 0%,
-            matching the reference implementation's own track/fill pair. */}
-        <span aria-hidden="true" className="h-[4px] w-full overflow-hidden rounded-full bg-line">
-          <span className="block h-full rounded-full bg-ink" style={{ width: `${fillPct}%` }} />
-        </span>
+        <div className="relative z-10 flex flex-col items-center gap-sm h-full justify-center">
+          <div
+            className={cn(
+              'flex items-center justify-center rounded-lg p-xs transition-colors duration-200',
+              'bg-surface-3/50 group-hover:bg-surface-3/80',
+              isActive && 'bg-accent-primary/20',
+            )}
+          >
+            <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
+          </div>
+
+          <span
+            aria-hidden="true"
+            className="w-full line-clamp-2 px-xs text-center text-micro font-bold leading-tight text-ink"
+          >
+            {category.label}
+          </span>
+
+          {/* Enhanced progress bar */}
+          <div
+            aria-hidden="true"
+            className="h-1.5 w-3/4 overflow-hidden rounded-full bg-line-soft"
+          >
+            <div
+              className={cn(
+                'h-full rounded-full transition-all duration-300',
+                isActive ? 'bg-accent-primary' : 'bg-ink',
+              )}
+              style={{ width: `${fillPct}%` }}
+            />
+          </div>
+        </div>
 
         {locked && (
           <span
             aria-hidden="true"
-            className="absolute left-xs top-xs flex size-[16px] items-center justify-center rounded-full bg-surface text-ink"
+            className="absolute inset-0 flex items-center justify-center rounded-xl bg-bg/40 backdrop-blur-sm"
           >
-            <CheckCircle2 className="size-[13px]" strokeWidth={2.5} />
+            <CheckCircle2 className="size-[20px] text-accent-success" strokeWidth={2.5} />
           </span>
         )}
       </button>
@@ -297,32 +332,42 @@ function ItemChip({
         aria-label={card.sub ? `${card.name}, ${card.sub.length} options` : card.name}
         className={cn(
           'relative flex aspect-square w-[92px] shrink-0 cursor-grab flex-col items-center justify-center gap-xs',
-          'rounded-lg border border-line bg-bg p-xs transition-colors',
-          'hover:border-ink active:cursor-grabbing disabled:cursor-not-allowed',
-          isDragging && 'scale-[0.96] opacity-40',
-          // No per-item colour any more (Section A) — a locked item dims via
-          // opacity alone, same as everywhere else "done" reads without a
-          // colour swap.
-          locked && 'opacity-40',
+          'rounded-xl border transition-all duration-200 p-xs group',
+          'active:cursor-grabbing disabled:cursor-not-allowed',
+          // Premium styling
+          'bg-surface-2/40 border-line-soft hover:border-line hover:bg-surface-2/60',
+          isDragging && 'scale-[0.96] opacity-60 border-accent-primary-dim',
+          locked && 'opacity-50 cursor-default hover:bg-surface-2/40 hover:border-line-soft',
         )}
       >
-        <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
-        <span aria-hidden="true" className="w-full truncate px-px text-center text-micro font-semibold text-ink">
-          {card.name}
-        </span>
+        {/* Hover gradient background */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none rounded-xl bg-gradient-to-br from-accent-primary/3 to-transparent"
+        />
+
+        <div className="relative z-10 flex flex-col items-center justify-center gap-xs">
+          <div className="flex items-center justify-center rounded-md p-xs bg-surface-3/50 group-hover:bg-surface-3/80 transition-colors duration-200">
+            <Icon aria-hidden="true" className="size-[18px] shrink-0 text-ink" />
+          </div>
+
+          <span aria-hidden="true" className="w-full truncate px-px text-center text-micro font-semibold text-ink">
+            {card.name}
+          </span>
+        </div>
 
         {card.sub && (
           <span
             aria-hidden="true"
-            className="absolute right-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-surface text-nano font-extrabold text-ink"
+            className="absolute right-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-accent-primary-dim text-nano font-extrabold text-ink border border-accent-primary/30"
           >
             {card.sub.length}
           </span>
         )}
 
         {locked && (
-          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-lg bg-surface/60">
-            <CheckCircle2 className="size-[24px] text-ink" strokeWidth={2.25} />
+          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-xl bg-bg/60 backdrop-blur-sm">
+            <CheckCircle2 className="size-[24px] text-accent-success" strokeWidth={2.25} />
           </span>
         )}
       </button>
@@ -337,7 +382,7 @@ function ItemChip({
             onToggleDismiss()
           }}
           aria-label={`Mark ${card.name} done for today`}
-          className="absolute left-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-surface text-ink-dim transition-colors hover:text-ink"
+          className="absolute left-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-surface-2 border border-line-soft text-ink-dim transition-all duration-200 hover:border-accent-primary hover:bg-accent-primary-dim hover:text-accent-primary"
         >
           <Circle aria-hidden="true" className="size-[12px]" strokeWidth={2.5} />
         </button>

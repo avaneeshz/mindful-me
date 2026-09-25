@@ -111,7 +111,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
     <section
       aria-labelledby={selectedActivity ? undefined : 'slot-editor-heading'}
       aria-label={selectedActivity ? 'Selected activity' : undefined}
-      className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
+      className="rounded-2xl border border-line-soft bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg transition-all duration-200 hover:border-line hover:shadow-elevation-2"
     >
       {selectedActivity ? (
         <ActivitySummary
