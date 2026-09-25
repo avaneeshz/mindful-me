@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Surfaces — layered navy, lightest on top */
+    --canvas: 6 9 18;
+    --surface-1: 11 16 29;
+    --surface-2: 15 22 39;
+    --surface-3: 22 31 53;
+    --line: 148 170 220;
+
+    /* Ink */
+    --ink: 236 240 248;
+    --ink-muted: 150 162 188;
+    --ink-faint: 98 110 138;
+
+    /* Accents — used sparingly, each with one job */
+    --accent: 104 106 246; /* primary action / selection */
+    --accent-ink: 172 176 255;
+    --mint: 52 211 163; /* live / on-track */
+    --sun: 251 186 72; /* morning */
+    --dusk: 99 102 220; /* evening */
+
+    /* Category hues — icon tints only */
+    --rose: 244 138 176;
+    --sky: 110 170 250;
+    --lilac: 176 150 250;
+    --sage: 120 200 150;
+    --sand: 220 184 130;
+
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans text-base;
+    font-feature-settings: 'cv11', 'ss01';
+    min-height: 100dvh;
+    background-image:
+      radial-gradient(1200px 600px at 10% -10%, rgb(52 72 140 / 0.22), transparent 60%),
+      radial-gradient(900px 500px at 110% 0%, rgb(40 90 120 / 0.12), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent-ink) / 0.9);
+    outline-offset: 2px;
+  }
+
+  button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .surface {
+    background: linear-gradient(180deg, rgb(var(--surface-2)) 0%, rgb(var(--surface-1)) 100%);
+    border: 1px solid rgb(var(--line) / 0.08);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.035),
+      0 1px 2px 0 rgb(0 0 0 / 0.3),
+      0 16px 36px -24px rgb(0 0 0 / 0.8);
+  }
+  .surface-flat {
+    background: rgb(var(--surface-1) / 0.7);
+    border: 1px solid rgb(var(--line) / 0.07);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
