@@ -51,14 +51,7 @@ export default {
       nano: ['10px', { lineHeight: '1.2' }],
     },
 
-    // --- Monochrome theme system (confirmed product decision, replacing the
-    // old forest-green/warm-ivory palette AND the per-category/per-item
-    // colour systems entirely — "no colour anywhere", light and dark are
-    // both this same neutral pair, just inverted). Every token below is a
-    // CSS custom property (styles/index.css) so `[data-theme]` can actually
-    // swap the whole app's colours at runtime; there is no hardcoded hex
-    // left in this file for anything theme-facing. See index.css for the
-    // light/dark value pairs themselves — the ONE place they're declared. ---
+    // --- Enhanced monochrome theme with restrained semantic accents ---
     colors: {
       transparent: 'transparent',
       current: 'currentColor',
@@ -69,40 +62,32 @@ export default {
       bg: 'var(--bg)',
       surface: 'var(--surface)',
       'surface-2': 'var(--surface-2)',
+      'surface-3': 'var(--surface-3)',
       ink: 'var(--ink)',
       'ink-dim': 'var(--ink-dim)',
       line: 'var(--line)',
       'line-soft': 'var(--line-soft)',
-      // The "invert" pair — a selected/active/primary fill is the OTHER
-      // end of the theme (near-black on light, near-white on dark), never a
-      // new hue. This is what a "selected" chip, the primary button, and
-      // the NOW badge all reach for.
+      'line-softer': 'var(--line-softer)',
       'inv-bg': 'var(--inv-bg)',
       'inv-ink': 'var(--inv-ink)',
 
-      // The Night timeline strip's one deliberate exception: a fixed grey,
-      // independent of the light/dark theme toggle (stays grey in both
-      // modes) — see index.css's `--night-strip-fixed` for why this is a
-      // literal, not theme-switched like everything else here. The two
-      // companion tokens are what stays legible drawn ON that fixed surface
-      // (the midnight tick, the Night row's own NOW marker) regardless of
-      // which theme the rest of the app is in.
+      // Restrained accent colors for intentional emphasis
+      'accent-primary': 'var(--accent-primary)',
+      'accent-primary-dim': 'var(--accent-primary-dim)',
+      'accent-success': 'var(--accent-success)',
+      'accent-success-dim': 'var(--accent-success-dim)',
+      'accent-warm': 'var(--accent-warm)',
+      'accent-warm-dim': 'var(--accent-warm-dim)',
+
       'night-strip-fixed': 'var(--night-strip-fixed)',
       'night-strip-fixed-ink': 'var(--night-strip-fixed-ink)',
       'night-strip-fixed-line': 'var(--night-strip-fixed-line)',
 
-      // Sun / Moon timeline end-caps — fixed light / fixed dark in BOTH
-      // themes (see index.css). The cap is an identity marker, not a themed
-      // surface, so it never switches under `[data-theme]`.
       'sun-cap': 'var(--sun-cap-bg)',
       'sun-cap-ink': 'var(--sun-cap-ink)',
       'moon-cap': 'var(--moon-cap-bg)',
       'moon-cap-ink': 'var(--moon-cap-ink)',
 
-      // `SyncStatusPill`'s narrow, approved exception to "no colour
-      // anywhere" — system-sync semantics only (see index.css for the
-      // light/dark values and that component's doc comment). Never reach
-      // for these outside that one component.
       'status-success': 'var(--status-success)',
       'status-syncing': 'var(--status-syncing)',
       'status-error': 'var(--status-error)',
@@ -129,13 +114,14 @@ export default {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
       },
 
-      // Exactly two elevation levels. elevation-1 is reused verbatim from the
-      // prototype's .card and is the ONLY resting shadow in the product.
-      // elevation-2 is transient (hover/active) only.
+      // Enhanced elevation levels for premium polish
       boxShadow: {
-        'elevation-1': '0 2px 14px rgba(61,58,53,0.05)',
-        'elevation-2': '0 4px 20px rgba(27,59,50,0.08)',
-        'elevation-1-up': '0 -2px 14px rgba(61,58,53,0.05)',
+        'elevation-1': '0 2px 14px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08)',
+        'elevation-2': '0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.12)',
+        'elevation-3': '0 12px 32px rgba(0, 0, 0, 0.20), 0 4px 12px rgba(0, 0, 0, 0.14)',
+        'elevation-1-up': '0 -2px 14px rgba(0, 0, 0, 0.12), 0 -1px 4px rgba(0, 0, 0, 0.08)',
+        'glow-accent': '0 0 20px rgba(228, 193, 253, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        'glow-success': '0 0 20px rgba(134, 239, 172, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         none: 'none',
       },
 

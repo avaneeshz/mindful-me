@@ -325,14 +325,11 @@ function TimelineRow({
             period === 'day' ? '6am to 6pm' : '6pm to 6am'
           }`}
           className={cn(
-            'timeline-row relative flex h-timeline-row w-full overflow-hidden rounded-lg mobile:h-timeline-row-sm ipad-land:h-timeline-row-md',
-            // Section C — no illustrated scenery any more (a partial
-            // reversal of the earlier decorative-budget decision, flagged
-            // in the PR description). Day: plain flat surface tone ("white
-            // only"). Night: a fixed grey, independent of the light/dark
-            // theme toggle — the one deliberate exception to "theme flows
-            // through everything" (`--night-strip-fixed`, styles/index.css).
-            period === 'day' ? 'bg-surface' : 'bg-night-strip-fixed',
+            'timeline-row relative flex h-timeline-row w-full overflow-hidden rounded-2xl mobile:h-timeline-row-sm ipad-land:h-timeline-row-md',
+            'border border-line-soft transition-all duration-200',
+            'hover:border-line hover:shadow-elevation-1',
+            // Day: refined surface with subtle border. Night: fixed grey
+            period === 'day' ? 'bg-surface-2/60 backdrop-blur-sm' : 'bg-night-strip-fixed',
           )}
         >
           {indices.map((slot) => {
@@ -486,24 +483,19 @@ function TimelineRow({
                     width: `${(segment.minutes / SLOT_MINUTES / SLOTS_PER_ROW) * 100}%`,
                   }}
                 >
-                  {/* The VISUAL fill — exactly this box, never resized by the
-                      hit-area floor on the button below. No more per-item
-                      colour (Section A) — every real activity's segment is
-                      the same flat, theme-aware wash, with a matching
-                      hairline for its edges. The Night row's background is
-                      the one fixed, theme-independent surface (Section C),
-                      so segments drawn on it reach for that surface's own
-                      fixed companion tokens instead, the same reasoning the
-                      slot states above already follow. */}
+                  {/* Enhanced visual fill with better depth and polish */}
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-0"
+                    className="pointer-events-none absolute inset-0 rounded transition-all duration-200"
                     style={{
-                      background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
+                      background:
+                        period === 'day'
+                          ? 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06))'
+                          : 'linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0.12))',
                       boxShadow:
                         period === 'day'
-                          ? 'inset 0 0 0 1px var(--line)'
-                          : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
+                          ? 'inset 0 0 0 1px var(--line), inset 0 1px 0 rgba(255,255,255,0.1)'
+                          : 'inset 0 0 0 1px var(--night-strip-fixed-line), inset 0 1px 0 rgba(255,255,255,0.1)',
                     }}
                   />
 

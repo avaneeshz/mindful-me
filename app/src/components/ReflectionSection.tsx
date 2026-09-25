@@ -49,7 +49,7 @@ export function ReflectionSection({
   return (
     <section
       aria-labelledby="reflection-heading"
-      className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
+      className="rounded-2xl border border-line-soft bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg transition-all duration-200 hover:border-line hover:shadow-elevation-2"
     >
       <h2 id="reflection-heading" className="font-display text-slot-time font-semibold text-ink">
         Reflection
@@ -84,23 +84,25 @@ export function ReflectionSection({
                     : card.title
               }
               className={cn(
-                'relative flex flex-col overflow-hidden rounded-md border bg-surface text-left transition-colors',
+                'relative flex flex-col overflow-hidden rounded-lg border bg-surface-2/40 text-left transition-all duration-200',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-                isMapped ? 'border-ink ring-2 ring-ink' : 'border-line hover:border-ink hover:shadow-elevation-2',
+                isMapped
+                  ? 'border-accent-primary bg-accent-primary-dim ring-2 ring-accent-primary/20 shadow-glow-accent'
+                  : 'border-line-soft hover:border-line hover:bg-surface-2/60 hover:shadow-elevation-2',
               )}
             >
               <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
-                <img src={card.image} alt="" className="size-full object-cover" />
+                <img src={card.image} alt="" className="size-full object-cover transition-transform duration-200 group-hover:scale-105" />
               </div>
-              <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">
+              <p className={cn('border-t px-sm py-sm text-center text-note font-semibold leading-snug transition-colors', isMapped ? 'border-accent-primary/30 text-ink' : 'border-line-soft text-ink-dim')}>
                 {card.title}
               </p>
               {isMapped && (
                 <span
                   aria-hidden="true"
-                  className="absolute right-xs top-xs flex size-[20px] items-center justify-center rounded-full bg-inv-bg text-inv-ink"
+                  className="absolute right-xs top-xs flex size-[24px] items-center justify-center rounded-lg bg-accent-success border border-accent-success/50 text-white shadow-elevation-1 transition-all duration-200"
                 >
-                  <Check className="size-[13px]" />
+                  <Check className="size-[14px]" strokeWidth={3} />
                 </span>
               )}
             </button>
