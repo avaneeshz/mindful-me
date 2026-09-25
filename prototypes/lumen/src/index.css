@@ -87,3 +87,9 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Sky gradients for the Day and Night strips */
+:root {
+  --sky-day: linear-gradient(90deg, #f2995a 0%, #f7c77e 10%, #a9cdf5 30%, #86b9f7 55%, #9cc6f5 72%, #f5b36e 90%, #e8845d 100%);
+  --sky-night: linear-gradient(90deg, #d67b62 0%, #7a5fc8 12%, #34368a 32%, #1b1d4d 50%, #2c2f7a 70%, #6b63c8 88%, #e59a6b 100%);
+}

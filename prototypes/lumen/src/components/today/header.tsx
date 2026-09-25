@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { BrandMark } from '@/components/shell'
 import { Button } from '@/components/ui/button'
 import { MenuItem, Popover } from '@/components/ui/primitives'
-import { categoryById, activityLabel } from '@/lib/data'
+import { categoryById, activityLabel, windowEntries } from '@/lib/data'
 import { useStore } from '@/lib/store'
 import { addDays, cn, dateKey, formatDay, fromKey, relativeDay, slotStart, todayKey } from '@/lib/utils'
 import { CustomizeSheet } from './customize-sheet'
@@ -235,7 +235,7 @@ export function MonthGrid({ value, onSelect }: { value: string; onSelect: (d: st
           if (!k) return <span key={i} />
           const future = k > today
           const selected = k === value
-          const logged = (days[k]?.entries.length ?? 0) > 0
+          const logged = windowEntries(days, k).length > 0
           return (
             <button
               key={k}
@@ -265,11 +265,11 @@ export function MonthGrid({ value, onSelect }: { value: string; onSelect: (d: st
 }
 
 function ExportMenu() {
-  const { day, date, toast } = useStore()
+  const { entries, date, toast } = useStore()
   const exportCsv = () => {
     const rows = [
       ['date', 'start', 'category', 'activity', 'minutes'],
-      ...[...day.entries]
+      ...[...entries]
         .sort((a, b) => a.slot - b.slot)
         .map((e) => [date, slotStart(e.slot), categoryById[e.categoryId].label, activityLabel(e.categoryId, e.activityId), String(e.minutes)]),
     ]
@@ -279,7 +279,7 @@ function ExportMenu() {
     a.download = `lumen-${date}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
-    toast({ message: `Exported ${day.entries.length} entries` })
+    toast({ message: `Exported ${entries.length} entries` })
   }
   return (
     <Popover

@@ -3,7 +3,7 @@ import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { IconBubble } from '@/components/ui/primitives'
-import { categories } from '@/lib/data'
+import { categories, windowEntries } from '@/lib/data'
 import { useStore } from '@/lib/store'
 import { cn, dateKey, formatDay, formatDuration, fromKey, todayKey } from '@/lib/utils'
 
@@ -21,11 +21,11 @@ export function CalendarScreen() {
     const n = i - lead + 1
     return n < 1 || n > count ? null : dateKey(new Date(cursor.getFullYear(), cursor.getMonth(), n))
   })
-  const logged = (k: string) => (days[k]?.entries ?? []).reduce((s, e) => s + e.minutes, 0)
+  const logged = (k: string) => windowEntries(days, k).reduce((s, e) => s + e.minutes, 0)
   const maxLogged = 16 * 60
-  const pickedDay = days[picked]
+  const pickedEntries = windowEntries(days, picked)
   const pickedTotals = categories
-    .map((c) => ({ c, m: (pickedDay?.entries ?? []).filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0) }))
+    .map((c) => ({ c, m: pickedEntries.filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0) }))
     .filter((x) => x.m > 0)
     .sort((a, b) => b.m - a.m)
   const isCurrentMonth = cursor.getMonth() === fromKey(today).getMonth() && cursor.getFullYear() === fromKey(today).getFullYear()

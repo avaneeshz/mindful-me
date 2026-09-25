@@ -26,12 +26,12 @@ function toBlocks(entries: Entry[]): Block[] {
 }
 
 export function DayFlow() {
-  const { day, setSelectedSlot, selectedSlot, isToday } = useStore()
+  const { entries, setSelectedSlot, selectedSlot, isToday } = useStore()
   const [expanded, setExpanded] = useState(false)
-  const blocks = useMemo(() => toBlocks(day.entries).reverse(), [day.entries])
-  const total = day.entries.reduce((s, e) => s + e.minutes, 0)
+  const blocks = useMemo(() => toBlocks(entries).reverse(), [entries])
+  const total = entries.reduce((s, e) => s + e.minutes, 0)
   const byCategory = categories
-    .map((c) => ({ c, minutes: day.entries.filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0) }))
+    .map((c) => ({ c, minutes: entries.filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0) }))
     .filter((x) => x.minutes > 0)
     .sort((a, b) => b.minutes - a.minutes)
   const shown = expanded ? blocks : blocks.slice(0, 6)

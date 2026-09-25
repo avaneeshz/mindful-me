@@ -15,8 +15,8 @@ All data is sample data held in memory. Reloading resets it.
 
 - **Today**: brand header, date picker with a month popover, export menu (a real CSV download), a Health-sync toggle, and Customize (show or hide metrics and categories).
   - Metric tiles (steps, water, protein) open a stepper sheet. A tile turns mint when its goal is met.
-  - Wake-up and wind-down tracks: drag, click or use the arrow keys, snapping to 15 minutes.
-  - Slot card: the current 30-minute slot, how much of it is used, and a 48-slot scrubber whose bars fill in each category's colour. It also has the slot's entries (removable) and a 3×3 category grid. Picking a category opens an activity sheet where you choose the activity and duration and log it; a toast offers Undo.
+  - Day (6 AM – 6 PM) and Night (6 PM – 6 AM) strips: continuous sky-coloured bars showing what was logged. Tap, drag or use the arrow keys to pick a half-hour. A Lumen day runs 6 AM → 6 AM, so after-midnight time sits on the Night strip, marked as the next day, but is stored on the next calendar date.
+  - Slot card: the selected 30-minute slot (with previous/next buttons), how much of it is used, the slot's entries (removable) and a 3×3 category grid. Picking a category opens an activity sheet where you choose the activity and duration and log it; a toast offers Undo.
   - "Where today went": how the day split across categories, plus a timeline you can expand. Tapping a row jumps to that slot.
 - **Calendar**: a month heatmap and a summary of the selected day.
 - **Insights**: a stacked chart of time per day (week or 4 weeks) and a category breakdown you can filter.

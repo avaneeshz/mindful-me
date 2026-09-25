@@ -12,7 +12,7 @@ import {
   Beef,
   type LucideIcon,
 } from 'lucide-react'
-import { addDays, seeded, todayKey, currentSlot } from './utils'
+import { DAY_FIRST_SLOT, SLOTS_PER_DAY, addDays, seeded, todayKey, currentSlot } from './utils'
 
 export type Hue = 'accent' | 'sky' | 'mint' | 'lilac' | 'rose' | 'sun' | 'sand' | 'sage' | 'neutral'
 
@@ -226,12 +226,13 @@ export type Entry = {
 export type DayRecord = {
   entries: Entry[]
   metrics: Record<MetricId, number>
-  wake: number // minutes past midnight
-  windDown: number // minutes past midnight (may exceed 1440 for after-midnight)
 }
 
 /** A believable weekday, as [slot, category, activity, minutes] */
 const template: [number, string, string, number][] = [
+  // 00:00–00:30 belongs to the previous Lumen day's night
+  [0, 'learn', 'reading', 20],
+  [0, 'rest', 'meditate', 10],
   [13, 'outside', 'sunlight', 10],
   [13, 'nourish', 'coffee', 10],
   [14, 'move', 'run', 30],
@@ -311,19 +312,24 @@ function buildDay(dayOffset: number, cutoffSlot: number): DayRecord {
             water: Math.round((1.4 + r() * 1.4) * 4) / 4,
             protein: Math.round(55 + r() * 45),
           },
-    wake: 6 * 60 + 30 + (dayOffset === 0 ? 0 : Math.round((r() - 0.5) * 4) * 15),
-    windDown: 22 * 60 + 30 + (dayOffset === 0 ? 0 : Math.round((r() - 0.5) * 4) * 15),
   }
 }
 
 export function emptyDay(): DayRecord {
-  return { entries: [], metrics: { steps: 0, water: 0, protein: 0 }, wake: 7 * 60, windDown: 22 * 60 + 30 }
+  return { entries: [], metrics: { steps: 0, water: 0, protein: 0 } }
 }
 
 export function seedDays(): Record<string, DayRecord> {
   const today = todayKey()
   const days: Record<string, DayRecord> = {}
-  days[today] = buildDay(0, currentSlot())
+  // Only seed what has already happened; after-midnight slots (48+) live on the next date.
+  const now = currentSlot()
+  days[today] = buildDay(0, now)
+  if (now >= SLOTS_PER_DAY) {
+    const tomorrow = addDays(today, 1)
+    days[tomorrow] = { ...buildDay(-1, now - SLOTS_PER_DAY), metrics: { steps: 0, water: 0, protein: 0 } }
+    days[tomorrow].entries = days[tomorrow].entries.filter((e) => e.slot < DAY_FIRST_SLOT)
+  }
   for (let i = 1; i <= 34; i++) days[addDays(today, -i)] = buildDay(i, 48)
   return days
 }
@@ -353,3 +359,15 @@ export const seedNotices: Notice[] = [
     unread: false,
   },
 ]
+
+/**
+ * Entries for one Lumen day (6 AM → 6 AM). Stored entries keep their calendar date and 0–47 slot;
+ * here they're re-numbered 12–59 so the night reads as one continuous stretch.
+ */
+export function windowEntries(days: Record<string, DayRecord>, key: string): Entry[] {
+  const own = (days[key]?.entries ?? []).filter((e) => e.slot >= DAY_FIRST_SLOT)
+  const next = (days[addDays(key, 1)]?.entries ?? [])
+    .filter((e) => e.slot < DAY_FIRST_SLOT)
+    .map((e) => ({ ...e, slot: e.slot + SLOTS_PER_DAY }))
+  return [...own, ...next]
+}

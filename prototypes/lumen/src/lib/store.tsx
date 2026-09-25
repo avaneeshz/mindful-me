@@ -9,8 +9,9 @@ import {
   type Entry,
   type MetricId,
   type Notice,
+  windowEntries,
 } from './data'
-import { SLOT_MINUTES, currentSlot, todayKey } from './utils'
+import { SLOTS_PER_DAY, SLOT_MINUTES, addDays, currentSlot, todayKey } from './utils'
 
 export type Tab = 'today' | 'calendar' | 'insights' | 'more'
 
@@ -27,12 +28,13 @@ type Store = {
   setSelectedSlot: (s: number) => void
   days: Record<string, DayRecord>
   day: DayRecord
+  /** This Lumen day's entries (6 AM → 6 AM), slots numbered 12–59. */
+  entries: Entry[]
   slotEntries: Entry[]
   slotUsed: (slot: number) => number
   logActivity: (input: { categoryId: string; activityId: string; minutes: number; slot?: number }) => void
   removeEntry: (id: string) => void
   setMetric: (id: MetricId, value: number) => void
-  setRhythm: (key: 'wake' | 'windDown', minutes: number) => void
   hiddenCategories: string[]
   toggleCategory: (id: string) => void
   hiddenMetrics: MetricId[]
@@ -72,20 +74,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const isToday = date === todayKey()
   const day = days[date] ?? emptyDay()
+  const entries = useMemo(() => windowEntries(days, date), [days, date])
 
   const setDate = useCallback((d: string) => {
     setDateState(d)
     setSelectedSlot(d === todayKey() ? currentSlot() : 18)
   }, [])
 
-  const updateDay = useCallback(
-    (fn: (d: DayRecord) => DayRecord) => setDays((all) => ({ ...all, [date]: fn(all[date] ?? emptyDay()) })),
-    [date],
+  // Slots 48+ are after midnight, so they're stored on the next calendar date.
+  const updateDate = useCallback(
+    (key: string, fn: (d: DayRecord) => DayRecord) => setDays((all) => ({ ...all, [key]: fn(all[key] ?? emptyDay()) })),
+    [],
   )
+  const updateDay = useCallback((fn: (d: DayRecord) => DayRecord) => updateDate(date, fn), [date, updateDate])
 
   const slotUsed = useCallback(
-    (slot: number) => day.entries.filter((e) => e.slot === slot).reduce((sum, e) => sum + e.minutes, 0),
-    [day],
+    (slot: number) => entries.filter((e) => e.slot === slot).reduce((sum, e) => sum + e.minutes, 0),
+    [entries],
   )
 
   const dismissToast = useCallback((id: string) => setToasts((ts) => ts.filter((t) => t.id !== id)), [])
@@ -100,8 +105,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const removeEntry = useCallback(
-    (id: string) => updateDay((d) => ({ ...d, entries: d.entries.filter((e) => e.id !== id) })),
-    [updateDay],
+    (id: string) =>
+      setDays((all) => {
+        const next = { ...all }
+        for (const key of [date, addDays(date, 1)]) {
+          if (next[key]) next[key] = { ...next[key], entries: next[key].entries.filter((e) => e.id !== id) }
+        }
+        return next
+      }),
+    [date],
   )
 
   const logActivity = useCallback<Store['logActivity']>(
@@ -113,24 +125,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast({ message: 'This slot is already full' })
         return
       }
-      const entry: Entry = { id: newId(), slot: target, categoryId, activityId, minutes: amount }
-      updateDay((d) => ({ ...d, entries: [...d.entries, entry] }))
+      const afterMidnight = target >= SLOTS_PER_DAY
+      const entry: Entry = {
+        id: newId(),
+        slot: afterMidnight ? target - SLOTS_PER_DAY : target,
+        categoryId,
+        activityId,
+        minutes: amount,
+      }
+      updateDate(afterMidnight ? addDays(date, 1) : date, (d) => ({ ...d, entries: [...d.entries, entry] }))
       const label = categories.find((c) => c.id === categoryId)?.activities.find((a) => a.id === activityId)?.label
       toast({
         message: `Logged ${amount} min · ${label ?? 'Activity'}`,
         action: { label: 'Undo', run: () => removeEntry(entry.id) },
       })
     },
-    [selectedSlot, slotUsed, updateDay, toast, removeEntry],
+    [selectedSlot, slotUsed, updateDate, date, toast, removeEntry],
   )
 
   const setMetric = useCallback(
     (id: MetricId, value: number) => updateDay((d) => ({ ...d, metrics: { ...d.metrics, [id]: Math.max(0, value) } })),
-    [updateDay],
-  )
-
-  const setRhythm = useCallback(
-    (key: 'wake' | 'windDown', minutes: number) => updateDay((d) => ({ ...d, [key]: minutes })),
     [updateDay],
   )
 
@@ -164,7 +178,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const markNoticesRead = useCallback(() => setNotices((ns) => ns.map((n) => ({ ...n, unread: false }))), [])
 
-  const slotEntries = useMemo(() => day.entries.filter((e) => e.slot === selectedSlot), [day, selectedSlot])
+  const slotEntries = useMemo(() => entries.filter((e) => e.slot === selectedSlot), [entries, selectedSlot])
 
   const value: Store = {
     tab,
@@ -177,12 +191,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSelectedSlot,
     days,
     day,
+    entries,
     slotEntries,
     slotUsed,
     logActivity,
     removeEntry,
     setMetric,
-    setRhythm,
     hiddenCategories,
     toggleCategory,
     hiddenMetrics,

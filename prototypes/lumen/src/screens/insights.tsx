@@ -2,7 +2,7 @@ import { motion } from 'motion/react'
 import { Flame, Sun, Timer } from 'lucide-react'
 import { useState } from 'react'
 import { IconBubble, Segmented } from '@/components/ui/primitives'
-import { categories, hueStyles } from '@/lib/data'
+import { categories, hueStyles, windowEntries } from '@/lib/data'
 import { useStore } from '@/lib/store'
 import { addDays, cn, formatClock, formatDuration, fromKey, todayKey } from '@/lib/utils'
 
@@ -14,7 +14,7 @@ export function InsightsScreen() {
   const keys = Array.from({ length: range }, (_, i) => addDays(today, -(range - 1 - i)))
 
   const perDay = keys.map((k) => {
-    const entries = days[k]?.entries ?? []
+    const entries = windowEntries(days, k)
     const byCat = Object.fromEntries(categories.map((c) => [c.id, entries.filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0)]))
     return { k, byCat, total: entries.reduce((s, e) => s + e.minutes, 0) }
   })
@@ -25,8 +25,12 @@ export function InsightsScreen() {
     .map((c) => ({ c, m: perDay.reduce((s, d) => s + d.byCat[c.id], 0), days: perDay.filter((d) => d.byCat[c.id] > 0).length }))
     .sort((a, b) => b.m - a.m)
   const consistent = [...totals].sort((a, b) => b.days - a.days)[0]
-  const wakes = keys.map((k) => days[k]?.wake).filter((w): w is number => w !== undefined)
-  const avgWake = wakes.length ? Math.round(wakes.reduce((a, b) => a + b, 0) / wakes.length / 5) * 5 : 0
+  // When the day usually gets going: the first logged half-hour, averaged over days with entries.
+  const starts = keys
+    .map((k) => windowEntries(days, k))
+    .filter((es) => es.length > 0)
+    .map((es) => Math.min(...es.map((e) => e.slot)) * 30)
+  const avgStart = starts.length ? Math.round(starts.reduce((a, b) => a + b, 0) / starts.length / 5) * 5 : 0
   const allMax = totals[0]?.m || 1
 
   return (
@@ -58,7 +62,7 @@ export function InsightsScreen() {
           value={consistent?.c.short ?? '—'}
           hint={consistent ? `${consistent.days} of ${range} days` : undefined}
         />
-        <Stat icon={Sun} hue="sun" label="Typical wake-up" value={`${formatClock(avgWake).time} ${formatClock(avgWake).suffix}`} />
+        <Stat icon={Sun} hue="sun" label="Day usually starts" value={starts.length ? `${formatClock(avgStart).time} ${formatClock(avgStart).suffix}` : '—'} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">

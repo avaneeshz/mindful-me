@@ -38,8 +38,15 @@ export function formatDuration(minutes: number) {
   return `${h}h ${m}m`
 }
 
+/** A Lumen day runs 6 AM → 6 AM. Its slots are numbered from that date's midnight: 12 (06:00) to 59 (05:30 next day). */
+export const DAY_FIRST_SLOT = 12
+export const DAY_END_SLOT = 60
+export const NIGHT_FIRST_SLOT = 36
+
+/** The current half-hour as a Lumen day slot (after midnight counts as 48+). */
 export function currentSlot(now = new Date()) {
-  return Math.floor((now.getHours() * 60 + now.getMinutes()) / SLOT_MINUTES)
+  const slot = Math.floor((now.getHours() * 60 + now.getMinutes()) / SLOT_MINUTES)
+  return slot < DAY_FIRST_SLOT ? slot + SLOTS_PER_DAY : slot
 }
 
 export function dateKey(d: Date) {
@@ -57,7 +64,8 @@ export function addDays(key: string, delta: number) {
   return dateKey(d)
 }
 
-export const todayKey = () => dateKey(new Date())
+/** The Lumen day we're in right now: before 6 AM still belongs to yesterday. */
+export const todayKey = () => dateKey(new Date(Date.now() - 6 * 60 * 60 * 1000))
 
 export function formatDay(key: string, style: 'short' | 'long' = 'short') {
   const d = fromKey(key)
