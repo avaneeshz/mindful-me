@@ -75,29 +75,6 @@ export async function apiProvisionDefaultParameterOptions(): Promise<boolean> {
   return true
 }
 
-export async function apiCreateParameterOption(input: {
-  id: string
-  parameterType: ParameterType
-  label: string
-  activityId?: string | null
-  iconKey?: string | null
-}): Promise<string | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.rpc('create_parameter_option', {
-    p_id: input.id,
-    p_parameter_type: input.parameterType,
-    p_label: input.label,
-    p_activity_id: input.activityId ?? null,
-    p_icon_key: input.iconKey ?? null,
-  })
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('[parameterOptions] create_parameter_option failed — kept locally, will retry on next load', error.message)
-    return null
-  }
-  return data as string
-}
-
 export async function apiUpdateParameterOption(id: string, label: string, iconKey?: string | null): Promise<boolean> {
   if (!supabase) return false
   const { error } = await supabase.rpc('update_parameter_option', { p_id: id, p_label: label, p_icon_key: iconKey ?? null })
@@ -120,21 +97,6 @@ export async function apiReorderParameterOptions(orderedIds: string[]): Promise<
   return true
 }
 
-/** Same `{ok:false, reason}` contract as `apiDeleteTile`/`apiDeleteActivity` — `'has_history'` means this exact label has been stored on a real logged activity (rule 11: no delete-what-has-history mechanism exists for an option, only removal from future pickers via editing it out — see the report for why there's no "hide" equivalent here). */
-export async function apiDeleteParameterOption(
-  id: string,
-): Promise<{ ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }> {
-  if (!supabase) return { ok: false, reason: 'unreachable' }
-  const { error } = await supabase.rpc('delete_parameter_option', { p_id: id })
-  if (error) {
-    if (error.message.includes('parameter_option_has_history')) return { ok: false, reason: 'has_history' }
-    // eslint-disable-next-line no-console
-    console.warn('[parameterOptions] delete_parameter_option failed', error.message)
-    return { ok: false, reason: 'unreachable' }
-  }
-  return { ok: true }
-}
-
 /** Removes every one of this activity's OWN option rows for one parameter type, falling back to inheritance — any row still in use is left in place (rule 11) rather than silently destroyed; `skippedLabels` names which ones survived so the UI can explain a partial reset. */
 export async function apiResetParameterOptionsToInherited(
   activityId: string,
@@ -148,6 +110,35 @@ export async function apiResetParameterOptionsToInherited(
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[parameterOptions] reset_parameter_options_to_inherited failed', error.message)
+    return { ok: false }
+  }
+  return { ok: true, skippedLabels: ((data ?? []) as { skipped_label: string }[]).map((r) => r.skipped_label) }
+}
+
+/**
+ * Materializes this activity's (or the fallback's, `activityId: null`) own
+ * option list to be EXACTLY `labels`, in one atomic step — real subset
+ * narrowing (e.g. 5 of 18 inherited quality options) without retyping
+ * anything, and the one call both "add an option to whatever's currently
+ * shown" and "remove one" now go through (`state/useParameterOptions.ts`'s
+ * `setOverride`). Same history-safety contract as `apiResetParameterOptionsToInherited`
+ * — a label being dropped that already has real logged history on this
+ * activity is kept anyway, named in `skippedLabels`.
+ */
+export async function apiSetParameterOptionsOverride(
+  activityId: string | null,
+  type: ParameterType,
+  labels: string[],
+): Promise<{ ok: true; skippedLabels: string[] } | { ok: false }> {
+  if (!supabase) return { ok: false }
+  const { data, error } = await supabase.rpc('set_parameter_options_override', {
+    p_activity_id: activityId,
+    p_parameter_type: type,
+    p_labels: labels,
+  })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[parameterOptions] set_parameter_options_override failed', error.message)
     return { ok: false }
   }
   return { ok: true, skippedLabels: ((data ?? []) as { skipped_label: string }[]).map((r) => r.skipped_label) }
