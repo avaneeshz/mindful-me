@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   apiListEffectiveParameterOptions,
   apiListParameterOptions,
-  apiProvisionDefaultParameterOptions,
   apiResetParameterOptionsToInherited,
   apiSetParameterOptionsOverride,
   apiUpdateParameterOption,
@@ -13,6 +12,7 @@ import { FLAGS, QUALITIES, SYMPTOMS } from '@/data/activities'
 import { generateId } from '@/domain/scheduling'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { notifyParameterOptionsChanged, useParameterOptionsInvalidationVersion } from './parameterOptionsInvalidation'
+import { provisionDefaultParameterOptionsOnce } from './parameterOptionsProvisioning'
 
 export type ParameterOptionsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -149,7 +149,20 @@ export function useParameterOptions(activityId: string | null): UseParameterOpti
         (flag?.length ?? 0) === 0
       if (allEmpty) {
         provisionedRef.current = true
-        const provisioned = await apiProvisionDefaultParameterOptions()
+        // `provisionDefaultParameterOptionsOnce` (not
+        // `apiProvisionDefaultParameterOptions` directly) — found by code
+        // review: `ActivityLibraryPanel` now renders alongside `SlotEditor`,
+        // so a brand-new user opening Edit mode can have TWO
+        // `useParameterOptions(null)` instances (one per component) hit this
+        // branch at once. Without de-duping, both would call the RPC, the
+        // second would trip the unique index (a plain check-then-insert, not
+        // an atomic upsert) and fail, and that losing instance would fall
+        // through to stale empty state below instead of reloading. This
+        // closes the SAME-TAB case (see `parameterOptionsProvisioning.ts`'s
+        // own doc comment for why it's only ever that, not cross-tab/
+        // cross-device too) — `provision_default_parameter_options()` itself
+        // also now takes an advisory lock server-side for the general case.
+        const provisioned = await provisionDefaultParameterOptionsOnce()
         if (cancelledRef.current || activityIdRef.current !== activityId) return
         if (provisioned) {
           await load(cancelledRef)
