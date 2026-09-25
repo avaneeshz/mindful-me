@@ -77,9 +77,9 @@ export function TileRow({
       {atCapacity && (
         <p
           role="status"
-          className="mb-lg flex items-start gap-sm rounded-md bg-bg px-md py-sm text-note font-medium text-ink"
+          className="mb-lg flex items-start gap-md rounded-lg bg-accent-warm-dim border border-accent-warm/30 px-md py-md text-note font-medium text-ink transition-all duration-200"
         >
-          <Info aria-hidden="true" className="mt-px size-[14px] shrink-0 text-ink-dim" />
+          <Info aria-hidden="true" className="mt-xs size-[16px] shrink-0 text-accent-warm flex-shrink-0" strokeWidth={2} />
           <span>
             This slot is full — {describeSlotContents(activityCount, usedMinutes)}.{' '}
             <span className="sr-only">The activity list above is unavailable until there is room. </span>
@@ -115,12 +115,12 @@ export function TileRow({
           true. `position: fixed` still positions against the viewport
           either way. */}
       <Dialog.Root open={openCategory !== null} onOpenChange={(open) => !open && setOpenCategory(null)}>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200" />
         <Dialog.Content
           className={cn(
-            'fixed z-50 flex flex-col gap-md overflow-y-auto bg-surface p-lg shadow-elevation-2 focus:outline-none',
+            'fixed z-50 flex flex-col gap-lg overflow-y-auto bg-surface p-lg shadow-elevation-3 focus:outline-none border border-line-soft',
             'inset-0 mobile:inset-0',
-            'md:inset-auto md:left-1/2 md:top-1/2 md:w-[min(640px,92vw)] md:max-h-[85vh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg',
+            'md:inset-auto md:left-1/2 md:top-1/2 md:w-[min(640px,92vw)] md:max-h-[85vh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl',
           )}
         >
           {openCategory && openCards && openProgress && openCategoryDef && (
@@ -131,9 +131,9 @@ export function TileRow({
                   <button
                     type="button"
                     aria-label="Close"
-                    className="flex size-[32px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
+                    className="flex size-[36px] shrink-0 items-center justify-center rounded-lg bg-surface-2/40 text-ink-dim transition-all duration-200 border border-line-soft hover:bg-surface-2/60 hover:text-ink hover:border-line"
                   >
-                    <X aria-hidden="true" className="size-[18px]" />
+                    <X aria-hidden="true" className="size-[18px]" strokeWidth={2.5} />
                   </button>
                 </Dialog.Close>
               </div>

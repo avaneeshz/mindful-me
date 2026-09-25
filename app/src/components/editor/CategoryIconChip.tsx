@@ -22,9 +22,12 @@ export function CategoryIconChip({
   return (
     <span
       aria-hidden="true"
-      className={cn('flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink', className)}
+      className={cn(
+        'flex size-chip shrink-0 items-center justify-center rounded-md bg-surface-2/60 border border-line-soft text-ink transition-all duration-200 hover:bg-surface-2/80 hover:border-line',
+        className,
+      )}
     >
-      {Icon ? <Icon className="size-[16px]" /> : null}
+      {Icon ? <Icon className="size-[16px]" strokeWidth={2} /> : null}
     </span>
   )
 }

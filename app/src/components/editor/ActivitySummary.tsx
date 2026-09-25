@@ -53,25 +53,30 @@ export function ActivitySummary({
 
   return (
     <div>
-      <header className="flex items-start justify-between gap-lg border-b border-line pb-lg">
+      <header className="flex items-start justify-between gap-lg border-b border-line-soft pb-lg transition-all duration-200">
         <div className="flex min-w-0 flex-1 flex-col gap-sm">
           <div className="flex flex-wrap items-center gap-md">
             {category && <CategoryIconChip category={category} icon={card?.icon} />}
             <h2 className="font-display text-slot-time font-semibold text-ink">{name}</h2>
             {isCompleted && (
-              <span className="rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink">
+              <span className="rounded-lg bg-accent-success-dim border border-accent-success/30 px-sm py-xs text-micro font-bold uppercase tracking-tag text-accent-success">
                 Completed
               </span>
             )}
             {syncState !== 'synced' && (
               <span
                 role="status"
-                className="flex items-center gap-xs rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink"
+                className={cn(
+                  'flex items-center gap-xs rounded-lg px-sm py-xs text-micro font-bold uppercase tracking-tag transition-all duration-200 border',
+                  syncState === 'failed'
+                    ? 'bg-accent-warm-dim border-accent-warm/30 text-accent-warm'
+                    : 'bg-surface-2/40 border-line-soft text-ink-dim',
+                )}
               >
                 {syncState === 'failed' ? (
-                  <AlertTriangle aria-hidden="true" className="size-[11px]" />
+                  <AlertTriangle aria-hidden="true" className="size-[11px]" strokeWidth={2.5} />
                 ) : (
-                  <CloudUpload aria-hidden="true" className="size-[11px]" />
+                  <CloudUpload aria-hidden="true" className="size-[11px]" strokeWidth={2.5} />
                 )}
                 {syncState === 'failed' ? "Couldn't sync — retrying" : 'Not yet synced'}
               </span>
@@ -97,9 +102,9 @@ export function ActivitySummary({
                 type="button"
                 aria-label="Close activity summary"
                 onClick={onClose}
-                className="flex size-stepper shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
+                className="flex size-stepper shrink-0 items-center justify-center rounded-lg bg-surface-2/40 text-ink-dim transition-all duration-200 border border-line-soft hover:bg-surface-2/60 hover:text-ink hover:border-line"
               >
-                <X aria-hidden="true" className="size-[16px]" />
+                <X aria-hidden="true" className="size-[16px]" strokeWidth={2.5} />
               </button>
             </div>
           </div>
@@ -142,7 +147,7 @@ export function ActivitySummary({
                       type="button"
                       onClick={() => onOpenNote(r.card)}
                       aria-label={`${title} — edit reflection note`}
-                      className="block w-[72px] overflow-hidden rounded-sm border border-line bg-surface-2 transition-colors hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                      className="block w-[72px] overflow-hidden rounded-md border border-line-soft bg-surface-2/40 transition-all duration-200 hover:border-line hover:bg-surface-2/60 hover:shadow-elevation-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                     >
                       <span className="block aspect-[4/3] w-full">
                         {rc && <img src={rc.image} alt="" className="size-full object-cover" />}
