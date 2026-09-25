@@ -70,7 +70,12 @@ function renderNavEntry({ label, icon: Icon, to }: NavEntry, onNavigate: () => v
         key={label}
         to={to}
         end
-        className={({ isActive }) => cn(navItemClass, isActive && 'bg-ink/10 font-semibold text-ink')}
+        className={({ isActive }) =>
+          cn(
+            navItemClass,
+            isActive && 'bg-accent-primary-dim border-l-2 border-accent-primary font-semibold text-ink pl-[calc(1rem-2px)]',
+          )
+        }
         onClick={onNavigate}
         title={label}
       >
