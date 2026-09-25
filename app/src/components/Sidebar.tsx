@@ -56,7 +56,7 @@ const NAV_REST: NavEntry[] = [
 ]
 
 const navItemClass =
-  'flex items-center gap-md rounded-md px-md py-md text-left text-btn font-medium text-ink-dim'
+  'flex items-center gap-md rounded-md px-md py-md text-left text-btn font-medium text-ink-dim transition-all duration-200 hover:text-ink hover:bg-surface-2/40'
 
 /**
  * One nav row. A `to` entry is a real link; everything else is a disabled
@@ -152,9 +152,9 @@ export function Sidebar() {
         aria-expanded={mobileOpen}
         aria-controls="primary-navigation"
         onClick={() => setMobileOpen(true)}
-        className="mobile-sidebar-launcher fixed left-lg top-lg z-30 hidden size-flag items-center justify-center rounded-md bg-inv-bg text-inv-ink shadow-elevation-1 mobile:flex"
+        className="mobile-sidebar-launcher fixed left-lg top-lg z-30 hidden size-flag items-center justify-center rounded-lg bg-surface-2 text-ink shadow-elevation-1 border border-line-soft hover:border-line hover:shadow-elevation-2 transition-all duration-200 mobile:flex"
       >
-        <Menu aria-hidden="true" className="size-[18px]" />
+        <Menu aria-hidden="true" className="size-[18px]" strokeWidth={2.5} />
       </button>
       {mobileOpen && (
         <button
@@ -219,25 +219,25 @@ export function Sidebar() {
             type="button"
             aria-label="Close navigation"
             onClick={closeMobileNavigation}
-            className="sidebar-mobile-close hidden size-flag items-center justify-center rounded-md text-ink hover:bg-ink/10 mobile:flex"
+            className="sidebar-mobile-close hidden size-flag items-center justify-center rounded-md text-ink hover:bg-surface-2/60 transition-all duration-200 mobile:flex"
           >
-            <PanelLeftClose aria-hidden="true" className="size-[18px]" />
+            <PanelLeftClose aria-hidden="true" className="size-[18px]" strokeWidth={2.5} />
           </button>
           <button
             type="button"
             aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
             aria-pressed={collapsed}
             onClick={() => setCollapsed((value) => !value)}
-            className="sidebar-collapse flex size-flag shrink-0 items-center justify-center rounded-md text-ink transition-colors hover:bg-ink/10 mobile:hidden"
+            className="sidebar-collapse flex size-flag shrink-0 items-center justify-center rounded-md text-ink transition-all duration-200 hover:bg-surface-2/60 hover:border hover:border-line-soft mobile:hidden"
           >
-            <Menu aria-hidden="true" className="size-[18px]" />
+            <Menu aria-hidden="true" className="size-[18px]" strokeWidth={2.5} />
           </button>
         </div>
 
         <div className="sidebar-brand-row mt-md flex items-start gap-lg">
           <div className="flex min-w-0 items-center gap-md">
-            <div className="flex size-brand shrink-0 items-center justify-center rounded-md bg-inv-bg">
-              <Sparkles aria-hidden="true" className="size-[18px] text-inv-ink" />
+            <div className="flex size-brand shrink-0 items-center justify-center rounded-lg bg-accent-primary-dim border border-accent-primary/30 transition-all duration-200 hover:border-accent-primary hover:shadow-glow-accent">
+              <Sparkles aria-hidden="true" className="size-[18px] text-accent-primary" strokeWidth={2.5} />
             </div>
             <div className="sidebar-label min-w-0">
               <div className="font-display text-brand font-semibold text-ink">Ritual Board</div>
@@ -258,22 +258,15 @@ export function Sidebar() {
         {NAV_REST.map((entry) => renderNavEntry(entry, () => setMobileOpen(false)))}
       </nav>
 
-      <div className="sidebar-label relative z-10 mx-lg rounded-lg bg-ink/[0.06] p-lg">
+      <div className="sidebar-label relative z-10 mx-lg rounded-lg bg-accent-primary-dim border border-accent-primary/30 p-lg transition-all duration-200 hover:border-accent-primary">
         <div className="mb-xs text-note font-bold text-ink">Stay Consistent</div>
         <div className="mb-md text-caption-sm text-ink-dim">
           Build better rituals, one slot at a time.
         </div>
-        {/*
-          Same honest treatment as the placeholder nav items above: this was a
-          plain <span> styled exactly like a working button — not focusable, no
-          handler, no disabled affordance, and no destination behind it. It is
-          now a real disabled button, so it looks and behaves unavailable
-          instead of merely ignoring every click. No destination was invented.
-        */}
         <button
           type="button"
           disabled
-          className="inline-block cursor-not-allowed rounded-sm bg-inv-bg px-md py-sm text-caption-sm font-bold text-inv-ink opacity-70"
+          className="inline-block cursor-not-allowed rounded-md bg-surface-2 px-md py-sm text-caption-sm font-bold text-ink-dim opacity-50 transition-all duration-200 border border-line-softer"
         >
           View Tips →<span className="sr-only"> (not yet available)</span>
         </button>

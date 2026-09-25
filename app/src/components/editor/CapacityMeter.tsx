@@ -40,8 +40,8 @@ export function CapacityMeter({ segments }: CapacityMeterProps) {
 
   return (
     <div className="flex items-center gap-md">
-      <span className="whitespace-nowrap text-meta font-semibold text-ink">
-        {used}/{SLOT_MINUTES} min used
+      <span className={cn('whitespace-nowrap text-meta font-semibold', isFull ? 'text-ink' : 'text-ink-dim')}>
+        {used}/{SLOT_MINUTES} min
       </span>
       <div
         role="progressbar"
@@ -52,14 +52,15 @@ export function CapacityMeter({ segments }: CapacityMeterProps) {
         aria-valuetext={`${used} of ${SLOT_MINUTES} minutes used across ${countLabel}${
           isFull ? ', slot full' : ''
         }`}
-        className="relative h-meter w-[96px] overflow-hidden rounded-full bg-bg"
+        className="relative h-2 w-full max-w-[120px] overflow-hidden rounded-full bg-line-soft border border-line-softer transition-all duration-200"
       >
         {fills.map((fill) => (
           <span
             key={fill.id}
-            className={cn('absolute inset-y-0 rounded-full', isFull ? 'bg-ink' : 'bg-ink-dim')}
-            // The 1px inset on each side leaves a hairline of track showing
-            // between adjacent fills, so two entries read as two.
+            className={cn(
+              'absolute inset-y-0 rounded-full transition-all duration-300',
+              isFull ? 'bg-accent-success shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]' : 'bg-ink-dim',
+            )}
             style={{
               left: `calc(${(fill.start / SLOT_MINUTES) * 100}% + 1px)`,
               width: `calc(${(fill.duration / SLOT_MINUTES) * 100}% - 2px)`,
