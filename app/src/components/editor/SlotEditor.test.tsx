@@ -395,10 +395,17 @@ describe('the unified tile/activity management panel (real user feedback: same E
     const html = renderInProvider(slotModeState, true)
     expect(html).toContain('Manage tiles')
     expect(html).toContain('aria-label="Tiles"')
-    expect(html).toContain('aria-label="Parameter options"')
+    // No activity is selected in the management panel by default (only a
+    // tile auto-selects) — "Parameter options" must NOT appear merely
+    // because a tile is open; see `ActivityLibraryPanel`'s own doc comment
+    // for the fix this asserts (it used to render unconditionally here).
+    expect(html).not.toContain('aria-label="Parameter options"')
     // The ordinary tile row is still there too — managing the hierarchy
-    // never blocks quick-logging.
-    expect(html).toContain('class="tile-row')
+    // never blocks quick-logging. Two `.tile-row` grids now exist while edit
+    // mode is on: the everyday picker's own row, and the management panel's
+    // tile grid (redesigned to look exactly the same — see `TileList`'s own
+    // doc comment).
+    expect(html.match(/class="tile-row/g)?.length).toBe(2)
   })
 
   it('keeps the management panel reachable in activity mode too — found in self-review: it used to live inside TileRow, which activity mode replaces entirely with ActivitySummary, silently hiding it', () => {
@@ -409,5 +416,44 @@ describe('the unified tile/activity management panel (real user feedback: same E
     // the panel supplements it, it doesn't replace it.
     expect(html).toContain('Homework')
     expect(html).toContain('aria-label="Selected activity"')
+  })
+})
+
+describe('the management panel’s tile grid matches the everyday picker’s own tile look (confirmed prototype fix)', () => {
+  function renderPanel(editMode: boolean): string {
+    return renderToStaticMarkup(
+      <PickerDataProvider>
+        <SlotEditor
+          state={run(DROP)}
+          dispatch={() => {}}
+          nowSlot={32}
+          viewedDate={AT_4PM}
+          onOpenReflectionNote={() => {}}
+          syncQueue={[]}
+          editMode={editMode}
+        />
+      </PickerDataProvider>,
+    )
+  }
+
+  it('gives each tile card a pencil "Open" badge and an × "Delete" badge, never top-level reorder arrows', () => {
+    const html = renderPanel(true)
+    // "Sleep & Rest" is the first of the static local-only catalog's 9
+    // default tiles (`CATEGORY_ORDER`/`CATEGORIES`).
+    expect(html).toContain('aria-label="Open Sleep &amp; Rest"')
+    expect(html).toContain('aria-label="Delete Sleep &amp; Rest"')
+    // Dropped in the approved redesign — a tile's position is no longer
+    // adjustable from this grid (activities/sub-activities one level in
+    // still reorder via ↑↓ inside `ActivityTree`, untouched).
+    expect(html).not.toContain('aria-label="Move Sleep &amp; Rest up"')
+    expect(html).not.toContain('aria-label="Move Sleep &amp; Rest down"')
+  })
+
+  it('renders the trailing "Add tile" card as a dashed, square, plus-icon card, same shape as a real tile', () => {
+    const html = renderPanel(true)
+    const addTileButton = html.match(/<button[^>]*aria-label="Add tile"[^>]*>/)?.[0]
+    expect(addTileButton).toBeDefined()
+    expect(addTileButton).toContain('aspect-square')
+    expect(addTileButton).toContain('border-dashed')
   })
 })
