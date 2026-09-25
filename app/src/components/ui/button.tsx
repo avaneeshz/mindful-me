@@ -14,26 +14,24 @@ import { cn } from '@/lib/utils'
  * :focus-visible rule in styles/index.css owns that treatment.
  */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-sm font-sans transition-colors disabled:pointer-events-none disabled:opacity-40',
+  'inline-flex items-center justify-center gap-sm font-sans transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
   {
     variants: {
       variant: {
-        /** The theme's invert fill. The single primary action in the editor. */
+        /** Primary action with refined styling */
         primary:
-          'bg-inv-bg text-inv-ink font-bold text-btn rounded-md hover:opacity-90 active:brightness-95',
+          'bg-inv-bg text-inv-ink font-bold text-btn rounded-lg hover:shadow-elevation-2 hover:scale-105 active:scale-95 border border-transparent hover:border-inv-ink/10',
         /** Text-only, no border. Secondary actions. */
-        ghost: 'text-ink-dim font-semibold text-body rounded-md hover:text-ink',
-        /** Bordered, surface-toned. The "outlined secondary" half of a solid/outlined action pair — e.g. a nested panel's own Cancel, sitting apart from the dialog's own ghost Cancel. */
+        ghost: 'text-ink-dim font-semibold text-body rounded-md hover:text-ink hover:bg-surface-2/40 transition-all',
+        /** Bordered, surface-toned with refined styling */
         outline:
-          'border border-line bg-surface text-ink font-semibold text-btn rounded-md transition-colors hover:border-ink',
+          'border border-line-soft bg-surface-2/40 text-ink font-semibold text-btn rounded-lg transition-all hover:border-line hover:bg-surface-2/60 hover:shadow-elevation-1',
         /**
-         * Destructive text action — Remove. No colour any more (Section A) —
-         * distinguished from `accent` by weight/underline only, same as
-         * every other "no separate hue" pairing this retheme introduced.
+         * Destructive text action — Remove, with semantic styling
          */
-        destructive: 'text-ink-dim font-semibold text-caption rounded-sm hover:text-ink hover:underline underline-offset-2',
+        destructive: 'text-ink-dim font-semibold text-caption rounded-sm hover:text-accent-warm hover:underline underline-offset-2 transition-all',
         /** Text action — Edit, Undo, breadcrumb back. */
-        accent: 'text-ink-dim font-medium text-caption rounded-sm hover:text-ink hover:underline underline-offset-2',
+        accent: 'text-ink-dim font-medium text-caption rounded-sm hover:text-accent-primary hover:underline underline-offset-2 transition-all',
       },
       size: {
         /** 44px — the standard touch target height. */

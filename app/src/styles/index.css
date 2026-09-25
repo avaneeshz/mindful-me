@@ -299,6 +299,7 @@
 .tile-row {
   display: flex;
   gap: 12px;
+  transition: opacity 200ms ease-out;
 }
 
 .item-chip-row {
@@ -307,6 +308,7 @@
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  scroll-behavior: smooth;
 }
 
 .item-chip-row::-webkit-scrollbar {
