@@ -104,9 +104,25 @@ export async function apiListHealthMetrics(
   return points
 }
 
+/** Rule 11 — immediate from the user's view, recoverable for 30 days (see `restore_health_connection`/`apiRestoreHealthConnection` below), then purged. A soft delete under the hood — never an instant hard-delete. */
 export async function apiDisconnectHealthConnection(): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.rpc('disconnect_health_connection', { p_provider: GOOGLE_HEALTH_PROVIDER })
+  if (error) throw error
+}
+
+/** Whether a recently-disconnected connection still exists to restore (within its 30-day window) — the one thing `get_health_connection_status` deliberately can't say, since its own RLS policy hides a soft-deleted row entirely. `false` on any failure (never blocks the ordinary "Connect" flow on this check succeeding). */
+export async function apiIsHealthConnectionRecoverable(): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase.rpc('get_health_connection_recoverable', { p_provider: GOOGLE_HEALTH_PROVIDER })
+  if (error) return false
+  return Boolean(data)
+}
+
+/** Un-does a disconnect within the 30-day window — no new Google OAuth round trip, the encrypted tokens were never touched. Throws `not_found` (surfaced to the caller) once the window has passed and the row has been purged. */
+export async function apiRestoreHealthConnection(): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('restore_health_connection', { p_provider: GOOGLE_HEALTH_PROVIDER })
   if (error) throw error
 }
 

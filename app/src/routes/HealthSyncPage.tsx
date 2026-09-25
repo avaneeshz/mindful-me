@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, HeartPulse, Loader2, RefreshCw, Unplug } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, HeartPulse, Loader2, RefreshCw, RotateCcw, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HealthMetricChart } from '@/components/healthsync/HealthMetricChart'
 import {
   apiDisconnectHealthConnection,
   apiGetHealthConnectionStatus,
+  apiIsHealthConnectionRecoverable,
   apiListHealthDataTypeSummaries,
   apiListHealthMetrics,
+  apiRestoreHealthConnection,
   apiTriggerHealthSync,
   type HealthConnectionStatus,
   type HealthDataTypeSummary,
@@ -50,6 +52,15 @@ export function HealthSyncPage() {
   const [connecting, setConnecting] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
 
+  // Rule 11 — a disconnect is recoverable for 30 days. `status === null`
+  // covers BOTH "never connected" and "recently disconnected, still within
+  // the window" — this is what tells the two apart, so the empty state can
+  // offer a real "Reconnect" (no new Google consent) instead of only ever
+  // "Connect".
+  const [recoverable, setRecoverable] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
 
@@ -69,8 +80,10 @@ export function HealthSyncPage() {
       const nextSummaries = await apiListHealthDataTypeSummaries()
       setSummaries(nextSummaries ?? [])
       setSummariesLoading(false)
+      setRecoverable(false)
     } else {
       setSummaries([])
+      setRecoverable(nextStatus ? false : await apiIsHealthConnectionRecoverable())
     }
   }, [])
 
@@ -110,6 +123,21 @@ export function HealthSyncPage() {
     }
   }
 
+  async function handleRestore() {
+    if (restoring) return // guard against a double-submit, same as every other write here
+    setRestoring(true)
+    setRestoreError(null)
+    try {
+      await apiRestoreHealthConnection()
+      await refresh()
+    } catch {
+      setRestoreError('Could not reconnect — the 30-day window may have closed. Try connecting again instead.')
+      setRecoverable(false)
+    } finally {
+      setRestoring(false)
+    }
+  }
+
   async function handleDisconnect() {
     setDisconnecting(true)
     try {
@@ -119,6 +147,10 @@ export function HealthSyncPage() {
       setPointsByType({})
       setExpandedType(null)
       setConfirmingDisconnect(false)
+      // Known true the instant the disconnect call above succeeds — no need
+      // for a second round trip to `apiIsHealthConnectionRecoverable` just
+      // to learn what we already know.
+      setRecoverable(true)
     } catch {
       setSyncMessage({ tone: 'error', text: 'Could not disconnect — try again.' })
     } finally {
@@ -174,13 +206,38 @@ export function HealthSyncPage() {
       <PageShell>
         <EmptyStateCard
           icon={<HeartPulse aria-hidden="true" className="size-[28px]" />}
-          title="Connect Google Health"
-          body="See your steps, heart rate, sleep, and everything else your Fitbit or Pixel Watch account shares — read-only, never edited from here."
+          title={recoverable ? 'Reconnect Google Health' : 'Connect Google Health'}
+          body={
+            recoverable
+              ? 'You disconnected Google Health recently. Reconnect the same account without signing in to Google again, or connect a different one.'
+              : 'See your steps, heart rate, sleep, and everything else your Fitbit or Pixel Watch account shares — read-only, never edited from here.'
+          }
         >
-          <Button onClick={handleConnect} disabled={connecting}>
-            {connecting ? <Loader2 aria-hidden="true" className="size-[16px] animate-spin" /> : null}
-            Connect Google Health
-          </Button>
+          {recoverable ? (
+            <>
+              <Button onClick={handleRestore} disabled={restoring}>
+                {restoring ? (
+                  <Loader2 aria-hidden="true" className="size-[16px] animate-spin" />
+                ) : (
+                  <RotateCcw aria-hidden="true" className="size-[16px]" />
+                )}
+                Reconnect
+              </Button>
+              <Button variant="ghost" onClick={handleConnect} disabled={connecting}>
+                Connect a different account
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleConnect} disabled={connecting}>
+              {connecting ? <Loader2 aria-hidden="true" className="size-[16px] animate-spin" /> : null}
+              Connect Google Health
+            </Button>
+          )}
+          {restoreError ? (
+            <p role="alert" className="mt-md text-caption text-ink-dim">
+              {restoreError}
+            </p>
+          ) : null}
           {connectError ? (
             <p role="alert" className="mt-md text-caption text-ink-dim">
               {connectError}
@@ -239,7 +296,7 @@ export function HealthSyncPage() {
           </Button>
           {confirmingDisconnect ? (
             <div className="flex items-center gap-sm">
-              <span className="text-caption text-ink-dim">Disconnect?</span>
+              <span className="text-caption text-ink-dim">Disconnect? You can reconnect within 30 days.</span>
               <Button variant="destructive" size="inline" onClick={handleDisconnect} disabled={disconnecting}>
                 {disconnecting ? 'Disconnecting…' : 'Yes, disconnect'}
               </Button>
