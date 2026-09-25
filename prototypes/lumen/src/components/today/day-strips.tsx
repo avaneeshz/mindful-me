@@ -136,29 +136,25 @@ function Strip({ half }: { half: Half }) {
           night ? 'mt-8' : 'mt-4',
         )}
       >
-        {/* The sky, dimmed so logged time reads on top of it */}
-        <span className="absolute inset-0 rounded-control" style={{ background: night ? 'var(--sky-night)' : 'var(--sky-day)' }} />
-        <span className="absolute inset-0 rounded-control bg-canvas/55" />
-
-        {spans.map((s) => (
-          <motion.span
-            key={`${s.categoryId}-${s.start}`}
-            className={cn('absolute bottom-1.5 top-1.5', hueStyles[categoryById[s.categoryId].hue].bar)}
-            style={{ left: pct(s.start) }}
-            initial={{ width: 0 }}
-            animate={{ width: pct(s.end - s.start) }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          />
-        ))}
-
-        {/* Time that hasn't happened yet sits a little further back */}
-        {futureFrom !== null && (
-          <span
-            className="absolute inset-y-0 right-0 rounded-r-control bg-canvas/40"
-            style={{ left: pct(futureFrom) }}
-            aria-hidden
-          />
-        )}
+        {/* Sky, logged time and the not-yet-happened veil, clipped to the strip's rounded shape.
+            Logged blocks fill the full height so no sky shows above or below them. */}
+        <span className="absolute inset-0 overflow-hidden rounded-control">
+          <span className="absolute inset-0" style={{ background: night ? 'var(--sky-night)' : 'var(--sky-day)' }} />
+          <span className="absolute inset-0 bg-canvas/55" />
+          {spans.map((s) => (
+            <motion.span
+              key={`${s.categoryId}-${s.start}`}
+              className={cn('absolute inset-y-0', hueStyles[categoryById[s.categoryId].hue].bar)}
+              style={{ left: pct(s.start) }}
+              initial={{ width: 0 }}
+              animate={{ width: pct(s.end - s.start) }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            />
+          ))}
+          {futureFrom !== null && (
+            <span className="absolute inset-y-0 right-0 bg-canvas/40" style={{ left: pct(futureFrom) }} aria-hidden />
+          )}
+        </span>
 
         {night && (
           <>
