@@ -76,6 +76,28 @@ interface ListDataType {
     value: number | Record<string, unknown>
     unit: string | null
   } | null
+  /**
+   * True for a data type whose filter (per Google's own doc comment) supports
+   * ONLY a lower bound — `electrocardiogram` today: "Only filtering by start
+   * time is supported for ECG. Filtering by end time ... is not supported."
+   * `endIso` in `buildFilter` above is then unused/ignored by the filter
+   * itself — a request always returns everything from the lower bound
+   * onward, however far back that goes.
+   *
+   * This matters because `runHealthSync.ts`'s chunked backfill persists a
+   * "frontier" cursor claiming a specific [chunkStart, chunkEnd) range was
+   * covered by one call — which would be a LIE for a filter that can't
+   * actually be confined to chunkEnd: Google returns points newest-first, so
+   * an unbounded-above request can easily fill the page cap with recent
+   * points and never reach chunkStart at all, while the frontier still
+   * advances as if it had. A data type marked `unboundedEnd` is therefore
+   * exempted from the chunked/frontier scheme entirely (see `runHealthSync.
+   * ts`) — every sync instead re-requests the same bounded-from-below manual
+   * window in full, with no persisted claim of what got fully covered. Safe
+   * (never masks missing data as synced) at the cost of repeat, upsert-
+   * deduped work — the honest tradeoff for a data type this low-volume.
+   */
+  unboundedEnd?: boolean
 }
 
 export interface DataTypeConfig {
@@ -262,6 +284,7 @@ export const DATA_TYPES: DataTypeConfig[] = [
       // Verified pattern: "Session start time (ECG specific)" — ONLY >=
       // is supported for this data type; there is no upper-bound filter.
       buildFilter: (startIso) => `electrocardiogram.interval.start_time >= "${startIso}"`,
+      unboundedEnd: true,
       parse: (dp) => {
         const ecg = dp.electrocardiogram as Record<string, unknown> | undefined
         if (!ecg) return null
