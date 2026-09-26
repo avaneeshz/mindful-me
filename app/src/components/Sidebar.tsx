@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   Clock,
   Flag,
+  HeartPulse,
   Home,
   Leaf,
   Lightbulb,
@@ -50,6 +51,10 @@ const NAV_REST: NavEntry[] = [
   { label: 'Progress', icon: PieChart },
   { label: 'Insights', icon: Sparkles },
   { label: 'Flags', icon: Flag },
+  // A real, distinct destination — not the "Settings" placeholder — since
+  // connecting a third-party health account is its own concern, not app
+  // configuration.
+  { label: 'Health Sync', icon: HeartPulse, to: '/health-sync' },
   { label: 'Settings', icon: Settings },
 ]
 
