@@ -194,15 +194,30 @@ export async function runHealthSync(
     try {
       const refreshed = await refreshAccessToken(connection.refresh_token, clientId, clientSecret)
       accessToken = refreshed.accessToken
-      await admin.rpc('upsert_external_connection', {
-        p_user_id: userId,
-        p_provider: provider,
-        p_access_token: refreshed.accessToken,
-        p_refresh_token: refreshed.refreshToken,
-        p_expires_at: refreshed.expiresAt,
-        p_scopes: connection.scopes,
-        p_status: 'connected',
-      })
+      // NOT `upsert_external_connection` — that clears `deleted_at`
+      // unconditionally, which is correct for a fresh OAuth consent
+      // (health-sync-oauth-callback) but would silently resurrect a
+      // connection that was disconnected while this refresh was in
+      // flight. `update_external_connection_access_token` never touches
+      // `deleted_at` and is itself scoped `where ... deleted_at is null`,
+      // so it becomes a no-op (returns false) instead, and this run stops
+      // rather than proceeding on a token for a connection that may no
+      // longer exist from the user's point of view.
+      const { data: refreshApplied, error: refreshWriteError } = await admin.rpc(
+        'update_external_connection_access_token',
+        {
+          p_id: connection.id,
+          p_access_token: refreshed.accessToken,
+          p_expires_at: refreshed.expiresAt,
+          p_refresh_token: refreshed.refreshToken,
+        },
+      )
+      if (refreshWriteError) {
+        return { ok: false, reason: 'sync_error', message: refreshWriteError.message }
+      }
+      if (!refreshApplied) {
+        return { ok: false, reason: 'not_connected' }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Token refresh failed'
       await admin.rpc('mark_external_connection_synced', {
@@ -251,25 +266,41 @@ export async function runHealthSync(
         for (const point of await fetchListRows(accessToken, dt, recentWindowStart, now)) pushRow(dt, point, point.raw)
       }
 
-      // 2. One more chunk of history, if backfill isn't done yet.
-      const state = syncState[dt.id] ?? { frontier: recentWindowStart.toISOString(), backfillComplete: false }
-      if (!state.backfillComplete) {
-        const frontier = new Date(state.frontier)
-        const cap = new Date(now.getTime() - MAX_BACKFILL_DAYS * 24 * 60 * 60 * 1000)
-        let chunkStart = new Date(frontier.getTime() - BACKFILL_CHUNK_DAYS * 24 * 60 * 60 * 1000)
-        let backfillComplete = false
-        if (chunkStart <= cap) {
-          chunkStart = cap
-          backfillComplete = true
-        }
-        if (chunkStart < frontier) {
-          if (dt.spec.kind === 'rollup') {
-            for (const point of await fetchRollupRows(accessToken, dt, chunkStart, frontier)) pushRow(dt, point)
-          } else {
-            for (const point of await fetchListRows(accessToken, dt, chunkStart, frontier)) pushRow(dt, point, point.raw)
+      if (dt.spec.kind === 'list' && dt.spec.unboundedEnd) {
+        // See `unboundedEnd`'s own doc comment in googleHealth.ts: this
+        // data type's filter can only express a lower bound, so a
+        // persisted [chunkStart, chunkEnd) frontier claim would be
+        // dishonest — Google returns newest-first, so an unbounded-above
+        // request can fill the page cap with points already covered by
+        // the recent-window pull above and never reach further back, while
+        // a frontier cursor would still advance as if it had. Instead:
+        // always re-request the full bounded-from-below manual window,
+        // and never persist a completion claim for it — upsert dedup
+        // (external_id) makes the overlap with the recent window free.
+        const backfillWindowStart = new Date(now.getTime() - MAX_BACKFILL_DAYS * 24 * 60 * 60 * 1000)
+        for (const point of await fetchListRows(accessToken, dt, backfillWindowStart, now)) pushRow(dt, point, point.raw)
+        delete syncState[dt.id]
+      } else {
+        // One more chunk of history, if backfill isn't done yet.
+        const state = syncState[dt.id] ?? { frontier: recentWindowStart.toISOString(), backfillComplete: false }
+        if (!state.backfillComplete) {
+          const frontier = new Date(state.frontier)
+          const cap = new Date(now.getTime() - MAX_BACKFILL_DAYS * 24 * 60 * 60 * 1000)
+          let chunkStart = new Date(frontier.getTime() - BACKFILL_CHUNK_DAYS * 24 * 60 * 60 * 1000)
+          let backfillComplete = false
+          if (chunkStart <= cap) {
+            chunkStart = cap
+            backfillComplete = true
           }
+          if (chunkStart < frontier) {
+            if (dt.spec.kind === 'rollup') {
+              for (const point of await fetchRollupRows(accessToken, dt, chunkStart, frontier)) pushRow(dt, point)
+            } else {
+              for (const point of await fetchListRows(accessToken, dt, chunkStart, frontier)) pushRow(dt, point, point.raw)
+            }
+          }
+          syncState[dt.id] = { frontier: chunkStart.toISOString(), backfillComplete }
         }
-        syncState[dt.id] = { frontier: chunkStart.toISOString(), backfillComplete }
       }
     } catch (err) {
       // One data type failing (a transient Google error, a data type this
