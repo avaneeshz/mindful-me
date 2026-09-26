@@ -1,17 +1,36 @@
 import { useEffect, useState } from 'react'
-import { HeaderBar } from '@/components/HeaderBar'
 import { ReflectionMappingPopover, type PendingReflectionMapping } from '@/components/ReflectionMappingPopover'
 import { ReflectionSection } from '@/components/ReflectionSection'
 import { ThemeFromSlot } from '@/components/ThemeFromSlot'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
-import { useAuth } from '@/state/AuthContext'
 import { useBoard } from '@/state/BoardContext'
 
-export function TodayPage() {
-  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate, syncQueue, retrySyncNow } =
-    useBoard()
-  const { user, signOut } = useAuth()
+export interface TodayPageProps {
+  /**
+   * The ONE edit-mode toggle for this whole screen — owned by `AuthedApp`
+   * now, not this page: `HeaderBar`'s top-bar "Edit" button lives in the
+   * hoisted app-wide shell (see `App.tsx`'s own comment), a sibling of this
+   * page rather than an ancestor, so the flag has to be lifted to where
+   * both of them descend from and passed down. `SlotEditor` reads the same
+   * flag to open its own tile/activity management dialog (`ActivityLibraryPanel`,
+   * a real `Dialog.Root` — see `SlotEditor.tsx`'s own doc comment for why
+   * it's rendered there rather than inside `TileRow`).
+   */
+  editMode: boolean
+  /**
+   * Fires when that dialog wants to close itself (X, Escape, overlay click).
+   * `AuthedApp` turns `editMode` off in response, the same master switch
+   * that also governs `HeaderBar`'s quick-log pill controls — passed
+   * straight through to `SlotEditor`, which is the only thing that actually
+   * calls it; this page merely relays it, having no `editMode` setter of its
+   * own any more now that `AuthedApp` owns the state.
+   */
+  onCloseEditMode: () => void
+}
+
+export function TodayPage({ editMode, onCloseEditMode }: TodayPageProps) {
+  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
 
   // Which activity + reflection card the note-entry popup is currently open
   // for, if any — set by EITHER path of reflection-card mapping (a grid
@@ -19,16 +38,6 @@ export function TodayPage() {
   // activity's timeline segment). Purely local UI state: it never affects
   // `state.activities` until Save/Remove actually dispatches.
   const [pendingMapping, setPendingMapping] = useState<PendingReflectionMapping | null>(null)
-
-  // The ONE edit-mode toggle for this whole screen — `HeaderBar`'s
-  // top-bar "Edit" button used to own this locally and only ever wire into
-  // its own quick-log button row; lifted here so `SlotEditor` can read the
-  // exact same flag and open its own tile/activity management dialog
-  // (`ActivityLibraryPanel`, a real `Dialog.Root` now — see `SlotEditor.tsx`'s
-  // own doc comment). Closing that dialog any way (X, Escape, overlay click)
-  // calls `onCloseEditMode` below, which turns this same flag off — one
-  // master switch either way.
-  const [editMode, setEditMode] = useState(false)
 
   // The mapping popup targets an activity by id. A `hydrate` (date switch,
   // midnight rollover, background server reconcile) can swap a client UUID
@@ -53,25 +62,9 @@ export function TodayPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+    <>
       {/* Derives the light/dark theme from the selected slot; renders nothing. */}
       <ThemeFromSlot />
-      <HeaderBar
-        now={now}
-        viewedDate={viewedDate}
-        onSelectDate={setViewedDate}
-        user={user}
-        onSignOut={signOut}
-        activities={state.activities}
-        onQuickLog={(cardName, startMinutes, durationMinutes, extra) =>
-          dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes, ...extra })
-        }
-        syncQueue={syncQueue}
-        onRetrySyncNow={retrySyncNow}
-        onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
-        editMode={editMode}
-        onToggleEditMode={() => setEditMode((value) => !value)}
-      />
 
       <div className="mt-xl ipad-land:mt-md">
         <Timeline
@@ -107,7 +100,7 @@ export function TodayPage() {
           onOpenReflectionNote={openMapping}
           syncQueue={syncQueue}
           editMode={editMode}
-          onCloseEditMode={() => setEditMode(false)}
+          onCloseEditMode={onCloseEditMode}
         />
       </div>
 
@@ -136,6 +129,6 @@ export function TodayPage() {
         }}
         onClose={() => setPendingMapping(null)}
       />
-    </div>
+    </>
   )
 }
