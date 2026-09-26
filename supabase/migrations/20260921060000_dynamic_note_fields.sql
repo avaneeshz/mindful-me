@@ -1361,6 +1361,55 @@ grant execute on function public.restore_scheduled_activity(uuid) to authenticat
 grant execute on function public.list_scheduled_activities(timestamptz, timestamptz) to authenticated;
 
 -- ===========================================================================
+-- 6b. Production correction (caught by a dry run before this ever ran
+--    against production): `20260920080000_header_buttons_per_user_
+--    ownership.sql` picked up its own production fix in the meantime —
+--    Step 0 of THAT migration now provisions every real affected user's
+--    Sleep button eagerly, so their `header_buttons` row already exists by
+--    the time this migration runs. But it was provisioned BEFORE this
+--    migration's `field_kind`/multiselect mechanism existed, so it has no
+--    multiselect field on it — and `provision_default_header_buttons()`
+--    below is a no-op for a user who already has any `header_buttons` row
+--    at all (by design, so a user who has since customized their set never
+--    gets a second copy layered on top). Left alone, Step 7 below would
+--    find no Sleep multiselect field for exactly these real users and fail
+--    loudly rather than silently, which is how this got caught.
+--    Backfill every such Sleep button directly (same field, same 11
+--    options, in the same order a truly new user's provisioning call would
+--    create) BEFORE Step 7 runs, so every real user's Sleep button ends up
+--    identical to a brand-new user's regardless of exactly when they were
+--    first provisioned — not only the ones with sleep_quality history.
+-- ===========================================================================
+do $$
+declare
+  v_hb record;
+  v_field_id uuid;
+begin
+  for v_hb in
+    select hb.id as header_button_id
+    from public.header_buttons hb
+    join public.activities a on a.id = hb.activity_id
+    where hb.category = 'activity' and a.name = 'Sleep'
+      and not exists (
+        select 1 from public.header_button_note_fields nf
+        where nf.header_button_id = hb.id and nf.field_kind = 'multiselect'
+      )
+  loop
+    insert into public.header_button_note_fields (header_button_id, field_key, field_kind, label, sort_order)
+    values (v_hb.header_button_id, null, 'multiselect', 'How was your sleep?', 2)
+    returning id into v_field_id;
+
+    insert into public.header_button_field_options (note_field_id, label, sort_order)
+    select v_field_id, v.label, v.ord
+    from (values
+      ('Deep Restorative', 0), ('Light & Restful', 1), ('Light & Restless', 2), ('Fragmented', 3),
+      ('Interrupted', 4), ('Long but Unrefreshing', 5), ('Short but Restorative', 6), ('Dream-Intense', 7),
+      ('Delayed', 8), ('Early Awakening', 9), ('Unusually Deep', 10)
+    ) as v(label, ord);
+  end loop;
+end $$;
+
+-- ===========================================================================
 -- 7. Data migration: any existing scheduled_activities.sleep_quality moves
 --    into scheduled_activity_field_selections, pointed at that SAME user's
 --    Sleep button's multiselect field (creating it via provisioning if the

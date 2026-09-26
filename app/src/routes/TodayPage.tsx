@@ -6,7 +6,21 @@ import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
 import { useBoard } from '@/state/BoardContext'
 
-export function TodayPage() {
+export interface TodayPageProps {
+  /**
+   * The ONE edit-mode toggle for this whole screen — owned by `AuthedApp`
+   * now, not this page: `HeaderBar`'s top-bar "Edit" button lives in the
+   * hoisted app-wide shell (see `App.tsx`'s own comment), a sibling of this
+   * page rather than an ancestor, so the flag has to be lifted to where
+   * both of them descend from and passed down. `SlotEditor` reads the same
+   * flag to reveal its own inline tile/activity management panel
+   * (`ActivityLibraryPanel` — see `SlotEditor.tsx`'s own doc comment for why
+   * it's rendered there rather than inside `TileRow`).
+   */
+  editMode: boolean
+}
+
+export function TodayPage({ editMode }: TodayPageProps) {
   const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
 
   // Which activity + reflection card the note-entry popup is currently open
@@ -76,6 +90,7 @@ export function TodayPage() {
           viewedDate={viewedDate}
           onOpenReflectionNote={openMapping}
           syncQueue={syncQueue}
+          editMode={editMode}
         />
       </div>
 

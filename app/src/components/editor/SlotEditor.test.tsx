@@ -8,6 +8,7 @@ import {
   type BoardState,
 } from '@/state/boardReducer'
 import { formatSlotRange } from '@/domain/slots'
+import { PickerDataProvider } from '@/state/PickerDataContext'
 
 /**
  * The editor is the ONE activity-configuration surface in the product. These
@@ -34,6 +35,7 @@ function renderEditor(state: BoardState): string {
       viewedDate={AT_4PM}
       onOpenReflectionNote={() => {}}
       syncQueue={[]}
+      editMode={false}
     />,
   )
 }
@@ -352,5 +354,60 @@ describe('editing a spanning activity in place from a later cell', () => {
     const html = renderEditor(grown)
     expect(html).toMatch(/>30 min</)
     expect(html).toContain('This slot is full')
+  })
+})
+
+describe('the unified tile/activity management panel (real user feedback: same Edit button, no second hidden page)', () => {
+  // `ActivityLibraryPanel` reads `usePickerData()`, so any render with
+  // `editMode: true` needs a real `<PickerDataProvider>` ancestor.
+  function renderInProvider(state: BoardState, editMode: boolean): string {
+    return renderToStaticMarkup(
+      <PickerDataProvider>
+        <SlotEditor
+          state={state}
+          dispatch={() => {}}
+          nowSlot={32}
+          viewedDate={AT_4PM}
+          onOpenReflectionNote={() => {}}
+          syncQueue={[]}
+          editMode={editMode}
+        />
+      </PickerDataProvider>,
+    )
+  }
+
+  const slotModeState = run(DROP)
+  const activityModeState = (() => {
+    const committed = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    return boardReducer(committed, { type: 'selectScheduledActivity', id: realId(committed) })
+  })()
+
+  it('renders no management panel while edit mode is off, in either slot or activity mode', () => {
+    expect(renderInProvider(slotModeState, false)).not.toContain('Manage tiles')
+    expect(renderInProvider(activityModeState, false)).not.toContain('Manage tiles')
+  })
+
+  it('renders the management panel — reusing TileList/ActivityTree/ParameterOptionsPanel — in slot mode once edit mode is on', () => {
+    const html = renderInProvider(slotModeState, true)
+    expect(html).toContain('Manage tiles')
+    expect(html).toContain('aria-label="Tiles"')
+    expect(html).toContain('aria-label="Parameter options"')
+    // The ordinary tile row is still there too — managing the hierarchy
+    // never blocks quick-logging.
+    expect(html).toContain('class="tile-row')
+  })
+
+  it('keeps the management panel reachable in activity mode too — found in self-review: it used to live inside TileRow, which activity mode replaces entirely with ActivitySummary, silently hiding it', () => {
+    const html = renderInProvider(activityModeState, true)
+    expect(html).toContain('Manage tiles')
+    expect(html).toContain('aria-label="Tiles"')
+    // Activity mode's own summary is still what's shown above the panel —
+    // the panel supplements it, it doesn't replace it.
+    expect(html).toContain('Homework')
+    expect(html).toContain('aria-label="Selected activity"')
   })
 })

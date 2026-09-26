@@ -5,7 +5,6 @@ import {
   Flag,
   HeartPulse,
   Home,
-  LayoutGrid,
   Leaf,
   Lightbulb,
   Menu,
@@ -49,7 +48,6 @@ const NAV_NOTES: NavEntry[] = [
 
 const NAV_REST: NavEntry[] = [
   { label: 'My Slots', icon: Clock },
-  { label: 'Activity Library', icon: LayoutGrid },
   { label: 'Progress', icon: PieChart },
   { label: 'Insights', icon: Sparkles },
   { label: 'Flags', icon: Flag },

@@ -28,6 +28,14 @@ This file is additive: when something here starts implementation, move it out (n
 
 ## Backlog
 
+**In flight — full user customization of the activity-picker hierarchy (PICKER-CUSTOM-1).** On branch `claude/eager-galileo-eva6yf`, not yet merged. Both the database layer AND the live-picker rewiring are done — see the full-stack-engineer agent definition's own Migration Phases §6 for the full writeup. Summary: `public.tiles`/`public.activities` (generalized with `tile_id`/`sort_order`/`hidden`/`disappear_mode`/`disappear_limit`, arbitrary-depth via `parent_id`)/`public.activity_parameter_options` (per-activity quality/symptom/flag with inheritance) all live on the test Supabase project with full CRUD, provisioning, and history-safe delete-vs-hide; `TileRow.tsx`/`LogActivityModal.tsx` now read this backend live (via `data/activities.ts`'s swappable registry, populated by `state/useLiveActivityCatalogSync.ts`), with zero-backend local-only mode (rule 6) falling back to the exact original static catalog untouched; `domain/types.ts`'s `FlagId`/`ActivityQuality`/`Symptom`/`CategoryId` are now plain `string` (no longer closed unions); `ActivityCard` drill-down is arbitrary depth via a new `children` field; `TileRow.tsx`'s tile grid reflows for any tile count on any viewport.
+
+**Still deferred, not started:**
+- The live quality/symptom/flag picker scopes effective options to the staged activity's TOP-LEVEL card only (no id-resolution path exists yet for a sub/third-level node — `api/catalog.ts`'s `catalogIdForName` only ever resolves top-level names). A per-sub-activity parameter-option override is configurable in Activity Library but has no effect on the live modal until this is fixed.
+- Reordering within a parameter-option list, or a sub-activity's own sibling group beyond the top level (both insert-order-only today, no reorder UI).
+- Moving an activity to a different tile/parent after creation.
+- Activity Library has no UI yet for setting a new/existing activity's `disappear_mode`/`disappear_limit` (auto-hide-after-N-uses) — the DB/API already support it (`create_activity`/`update_activity`'s trailing optional params); every user-created activity defaults to `manual`.
+
 **In flight — activity picker redesign (tile row, log-activity modal, quality field, single-select flags, mockup-matched visuals).** On a branch, not yet merged — **PR #9**. Not documented in detail here until it merges, same convention as Phase 4/5 below.
 
 ### Known issues

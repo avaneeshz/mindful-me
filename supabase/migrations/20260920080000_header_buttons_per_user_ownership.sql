@@ -53,11 +53,134 @@
 -- user briefly sees an empty header until the next load retries, never a
 -- broken signup.
 --
--- Existing test-project data: this project has ZERO rows in `auth.users`
--- (verified before writing this migration) — there is no real test user to
--- reassign the 19 seeded `created_by is null` rows to. They are simply
--- retired below; whichever real user signs in first will provision their
--- own copy via the RPC above, unprompted.
+-- Production correction (caught before this ever ran against production):
+-- the original Step 1 below deleted the ownerless rows outright. That is
+-- safe against an empty test project (zero `auth.users` rows at the time
+-- this was written) but NOT against a real deployment — production has
+-- real `supplement_completions` rows whose `header_button_id` is a real FK
+-- (added in `20260920070000_header_buttons_validation.sql`, no `ON DELETE`
+-- clause, so it defaults to RESTRICT) pointing at the ownerless "Supplements"
+-- row. Deleting that row outright would abort the whole migration with a
+-- foreign-key violation. Step 0 below fixes this the same way
+-- `20260921060000_dynamic_note_fields.sql` migrates `sleep_quality`
+-- forward: give every real affected user their OWN copy of the full
+-- default set first (inline here, not via the RPC below, since a migration
+-- script has no `auth.uid()` session to drive it — and a partial copy would
+-- wrongly short-circuit that RPC's own idempotency check the first time
+-- each user's client calls it), reassign their `supplement_completions`
+-- rows onto their own copy, and only then retire the ownerless rows.
+-- `note_entries.button_key` / `daily_values.metric_key` need no equivalent
+-- reassignment: both are plain validated text columns, not FKs, and the
+-- validation trigger they carry only runs on INSERT, never on SELECT — so
+-- existing historical rows keep reading exactly as before regardless of
+-- what happens to the ownerless header_buttons rows.
+
+-- --- Step 0: provision every real affected user's own button set BEFORE
+-- retiring the ownerless rows, and move their supplement_completions off
+-- the about-to-be-deleted shared row. -------------------------------------
+do $$
+declare
+  v_user uuid;
+begin
+  for v_user in
+    select distinct user_id from public.note_entries
+    union select distinct user_id from public.daily_values
+    union select distinct user_id from public.supplement_completions
+  loop
+    if exists (select 1 from public.header_buttons where created_by = v_user) then
+      continue;
+    end if;
+
+    insert into public.header_buttons (created_by, category, key, label, sort_order) values
+      (v_user, 'notes', 'gifts', 'Extra Senses', 0),
+      (v_user, 'notes', 'learnings', 'Learnings', 1),
+      (v_user, 'notes', 'mirror', 'Relational Nutrient', 2),
+      (v_user, 'notes', 'scriptures', 'Scriptures', 3);
+
+    insert into public.header_button_note_types (header_button_id, value, sort_order)
+    select hb.id, v.value, v.ord
+    from public.header_buttons hb
+    join (values
+      ('gifts', 'Dreamer', 0), ('gifts', 'The Voice', 1), ('gifts', 'The Knower', 2),
+      ('gifts', 'Memory Bank', 3), ('gifts', 'Amplifier', 4),
+      ('learnings', 'Given', 0), ('learnings', 'Realized', 1), ('learnings', 'Revealed', 2)
+    ) as v(key, value, ord) on v.key = hb.key
+    where hb.created_by = v_user and hb.category = 'notes';
+
+    insert into public.header_buttons (
+      created_by, category, label, sort_order, activity_id, entry_mode, quick_log_type, quick_log_type_label, quick_log_sleep_quality
+    )
+    select v_user, 'activity', v.label, v.sort_order, a.id, v.entry_mode, v.quick_log_type, v.quick_log_type_label, v.quick_log_sleep_quality
+    from (values
+      ('Vipassana', 4, 'Vipassana', 'duration', false, null::text, false),
+      ('Sports or Exercise', 6, 'Exercise', 'duration', true, 'Type', false),
+      ('Breathwork', 7, 'Breathing', 'duration', true, 'Type', false),
+      ('Sleep', 8, 'Sleep', 'duration', true, 'Sleep type', true),
+      ('Prayer', 9, 'Prayer', 'duration', true, 'Type', false),
+      ('Sermons', 10, 'Sermons', 'duration', false, null::text, false),
+      ('Worship', 11, 'Worship', 'song_count', false, null::text, false)
+    ) as v(activity_name, sort_order, label, entry_mode, quick_log_type, quick_log_type_label, quick_log_sleep_quality)
+    join public.activities a on a.name = v.activity_name and a.parent_id is null;
+
+    insert into public.header_button_note_fields (header_button_id, field_key, label, sort_order)
+    select hb.id, 'primary', 'Note', 0
+    from public.header_buttons hb
+    join public.activities a on a.id = hb.activity_id
+    where hb.created_by = v_user and hb.category = 'activity' and a.name <> 'Vipassana';
+
+    insert into public.header_button_note_fields (header_button_id, field_key, label, sort_order)
+    select hb.id, 'secondary', 'Dreams', 1
+    from public.header_buttons hb
+    join public.activities a on a.id = hb.activity_id
+    where hb.created_by = v_user and hb.category = 'activity' and a.name = 'Sleep';
+
+    insert into public.header_buttons (created_by, category, key, label, sort_order, day_value_unit, day_value_target) values
+      (v_user, 'day_value', 'steps', 'Steps', 5, 'int', null),
+      (v_user, 'day_value', 'protein', 'Protein', 12, 'target', 80);
+
+    insert into public.header_buttons (created_by, category, label, sort_order) values (v_user, 'checklist', 'Supplements', 13);
+
+    insert into public.header_button_checklist_items (header_button_id, item_key, label, sort_order)
+    select hb.id, v.item_key, v.label, v.ord
+    from public.header_buttons hb
+    join (values
+      ('zinc', 'Zinc (post-breakfast)', 0),
+      ('omega', 'Omega (post-lunch)', 1),
+      ('magnesium', 'Magnesium (post-dinner)', 2),
+      ('ayurveda_skin', 'Ayurveda — skin healing', 3),
+      ('ayurveda_fibroid', 'Ayurveda — fibroid healing', 4),
+      ('ayurveda_varicose', 'Ayurveda — varicose veins', 5),
+      ('multivitamin', 'MultiVitamin (on Chums days)', 6)
+    ) as v(item_key, label, ord) on true
+    where hb.created_by = v_user and hb.category = 'checklist' and hb.label = 'Supplements';
+
+    -- Reassign this user's existing supplement_completions off the
+    -- about-to-be-retired ownerless "Supplements" button and onto the copy
+    -- just provisioned for them, matching by item_key (both checklists carry
+    -- the same 7 fixed items), so their history keeps resolving under a row
+    -- they actually own instead of dangling.
+    update public.supplement_completions sc
+    set header_button_id = (
+      select hb.id from public.header_buttons hb
+      where hb.created_by = v_user and hb.category = 'checklist' and hb.label = 'Supplements'
+    )
+    where sc.user_id = v_user
+      and sc.header_button_id in (select id from public.header_buttons where created_by is null);
+  end loop;
+end $$;
+
+-- Fails loudly (not silently) if any row was somehow missed above — the
+-- delete below would otherwise abort with a foreign-key violation, exactly
+-- the failure this fix exists to prevent.
+do $$
+begin
+  if exists (
+    select 1 from public.supplement_completions
+    where header_button_id in (select id from public.header_buttons where created_by is null)
+  ) then
+    raise exception 'supplement_completions still references an ownerless header_buttons row after per-user reassignment';
+  end if;
+end $$;
 
 -- --- Step 1: retire the ownerless seed rows (cascades to their children). -
 delete from public.header_buttons where created_by is null;

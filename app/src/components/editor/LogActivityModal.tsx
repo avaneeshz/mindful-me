@@ -45,6 +45,9 @@ export function LogActivityModal({
   onSetDreamsNote,
   onCommit,
   onCancel,
+  qualityOptions,
+  symptomOptions,
+  flagOptions,
 }: {
   staging: StagingState
   activities: ActivityList
@@ -64,6 +67,20 @@ export function LogActivityModal({
   onSetDreamsNote: (note: string) => void
   onCommit: () => void
   onCancel: () => void
+  /**
+   * The staged activity's own EFFECTIVE quality/symptom/flag option lists
+   * (PICKER-CUSTOM-1 — inherited from an ancestor or this user's fallback
+   * default, per `internal.effective_parameter_options`). Omitted entirely
+   * (rather than defaulted here) whenever the caller has no live catalog
+   * loaded yet (zero-backend local-only mode, or before the first fetch
+   * resolves) — each picker then falls back to its own original static
+   * default list, so this modal never blocks on the network (rule 6) and
+   * every existing caller that doesn't pass these keeps behaving exactly as
+   * it always has.
+   */
+  qualityOptions?: readonly string[]
+  symptomOptions?: readonly string[]
+  flagOptions?: readonly string[]
 }) {
   const isOpen = staging.cardName !== null
   const card = staging.cardName ? findCard(staging.cardName) : undefined
@@ -195,9 +212,9 @@ export function LogActivityModal({
               />
             )}
 
-            <QualityPicker selected={staging.quality} onToggle={onToggleQuality} />
-            <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} />
-            <FlagPicker selected={staging.flag} onSelect={onSetFlag} />
+            <QualityPicker selected={staging.quality} onToggle={onToggleQuality} options={qualityOptions} />
+            <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} options={symptomOptions} />
+            <FlagPicker selected={staging.flag} onSelect={onSetFlag} options={flagOptions} />
 
             {/* Notes — a real, always-visible field now (was the inert
                 "Deep log" stub). No expand/collapse, no separate heading —
