@@ -46,6 +46,28 @@ import { useEffect, useState } from 'react'
  * instance's optimistic state there is genuinely independent, in-memory
  * only, with nothing to reconcile against), so this module is inert until a
  * real backend is configured.
+ *
+ * PICKER-CUSTOM-1 pivot addendum: the per-activity-keyed channel above is
+ * still exactly right for "this ONE activity's own selection changed"
+ * (`setActivityParameterSelection`/`resetToInherited`), but the pivot to a
+ * shared global vocabulary (`public.parameter_options` — see
+ * `20260925070000_parameter_options_global_vocabulary.sql`) introduces a
+ * SECOND, orthogonal kind of change this per-key scheme can't express:
+ * adding or deleting a GLOBAL option can change the EFFECTIVE set of every
+ * activity that's currently purely inheriting — which is potentially any
+ * activity in the app, not one specific `activityId` a caller can name up
+ * front. Rather than trying to enumerate "every activity currently watched
+ * anywhere" (which no client-side code tracks, and would mean a much larger
+ * shared-cache rebuild — the same "more machinery than this round's scope
+ * justifies" call already made once for the per-activity channel above), this
+ * adds a second, key-less broadcast: `notifyParameterVocabularyChanged` fires
+ * whenever the global list itself changes (`useParameterVocabulary`'s own
+ * add/remove), and EVERY `useEffectiveParameterOptions`/
+ * `useActivityParameterSelections` instance in the app also subscribes to it
+ * (in addition to its own per-activity channel) and re-fetches — a little
+ * more redundant re-fetching than a perfectly scoped invalidation would need,
+ * but correctness-preserving and simple, consistent with this module's own
+ * documented preference above.
  */
 
 const FALLBACK_KEY = '\u0000fallback'
@@ -85,6 +107,34 @@ export function useParameterOptionsInvalidationVersion(activityId: string | null
       if (set.size === 0) listeners.delete(key)
     }
   }, [key, instanceId])
+
+  return version
+}
+
+let vocabularyVersion = 0
+const vocabularyListeners = new Set<(sourceInstanceId: string) => void>()
+
+/** Bump the global-vocabulary invalidation version — call after any successful, server-backed add/remove of a GLOBAL option (`useParameterVocabulary`'s own mutations), identifying the calling instance so it doesn't redundantly re-fetch itself. */
+export function notifyParameterVocabularyChanged(sourceInstanceId: string): void {
+  vocabularyVersion += 1
+  vocabularyListeners.forEach((listener) => listener(sourceInstanceId))
+}
+
+/** The current global-vocabulary invalidation version — bumps whenever `notifyParameterVocabularyChanged` is called by a DIFFERENT instance. Include the result in an effect's dependency array (alongside `useParameterOptionsInvalidationVersion`) so a hook re-fetches on EITHER "this activity's own selection changed" OR "the global list itself changed." */
+export function useParameterVocabularyInvalidationVersion(instanceId: string): number {
+  const [version, setVersion] = useState(vocabularyVersion)
+
+  useEffect(() => {
+    setVersion(vocabularyVersion)
+    const listener = (sourceInstanceId: string) => {
+      if (sourceInstanceId === instanceId) return
+      setVersion(vocabularyVersion)
+    }
+    vocabularyListeners.add(listener)
+    return () => {
+      vocabularyListeners.delete(listener)
+    }
+  }, [instanceId])
 
   return version
 }

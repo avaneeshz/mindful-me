@@ -23,9 +23,11 @@ export function TodayPage() {
   // The ONE edit-mode toggle for this whole screen — `HeaderBar`'s
   // top-bar "Edit" button used to own this locally and only ever wire into
   // its own quick-log button row; lifted here so `SlotEditor` can read the
-  // exact same flag and reveal its own inline tile/activity management
-  // panel (`ActivityLibraryPanel` — see `SlotEditor.tsx`'s own doc comment
-  // for why it's rendered there rather than inside `TileRow`).
+  // exact same flag and open its own tile/activity management dialog
+  // (`ActivityLibraryPanel`, a real `Dialog.Root` now — see `SlotEditor.tsx`'s
+  // own doc comment). Closing that dialog any way (X, Escape, overlay click)
+  // calls `onCloseEditMode` below, which turns this same flag off — one
+  // master switch either way.
   const [editMode, setEditMode] = useState(false)
 
   // The mapping popup targets an activity by id. A `hydrate` (date switch,
@@ -105,6 +107,7 @@ export function TodayPage() {
           onOpenReflectionNote={openMapping}
           syncQueue={syncQueue}
           editMode={editMode}
+          onCloseEditMode={() => setEditMode(false)}
         />
       </div>
 

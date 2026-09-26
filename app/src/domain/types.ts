@@ -101,10 +101,12 @@ export interface ActivityCard {
  * scheduled activity (at most one; "None" clears it).
  *
  * Was a fixed 14-value union (SCRUM-15's replacement of the original
- * 4-value vocabulary). PICKER-CUSTOM-1 made this per-activity and
- * user-editable (`public.activity_parameter_options`, `parameter_type =
- * 'flag'`, with inheritance — see `internal.effective_parameter_options`'s
- * own doc comment) — a closed TS union can no longer usefully describe an
+ * 4-value vocabulary). PICKER-CUSTOM-1 made this user-editable — a shared,
+ * growable vocabulary per type (`public.parameter_options`, `parameter_type =
+ * 'flag'`), with each activity SELECTING which of those apply to it
+ * (`public.activity_parameter_selections`, with inheritance — see
+ * `internal.effective_parameter_options`'s own doc comment) — a closed TS
+ * union can no longer usefully describe an
  * open-ended, server-defined, per-activity option set, so this is plain
  * `string` now. The real constraint moved entirely to where it actually
  * belongs: the DB's `internal.assert_valid_flags` (validated against the

@@ -14,7 +14,7 @@ import { isStagingComplete, type BoardAction, type BoardState } from '@/state/bo
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
 import { catalogIdForName } from '@/api/catalog'
-import { useParameterOptions } from '@/state/useParameterOptions'
+import { useEffectiveParameterOptions } from '@/state/useEffectiveParameterOptions'
 import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
@@ -73,8 +73,10 @@ interface SlotEditorProps {
   viewedDate: Date
   /** Bug B — drives the selected activity's "not yet synced" / "sync failed" badge; see `ActivitySummary`. */
   syncQueue: SyncQueue
-  /** The one Edit-mode toggle for the whole screen (owned by `TodayPage`) — this component renders its own inline tile/activity management panel (`ActivityLibraryPanel`, at the section level, not inside `TileRow` — see the render site's own comment for why) while it's on. */
+  /** The one Edit-mode toggle for the whole screen (owned by `TodayPage`) — this component renders `ActivityLibraryPanel` as a controlled dialog with `open={editMode}` while it's on (see the render site's own comment). */
   editMode: boolean
+  /** Fires when the tile/activity management dialog wants to close itself (X, Escape, overlay click) — `TodayPage` turns `editMode` off in response, the same master switch that also governs `HeaderBar`'s quick-log pill controls. */
+  onCloseEditMode: () => void
 }
 
 /**
@@ -93,22 +95,32 @@ interface SlotEditorProps {
  * commits instantly. There is no batch save. "Cancel" clears the
  * staged-but-not-yet-saved pick only.
  */
-export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflectionNote, syncQueue, editMode }: SlotEditorProps) {
+export function SlotEditor({
+  state,
+  dispatch,
+  nowSlot,
+  viewedDate,
+  onOpenReflectionNote,
+  syncQueue,
+  editMode,
+  onCloseEditMode,
+}: SlotEditorProps) {
   const { activities, selectedSlot, staging, removal } = state
 
-  // Lazy-mount-once, then keep alive — `ActivityLibraryPanel` (rendered
-  // near the bottom of this component) is genuinely expensive to remount:
-  // it owns its own `selectedTileId`/`selectedActivityId` state and fires a
-  // `useParameterOptions` fetch. Mounting it unconditionally from the very
-  // first render (so a toggle off/on never loses that state — see the
-  // render site's own comment) would mean EVERY visit to this screen pays
-  // that fetch, even for the vast majority of sessions that never open Edit
-  // mode at all. This ref instead remembers only that Edit mode was opened
-  // at least once THIS session — before that, the panel is never mounted
-  // (zero extra cost); once opened, it mounts and stays mounted (hidden via
-  // the `hidden` attribute, not unmounted) for the rest of the session, so
-  // switching Edit mode off and back on preserves exactly where the user
-  // left off.
+  // Lazy-mount-once, then keep alive — `ActivityLibraryPanel` (rendered near
+  // the bottom of this component) is genuinely expensive to remount: it owns
+  // its own `selectedTileId`/`selectedActivityId` state and fires
+  // `useParameterVocabulary`/`useActivityParameterSelections` fetches.
+  // Mounting it unconditionally from the very first render (so closing and
+  // reopening the dialog never loses that state — see the render site's own
+  // comment) would mean EVERY visit to this screen pays those fetches, even
+  // for the vast majority of sessions that never open Edit mode at all. This
+  // ref instead remembers only that Edit mode was opened at least once THIS
+  // session — before that, the panel is never mounted (zero extra cost);
+  // once opened, it mounts and stays mounted for the rest of the session
+  // (its own `Dialog.Root open={editMode}` controls the dialog's own
+  // visibility from there), so switching Edit mode off and back on preserves
+  // exactly where the user left off.
   const everOpenedManagementPanelRef = useRef(false)
   if (editMode) everOpenedManagementPanelRef.current = true
   // "Activity mode": an activity was selected on the timeline (or by clicking
@@ -155,30 +167,33 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
   const canCommit = isStagingComplete(staging) && maxDuration > 0
 
   // PICKER-CUSTOM-1 — the staged activity's own effective quality/symptom/
-  // flag option lists. `undefined` (never `[]`) until genuinely `'ready'`,
-  // so a brief loading moment falls back to each picker's own static
-  // default set instead of flashing zero options.
+  // flag option lists (the LOGGING flow's "what can I pick from" read —
+  // `useEffectiveParameterOptions`, not the editing dialog's own checklist
+  // hooks; see that module's own doc comment for why they're split). `undefined`
+  // (never `[]`) until genuinely `'ready'`, so a brief loading moment falls
+  // back to each picker's own static default set instead of flashing zero
+  // options.
   //
   // While `editMode` is on AND an activity is staged, `ActivityLibraryPanel`
-  // below mounts its OWN separate `useParameterOptions(selectedActivityId)`
-  // instance — unlike `tiles`/`activities` (properly shared via
-  // `PickerDataContext`), this hook has no single shared instance across the
-  // app. Two DIFFERENT concerns were found here in self-review, one fixed,
-  // one accepted as-is: (1) a write through the PANEL's instance used to be
-  // invisible to THIS instance, so `LogActivityModal`'s pickers could keep
-  // offering an option the user had just removed via the panel — fixed by
-  // `state/parameterOptionsInvalidation.ts` (see that module's own doc
-  // comment): every successful, server-backed edit now notifies every OTHER
-  // `useParameterOptions` instance watching the same activity to re-fetch,
-  // regardless of which component owns it. (2) When the staged and the
-  // panel-selected activity are the same node, each still fires its own
-  // independent 4-RPC fetch rather than sharing one — a real, accepted
-  // inefficiency (no correctness impact), left as a documented, lower-
-  // priority follow-up rather than building a full shared, multi-key cache,
-  // which felt like more machinery than this feedback round's scope
+  // below mounts its OWN separate `useActivityParameterSelections`/
+  // `useParameterVocabulary` instances — unlike `tiles`/`activities`
+  // (properly shared via `PickerDataContext`), none of these hooks share one
+  // instance across the app. Two DIFFERENT concerns were found here in an
+  // earlier round's self-review, one fixed, one accepted as-is: (1) a write
+  // through the PANEL's instance used to be invisible to THIS instance, so
+  // `LogActivityModal`'s pickers could keep offering an option the user had
+  // just removed via the panel — fixed by `state/parameterOptionsInvalidation.ts`
+  // (see that module's own doc comment): every successful, server-backed
+  // edit now notifies every OTHER instance watching the same activity (or
+  // the global vocabulary) to re-fetch, regardless of which component owns
+  // it. (2) When the staged and the panel-selected activity are the same
+  // node, each still fires its own independent fetch rather than sharing
+  // one — a real, accepted inefficiency (no correctness impact), left as a
+  // documented, lower-priority follow-up rather than building a full shared,
+  // multi-key cache, which felt like more machinery than that round's scope
   // justified.
   const stagedActivityId = useStagedActivityId(staging.cardName)
-  const parameterOptions = useParameterOptions(stagedActivityId)
+  const parameterOptions = useEffectiveParameterOptions(stagedActivityId)
   const qualityOptions =
     parameterOptions.status === 'ready' ? parameterOptions.effective.quality.map((o) => o.label) : undefined
   const symptomOptions =
@@ -294,42 +309,29 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
     </section>
 
     {/*
-      The unified tile/activity management panel (real user feedback: the
+      The unified tile/activity management dialog (real user feedback: the
       same top-bar Edit toggle must manage tiles/activities, not a second
       page reachable only from the sidebar — see `ActivityLibraryPanel`'s own
-      doc comment). Deliberately rendered as its OWN top-level sibling here,
-      outside the `<section>` above — two things found in self-review: (1)
-      `TileRow` only renders at all in "slot mode" (the `selectedActivity`
-      branch replaces that whole block with `ActivitySummary` instead), so a
-      panel rendered inside `TileRow` vanished the moment any activity was
-      selected; (2) the section above carries an `aria-label`/
-      `aria-labelledby` naming it "Selected activity" or the slot heading —
-      nesting an unrelated tile/activity management UI inside THAT landmark
-      would leave it mislabeled (a screen-reader user landing on "Selected
-      activity" would find a second, unrelated feature living inside it).
-      `ActivityLibraryPanel` has its own `aria-label`, so as a sibling here it
-      is its own honestly-named landmark instead.
+      doc comment for the full history, including this round's move from
+      inline content to a real dialog). Rendered as its OWN top-level sibling
+      here, outside the `<section>` above, purely so it's never structurally
+      nested inside that section's own "Selected activity"/slot-heading
+      landmark — its own `Dialog.Content` is a fixed-position overlay
+      regardless of where in the tree it renders (no `<Dialog.Portal>`, see
+      `ActivityLibraryPanel`'s own doc comment for why), so this placement is
+      about correct landmark nesting, not visual layout.
 
-      Lazy-mount-once, then kept alive and merely `hidden` (not unmounted)
-      on every subsequent toggle — mirrors `TileRow`'s own established "stays
-      mounted regardless" pattern for a toggled state (see that component's
-      own test file: "the 9-tile row stays mounted regardless of slot
-      capacity"). Plain `{editMode && (...)}` here (found in self-review)
-      unmounted/remounted the panel on every single Edit toggle, resetting
-      its own `selectedTileId`/`selectedActivityId` state to nothing and
-      restarting its `useParameterOptions` fetch each time, so a user who
-      drilled into one activity's options, glanced back at Today, then
-      re-opened Edit mode lost their place every time. See
-      `everOpenedManagementPanelRef`'s own comment above for why this isn't
-      simply "always mounted" instead. `hidden` (a real HTML attribute, not
-      just a visual `display:none` class) correctly drops it from the
-      accessibility tree and tab order while off, same as any other
-      conditionally-relevant region.
+      Lazy-mount-once, then kept mounted forever after that first open —
+      mirrors `TileRow`'s own established "stays mounted regardless" pattern
+      for a toggled state. `open={editMode}` is what actually shows/hides the
+      dialog from here on; `ActivityLibraryPanel` itself stays mounted the
+      whole time so its own `selectedTileId`/`selectedActivityId` state
+      survives closing and reopening — see `everOpenedManagementPanelRef`'s
+      own comment above for why this isn't simply "always mounted from the
+      very first render" instead.
     */}
     {everOpenedManagementPanelRef.current && (
-      <div className="mt-2xl ipad-land:mt-md" hidden={!editMode}>
-        <ActivityLibraryPanel />
-      </div>
+      <ActivityLibraryPanel open={editMode} onClose={onCloseEditMode} />
     )}
     </>
   )

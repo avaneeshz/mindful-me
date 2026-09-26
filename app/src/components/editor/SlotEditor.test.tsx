@@ -36,6 +36,7 @@ function renderEditor(state: BoardState): string {
       onOpenReflectionNote={() => {}}
       syncQueue={[]}
       editMode={false}
+      onCloseEditMode={() => {}}
     />,
   )
 }
@@ -371,6 +372,7 @@ describe('the unified tile/activity management panel (real user feedback: same E
           onOpenReflectionNote={() => {}}
           syncQueue={[]}
           editMode={editMode}
+          onCloseEditMode={() => {}}
         />
       </PickerDataProvider>,
     )
@@ -431,6 +433,7 @@ describe('the management panel’s tile grid matches the everyday picker’s own
           onOpenReflectionNote={() => {}}
           syncQueue={[]}
           editMode={editMode}
+          onCloseEditMode={() => {}}
         />
       </PickerDataProvider>,
     )
@@ -455,5 +458,56 @@ describe('the management panel’s tile grid matches the everyday picker’s own
     expect(addTileButton).toBeDefined()
     expect(addTileButton).toContain('aspect-square')
     expect(addTileButton).toContain('border-dashed')
+  })
+})
+
+describe('the management panel is a real dialog, not inline content (confirmed prototype fix)', () => {
+  function renderPanel(editMode: boolean): string {
+    return renderToStaticMarkup(
+      <PickerDataProvider>
+        <SlotEditor
+          state={run(DROP)}
+          dispatch={() => {}}
+          nowSlot={32}
+          viewedDate={AT_4PM}
+          onOpenReflectionNote={() => {}}
+          syncQueue={[]}
+          editMode={editMode}
+          onCloseEditMode={() => {}}
+        />
+      </PickerDataProvider>,
+    )
+  }
+
+  it('renders nothing from the dialog at all while closed — Radix unmounts Dialog.Content when `open` is false', () => {
+    // `editMode` was never true here, so `ActivityLibraryPanel` never even
+    // mounts (see `SlotEditor`'s own lazy-mount-once ref) — the strongest
+    // form of "renders nothing."
+    expect(renderPanel(false)).not.toContain('Manage tiles')
+  })
+
+  it('renders a dimmed overlay behind a centered, rounded popup at tablet/desktop width, and an edge-to-edge full-screen sheet below the mobile breakpoint', () => {
+    const html = renderPanel(true)
+    // The overlay — dims the rest of the page, which stays visible behind it
+    // (never removed from the DOM, unlike a full-screen takeover).
+    expect(html).toContain('bg-black/45')
+    // Mobile (≤768px, the one global breakpoint `SlotEditor` itself already
+    // uses): fills the viewport edge to edge.
+    expect(html).toContain('mobile:inset-0')
+    // Tablet/desktop: centered, sized, rounded popup — never full-bleed.
+    expect(html).toContain('md:left-1/2')
+    expect(html).toContain('md:top-1/2')
+    expect(html).toContain('md:rounded-lg')
+  })
+
+  it('closes via a real Dialog.Close (X) control, labeled for assistive tech', () => {
+    const html = renderPanel(true)
+    expect(html).toContain('aria-label="Close"')
+  })
+
+  it('shows the global options vocabulary editor by default (no activity open yet) — the earlier "no home for your defaults" gap this round also fixes', () => {
+    const html = renderPanel(true)
+    expect(html).toContain('aria-label="Your options"')
+    expect(html).not.toContain('aria-label="Parameter options"')
   })
 })
