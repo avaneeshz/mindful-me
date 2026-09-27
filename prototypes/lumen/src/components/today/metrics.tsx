@@ -4,78 +4,76 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { IconBubble, ProgressRing } from '@/components/ui/primitives'
 import { Sheet } from '@/components/ui/sheet'
-import { metrics, type MetricDef } from '@/lib/data'
+import { hueStyles, metrics, type MetricDef } from '@/lib/data'
 import { useStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { CustomizeSheet } from './customize-sheet'
 
+/**
+ * Daily metrics as compact chips that only take the room they need, so the
+ * row can grow as people add more metrics. Wraps onto a second line when full.
+ */
 export function MetricTiles() {
   const { day, hiddenMetrics } = useStore()
   const [openId, setOpenId] = useState<MetricDef['id'] | null>(null)
+  const [customizeOpen, setCustomizeOpen] = useState(false)
   const visible = metrics.filter((m) => !hiddenMetrics.includes(m.id))
-  if (visible.length === 0) return null
   const open = metrics.find((m) => m.id === openId)
 
   return (
     <>
-      <div
-        className="grid gap-2.5 sm:gap-3"
-        style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0, 1fr))` }}
-      >
+      {/* Phones: one row that scrolls sideways once it's full. Larger screens: wrap. */}
+      <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
         {visible.map((m) => {
           const value = day.metrics[m.id]
           const pct = value / m.goal
           const done = pct >= 1
+          const Icon = done ? Check : m.icon
           return (
             <button
               key={m.id}
               type="button"
               onClick={() => setOpenId(m.id)}
+              aria-label={`${m.label}: ${value === 0 ? 'not logged' : `${m.format(value)} of ${m.format(m.goal)} ${m.unit}`}`}
               className={cn(
-                'group relative flex min-h-[76px] flex-col items-start gap-2.5 overflow-hidden rounded-tile px-3 pb-3.5 pt-3 text-left sm:flex-row sm:items-center sm:gap-3 sm:py-3 transition-[border-color,background-color,transform] duration-150 active:scale-[0.98] sm:px-4',
+                'flex h-11 shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-3.5 transition-[border-color,background-color,transform] duration-150 active:scale-[0.97]',
                 done
-                  ? 'border border-mint/30 bg-[linear-gradient(160deg,rgb(var(--mint)/0.14),rgb(var(--mint)/0.04))] hover:border-mint/45'
-                  : 'surface hover:border-line/[0.16]',
+                  ? 'border-mint/30 bg-mint/[0.08] hover:border-mint/45'
+                  : 'border-line/[0.09] bg-surface-1/70 hover:border-line/[0.16] hover:bg-surface-2',
               )}
             >
-              <IconBubble
-                icon={done ? Check : m.icon}
-                hue={done ? 'mint' : m.hue}
-                className={cn('h-8 w-8 [&_svg]:!h-4 [&_svg]:!w-4 sm:h-11 sm:[&_svg]:!h-5 sm:[&_svg]:!w-5 sm:w-11', done && 'bg-mint/20')}
-              />
-              <div className="w-full min-w-0">
-                <p className="truncate text-xs text-ink-muted sm:text-sm">{m.label}</p>
-                <p className="mt-0.5 truncate text-lg font-medium tabular text-ink">
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    <motion.span
-                      key={value}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.18 }}
-                      className="inline-block"
-                    >
-                      {value === 0 ? '—' : m.format(value)}
-                    </motion.span>
-                  </AnimatePresence>
-                  <span className="ml-0.5 hidden text-sm font-normal text-ink-faint sm:inline">
-                    {m.id === 'steps' ? '' : `/${m.format(m.goal)}${m.unit === 'g' ? 'g' : ''}`}
-                  </span>
-                </p>
-              </div>
-              {/* Goal progress as a hairline along the bottom edge */}
-              <span className="absolute inset-x-3 bottom-0 h-[2px] overflow-hidden rounded-full bg-white/[0.04] sm:inset-x-4">
-                <motion.span
-                  className={cn('block h-full rounded-full', done ? 'bg-mint' : 'bg-accent-ink/70')}
-                  initial={false}
-                  animate={{ width: `${Math.min(100, pct * 100)}%` }}
-                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                />
+              <ProgressRing value={pct} size={34} stroke={2.5} complete={done}>
+                <Icon className={cn('h-4 w-4', done ? 'text-mint' : hueStyles[m.hue].icon)} strokeWidth={2} />
+              </ProgressRing>
+              <span className="hidden text-sm text-ink-muted sm:inline">{m.label}</span>
+              <span className="text-sm font-medium tabular text-ink">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={value}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.16 }}
+                    className="inline-block"
+                  >
+                    {value === 0 ? '—' : m.format(value)}
+                  </motion.span>
+                </AnimatePresence>
               </span>
             </button>
           )
         })}
+        <button
+          type="button"
+          onClick={() => setCustomizeOpen(true)}
+          aria-label="Add or hide metrics"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-dashed border-line/20 text-ink-muted transition-colors hover:border-line/30 hover:bg-white/[0.04] hover:text-ink"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
       {open && <MetricSheet metric={open} onClose={() => setOpenId(null)} />}
+      <CustomizeSheet open={customizeOpen} onOpenChange={setCustomizeOpen} />
     </>
   )
 }
