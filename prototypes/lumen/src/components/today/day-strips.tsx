@@ -29,30 +29,31 @@ const pct = (min: number) => `${(min / SPAN) * 100}%`
  * The capsule and the essence line both read from this one model.
  */
 type Stop = [number, string, number]
+/** Mirror a 0 → 0.5 curve around its midpoint, so 9 AM matches 3 PM, 9 PM matches 3 AM, and so on. */
+const mirror = (half: Stop[]): Stop[] => [
+  ...half,
+  ...half
+    .filter(([at]) => at < 0.5)
+    .reverse()
+    .map(([at, c, i]): Stop => [Number((1 - at).toFixed(3)), c, i]),
+]
 const LIGHT: Record<Half, Stop[]> = {
-  day: [
-    [0, '#c77a45', 0.35],
-    [0.1, '#dc9c58', 0.5],
+  // Dawn amber → golden morning → brightest at noon
+  day: mirror([
+    [0, '#c9744f', 0.35],
+    [0.1, '#dc9a5a', 0.5],
     [0.25, '#efc576', 0.74],
     [0.4, '#f7e0a6', 0.92],
     [0.5, '#fff4d8', 1],
-    [0.6, '#f7e0a6', 0.92],
-    [0.75, '#efc076', 0.72],
-    [0.88, '#e1915e', 0.5],
-    [1, '#c8655e', 0.35],
-  ],
-  night: [
-    [0, '#8c88e8', 0.8],
+  ]),
+  // Evening indigo → deepening → darkest at midnight
+  night: mirror([
+    [0, '#8b84e4', 0.8],
     [0.12, '#6865cb', 0.66],
     [0.25, '#42419c', 0.46],
-    [0.4, '#23246a', 0.28],
+    [0.4, '#1f2062', 0.26],
     [0.5, '#0c0d2c', 0.12],
-    [0.62, '#0f1136', 0.14],
-    [0.75, '#161947', 0.2],
-    [0.83, '#24276c', 0.32],
-    [0.92, '#4a47a6', 0.56],
-    [1, '#8a7fe0', 0.8],
-  ],
+  ]),
 }
 const lightGradient = (half: Half) =>
   `linear-gradient(90deg, ${LIGHT[half].map(([at, c]) => `${c} ${at * 100}%`).join(', ')})`
@@ -63,7 +64,7 @@ const LINE_W = 2.5 // px — the essence line's stroke
 /** Day (6 AM – 6 PM) and Night (6 PM – 6 AM) as two continuous strips. */
 export function DayStrips() {
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="grid grid-cols-1 gap-5 px-1 py-1">
       <Strip half="day" />
       <Strip half="night" />
     </div>
@@ -128,20 +129,7 @@ function Strip({ half }: { half: Half }) {
   }
 
   return (
-    <section className="surface rounded-card px-4 pb-3.5 pt-4 sm:px-5" aria-label={`${cfg.label}, ${cfg.range}`}>
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-medium text-ink">{cfg.label}</p>
-          <p className="truncate text-xs tabular text-ink-muted">
-            {cfg.range}
-            {night && ` · into ${nextDay}`}
-          </p>
-        </div>
-        <p className="whitespace-nowrap text-sm text-ink-muted">
-          <span className="font-medium tabular text-ink">{total > 0 ? formatDuration(total) : '—'}</span> logged
-        </p>
-      </div>
-
+    <section aria-label={`${cfg.label}, ${cfg.range}${night ? `, into ${nextDay}` : ''}, ${total > 0 ? formatDuration(total) : 'nothing'} logged`}>
       <div
         ref={ref}
         role="slider"
@@ -157,8 +145,7 @@ function Strip({ half }: { half: Half }) {
         onPointerCancel={() => setDragging(false)}
         onKeyDown={onKey}
         className={cn(
-          'relative h-10 cursor-pointer touch-pan-y rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent-ink focus-visible:ring-offset-4 focus-visible:ring-offset-surface-1',
-          night ? 'mt-8' : 'mt-4',
+          'relative h-10 cursor-pointer touch-pan-y rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent-ink focus-visible:ring-offset-4 focus-visible:ring-offset-canvas',
         )}
       >
         {/* Glass capsule: navy base, the light gradient, logged time, then the not-yet-happened veil.
@@ -194,14 +181,7 @@ function Strip({ half }: { half: Half }) {
 
         <EssenceLine half={half} />
 
-        {night && (
-          <>
-            <span className="absolute -bottom-2 -top-2 left-1/2 border-l border-dashed border-ink/50" aria-hidden />
-            <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line/10 bg-surface-3 px-2 py-px text-2xs font-semibold uppercase tracking-[0.06em] text-ink">
-              {nextDay} · next day
-            </span>
-          </>
-        )}
+        {night && <span className="pointer-events-none absolute inset-y-1.5 left-1/2 border-l border-dashed border-ink/25" aria-hidden />}
 
         {selectedHere && (
           <motion.span
@@ -234,7 +214,16 @@ function Strip({ half }: { half: Half }) {
               style={edge ? undefined : { left: `${i * 25}%` }}
             >
               <span className={cn('mb-1 h-1.5 w-px bg-ink-faint/60', edge === 'left' && 'ml-px', edge === 'right' && 'mr-px')} />
-              {t}
+              <span className="relative">
+                {t}
+                {/* The next day's date sits beside 12 AM without pulling the label off its tick */}
+                {night && i === 2 && (
+                  <span className="absolute left-full top-0 ml-1 whitespace-nowrap text-[10px] text-ink-faint">
+                    {nextDay.split(' ')[0]}
+                    <span className="hidden sm:inline"> {nextDay.split(' ')[1]}</span>
+                  </span>
+                )}
+              </span>
             </span>
           )
         })}
@@ -264,15 +253,17 @@ function EssenceLine({ half }: { half: Half }) {
   }, [])
 
   const r = STRIP_H / 2
-  const R = r + 0.4 // line centre sits just outside the edge; the stroke overlaps it
-  const a = (150 * Math.PI) / 180 // how far up each rounded end the line climbs
-  const leftStart = [r + R * Math.cos(a), r + R * Math.sin(a)]
-  const rightEnd = [width - r - R * Math.cos(a), r + R * Math.sin(a)]
+  // The line's centre sits just inside the capsule edge, so the stroke straddles it and reads as
+  // part of the pill's lower rim rather than something drawn next to it.
+  const R = r - 0.5
+  // Start at the very side of each rounded end (180°) and sweep down around the corner.
   const d =
     width > STRIP_H
-      ? `M ${leftStart[0]} ${leftStart[1]} A ${R} ${R} 0 0 0 ${r} ${r + R} L ${width - r} ${r + R} A ${R} ${R} 0 0 0 ${rightEnd[0]} ${rightEnd[1]}`
+      ? `M ${r - R} ${r} A ${R} ${R} 0 0 0 ${r} ${r + R} L ${width - r} ${r + R} A ${R} ${R} 0 0 0 ${width - r + R} ${r}`
       : ''
   const night = half === 'night'
+  // Fade in along each curve: invisible where it starts at the side, full strength by the bottom.
+  const fade = width > 0 ? r / width : 0
 
   return (
     <svg
@@ -292,8 +283,28 @@ function EssenceLine({ half }: { half: Half }) {
             <stop key={at} offset={at} stopColor={color} stopOpacity={0.3 + intensity * 0.65} />
           ))}
         </linearGradient>
+        <linearGradient id={`${gradientId}-fade`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={width} y2="0">
+          <stop offset={0} stopColor="#fff" stopOpacity={0} />
+          <stop offset={fade * 0.35} stopColor="#fff" stopOpacity={0.35} />
+          <stop offset={fade} stopColor="#fff" stopOpacity={1} />
+          <stop offset={1 - fade} stopColor="#fff" stopOpacity={1} />
+          <stop offset={1 - fade * 0.35} stopColor="#fff" stopOpacity={0.35} />
+          <stop offset={1} stopColor="#fff" stopOpacity={0} />
+        </linearGradient>
+        <mask id={`${gradientId}-mask`} maskUnits="userSpaceOnUse" x={-4} y={-4} width={width + 8} height={STRIP_H + 8}>
+          <rect x={-4} y={-4} width={width + 8} height={STRIP_H + 8} fill={`url(#${gradientId}-fade)`} />
+        </mask>
       </defs>
-      {d && <path d={d} fill="none" stroke={`url(#${gradientId})`} strokeWidth={LINE_W} strokeLinecap="round" />}
+      {d && (
+        <path
+          d={d}
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth={LINE_W}
+          strokeLinecap="butt"
+          mask={`url(#${gradientId}-mask)`}
+        />
+      )}
     </svg>
   )
 }
