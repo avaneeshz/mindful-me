@@ -1,0 +1,848 @@
+<title>Mindful Me Architecture</title>
+<meta name="description" content="Interactive map of how data moves between the two mindful-me frontends, the shared data layer and the Supabase backend.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F3F4F1;
+    --surface: #FFFFFF;
+    --surface-2: #ECEEEA;
+    --ink: #1A201D;
+    --muted: #5B645E;
+    --line: #D5D9D3;
+    --edge: #A7AEA8;
+    --t-fe: #7549CC;
+    --t-br: #0B7F72;
+    --t-host: #6A7178;
+    --t-be: #A9660C;
+    --t-db: #3263AC;
+    --flow: #D2356A;
+    --ok: #237A45;
+    --warn: #A15E00;
+    --no: #B23A3A;
+    --sans: "Schibsted Grotesk", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111513; --surface: #191E1B; --surface-2: #212724; --ink: #E5EAE6; --muted: #9AA49D;
+      --line: #2F3733; --edge: #4B5550;
+      --t-fe: #AD8FF2; --t-br: #3FC4B1; --t-host: #9CA3AA; --t-be: #E3A34B; --t-db: #79A6EE;
+      --flow: #FF6E9C; --ok: #5CC984; --warn: #E6A54A; --no: #F07A7A;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111513; --surface: #191E1B; --surface-2: #212724; --ink: #E5EAE6; --muted: #9AA49D;
+    --line: #2F3733; --edge: #4B5550;
+    --t-fe: #AD8FF2; --t-br: #3FC4B1; --t-host: #9CA3AA; --t-be: #E3A34B; --t-db: #79A6EE;
+    --flow: #FF6E9C; --ok: #5CC984; --warn: #E6A54A; --no: #F07A7A;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55;
+    padding-inline: 16px; padding-block: 28px 64px;
+  }
+  .wrap { max-width: 1260px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; margin: 0; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+  h2 { font-size: 21px; margin: 0; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { font-size: 15px; margin: 0; font-weight: 600; }
+  .lede { max-width: 70ch; color: var(--muted); margin: 0; font-size: 16px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  .controls {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+    background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px);
+    padding-block: 12px; border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ctl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .ctl-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); min-width: 76px; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button {
+    font: inherit; font-size: 14px; font-weight: 600; border: 0; background: transparent; color: var(--muted);
+    padding: 6px 14px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+  .seg button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--t-fe); display: inline-block; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    padding: 5px 11px; border-radius: 999px; display: inline-flex; gap: 7px; align-items: center;
+  }
+  .chip:hover { border-color: var(--muted); }
+  .chip[aria-pressed="true"] { border-color: var(--flow); background: color-mix(in srgb, var(--flow) 10%, var(--surface)); }
+  .chip .dir { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .02em; }
+  .chip[aria-pressed="true"] .dir { color: var(--flow); }
+  button:focus-visible { outline: 2px solid var(--flow); outline-offset: 2px; }
+
+  .notice {
+    border: 1px dashed color-mix(in srgb, var(--t-fe) 60%, var(--line)); border-radius: 10px;
+    padding: 10px 14px; font-size: 14px; color: var(--ink); background: color-mix(in srgb, var(--t-fe) 6%, var(--surface));
+  }
+
+  .diagram-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+  .diagram-scroll { overflow-x: auto; }
+  svg#arch { display: block; width: 100%; min-width: 900px; height: auto; font-family: var(--sans); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 8px 10px 4px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; display: inline-block; }
+  .ln { width: 26px; height: 0; border-top: 2px solid var(--edge); display: inline-block; }
+  .ln.dash { border-top-style: dashed; }
+  .ln.flow { border-top-color: var(--flow); border-top-width: 2.5px; }
+
+  /* SVG */
+  .band { fill: var(--surface-2); opacity: .55; }
+  .band-t { fill: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .09em; }
+  .band-s { fill: var(--muted); font-size: 11px; }
+  .group-box { fill: none; stroke: var(--t-br); stroke-opacity: .45; stroke-dasharray: 2 4; }
+  .group-t { fill: var(--t-br); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+  .node { cursor: pointer; transition: opacity .2s; }
+  .node rect.box { fill: color-mix(in srgb, var(--tier) 7%, var(--surface)); stroke: color-mix(in srgb, var(--tier) 55%, var(--line)); stroke-width: 1.3; transition: stroke-width .15s; }
+  .node.planned rect.box { stroke-dasharray: 5 4; }
+  .node:hover rect.box, .node:focus-visible rect.box { stroke-width: 2.4; }
+  .node:focus { outline: none; }
+  .node.sel rect.box { stroke: var(--tier); stroke-width: 2.6; }
+  .node .t { fill: var(--ink); font-size: 14px; font-weight: 600; }
+  .node .s { fill: var(--muted); font-size: 11.5px; }
+  .node .tag { fill: var(--tier); font-size: 9.5px; font-weight: 700; letter-spacing: .08em; }
+  .node .k { fill: var(--tier); font-size: 9.5px; font-weight: 700; letter-spacing: .08em; }
+  .trow { cursor: pointer; transition: opacity .2s; }
+  .trow rect { fill: transparent; }
+  .trow:hover rect, .trow:focus-visible rect { fill: color-mix(in srgb, var(--t-db) 10%, transparent); }
+  .trow:focus { outline: none; }
+  .trow.hot rect { fill: color-mix(in srgb, var(--flow) 14%, transparent); }
+  .trow.sel rect { fill: color-mix(in srgb, var(--t-db) 16%, transparent); }
+  .trow .tn { fill: var(--ink); font-family: var(--mono); font-size: 11px; }
+  .trow .td { fill: var(--muted); font-size: 11px; }
+  .trow .ic { fill: none; stroke: var(--t-db); stroke-width: 1.2; }
+  .edge { fill: none; stroke: var(--edge); stroke-width: 1.5; transition: opacity .2s; }
+  .edge.planned { stroke-dasharray: 4 4; }
+  .flowpath { fill: none; stroke: var(--flow); stroke-width: 2.6; stroke-dasharray: 7 5; animation: march .9s linear infinite; }
+  .flowpath.focus { stroke-width: 4.5; }
+  .arrowhead { fill: var(--flow); }
+  .elabel rect { fill: var(--surface); stroke: var(--flow); stroke-width: 1.2; }
+  .elabel text { fill: var(--ink); font-size: 11px; font-weight: 500; }
+  .elabel .n { fill: var(--flow); font-weight: 700; }
+  .elabel.focus rect { fill: color-mix(in srgb, var(--flow) 16%, var(--surface)); }
+  svg.has-flow .dim { opacity: .26; }
+  svg .off { opacity: .16; }
+  @keyframes march { to { stroke-dashoffset: -12; } }
+  @media (prefers-reduced-motion: reduce) { .flowpath { animation: none; } .node, .edge, .trow { transition: none; } }
+
+  .panels { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .panel .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: s; }
+  ol.steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; padding: 8px 8px; border-radius: 8px; font-size: 14px; cursor: default; }
+  ol.steps li.has-e { cursor: pointer; }
+  ol.steps li:hover, ol.steps li:focus-visible { background: var(--surface-2); outline: none; }
+  ol.steps li .num {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 700;
+    color: var(--flow); border: 1.5px solid var(--flow); font-variant-numeric: tabular-nums; margin-top: 1px;
+  }
+  ol.steps li .num.plain { color: var(--muted); border-color: var(--line); }
+  ol.steps li .phase { display: block; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-bottom: 1px; }
+  .callout { font-size: 13.5px; border-radius: 8px; padding: 10px 12px; background: var(--surface-2); color: var(--ink); }
+  .callout.warn { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+  .detail-kind { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .detail ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; }
+  .files code { font-size: 12px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 0; }
+
+  section.block { display: flex; flex-direction: column; gap: 14px; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .rule { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .rule p { margin: 0; color: var(--muted); }
+  .table-scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 700; background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+  .pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid; }
+  .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 9%, transparent); }
+  .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+  .pill.no { color: var(--no); border-color: color-mix(in srgb, var(--no) 45%, transparent); background: color-mix(in srgb, var(--no) 9%, transparent); }
+  footer { color: var(--muted); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">mindful-me · technical architecture</div>
+    <h1>Mindful Me Architecture</h1>
+    <p class="lede">Two frontends share <strong>one data layer</strong> and <strong>one Supabase backend</strong>. Choose a frontend and a flow to see each hop data takes between the screen and Postgres. Tap any box or table for details.</p>
+  </header>
+
+  <div class="controls" role="region" aria-label="Diagram controls">
+    <div class="ctl-row">
+      <span class="ctl-label" id="fe-label">Frontend</span>
+      <div class="seg" role="group" aria-labelledby="fe-label">
+        <button type="button" id="fe-current" data-fe="current" aria-pressed="true">Current UI</button>
+        <button type="button" id="fe-lumen" data-fe="lumen" aria-pressed="false">Lumen</button>
+      </div>
+    </div>
+    <div class="ctl-row">
+      <span class="ctl-label" id="flow-label">Flow</span>
+      <div class="chips" id="chips" role="group" aria-labelledby="flow-label"></div>
+    </div>
+  </div>
+
+  <div class="notice" id="lumen-note" hidden>
+    Lumen runs on in-memory sample data today and resets on reload. The dashed parts show how it plugs into the same data layer and backend once it's wired up. The backend and database stay exactly as they are.
+  </div>
+
+  <figure class="diagram-card" style="margin:0">
+    <div class="diagram-scroll">
+      <svg id="arch" viewBox="0 0 1180 1000" role="img" aria-label="Architecture diagram: a UI switch chooses between the Current UI and Lumen; both use the same browser state and shared data layer (local cache, sync queue, API client, supabase-js), which calls Supabase RPC functions protected by row-level security and encryption, backed by fifteen Postgres tables."></svg>
+    </div>
+    <figcaption class="legend">
+      <span><i class="sw" style="border-color:var(--t-fe)"></i>Frontend</span>
+      <span><i class="sw" style="border-color:var(--t-br)"></i>Browser: state &amp; data layer</span>
+      <span><i class="sw" style="border-color:var(--t-host)"></i>Hosting &amp; outside services</span>
+      <span><i class="sw" style="border-color:var(--t-be)"></i>Supabase backend</span>
+      <span><i class="sw" style="border-color:var(--t-db)"></i>Postgres tables</span>
+      <span><i class="ln"></i>Built</span>
+      <span><i class="ln dash"></i>Planned</span>
+      <span><i class="ln flow"></i>Selected flow, arrows show data direction</span>
+    </figcaption>
+  </figure>
+
+  <div class="panels">
+    <div class="panel" aria-live="polite">
+      <div>
+        <div class="eyebrow" id="flow-dir"></div>
+        <h2 id="flow-title"></h2>
+      </div>
+      <p class="sub" id="flow-sum"></p>
+      <ol class="steps" id="steps"></ol>
+      <div class="callout" id="flow-note" hidden></div>
+    </div>
+    <div class="panel detail" id="detail" aria-live="polite">
+      <p class="hint">Tap a box or table in the diagram to see what it does, where it lives in the code, and what it stores.</p>
+    </div>
+  </div>
+
+  <section class="block">
+    <h2>What stays the same when you switch</h2>
+    <div class="rules">
+      <div class="rule"><h3>One data layer, two skins</h3><p>Lumen reads and writes through the same <code>app/src/state</code> providers and <code>app/src/api</code> client as the current UI. Only the components change, so there's never a second Supabase client or a second copy of the rules.</p></div>
+      <div class="rule"><h3>Same origin, same session</h3><p>Serve both UIs from one Vercel deployment. supabase-js keeps the login in the site's local storage, so switching UIs never asks you to sign in again, and both see the same local cache and sync queue.</p></div>
+      <div class="rule"><h3>The database enforces the rules</h3><p>No overlaps (<code>no_overlapping_activities</code>), ownership (RLS on <code>auth.uid()</code>) and encryption all live in Postgres. Neither frontend can break them, even with a bug.</p></div>
+      <div class="rule"><h3>Don't drop fields a UI can't show</h3><p>Lumen has no quality, symptoms, flag or notes pickers yet. When it edits an activity it must carry those fields through unchanged, or a reschedule from Lumen would erase them.</p></div>
+      <div class="rule"><h3>The choice is a device setting</h3><p>The selected UI is stored per device, like the light/dark theme, under a key such as <code>mindful-me:ui</code>. Nothing about it goes to the database.</p></div>
+      <div class="rule"><h3>Schema changes follow the workflow</h3><p>The migrations Lumen needs (a <code>water</code> metric, hidden categories) are applied to the test project first, then to production before the code ships, per <code>WORKFLOW.md</code>.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>How Lumen maps onto the shared backend</h2>
+    <p class="lede" style="font-size:15px">Everything Lumen keeps in memory today, and where it would live in the existing schema.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Lumen today</th><th>Shared backend</th><th>Fit</th><th>What it takes</th></tr></thead>
+        <tbody>
+          <tr><td>Entry <code>{slot, minutes, categoryId, activityId}</code></td><td><code>scheduled_activities</code> via <code>create_scheduled_activity</code></td><td><span class="pill ok">Fits</span></td><td>Convert slot to <code>startMinutes = slot × 30 + minutes already used</code>, then dispatch the normal <code>commit</code>.</td></tr>
+          <tr><td>6 AM → 6 AM day; after-midnight time stored on the next date</td><td>Rule 2: an activity belongs to the calendar day it started (<code>local_date</code>)</td><td><span class="pill ok">Fits</span></td><td>Same rule Lumen already follows. Its Today view reads two calendar days.</td></tr>
+          <tr><td>Categories: Deep Focus, Movement, Meals &amp; Fuel…</td><td><code>activities</code> catalog: Sleep &amp; Rest, Food &amp; Nourishment, Work &amp; Projects…</td><td><span class="pill warn">Needs mapping</span></td><td>Point Lumen's grid at the real catalog, or add Lumen's activities to it as catalog rows.</td></tr>
+          <tr><td>Remove entry + Undo toast</td><td><code>soft_delete_scheduled_activity</code> / <code>restore_scheduled_activity</code></td><td><span class="pill ok">Fits</span></td><td>Dispatch <code>removeActivity</code> / <code>undoRemoval</code>.</td></tr>
+          <tr><td>Metrics: steps, protein</td><td><code>daily_values</code> via <code>set_daily_value</code></td><td><span class="pill ok">Fits</span></td><td>Use <code>useDailyValue</code>.</td></tr>
+          <tr><td>Metric: water</td><td><code>daily_values</code></td><td><span class="pill warn">Needs migration</span></td><td>The <code>metric_key</code> check allows only <code>protein</code> and <code>steps</code>. Widen it, as the steps migration did.</td></tr>
+          <tr><td>Customize: hidden metrics</td><td><code>header_button_user_state.hidden</code> on the day-value buttons</td><td><span class="pill ok">Fits</span></td><td>Call <code>hideButton</code> / <code>unhideButton</code>.</td></tr>
+          <tr><td>Customize: hidden categories</td><td>None</td><td><span class="pill warn">Needs migration</span></td><td>Category tiles aren't header buttons. Needs a small per-user table or column.</td></tr>
+          <tr><td>Calendar heatmap, Insights charts</td><td>Derived queries over <code>scheduled_activities</code> (Phase 4)</td><td><span class="pill warn">Partly</span></td><td><code>list_scheduled_activities</code> takes any date range now. Aggregation RPCs are still on an unmerged branch.</td></tr>
+          <tr><td>Quality, symptoms, flag, notes, reflections</td><td>Encrypted columns and child tables</td><td><span class="pill warn">No UI in Lumen</span></td><td>Data stays safe as long as Lumen passes these fields through on edits.</td></tr>
+          <tr><td>Health sync toggle, notifications</td><td>None</td><td><span class="pill no">Not in backend</span></td><td>Both are simulated in the prototype.</td></tr>
+          <tr><td>CSV export</td><td>Runs in the browser</td><td><span class="pill ok">Fits</span></td><td>No backend needed, same as the current UI's PDF export.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Built from the repository at <code>main</code> (dee5ee1: 41 migrations, 15 tables) and the Lumen prototype on branch <code>claude/cool-gauss-2xm089</code>. The UI switch and the Lumen adapter are proposals and aren't built yet. Everything else describes code that exists today.</footer>
+</div>
+
+<script>
+(() => {
+const NS = 'http://www.w3.org/2000/svg';
+const T = { fe: 'var(--t-fe)', br: 'var(--t-br)', host: 'var(--t-host)', be: 'var(--t-be)', db: 'var(--t-db)' };
+
+// ---------- nodes ----------
+const N = {
+  switch: { x:130,y:70,w:180,h:56, tier:'fe', col:'both', planned:true, t:'UI switch', s:['per-device choice'],
+    kind:'Planned', d:{ what:'Decides which frontend opens on this device. Stored like the light/dark theme, never in the database.',
+      points:['Proposed key: <code>mindful-me:ui</code> in localStorage, same fail-closed pattern as <code>lib/theme.ts</code>.','Both UIs ship in one Vercel build (for example <code>/</code> and <code>/lumen</code>), so they share the login and the local cache.','Switching is instant: nothing moves or copies in the database.'],
+      files:['app/src/lib/theme.ts','app/src/state/ThemeContext.tsx'] } },
+  cur_ui: { x:340,y:36,w:390,h:124, tier:'fe', col:'current', t:'Current UI', s:['React 19 + Vite · app/','HeaderBar · Timeline (Day / Night rows)','TileRow · LogActivityModal · Reflections'], tag:'LIVE',
+    kind:'Frontend · live', d:{ what:'The production app. One route, <code>TodayPage</code>, showing a Day row (6a–6p) and a Night row (6p–6a) with activities at arbitrary minutes.',
+      points:['Drag onto the timeline, or pick a slot then an activity. Both go through the same scheduling functions.','Header row: custom buttons for quick logs, notes, steps, protein and the supplements checklist. Also weather, date picker and sync status.','Works with no backend at all: with no Supabase env vars it runs local-only.'],
+      files:['app/src/routes/TodayPage.tsx','app/src/components/Timeline.tsx','app/src/components/HeaderBar.tsx','app/src/components/editor/LogActivityModal.tsx'] } },
+  lumen_ui: { x:770,y:36,w:390,h:124, tier:'fe', col:'lumen', t:'Lumen', s:['prototypes/lumen (prototype branch)','Today · Calendar · Insights · More','Day / Night strips · slot card · metrics'], tag:'PROTOTYPE',
+    kind:'Frontend · prototype', d:{ what:'A from-scratch design: dark, calm, with 30-minute slots on continuous Day and Night strips, a 3×3 category grid and metric tiles.',
+      points:['All data is sample data held in React state. Reloading resets it.','Uses its own categories (Deep Focus, Movement…) and metrics (steps, water, protein).','Lives on branch <code>claude/cool-gauss-2xm089</code>, not on <code>main</code>.'],
+      files:['prototypes/lumen/src/screens/today.tsx','prototypes/lumen/src/lib/store.tsx','prototypes/lumen/src/lib/data.ts'] } },
+  hooks: { x:130,y:200,w:190,h:66, tier:'br', col:'shared', t:'Header control hooks', s:['buttons · notes · steps ·','protein · supplements'],
+    kind:'Browser state', d:{ what:'One hook per header control. Each saves to the device first, then calls the API directly.',
+      points:['<code>useHeaderButtons</code>, <code>useNoteEntries</code>, <code>useDailyValue</code>, <code>useSupplementCompletions</code>, <code>useDisplayValueHistory</code>.','These writes are <strong>not</strong> on the retry queue. A failed call shows "Saved on this device", but nothing re-sends it automatically.'],
+      files:['app/src/state/useHeaderButtons.ts','app/src/state/useNoteEntries.ts','app/src/state/useDailyValue.ts','app/src/state/useSupplementCompletions.ts'] } },
+  domain: { x:340,y:200,w:190,h:66, tier:'br', col:'shared', t:'Scheduling rules', s:['pure functions, no React'],
+    kind:'Browser logic', d:{ what:'The one place scheduling logic lives. Both gestures (drag, and select then pick) call the same functions.',
+      points:['<code>computeCandidateSchedule</code> → <code>validateSchedule</code> → <code>commitSchedule</code>.','Rejects overlaps and offers the longest duration that fits. The database checks overlaps again.','Lumen should call these instead of its own slot arithmetic.'],
+      files:['app/src/domain/scheduling.ts','app/src/domain/slots.ts','app/src/domain/types.ts'] } },
+  board: { x:550,y:200,w:180,h:66, tier:'br', col:'shared', t:'BoardContext', s:['boardReducer · one day'],
+    kind:'Browser state', d:{ what:'Holds the scheduled activities for the day on screen (<code>viewedDate</code>), plus staging, selection and undo.',
+      points:['Every committed change saves to localStorage, then turns into sync intents on the queue.','On load and on date change it fetches that day from the server and merges, keeping any edits still waiting to sync.','Rolls over to the new day at local midnight.'],
+      files:['app/src/state/BoardContext.tsx','app/src/state/boardReducer.ts','app/src/state/reconcileServerActivities.ts'] } },
+  adapter: { x:770,y:200,w:390,h:66, tier:'br', col:'lumen', planned:true, t:'Lumen adapter', s:['maps slots, categories and metrics onto shared actions'], tag:'PLANNED',
+    kind:'Planned', d:{ what:'A thin translation layer so Lumen\'s screens drive the same providers the current UI uses. It replaces Lumen\'s in-memory store.',
+      points:['<code>logActivity(slot, minutes)</code> → <code>commit</code> with <code>startMinutes = slot × 30 + used</code>.','<code>removeEntry</code> → <code>removeActivity</code>, and Undo → <code>undoRemoval</code>.','<code>setMetric</code> → <code>useDailyValue</code>, and hidden metrics → <code>hideButton</code>.','Reads a 6 AM → 6 AM window, which spans two calendar days.'],
+      files:['prototypes/lumen/src/lib/store.tsx (replaced)'] } },
+  local: { x:130,y:318,w:400,h:66, tier:'br', col:'shared', t:'Device cache (localStorage)', s:['mindful-me:board:<date> · :display: · :notes:','· :supplements: · :header-buttons:snapshot'],
+    kind:'Shared data layer', d:{ what:'Everything lands here first, so the screen never waits on the network (rule 6). Reads fail closed: blocked storage means an empty cache, not a crash.',
+      points:['<code>mindful-me:board:&lt;date&gt;</code>: that day\'s activities.','<code>mindful-me:display:&lt;key&gt;</code>: steps and protein by day.','<code>mindful-me:notes:&lt;key&gt;</code>, <code>mindful-me:supplements:&lt;id&gt;:&lt;date&gt;</code>, <code>mindful-me:header-buttons:snapshot</code>, <code>mindful-me:dismissed:&lt;date&gt;</code>.','The Supabase login session lives here too, under supabase-js\'s own key.'],
+      files:['app/src/state/localPersistence.ts','app/src/lib/displayValuesLocalStore.ts','app/src/lib/noteEntriesLocalStore.ts','app/src/lib/headerButtonsLocalStore.ts'] } },
+  queue: { x:550,y:318,w:180,h:66, tier:'br', col:'shared', t:'Sync queue', s:['durable · retries every 15 s'],
+    kind:'Shared data layer', d:{ what:'A durable list of scheduled-activity writes the server hasn\'t confirmed yet. Survives reloads and date changes.',
+      points:['Stored at <code>mindful-me:syncQueue:v1</code>.','Sends one item at a time and keeps each activity\'s edits in order.','A failure is marked, backed off and retried every 15 s and when the browser comes back online. The sync pill shows it and offers Retry now.','Intents: create, reschedule, flags, status, delete, restore, add or remove reflection.'],
+      files:['app/src/state/syncQueue.ts','app/src/state/syncQueueStorage.ts','app/src/state/sync.ts','app/src/components/SyncStatusPill.tsx'] } },
+  sbjs: { x:980,y:318,w:180,h:66, tier:'br', col:'shared', t:'supabase-js', s:['client + login session'],
+    kind:'Shared data layer', d:{ what:'The single Supabase client. It keeps the session, refreshes the token, and attaches your JWT to every request over HTTPS.',
+      points:['<code>null</code> when <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> are missing, which switches the whole app to local-only mode.','The publishable key is public by design. RLS is the real permission boundary.'],
+      files:['app/src/lib/supabaseClient.ts','app/src/lib/auth.ts','app/src/state/AuthContext.tsx'] } },
+  api: { x:130,y:404,w:820,h:36, tier:'br', col:'shared', t:'API client · app/src/api', s:[], inline:'scheduledActivities · headerButtons · notes · dailyValues · supplements · catalog',
+    kind:'Shared data layer', d:{ what:'Thin typed wrappers. Almost every call is <code>supabase.rpc(\'function_name\', …)</code>. The catalog and reflection cards read their tables directly.',
+      points:['Returns <code>null</code> or throws on failure. Callers decide whether to queue, retry or show a message.','Maps the server\'s DTO rows back into client types, for example <code>ScheduledActivity</code>.'],
+      files:['app/src/api/scheduledActivities.ts','app/src/api/headerButtons.ts','app/src/api/notes.ts','app/src/api/dailyValues.ts','app/src/api/supplements.ts','app/src/api/catalog.ts'] } },
+  vercel: { x:130,y:476,w:400,h:48, tier:'host', col:'shared', t:'Vercel', s:['static build · main → production, develop → preview'],
+    kind:'Hosting', d:{ what:'Serves the built static files. There is no server code: the browser talks to Supabase directly.',
+      points:['<code>npm run build</code> → <code>dist/</code>.','<code>main</code> deploys production; <code>develop</code> and feature branches get protected previews.'],
+      files:['vite.config.ts','WORKFLOW.md'] } },
+  weather: { x:550,y:476,w:180,h:48, tier:'host', col:'current', t:'Weather & city', s:['called from the browser'],
+    kind:'Outside services', d:{ what:'The header\'s weather pill. Never stored.',
+      points:['Open-Meteo for temperature, BigDataCloud for the city name, geojs.io as an IP-based fallback.'],
+      files:['app/src/lib/weather.ts','app/src/components/WeatherPill.tsx'] } },
+  projects: { x:770,y:476,w:180,h:48, tier:'host', col:'shared', t:'Supabase projects', s:['prod · test'],
+    kind:'Hosting', d:{ what:'Two Supabase projects with the same schema.',
+      points:['<code>mindful-me</code> (production) is used by <code>main</code>. <code>mindful-me-test</code> is used by <code>develop</code>.','Schema comes from <code>supabase/migrations</code>. Production gets the schema before the code.'],
+      files:['supabase/migrations/','WORKFLOW.md'] } },
+  crypto: { x:130,y:564,w:190,h:80, tier:'be', col:'shared', t:'Encryption', s:['pgcrypto + Vault key','internal.encrypt_* /','internal.decrypt_*'],
+    kind:'Backend', d:{ what:'Sensitive fields are encrypted at rest (rule 10). The key sits in Supabase Vault and the client role can never read it.',
+      points:['Encrypted: flags, quality, symptoms, notes, dreams, sleep quality, note-field selections, reflection notes, note entry text, supplement notes.','Only the RPC functions encrypt or decrypt. Tables hold <code>bytea</code> columns.'],
+      files:['supabase/migrations/20260826063300_flags_encryption.sql','supabase/migrations/20260826064100_move_crypto_functions_to_internal_schema.sql'] } },
+  rpc: { x:340,y:564,w:610,h:80, tier:'be', col:'shared', t:'RPC functions (PostgREST)', s:['list_ / create_ / reschedule_ / soft_delete_scheduled_activity · set_daily_value','create_ / update_ / delete_note_entry · set_supplement_completion','list_ / create_ / update_ / reorder_header_buttons · provision_default_header_buttons'],
+    kind:'Backend · the API', d:{ what:'The whole backend API is Postgres functions. Each one checks <code>auth.uid()</code>, validates input, encrypts or decrypts, and returns plain DTO rows.',
+      points:['Reads are always scoped to a window, for example one day for <code>list_scheduled_activities(p_range_start, p_range_end)</code> (rule 8).','Soft deletes set <code>deleted_at</code>, and a restore clears it.','Function grants are locked down, and internal helpers live in the <code>internal</code> schema.'],
+      files:['supabase/migrations/20260826063500_scheduling_api.sql','supabase/migrations/20260921060000_dynamic_note_fields.sql','supabase/migrations/20260920060000_header_buttons.sql'] } },
+  auth: { x:980,y:564,w:180,h:80, tier:'be', col:'shared', t:'Supabase Auth', s:['email + password','issues the JWT','auth.users'],
+    kind:'Backend', d:{ what:'Real accounts with email and password, and no email verification step. Every policy and function keys off the signed-in user.',
+      points:['Sign-in returns a JWT. supabase-js stores and refreshes it.','<code>auth.uid()</code> is read inside RLS policies and RPC functions.'],
+      files:['app/src/lib/auth.ts','app/src/components/auth/AuthScreen.tsx'] } },
+  cron: { x:130,y:672,w:190,h:52, tier:'be', col:'shared', t:'pg_cron', s:['03:00 UTC · 30-day purge'],
+    kind:'Backend', d:{ what:'Rule 11: a delete is immediate for you and recoverable for 30 days, then purged.',
+      points:['<code>purge_deleted_scheduled_activities()</code> and <code>purge_deleted_note_entries()</code> run daily at 03:00 UTC.'],
+      files:['supabase/migrations/20260826063400_scheduled_activities.sql','supabase/migrations/20260913070000_note_entries_edit_delete.sql'] } },
+  triggers: { x:340,y:672,w:190,h:52, tier:'be', col:'shared', t:'Triggers', s:['audit log · updated_at · checks'],
+    kind:'Backend', d:{ what:'Run inside the database on every write.',
+      points:['<code>scheduled_activities_log_events</code> appends created, rescheduled, completed, uncompleted, removed or restored to <code>activity_events</code>.','<code>*_set_updated_at</code> on most tables.','Validation on <code>daily_values</code> metric keys, note entries and supplement item keys.'],
+      files:['supabase/migrations/20260826063800_activity_events.sql'] } },
+  rls: { x:550,y:672,w:400,h:52, tier:'be', col:'shared', t:'Row-level security', s:['every row filtered by user_id = auth.uid()'],
+    kind:'Backend', d:{ what:'Postgres policies on every table. No one can read or write another user\'s rows, however the request is made.',
+      points:['Catalog tables (<code>activities</code>, <code>reflection_cards</code>) show system rows plus your own.','There are no DELETE policies on user data: deletes are soft, through RPCs.'],
+      files:['supabase/migrations/20260826063900_fix_select_policy_blocking_soft_delete.sql'] } },
+};
+
+const GROUPS = [
+  { id:'g_sched', x:130,y:776,w:400,h:208, t:'Scheduling' },
+  { id:'g_custom', x:550,y:776,w:400,h:208, t:'Customization' },
+  { id:'g_daily', x:970,y:776,w:190,h:208, t:'Daily logs' },
+];
+const TABLES = [
+  ['activities','g_sched','catalog: 9 categories + drill-downs','id, name, category_id, parent_id, icon_key, created_by. System rows plus any you create.'],
+  ['scheduled_activities','g_sched','one row per logged activity','start_at, end_at, duration_minutes, local_date, start_minute, timezone, status, deleted_at, and encrypted flags / quality / symptoms / notes / dreams. The exclusion constraint <code>no_overlapping_activities</code> blocks overlaps.'],
+  ['activity_events','g_sched','append-only audit trail','Written only by the trigger: created, rescheduled, completed, uncompleted, removed, restored, with a payload and timestamp.'],
+  ['scheduled_activity_reflections','g_sched','reflection card ↔ activity','One row per card mapped to an activity, with an encrypted note.'],
+  ['scheduled_activity_field_selections','g_sched','','Encrypted selected labels for a header button\'s note field, per activity.'],
+  ['reflection_cards','g_sched','18 reflection cards','number, title, subtitle, image_key. Seeded system cards plus your own.'],
+  ['header_buttons','g_custom','your header row buttons','category (activity, day_value, notes, checklist), label, activity link, entry mode, unit, target. Each row is owned by one user.'],
+  ['header_button_user_state','g_custom','hidden + sort order','Per user and button: hidden, sort_order. Edit mode\'s hide and reorder write here.'],
+  ['header_button_note_types','g_custom','type chips on a notes button','Ordered values offered as note types.'],
+  ['header_button_note_fields','g_custom','extra fields on a button','Text or multiselect fields shown when logging.'],
+  ['header_button_field_options','g_custom','options for a multiselect','Ordered labels for one note field.'],
+  ['header_button_checklist_items','g_custom','checklist items','Items for a checklist button such as Supplements.'],
+  ['daily_values','g_daily','steps, protein','user, metric_key, local_date, value. One value per metric per day.'],
+  ['supplement_completions','g_daily','checklist ticks','item_key, local_date, done, encrypted note.'],
+  ['note_entries','g_daily','notes buttons','button_key, encrypted text, type, soft delete with a 30-day purge.'],
+].map(([name, g, note, info]) => ({ id: 't_' + name, name, g, note, info }));
+
+// ---------- edges ----------
+const E = {
+  e_sw_cur: { from:'switch', to:'cur_ui', pts:[[310,98],[340,98]], planned:true },
+  e_sw_lum: { from:'switch', to:'lumen_ui', pts:[[220,70],[220,22],[965,22],[965,36]], planned:true },
+  e_cur_hooks: { from:'cur_ui', to:'hooks', pts:[[360,160],[360,178],[225,178],[225,200]] },
+  e_cur_board: { from:'cur_ui', to:'board', pts:[[640,160],[640,200]] },
+  e_lum_adapter: { from:'lumen_ui', to:'adapter', pts:[[965,160],[965,200]], planned:true },
+  e_adapter_board: { from:'adapter', to:'board', pts:[[770,233],[730,233]], planned:true },
+  e_adapter_hooks: { from:'adapter', to:'hooks', pts:[[800,200],[800,189],[290,189],[290,200]], planned:true, lp:[545,189] },
+  e_board_domain: { from:'board', to:'domain', pts:[[550,233],[530,233]], lp:[540,282] },
+  e_hooks_local: { from:'hooks', to:'local', pts:[[225,266],[225,318]] },
+  e_hooks_api: { from:'hooks', to:'api', pts:[[130,250],[116,250],[116,422],[130,422]], lp:[116,300] },
+  e_board_local: { from:'board', to:'local', pts:[[580,266],[580,302],[480,302],[480,318]], lp:[530,302] },
+  e_board_queue: { from:'board', to:'queue', pts:[[690,266],[690,318]], lp:[690,300] },
+  e_board_api: { from:'board', to:'api', pts:[[730,252],[750,252],[750,404]], lp:[750,340] },
+  e_queue_api: { from:'queue', to:'api', pts:[[640,384],[640,404]], lp:[640,394] },
+  e_api_sbjs: { from:'api', to:'sbjs', pts:[[950,422],[1010,422],[1010,384]], lp:[1010,452] },
+  e_sbjs_auth: { from:'sbjs', to:'auth', pts:[[1120,384],[1120,564]], lp:[1120,470] },
+  e_sbjs_rpc: { from:'sbjs', to:'rpc', pts:[[1060,384],[1060,548],[900,548],[900,564]], lp:[1060,470] },
+  e_rpc_crypto: { from:'rpc', to:'crypto', pts:[[340,604],[320,604]], lp:[330,552] },
+  e_rpc_rls: { from:'rpc', to:'rls', pts:[[750,644],[750,672]], lp:[750,658] },
+  e_auth_rls: { from:'auth', to:'rls', pts:[[1070,644],[1070,698],[950,698]], lp:[1070,670] },
+  e_rls_sched: { from:'rls', to:'g_sched', pts:[[600,724],[600,752],[480,752],[480,776]], lp:[540,752] },
+  e_rls_custom: { from:'rls', to:'g_custom', pts:[[750,724],[750,776]], lp:[750,750] },
+  e_rls_daily: { from:'rls', to:'g_daily', pts:[[900,724],[900,752],[1065,752],[1065,776]], lp:[982,752] },
+  e_trig_sched: { from:'triggers', to:'g_sched', pts:[[435,724],[435,776]], lp:[400,750] },
+  e_cron_sched: { from:'cron', to:'g_sched', pts:[[225,724],[225,776]], lp:[225,750] },
+};
+
+// ---------- flows ----------
+// step: { p: phase, t: html, e: edge id ('-' prefix = data flows against the drawn direction), l: short label, n: extra nodes/tables }
+const net = (verb) => [
+  { e:'e_api_sbjs', l:'rpc()', t:`supabase-js sends <code>${verb}</code> with your JWT.` },
+  { e:'e_sbjs_rpc', l:'HTTPS + JWT', t:'The request reaches the Postgres function over HTTPS. The function reads <code>auth.uid()</code> from the token.' },
+];
+const writeActivityBackend = (fn, event) => [
+  ...net(`rpc('${fn}')`),
+  { p:'Backend', e:'e_rpc_crypto', l:'encrypt', t:'Flags, quality, symptoms, notes and dreams are encrypted with the Vault key before they touch a table.' },
+  { e:'e_rpc_rls', l:'as you', t:'The write runs as you, so RLS only allows rows with <code>user_id = auth.uid()</code>.' },
+  { p:'Database', e:'e_rls_sched', l:'write row', n:['t_scheduled_activities'], t:'The row lands in <code>scheduled_activities</code>. If it would overlap another activity, the <code>no_overlapping_activities</code> constraint rejects it.' },
+  { e:'e_trig_sched', l:'audit', n:['triggers','t_activity_events'], t:`A trigger appends <code>${event}</code> to <code>activity_events</code>, so the history is never lost (rule 7).` },
+  { p:'Back in the browser', e:'-e_queue_api', l:'confirmed', t:'On success the queue item is removed. On failure it is marked failed, backed off and retried every 15 s and when the connection returns. The sync pill shows it until it clears.' },
+];
+
+const FLOWS = [
+  { id:'open', chip:'Open a day', dir:'DB → UI', title:'Opening a day',
+    sum:'The screen draws from the device cache instantly, then the server copy flows up from Postgres and is merged in.',
+    current:[
+      { p:'Browser', e:'-e_board_local', l:'read cache', n:['cur_ui'], t:'<code>BoardProvider</code> loads <code>mindful-me:board:&lt;date&gt;</code> from localStorage. The timeline renders before any network call.' },
+      { e:'e_board_api', l:'fetch window', t:'In the background it calls <code>apiListScheduledActivities(dayStart, dayEnd)</code>. It only asks for this one day (rule 8).' },
+      ...net(`rpc('list_scheduled_activities')`),
+      { p:'Database', e:'-e_rls_sched', l:'your rows', n:['t_scheduled_activities'], t:'Postgres returns this day\'s rows, filtered by RLS to your user and excluding soft-deleted rows.' },
+      { p:'Backend', e:'-e_rpc_rls', l:'rows', t:'The function builds DTO rows with <code>to_scheduled_activity_dto</code>.' },
+      { e:'-e_rpc_crypto', l:'decrypt', t:'Flags, quality, symptoms, notes and dreams are decrypted for you only.' },
+      { e:'-e_sbjs_rpc', l:'JSON', t:'Plain JSON goes back over HTTPS.' },
+      { p:'Browser', e:'-e_api_sbjs', l:'DTOs', t:'The API client maps each row into a <code>ScheduledActivity</code>.' },
+      { e:'-e_board_api', l:'merge', t:'<code>reconcileServerActivities</code> merges server rows with local ones. Edits still waiting in the sync queue win, so nothing you just did is overwritten.' },
+      { e:'e_board_local', l:'save merged', t:'The merged day is saved back to the cache.' },
+      { e:'-e_cur_board', l:'render', t:'The timeline re-renders with the server\'s view of the day.' },
+    ],
+    lumen:[
+      { p:'Browser', e:'-e_board_local', l:'read cache', t:'The same <code>BoardProvider</code> loads the cached day. Lumen\'s 6 AM → 6 AM view needs today and tomorrow\'s calendar dates.' },
+      { e:'e_board_api', l:'fetch window', t:'<code>apiListScheduledActivities</code> for that window, the same call the current UI makes.' },
+      ...net(`rpc('list_scheduled_activities')`),
+      { p:'Database', e:'-e_rls_sched', l:'your rows', n:['t_scheduled_activities'], t:'The same rows come back, filtered by RLS. The data doesn\'t depend on which UI asked.' },
+      { p:'Backend', e:'-e_rpc_rls', l:'rows', t:'DTO rows are built.' },
+      { e:'-e_rpc_crypto', l:'decrypt', t:'Sensitive fields are decrypted even though Lumen doesn\'t display them yet.' },
+      { e:'-e_sbjs_rpc', l:'JSON', t:'JSON goes back over HTTPS.' },
+      { p:'Browser', e:'-e_api_sbjs', l:'DTOs', t:'Mapped into <code>ScheduledActivity</code>.' },
+      { e:'-e_board_api', l:'merge', t:'Merged with pending local edits, as in the current UI.' },
+      { e:'-e_adapter_board', l:'to slots', t:'The adapter turns each activity into Lumen\'s slot entries (<code>slot = floor(startMinutes / 30)</code>) and maps catalog activities to Lumen categories.' },
+      { e:'-e_lum_adapter', l:'render', t:'The Day and Night strips and "Where today went" render from real data.' },
+    ] },
+  { id:'log', chip:'Log an activity', dir:'UI → DB', title:'Logging an activity',
+    sum:'The write is saved on the device and shown immediately. The sync queue delivers it to Postgres in the background.',
+    current:[
+      { p:'Browser', e:'e_cur_board', l:'commit', t:'In <code>LogActivityModal</code> you set duration, quality, symptoms, flag and notes, then press Add. The button disables until the write resolves (rule 9).' },
+      { e:'e_board_domain', l:'validate', t:'<code>validateSchedule</code> checks for overlaps. If it doesn\'t fit, it offers the longest duration that does (rule 13).' },
+      { e:'e_board_local', l:'save instantly', t:'The reducer commits and the day is written to <code>mindful-me:board:&lt;date&gt;</code>. It\'s already on screen.' },
+      { e:'e_board_queue', l:'enqueue', t:'<code>deriveSyncIntents</code> produces <code>{ kind: \'create\' }</code>, which is saved in the durable queue.' },
+      { e:'e_queue_api', l:'drain', t:'<code>drainQueue</code> sends items one at a time, oldest first for each activity.' },
+      ...writeActivityBackend('create_scheduled_activity', 'created'),
+    ],
+    lumen:[
+      { p:'Browser', e:'e_lum_adapter', l:'logActivity', t:'In Lumen\'s slot card you pick a category, then an activity and minutes, and tap Log.' },
+      { e:'e_adapter_board', l:'commit', t:'The adapter maps the Lumen activity to a catalog activity and sets <code>startMinutes = slot × 30 + minutes already used</code>. Then it dispatches the same <code>commit</code>.' },
+      { e:'e_board_domain', l:'validate', t:'The same <code>validateSchedule</code> runs, so both UIs follow one set of rules.' },
+      { e:'e_board_local', l:'save instantly', t:'Saved to the same device cache.' },
+      { e:'e_board_queue', l:'enqueue', t:'The same <code>create</code> intent goes into the same queue.' },
+      { e:'e_queue_api', l:'drain', t:'The queue sends it.' },
+      ...writeActivityBackend('create_scheduled_activity', 'created'),
+    ],
+    note:'Nothing in the backend knows which UI made the write. A row logged in Lumen appears in the current UI on its next load, and the other way round.' },
+  { id:'edit', chip:'Edit, complete, delete', dir:'UI → DB', title:'Editing, completing and deleting',
+    sum:'Same path as logging, with a different intent. Deletes are soft: hidden now, recoverable for 30 days, then purged.',
+    current:[
+      { p:'Browser', e:'e_cur_board', l:'edit / toggle / remove', t:'Edit from the timeline, toggle complete, or Remove. Remove shows an Undo.' },
+      { e:'e_board_local', l:'save instantly', t:'The change is on screen and in the cache immediately. Changing the time never clears completion (rule 4).' },
+      { e:'e_board_queue', l:'enqueue', t:'Intent is <code>reschedule</code>, <code>status</code>, <code>flags</code>, <code>delete</code> or <code>restore</code> (Undo).' },
+      { e:'e_queue_api', l:'drain', t:'Sent in order for that activity.' },
+      ...net(`rpc('reschedule_scheduled_activity' | 'set_scheduled_activity_status' | 'soft_delete_scheduled_activity')`),
+      { p:'Backend', e:'e_rpc_rls', l:'as you', t:'RLS allows only your own rows.' },
+      { p:'Database', e:'e_rls_sched', l:'update row', n:['t_scheduled_activities'], t:'The row is updated in place. A delete only sets <code>deleted_at</code>.' },
+      { e:'e_trig_sched', l:'audit', n:['triggers','t_activity_events'], t:'<code>rescheduled</code>, <code>completed</code>, <code>uncompleted</code>, <code>removed</code> or <code>restored</code> is appended to <code>activity_events</code>.' },
+      { e:'e_cron_sched', l:'purge > 30 days', n:['cron'], t:'Every day at 03:00 UTC, pg_cron hard-deletes rows deleted more than 30 days ago.' },
+    ],
+    lumen:[
+      { p:'Browser', e:'e_lum_adapter', l:'removeEntry', t:'Lumen can remove an entry and undo it. It has no edit or complete control yet.' },
+      { e:'e_adapter_board', l:'removeActivity', t:'The adapter dispatches <code>removeActivity</code>, and Undo dispatches <code>undoRemoval</code>.' },
+      { e:'e_board_local', l:'save instantly', t:'Hidden from the day at once.' },
+      { e:'e_board_queue', l:'enqueue', t:'<code>delete</code> or <code>restore</code> intent.' },
+      { e:'e_queue_api', l:'drain', t:'Sent in order.' },
+      ...net(`rpc('soft_delete_scheduled_activity')`),
+      { p:'Backend', e:'e_rpc_rls', l:'as you', t:'RLS allows only your own rows.' },
+      { p:'Database', e:'e_rls_sched', l:'set deleted_at', n:['t_scheduled_activities'], t:'<code>deleted_at</code> is set.' },
+      { e:'e_trig_sched', l:'audit', n:['triggers','t_activity_events'], t:'<code>removed</code> or <code>restored</code> is logged.' },
+      { e:'e_cron_sched', l:'purge > 30 days', n:['cron'], t:'Purged after 30 days.' },
+    ],
+    note:'If Lumen ever reschedules an activity, it must send back the quality, symptoms, flag and notes it received, or <code>reschedule_scheduled_activity</code> would overwrite them with empty values.' },
+  { id:'custom', chip:'Customize header buttons', dir:'UI → DB', title:'Changing your customization',
+    sum:'Header buttons are rows you own. Edits apply on the device first, then go straight to the API, without the retry queue.',
+    current:[
+      { p:'Browser', e:'e_cur_hooks', l:'edit buttons', t:'In the header\'s edit mode, <code>HeaderButtonEditor</code> adds, edits, hides or reorders buttons, their note fields and their checklist items.' },
+      { e:'e_hooks_local', l:'save snapshot', t:'<code>useHeaderButtons</code> updates the list and saves <code>mindful-me:header-buttons:snapshot</code>. The header changes at once.' },
+      { e:'e_hooks_api', l:'call directly', t:'It calls <code>create_header_button</code>, <code>update_header_button</code>, <code>set_header_button_hidden</code> or <code>reorder_header_buttons</code>.' },
+      ...net(`rpc('update_header_button')`),
+      { p:'Backend', e:'e_rpc_rls', l:'as you', t:'The function checks you own the button.' },
+      { p:'Database', e:'e_rls_custom', l:'write rows', n:['t_header_buttons','t_header_button_user_state','t_header_button_note_fields','t_header_button_field_options','t_header_button_note_types','t_header_button_checklist_items'], t:'Definition goes to <code>header_buttons</code> and its child tables. Hidden state and order go to <code>header_button_user_state</code>.' },
+      { p:'First sign-in', e:'-e_rls_custom', l:'list / provision', t:'On load, <code>list_header_buttons</code> fetches your set. If it\'s empty, <code>provision_default_header_buttons</code> gives you your own copy of the defaults.' },
+    ],
+    lumen:[
+      { p:'Browser', e:'e_lum_adapter', l:'customize', t:'Lumen\'s Customize sheet hides or shows metrics and categories.' },
+      { e:'e_adapter_hooks', l:'hide metric', t:'Hidden metrics map to the day-value header buttons, so the adapter calls <code>hideButton</code> / <code>unhideButton</code>.' },
+      { e:'e_hooks_local', l:'save snapshot', t:'Saved to the same snapshot.' },
+      { e:'e_hooks_api', l:'call directly', t:'<code>set_header_button_hidden</code>.' },
+      ...net(`rpc('set_header_button_hidden')`),
+      { p:'Backend', e:'e_rpc_rls', l:'as you', t:'Ownership is checked.' },
+      { p:'Database', e:'e_rls_custom', l:'write rows', n:['t_header_button_user_state'], t:'<code>header_button_user_state.hidden</code> is updated. Hiding a metric in Lumen also hides it in the current UI.' },
+    ],
+    note:'Known gap: these writes have no automatic retry. If a call fails, the page says "Saved on this device", but the change is only on this device, and the next successful load replaces the list with the server copy. Moving them onto the sync queue would fix it. <br><br>For Lumen, hidden <em>categories</em> have no table yet and need a small migration.' },
+  { id:'daily', chip:'Steps, protein, supplements', dir:'UI → DB', title:'Daily values and checklists',
+    sum:'One value per metric per day, and one tick per checklist item per day. Local first, then a direct API call.',
+    current:[
+      { p:'Browser', e:'e_cur_hooks', l:'set value', t:'<code>DisplayValueButton</code> sets steps or protein for the viewed day. <code>ChecklistButton</code> ticks a supplement.' },
+      { e:'e_hooks_local', l:'save instantly', t:'<code>mindful-me:display:&lt;key&gt;</code> or <code>mindful-me:supplements:&lt;id&gt;:&lt;date&gt;</code>.' },
+      { e:'e_hooks_api', l:'call directly', t:'<code>set_daily_value(metric, date, value)</code> or <code>set_supplement_completion(item, date, done, note)</code>.' },
+      ...net(`rpc('set_daily_value')`),
+      { p:'Backend', e:'e_rpc_crypto', l:'encrypt note', t:'A supplement note is encrypted. Numbers are stored as they are.' },
+      { e:'e_rpc_rls', l:'as you', t:'The row is scoped to you, and a trigger validates the metric key.' },
+      { p:'Database', e:'e_rls_daily', l:'upsert', n:['t_daily_values','t_supplement_completions'], t:'Upserted into <code>daily_values</code> (one row per metric per day) or <code>supplement_completions</code>.' },
+    ],
+    lumen:[
+      { p:'Browser', e:'e_lum_adapter', l:'setMetric', t:'Lumen\'s metric tiles open a stepper for steps, water and protein.' },
+      { e:'e_adapter_hooks', l:'set value', t:'The adapter calls the same <code>useDailyValue</code> setter.' },
+      { e:'e_hooks_local', l:'save instantly', t:'Same cache key, so both UIs show the same number.' },
+      { e:'e_hooks_api', l:'call directly', t:'<code>set_daily_value</code>.' },
+      ...net(`rpc('set_daily_value')`),
+      { p:'Backend', e:'e_rpc_rls', l:'as you', t:'Scoped to you, and the metric key is validated.' },
+      { p:'Database', e:'e_rls_daily', l:'upsert', n:['t_daily_values'], t:'Stored in <code>daily_values</code>.' },
+    ],
+    note:'For Lumen, <strong>water</strong> needs a migration: the <code>metric_key</code> check only allows <code>protein</code> and <code>steps</code>.' },
+  { id:'notes', chip:'Notes', dir:'UI → DB', title:'Writing a note',
+    sum:'Note buttons keep a history per button. The text is encrypted, and deletes are soft with a 30-day purge.',
+    current:[
+      { p:'Browser', e:'e_cur_hooks', l:'save note', t:'<code>NoteButtonPill</code> adds, edits or removes an entry.' },
+      { e:'e_hooks_local', l:'save instantly', t:'<code>mindful-me:notes:&lt;key&gt;</code>.' },
+      { e:'e_hooks_api', l:'call directly', t:'<code>create_note_entry</code>, <code>update_note_entry</code> or <code>delete_note_entry</code>.' },
+      ...net(`rpc('create_note_entry')`),
+      { p:'Backend', e:'e_rpc_crypto', l:'encrypt', t:'The note text is encrypted.' },
+      { e:'e_rpc_rls', l:'as you', t:'Scoped to you.' },
+      { p:'Database', e:'e_rls_daily', l:'write row', n:['t_note_entries'], t:'Stored in <code>note_entries</code>. A delete sets <code>deleted_at</code>, and pg_cron purges it after 30 days.' },
+    ],
+    lumen:[
+      { p:'Browser', t:'Lumen has no notes surface yet. Notes written in the current UI stay in <code>note_entries</code> and show up again when you switch back.' },
+    ] },
+  { id:'signin', chip:'Sign in', dir:'UI ↔ Auth', title:'Signing in',
+    sum:'One login serves both UIs, because they run on the same site and share supabase-js\'s stored session.',
+    current:[
+      { p:'Browser', n:['cur_ui','sbjs'], t:'<code>AuthScreen</code> calls <code>signInWithPassword(email, password)</code> in <code>lib/auth.ts</code>.' },
+      { e:'e_sbjs_auth', l:'email + password', t:'supabase-js sends the credentials to Supabase Auth.' },
+      { e:'-e_sbjs_auth', l:'JWT', t:'Auth returns a session with a JWT. supabase-js stores it in localStorage and refreshes it automatically.' },
+      { n:['cur_ui'], t:'<code>onAuthStateChange</code> updates <code>AuthContext</code>, and the gate renders the app.' },
+      { p:'Every request after', e:'e_auth_rls', l:'auth.uid()', t:'Each RPC carries the JWT, and <code>auth.uid()</code> drives every RLS policy.' },
+    ],
+    lumen:[
+      { p:'Browser', n:['lumen_ui','sbjs'], t:'Lumen sits inside the same <code>AuthProvider</code>. On the same site, the stored session is already there, so there\'s no second login.' },
+      { e:'e_sbjs_auth', l:'refresh token', t:'supabase-js refreshes the token as usual.' },
+      { e:'e_auth_rls', l:'auth.uid()', t:'The same user id scopes every row.' },
+    ] },
+  { id:'switch', chip:'Switch UI', dir:'device only', title:'Switching between the two UIs',
+    sum:'Switching changes only which components render. Session, cache, queue, backend and data stay the same.',
+    both:true,
+    current:[
+      { p:'Browser', e:'e_sw_lum', l:'choose Lumen', t:'You pick Lumen (or the current UI) in settings.' },
+      { n:['switch'], t:'The choice is saved per device, for example as <code>mindful-me:ui</code>, the same way the theme is.' },
+      { e:'e_lum_adapter', l:'mount', t:'Lumen mounts inside the same <code>AuthProvider</code> and <code>BoardProvider</code>, so there\'s no new login or fetch path.' },
+      { e:'e_adapter_board', l:'same state', t:'It reads the day already in memory and in the cache. Any unsynced writes stay in the queue and keep sending.' },
+      { e:'e_sw_cur', l:'switch back', t:'Switching back remounts the current UI on the same data.' },
+    ] },
+  { id:'offline', chip:'Offline & retry', dir:'UI → DB, later', title:'Working offline',
+    sum:'The app never blocks on the network. Scheduled-activity writes wait in the durable queue until the server accepts them.',
+    current:[
+      { p:'Browser', e:'e_cur_board', l:'keep working', t:'You log and edit as usual. Nothing on screen waits for the network.' },
+      { e:'e_board_local', l:'save instantly', t:'Every change is in the cache.' },
+      { e:'e_board_queue', l:'enqueue', t:'Intents pile up in <code>mindful-me:syncQueue:v1</code>, which survives a reload.' },
+      { e:'e_queue_api', l:'retry', t:'Each failed send is marked with its error and backed off. The queue wakes every 15 s and on the browser\'s <code>online</code> event.' },
+      { n:['queue'], t:'The sync pill shows how many writes are pending or failed, with Retry now.' },
+      { e:'-e_board_api', l:'merge safely', t:'When a fetch succeeds, pending local edits and deletes win the merge, so the server copy never undoes them.' },
+    ],
+    lumen:[
+      { p:'Browser', e:'e_lum_adapter', l:'keep working', t:'Lumen goes through the same queue, so it gets the same offline behaviour.' },
+      { e:'e_adapter_board', l:'commit', t:'Same reducer.' },
+      { e:'e_board_local', l:'save instantly', t:'Same cache.' },
+      { e:'e_board_queue', l:'enqueue', t:'Same durable queue.' },
+      { e:'e_queue_api', l:'retry', t:'Same backoff and retry.' },
+    ],
+    note:'With no Supabase env vars at all, <code>supabase</code> is <code>null</code> and the app runs fully local-only. Nothing is queued to a server.' },
+];
+
+// ---------- render ----------
+const svg = document.getElementById('arch');
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const txt = (parent, x, y, cls, s, anchor) => {
+  const t = el('text', { x, y, class: cls }, parent);
+  if (anchor) t.setAttribute('text-anchor', anchor);
+  t.textContent = s;
+  return t;
+};
+
+const defs = el('defs', {}, svg);
+const mk = el('marker', { id: 'ah', viewBox: '0 0 10 10', refX: '8.5', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' }, defs);
+el('path', { d: 'M0,0 L10,5 L0,10 z', class: 'arrowhead' }, mk);
+
+// bands
+const BANDS = [
+  [12, 172, 'FRONTENDS', 'what you see'],
+  [186, 452, 'IN THE BROWSER', 'state, cache, API'],
+  [462, 530, 'HOSTING', ''],
+  [540, 740, 'BACKEND', 'Supabase'],
+  [756, 992, 'DATABASE', 'Postgres'],
+];
+const bandLayer = el('g', {}, svg);
+for (const [y0, y1, a, b] of BANDS) {
+  el('rect', { x: 4, y: y0, width: 1172, height: y1 - y0, rx: 10, class: 'band' }, bandLayer);
+  txt(bandLayer, 18, y0 + 26, 'band-t', a);
+  if (b) txt(bandLayer, 18, y0 + 42, 'band-s', b);
+}
+el('rect', { x: 122, y: 298, width: 1046, height: 150, rx: 10, class: 'group-box' }, bandLayer);
+txt(bandLayer, 780, 314, 'group-t', 'SHARED DATA LAYER · USED BY BOTH UIS');
+
+// base edges
+const edgeLayer = el('g', {}, svg);
+const edgeEls = {};
+const d = (pts) => 'M' + pts.map((p) => p.join(',')).join(' L');
+for (const id in E) {
+  const e = E[id];
+  edgeEls[id] = el('path', { d: d(e.pts), class: 'edge' + (e.planned ? ' planned' : '') }, edgeLayer);
+}
+
+// nodes
+const nodeLayer = el('g', {}, svg);
+const nodeEls = {};
+for (const id in N) {
+  const n = N[id];
+  const g = el('g', { class: 'node' + (n.planned ? ' planned' : ''), tabindex: '0', role: 'button', 'aria-label': n.t + ': details', style: `--tier:${T[n.tier]}` }, nodeLayer);
+  el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 9, class: 'box' }, g);
+  if (n.inline) {
+    txt(g, n.x + 14, n.y + 23, 't', n.t);
+    const s = txt(g, n.x + 190, n.y + 23, 's', n.inline);
+    s.style.fontFamily = 'var(--mono)'; s.style.fontSize = '11px';
+  } else {
+    txt(g, n.x + 14, n.y + 24, 't', n.t);
+    n.s.forEach((line, i) => txt(g, n.x + 14, n.y + 42 + i * 15, 's', line));
+  }
+  if (n.tag) txt(g, n.x + n.w - 12, n.y + 20, 'tag', n.tag, 'end');
+  else if (n.planned) txt(g, n.x + n.w - 12, n.y + 20, 'tag', 'PLANNED', 'end');
+  g.addEventListener('click', () => select(id));
+  g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(id); } });
+  nodeEls[id] = g;
+}
+
+// table groups
+const groupEls = {};
+const tableEls = {};
+for (const gdef of GROUPS) {
+  const g = el('g', { class: 'node', style: `--tier:${T.db}`, tabindex: '-1' }, nodeLayer);
+  el('rect', { x: gdef.x, y: gdef.y, width: gdef.w, height: gdef.h, rx: 9, class: 'box' }, g);
+  txt(g, gdef.x + 14, gdef.y + 24, 't', gdef.t);
+  groupEls[gdef.id] = g;
+  const rows = TABLES.filter((t) => t.g === gdef.id);
+  rows.forEach((t, i) => {
+    const y = gdef.y + 34 + i * 28;
+    const r = el('g', { class: 'trow', tabindex: '0', role: 'button', 'aria-label': 'Table ' + t.name + ': details' }, nodeLayer);
+    el('rect', { x: gdef.x + 6, y, width: gdef.w - 12, height: 26, rx: 5 }, r);
+    // tiny table glyph
+    el('rect', { x: gdef.x + 14, y: y + 8, width: 11, height: 10, rx: 1.5, class: 'ic' }, r);
+    el('line', { x1: gdef.x + 14, y1: y + 12, x2: gdef.x + 25, y2: y + 12, class: 'ic' }, r);
+    const nameT = txt(r, gdef.x + 30, y + 17, 'tn', t.name);
+    if (gdef.w > 300 && t.note) txt(r, gdef.x + gdef.w - 14, y + 17, 'td', t.note, 'end');
+    r.addEventListener('click', () => select(t.id));
+    r.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(t.id); } });
+    tableEls[t.id] = r;
+    void nameT;
+  });
+}
+
+const flowLayer = el('g', {}, svg);
+const labelLayer = el('g', {}, svg);
+
+// ---------- state ----------
+let fe = 'current';
+let flowId = 'log';
+let selected = null;
+try { const s = localStorage.getItem('mm-arch'); if (s) { const o = JSON.parse(s); if (o.fe) fe = o.fe; if (o.flow && FLOWS.some((f) => f.id === o.flow)) flowId = o.flow; } } catch (_) {}
+const save = () => { try { localStorage.setItem('mm-arch', JSON.stringify({ fe, flow: flowId })); } catch (_) {} };
+
+const chips = document.getElementById('chips');
+for (const f of FLOWS) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chip'; b.id = 'flow-' + f.id; b.dataset.flow = f.id;
+  b.innerHTML = `${f.chip}<span class="dir">${f.dir}</span>`;
+  b.addEventListener('click', () => { flowId = f.id; save(); render(); });
+  chips.appendChild(b);
+}
+document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => { fe = b.dataset.fe; save(); render(); }));
+
+function stepsFor(f) {
+  if (f.both) return f.current;
+  return f[fe] || f.current;
+}
+
+function midLabelPos(pts) {
+  let best = 0, bi = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const L = Math.abs(pts[i + 1][0] - pts[i][0]) + Math.abs(pts[i + 1][1] - pts[i][1]);
+    if (L > best) { best = L; bi = i; }
+  }
+  return [(pts[bi][0] + pts[bi + 1][0]) / 2, (pts[bi][1] + pts[bi + 1][1]) / 2];
+}
+
+const flowEls = {};
+function render() {
+  const f = FLOWS.find((x) => x.id === flowId);
+  const steps = stepsFor(f);
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.fe === fe)));
+  document.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.flow === flowId)));
+  document.getElementById('lumen-note').hidden = fe !== 'lumen';
+
+  // which elements are active
+  const activeNodes = new Set();
+  const activeEdges = new Map(); // id -> {rev, num, label}
+  let num = 0;
+  steps.forEach((s) => {
+    num++;
+    s._num = num;
+    if (s.e) {
+      const rev = s.e.startsWith('-');
+      const id = rev ? s.e.slice(1) : s.e;
+      if (!activeEdges.has(id)) activeEdges.set(id, { rev, num, label: s.l || '' });
+      activeNodes.add(E[id].from); activeNodes.add(E[id].to);
+    }
+    (s.n || []).forEach((x) => activeNodes.add(x));
+  });
+
+  // off = the other frontend's column
+  const offCol = f.both ? null : (fe === 'current' ? 'lumen' : 'current');
+  for (const id in N) {
+    const g = nodeEls[id];
+    g.classList.toggle('off', N[id].col === offCol);
+    g.classList.toggle('dim', !activeNodes.has(id) && N[id].col !== offCol);
+    g.classList.toggle('sel', selected === id);
+  }
+  for (const id in groupEls) groupEls[id].classList.toggle('dim', !activeNodes.has(id) && ![...activeNodes].some((a) => a.startsWith('t_') && TABLES.find((t) => t.id === a)?.g === id));
+  for (const t of TABLES) {
+    const r = tableEls[t.id];
+    r.classList.toggle('hot', activeNodes.has(t.id));
+    r.classList.toggle('sel', selected === t.id);
+    const groupActive = !groupEls[t.g].classList.contains('dim');
+    r.classList.toggle('dim', !groupActive);
+  }
+  for (const id in E) {
+    const off = (E[id].from in N && N[E[id].from].col === offCol) || (E[id].to in N && N[E[id].to].col === offCol);
+    edgeEls[id].classList.toggle('off', off);
+    edgeEls[id].classList.toggle('dim', !off && !activeEdges.has(id));
+  }
+  svg.classList.add('has-flow');
+
+  // overlay paths and labels
+  flowLayer.replaceChildren(); labelLayer.replaceChildren();
+  for (const k in flowEls) delete flowEls[k];
+  for (const [id, a] of activeEdges) {
+    const pts = a.rev ? [...E[id].pts].reverse() : E[id].pts;
+    const p = el('path', { d: d(pts), class: 'flowpath', 'marker-end': 'url(#ah)' }, flowLayer);
+    const [lx, ly] = E[id].lp || midLabelPos(E[id].pts);
+    const lg = el('g', { class: 'elabel' }, labelLayer);
+    const r = el('rect', { rx: 5, height: 18 }, lg);
+    const t = el('text', { x: lx, y: ly + 4, 'text-anchor': 'middle' }, lg);
+    const ns = el('tspan', { class: 'n' }, t); ns.textContent = a.num + '  ';
+    const ls = el('tspan', {}, t); ls.textContent = a.label;
+    const bb = t.getBBox();
+    r.setAttribute('x', bb.x - 6); r.setAttribute('y', ly - 9); r.setAttribute('width', bb.width + 12);
+    flowEls[id] = { p, lg };
+  }
+
+  // panel
+  document.getElementById('flow-dir').textContent = f.dir + (f.both ? ' · both UIs' : fe === 'lumen' ? ' · Lumen' : ' · Current UI');
+  document.getElementById('flow-title').textContent = f.title;
+  document.getElementById('flow-sum').textContent = f.sum;
+  const ol = document.getElementById('steps');
+  ol.replaceChildren();
+  let lastPhase = null;
+  steps.forEach((s) => {
+    const li = document.createElement('li');
+    const edgeId = s.e ? s.e.replace(/^-/, '') : null;
+    const numbered = edgeId && activeEdges.get(edgeId)?.num === s._num;
+    li.innerHTML = `<span class="num${numbered ? '' : ' plain'}">${s._num}</span><span>${s.p && s.p !== lastPhase ? `<span class="phase">${s.p}</span>` : ''}${s.t}</span>`;
+    if (s.p) lastPhase = s.p;
+    if (edgeId) {
+      li.classList.add('has-e'); li.tabIndex = 0;
+      const on = () => { const fe2 = flowEls[edgeId]; if (fe2) { fe2.p.classList.add('focus'); fe2.lg.classList.add('focus'); } };
+      const off = () => { const fe2 = flowEls[edgeId]; if (fe2) { fe2.p.classList.remove('focus'); fe2.lg.classList.remove('focus'); } };
+      li.addEventListener('mouseenter', on); li.addEventListener('mouseleave', off);
+      li.addEventListener('focus', on); li.addEventListener('blur', off);
+    }
+    ol.appendChild(li);
+  });
+  const note = document.getElementById('flow-note');
+  note.hidden = !f.note; note.innerHTML = f.note || '';
+  note.classList.toggle('warn', !!f.note && /gap|migration/i.test(f.note));
+}
+
+const esc = (s) => s;
+function select(id) {
+  selected = id;
+  const box = document.getElementById('detail');
+  if (id.startsWith('t_')) {
+    const t = TABLES.find((x) => x.id === id);
+    const grp = GROUPS.find((g) => g.id === t.g);
+    box.innerHTML = `<div class="detail-kind" style="color:var(--t-db)">Postgres table · ${grp.t}</div>
+      <h2 class="mono" style="font-size:18px">${t.name}</h2>
+      <p class="sub">${t.note}</p><p style="margin:0;font-size:14px">${t.info}</p>
+      <p class="hint">Protected by row-level security. Reached only through RPC functions or RLS-checked selects.</p>`;
+  } else {
+    const n = N[id];
+    box.innerHTML = `<div class="detail-kind" style="color:${T[n.tier]}">${n.kind}</div>
+      <h2>${n.t}</h2>
+      <p style="margin:0;font-size:14.5px">${n.d.what}</p>
+      <ul>${n.d.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+      <div class="files">${n.d.files.map((f) => `<code>${f}</code>`).join('')}</div>`;
+  }
+  render();
+}
+
+render();
+})();
+</script>
