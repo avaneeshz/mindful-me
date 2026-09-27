@@ -184,7 +184,7 @@ function CategoryTile({
       )}
     >
       <IconBubble icon={category.icon} color={category.color} className="h-9 w-9 sm:h-10 sm:w-10 [&_svg]:h-[18px] [&_svg]:w-[18px] sm:[&_svg]:h-5 sm:[&_svg]:w-5" />
-      <span className="mt-auto pt-3 text-sm font-medium leading-[18px] text-ink [overflow-wrap:anywhere] sm:text-[15px] sm:leading-5">
+      <span className="mt-auto pt-3 text-sm font-medium leading-[18px] text-ink [overflow-wrap:break-word] max-[379px]:text-[13px] sm:text-[15px] sm:leading-5">
         {category.label}
       </span>
       <span className="mt-1 flex items-center justify-between gap-1">

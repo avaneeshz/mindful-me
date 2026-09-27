@@ -1,7 +1,6 @@
 import { Bell, ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Download, FileText, HeartPulse, Loader2, Pencil, Share2, Settings, LogOut, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { BrandMark } from '@/components/shell'
 import { Button } from '@/components/ui/button'
 import { MenuItem, Popover } from '@/components/ui/primitives'
 import { categoryById, activityLabel, windowEntries } from '@/lib/data'
@@ -22,13 +21,12 @@ export function TodayHeader() {
   const rel = relativeDay(date)
   return (
     <header className="flex items-center gap-4">
-      {/* Phone: brand lockup, as the app's front door */}
-      <div className="flex min-w-0 flex-1 items-center gap-4 md:hidden">
-        <BrandMark className="h-14 w-14" />
-        <div className="min-w-0">
-          <h1 className="font-display text-[30px] leading-[34px] tracking-[-0.02em] text-ink">Lumen</h1>
-          <p className="truncate text-sm text-ink-muted">Live gently. Notice more.</p>
-        </div>
+      {/* Phone: one row — date, day tools, notifications and account */}
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 md:hidden">
+        <h1 className="sr-only">{formatDay(date, 'long')}</h1>
+        <DayToolbar compact />
+        <NotificationsButton />
+        <ProfileButton />
       </div>
       {/* Tablet & desktop: the day is the headline */}
       <div className="hidden min-w-0 flex-1 md:block">
@@ -37,7 +35,7 @@ export function TodayHeader() {
         </p>
         <h1 className="mt-1 font-display text-4xl text-ink">{formatDay(date, 'long')}</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="hidden items-center gap-2 md:flex">
         <NotificationsButton />
         <ProfileButton />
       </div>
@@ -112,12 +110,13 @@ function ProfileButton() {
 
 /* ——— Toolbar: date, export, health sync, customize ——— */
 
-export function DayToolbar() {
+/** `compact` is the phone version that shares the top row with notifications and account. */
+export function DayToolbar({ compact = false }: { compact?: boolean }) {
   const { healthSync, toggleHealthSync } = useStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
-      <DatePicker />
+    <div className={cn('flex items-center', compact ? 'min-w-0 flex-1 gap-1.5' : 'gap-2 sm:gap-3')}>
+      <DatePicker compact={compact} />
       <ExportMenu />
       <Button
         size="icon"
@@ -144,32 +143,48 @@ export function DayToolbar() {
           </motion.span>
         </AnimatePresence>
       </Button>
-      <Button onClick={() => setCustomizeOpen(true)} className="ml-auto px-3.5 max-[379px]:w-11 max-[379px]:px-0 sm:px-4">
-        <Pencil className="h-4 w-4" strokeWidth={1.8} />
-        <span className="max-[379px]:sr-only">Edit</span>
-      </Button>
+      {compact ? (
+        <Button size="icon" onClick={() => setCustomizeOpen(true)} aria-label="Edit">
+          <Pencil className="h-[18px] w-[18px]" strokeWidth={1.8} />
+        </Button>
+      ) : (
+        <Button onClick={() => setCustomizeOpen(true)} className="ml-auto px-4">
+          <Pencil className="h-4 w-4" strokeWidth={1.8} />
+          Edit
+        </Button>
+      )}
       <CustomizeSheet open={customizeOpen} onOpenChange={setCustomizeOpen} />
     </div>
   )
 }
 
-function DatePicker() {
+function DatePicker({ compact }: { compact: boolean }) {
   const { date, setDate } = useStore()
   const rel = relativeDay(date)
   const isToday = date === todayKey()
   return (
-    <div className="flex min-w-0 flex-1 items-center sm:flex-none">
+    <div className={cn('flex min-w-0 flex-1 items-center', !compact && 'sm:flex-none')}>
       <Popover
         className="w-[min(328px,calc(100vw-32px))] p-4"
         trigger={
           <button
             type="button"
-            className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-line/[0.09] bg-surface-1/70 pl-3.5 pr-3 text-sm font-medium text-ink transition-colors hover:border-line/[0.14] hover:bg-surface-2 sm:min-w-[196px]"
+            aria-label={`Change date, ${formatDay(date, 'long')}`}
+            className={cn(
+              'flex h-11 min-w-0 flex-1 items-center rounded-full border border-line/[0.09] bg-surface-1/70 text-sm font-medium text-ink transition-colors hover:border-line/[0.14] hover:bg-surface-2',
+              compact ? 'justify-center gap-2 px-3' : 'gap-2.5 pl-3.5 pr-3 sm:min-w-[196px]',
+            )}
           >
-            <CalendarDays className="h-[18px] w-[18px] shrink-0 text-ink-muted" strokeWidth={1.8} />
-            <span className="truncate">{formatDay(date)}</span>
-            {rel && <span className="hidden text-ink-faint sm:inline">· {rel}</span>}
-            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-ink-muted" />
+            <CalendarDays
+              className={cn('h-[18px] w-[18px] shrink-0 text-ink-muted', compact && 'max-[379px]:hidden')}
+              strokeWidth={1.8}
+            />
+            {/* Phone row is tight: "Sun 27" there, "Sun, 27 Sept" elsewhere */}
+            <span className="truncate tabular">
+              {compact ? fromKey(date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }) : formatDay(date)}
+            </span>
+            {rel && !compact && <span className="hidden text-ink-faint sm:inline">· {rel}</span>}
+            {!compact && <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-ink-muted" />}
           </button>
         }
       >
