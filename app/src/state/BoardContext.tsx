@@ -40,6 +40,7 @@ import {
 } from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 import type { ScheduledActivity } from '@/domain/types'
+import { useLiveActivityCatalogSync } from './useLiveActivityCatalogSync'
 
 /** How often the queue is woken to check for backed-off items becoming due again — see `drainQueue` below. */
 const SYNC_RETRY_INTERVAL_MS = 15_000
@@ -128,6 +129,14 @@ export interface BoardProviderProps {
 export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   const isTest = fixedNow !== undefined
   const now = useDeviceClock(fixedNow)
+
+  // PICKER-CUSTOM-1 — mounted once, for the board's whole lifetime, so
+  // `TileRow`/`LogActivityModal` (via `data/activities.ts`'s live registry)
+  // see a signed-in user's own tiles/activities instead of the static
+  // catalog, the moment they load. A no-op in every test (`supabaseConfigured`
+  // is always false there) and in genuine zero-backend local-only mode — see
+  // the hook's own doc comment.
+  useLiveActivityCatalogSync()
 
   // BL-2: the day being VIEWED, independent of the real current instant
   // above. Defaults to today, exactly as the board always has — see

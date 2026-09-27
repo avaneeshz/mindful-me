@@ -83,6 +83,17 @@ export interface HeaderBarProps {
   onRetrySyncNow: () => void
   /** Dispatches `editActivity` — a `DisplayValueButton`'s session-history row opens the same `LogActivityModal` edit flow the Timeline itself uses. */
   onEditActivity: (id: string) => void
+  /**
+   * The ONE edit-mode toggle for the whole day screen — owned by `TodayPage`
+   * (not local to this component any more) so `SlotEditor` can read the
+   * exact same flag and reveal its own inline tile/activity management
+   * panel (`ActivityLibraryPanel`) when it's on, rather than needing a
+   * second, disconnected entry point (real user feedback: the separate
+   * Activity Library page, reachable only from the sidebar, was never found
+   * — see `SlotEditor.tsx`'s own doc comment).
+   */
+  editMode: boolean
+  onToggleEditMode: () => void
 }
 
 export function HeaderBar({
@@ -96,6 +107,8 @@ export function HeaderBar({
   syncQueue,
   onRetrySyncNow,
   onEditActivity,
+  editMode,
+  onToggleEditMode,
 }: HeaderBarProps) {
   // One-time upload of any pre-migration Steps data still sitting only in
   // this browser's localStorage — see `state/useStepsBackfill.ts`. A no-op
@@ -109,7 +122,6 @@ export function HeaderBar({
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
   const { visible, hidden, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
-  const [editMode, setEditMode] = useState(false)
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -172,7 +184,7 @@ export function HeaderBar({
 
           <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
 
-          <EditModeToggle active={editMode} onToggle={() => setEditMode((value) => !value)} />
+          <EditModeToggle active={editMode} onToggle={onToggleEditMode} />
 
           <WeatherPill className="mobile:hidden" />
 

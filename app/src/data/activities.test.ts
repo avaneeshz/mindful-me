@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest'
-import { ACTIVITY_CARDS, CATEGORIES, CATEGORY_ORDER, cardsForCategory, findCard, FLAGS, itemFillColor, QUALITIES } from './activities'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  ACTIVITY_CARDS,
+  CATEGORIES,
+  CATEGORY_ORDER,
+  cardsForCategory,
+  effectiveCategories,
+  effectiveCategoryOrder,
+  findCard,
+  FLAGS,
+  itemFillColor,
+  QUALITIES,
+  resetLiveActivityCatalog,
+  setLiveActivityCatalog,
+} from './activities'
+import type { ActivityCard, Category } from '@/domain/types'
+import { Sparkles } from 'lucide-react'
 
 /**
  * Tile Redesign §3 — the per-tile item counts, in on-screen order. `sleep`
@@ -212,5 +227,88 @@ describe('QUALITIES ("Activity quality", SCRUM-10 — 18-value multi-select)', (
   it('every quality has a distinct icon assigned', () => {
     const icons = QUALITIES.map((q) => q.icon)
     expect(new Set(icons).size).toBe(icons.length)
+  })
+})
+
+describe('children — the generalized, arbitrary-depth drill-down tree synthesized from legacy sub/third (PICKER-CUSTOM-1)', () => {
+  it('a flat card (no sub) has no children', () => {
+    const card = findCard('Homework')
+    expect(card?.sub).toBeUndefined()
+    expect(card?.children).toBeUndefined()
+  })
+
+  it('a card with only a flat sub list gets one level of children, each a leaf', () => {
+    const card = findCard('Supplements')!
+    expect(card.children?.map((c) => c.name)).toEqual(card.sub)
+    for (const child of card.children!) {
+      expect(child.children, child.name).toBeUndefined()
+    }
+  })
+
+  it('Body Care (self) — the one sub+third card — gets two full levels of children', () => {
+    const card = findCard('Body Care (self)')!
+    expect(card.children?.map((c) => c.name)).toEqual(['Massage', 'Oiling', 'Mask'])
+    const oiling = card.children!.find((c) => c.name === 'Oiling')!
+    expect(oiling.children?.map((c) => c.name)).toEqual(['Face', 'Body', 'Hair'])
+    for (const leaf of oiling.children!) {
+      expect(leaf.children, leaf.name).toBeUndefined()
+    }
+  })
+})
+
+describe('live activity catalog registry (PICKER-CUSTOM-1) — every lookup defaults to the static catalog unless overridden', () => {
+  afterEach(() => {
+    resetLiveActivityCatalog()
+  })
+
+  it('effectiveCategories/effectiveCategoryOrder return the static defaults with nothing set', () => {
+    expect(effectiveCategories()).toBe(CATEGORIES)
+    expect(effectiveCategoryOrder()).toBe(CATEGORY_ORDER)
+  })
+
+  it('setLiveActivityCatalog overrides every lookup — categories, order, findCard, cardsForCategory', () => {
+    const liveTile: Category = {
+      id: 'live-tile-1',
+      label: 'My Live Tile',
+      deep: '',
+      light: '',
+      onDeep: 'text-charcoal',
+      icon: Sparkles,
+    }
+    const liveCard: ActivityCard = {
+      name: 'My Live Activity',
+      categoryId: 'live-tile-1',
+      icon: Sparkles,
+      color: '',
+      onColor: 'text-charcoal',
+      disappear: { mode: 'manual' },
+    }
+    setLiveActivityCatalog({ 'live-tile-1': liveTile }, ['live-tile-1'], [liveCard])
+
+    expect(effectiveCategories()).toEqual({ 'live-tile-1': liveTile })
+    expect(effectiveCategoryOrder()).toEqual(['live-tile-1'])
+    expect(findCard('My Live Activity')).toBe(liveCard)
+    expect(cardsForCategory('live-tile-1')).toEqual([liveCard])
+
+    // The static catalog's own names are no longer resolvable while a live
+    // catalog is set — a live user sees ONLY their own tiles/activities,
+    // never a mix of their own plus the old static default set.
+    expect(findCard('Homework')).toBeUndefined()
+  })
+
+  it('resetLiveActivityCatalog restores the exact static defaults', () => {
+    setLiveActivityCatalog({}, [], [])
+    expect(findCard('Homework')).toBeUndefined()
+
+    resetLiveActivityCatalog()
+    expect(findCard('Homework')).toBeDefined()
+    expect(effectiveCategories()).toBe(CATEGORIES)
+    expect(effectiveCategoryOrder()).toBe(CATEGORY_ORDER)
+  })
+
+  it('itemFillColor/categoryOf fall back to the live catalog’s own first tile for an unresolvable name, not the static "sleep" default', () => {
+    const liveTile: Category = { id: 'live-only', label: 'Live Only', deep: '', light: '#abcdef', onDeep: 'text-charcoal', icon: Sparkles }
+    setLiveActivityCatalog({ 'live-only': liveTile }, ['live-only'], [])
+    expect(itemFillColor('Nothing Registered')).toBe('#abcdef')
   })
 })

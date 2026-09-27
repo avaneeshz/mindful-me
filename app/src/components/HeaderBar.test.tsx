@@ -4,7 +4,7 @@ import { HeaderBar } from './HeaderBar'
 
 const FIXED_NOW = new Date(2026, 8, 5, 10, 0)
 
-function render(): string {
+function render(editMode = false): string {
   return renderToStaticMarkup(
     <HeaderBar
       now={FIXED_NOW}
@@ -17,6 +17,8 @@ function render(): string {
       syncQueue={[]}
       onRetrySyncNow={() => {}}
       onEditActivity={() => {}}
+      editMode={editMode}
+      onToggleEditMode={() => {}}
     />,
   )
 }

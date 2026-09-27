@@ -61,7 +61,10 @@ export const LEARNING_TYPES = ['Given', 'Realized', 'Revealed'] as const
 // `DISPLAY_BUTTONS` quick-log button (see `domain/displayButtons.ts`), that
 // same 7-value list moved to the `Prayer` catalog card's own `sub` list in
 // `data/activities.ts` — `quickLogType`'s options are always drawn from
-// there (`findCard(quickLogName)?.sub`), never from this file. Nothing else
+// there (`firstLevelOptionNames(findCard(quickLogName))` — PICKER-CUSTOM-1
+// generalized the underlying `sub` field into an arbitrary-depth `children`
+// tree, but this is still the one place that vocabulary is read from),
+// never from this file. Nothing else
 // references a Prayer type vocabulary here any more, so the export was
 // dropped rather than kept as dead code; the values themselves are not
 // lost, just relocated to their new single source of truth.

@@ -11,7 +11,7 @@ import {
   validateSchedule,
   type CandidateSchedule,
 } from '@/domain/scheduling'
-import type { ActivityQuality, FieldSelections, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
+import type { ActivityCard, ActivityQuality, FieldSelections, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
 
 /**
  * What is currently staged in the modal but not yet committed. Nothing here
@@ -197,28 +197,41 @@ export type BoardAction =
       dreamsNote?: string | null
     }
 
-/** Is the staged path deep enough to name a concrete leaf activity? */
+/**
+ * Walks `card.children` (the generalized, arbitrary-depth drill-down tree —
+ * see `ActivityCard.children`'s own doc comment) `path.length` steps down
+ * from the card itself. Returns `null` the moment a path segment doesn't
+ * match any child at that level — an invalid/stale path, e.g. a sub-option
+ * that has since been renamed/removed from the live catalog.
+ */
+function nodeAtPath(card: ActivityCard, path: readonly string[]): ActivityCard | null {
+  let current: ActivityCard = card
+  for (const segment of path) {
+    const next = current.children?.find((child) => child.name === segment)
+    if (!next) return null
+    current = next
+  }
+  return current
+}
+
+/** Is the staged path deep enough to name a concrete leaf activity? Arbitrary depth — never assumes a 2-level ("sub"/"third") cap. */
 export function isStagingComplete(staging: StagingState): boolean {
   if (!staging.cardName) return false
   const card = findCard(staging.cardName)
   if (!card) return false
-  if (!card.sub) return true
-  if (staging.path.length === 0) return false
-  if (card.third) return staging.path.length >= 2
-  return staging.path.length >= 1
+  const node = nodeAtPath(card, staging.path)
+  if (!node) return false
+  return !node.children || node.children.length === 0
 }
 
-/** Options to show for the current drill-down depth, or null at a leaf. */
+/** Options to show for the current drill-down depth, or null at a leaf — arbitrary depth. */
 export function stagingOptions(staging: StagingState): { options: string[]; level: number } | null {
   if (!staging.cardName) return null
   const card = findCard(staging.cardName)
-  if (!card?.sub) return null
-  if (staging.path.length === 0) return { options: card.sub, level: 0 }
-  if (card.third && staging.path.length === 1) {
-    const options = card.third[staging.path[0]]
-    return options ? { options, level: 1 } : null
-  }
-  return null
+  if (!card) return null
+  const node = nodeAtPath(card, staging.path)
+  if (!node?.children || node.children.length === 0) return null
+  return { options: node.children.map((child) => child.name), level: staging.path.length }
 }
 
 export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {

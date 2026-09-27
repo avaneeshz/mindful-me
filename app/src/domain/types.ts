@@ -1,21 +1,16 @@
 import type { LucideIcon } from 'lucide-react'
 
 /**
- * The 9 top-level picker tiles (Tile Redesign — see the full-stack-engineer
- * agent definition's Phase 1 scope). Each tile is also the activity catalog's
- * grouping key: every `ActivityCard.categoryId` names the one tile it drills
- * down from.
+ * The top-level picker tile's identity. Was a fixed 9-value union (Tile
+ * Redesign — see the full-stack-engineer agent definition's Phase 1 scope);
+ * PICKER-CUSTOM-1 generalized tiles to a user-owned, arbitrary-count
+ * `public.tiles` table, so this is now plain `string` (a real `tiles.id`
+ * uuid once live data is loaded, or one of the 9 original literal ids for
+ * the static local-only fallback catalog — both are valid `CategoryId`
+ * values now, deliberately not distinguished by the type system). Every
+ * `ActivityCard.categoryId` still names the one tile it drills down from.
  */
-export type CategoryId =
-  | 'sleep'
-  | 'food'
-  | 'care'
-  | 'downtime'
-  | 'movement'
-  | 'work'
-  | 'nature'
-  | 'growth'
-  | 'home'
+export type CategoryId = string
 
 export type ContrastForeground = 'text-white' | 'text-charcoal'
 
@@ -66,10 +61,21 @@ export interface ActivityCard {
   name: string
   categoryId: CategoryId
   icon: LucideIcon
-  /** Second-level options, if this card has any. */
+  /** Second-level options, if this card has any. Legacy shape — still populated for the static catalog (and read by `ItemChip`'s badge count), but no longer what drill-down logic itself walks; see `children` below. */
   sub?: string[]
-  /** Third level — only "Body Care (self)" goes this deep. */
+  /** Third level — only "Body Care (self)" goes this deep in the static catalog. Legacy shape, same status as `sub` above. */
   third?: Record<string, string[]>
+  /**
+   * The canonical, arbitrary-depth drill-down tree (PICKER-CUSTOM-1) —
+   * `domain/boardReducer.ts`'s `isStagingComplete`/`stagingOptions` walk
+   * THIS, never `sub`/`third` directly, so a live user-owned activity tree
+   * (which has no 3-level cap) and the legacy static catalog (still only
+   * ever 2 levels deep) both drill down through the exact same logic.
+   * `data/activities.ts` synthesizes this from `sub`/`third` for every
+   * static card at module load, so nothing has to hand-author it twice.
+   * `undefined`/empty means "no further options — this node is a leaf."
+   */
+  children?: ActivityCard[]
   /**
    * This item's own flat, accessible solid colour. Used in exactly two
    * places (Tile Redesign §4): this item's own chip in the drill-down view,
@@ -92,10 +98,21 @@ export interface ActivityCard {
 
 /**
  * "Protective response" — a single-select, optional pick on an individual
- * scheduled activity (at most one; "None" clears it). SCRUM-15 replaced the
- * original 4-value vocabulary (`Trauma response` / `Stress response` /
- * `Fear response` / `Anger response`) outright with this 14-value one — not
- * a rename of those values, a full replacement of the option set.
+ * scheduled activity (at most one; "None" clears it).
+ *
+ * Was a fixed 14-value union (SCRUM-15's replacement of the original
+ * 4-value vocabulary). PICKER-CUSTOM-1 made this per-activity and
+ * user-editable (`public.activity_parameter_options`, `parameter_type =
+ * 'flag'`, with inheritance — see `internal.effective_parameter_options`'s
+ * own doc comment) — a closed TS union can no longer usefully describe an
+ * open-ended, server-defined, per-activity option set, so this is plain
+ * `string` now. The real constraint moved entirely to where it actually
+ * belongs: the DB's `internal.assert_valid_flags` (validated against the
+ * SPECIFIC activity's effective list at write time) and, client-side, the
+ * picker only ever offering values from that same effective list — never a
+ * free-text field — exactly the same trust boundary `ScheduledActivity.
+ * name`/`.path` (plain strings, never TS-enum-constrained either) have
+ * always had.
  *
  * A whole-slot marker is legacy-only going forward: the client no longer
  * creates flag-only markers (Modal Redesign §E) — flags now attach to the
@@ -103,50 +120,20 @@ export interface ActivityCard {
  * Old zero-duration marker rows, if any exist, keep rendering exactly as
  * before (`domain/slots.ts` `flagMarkerAt` is untouched).
  */
-export type FlagId =
-  | 'Trauma Activation'
-  | 'Triggered'
-  | 'Attack'
-  | 'Anger'
-  | 'Procrastinated'
-  | 'Shut Down'
-  | 'Collapse'
-  | 'Over Accommodating'
-  | 'Hyper Responsibility'
-  | 'Over Function'
-  | 'Intellectualization'
-  | 'Optimization'
-  | 'Hyper Vigilance'
-  | 'Problem Solving'
+export type FlagId = string
 
 /**
  * A multi-select, optional reflection on how a logged activity felt —
- * "Activity quality" (formerly "How did it feel?", SCRUM-10 replaced the old
- * 5-value single-select vocabulary with this 18-value multi-select one; two
- * labels, `Nourishing` and `Draining`, happen to survive from the old list,
- * coincidentally — not a preserved data mapping). Any number can be
+ * "Activity quality" (formerly "How did it feel?"). Any number can be
  * selected at once, mirroring `Symptom`/`ScheduledActivity.symptoms`'
  * multi-select shape exactly.
+ *
+ * Same PICKER-CUSTOM-1 generalization as `FlagId` above — was an 18-value
+ * closed union (SCRUM-10), now plain `string`: per-activity, user-editable,
+ * inherited, server-validated. See `FlagId`'s own doc comment for the full
+ * reasoning; it applies here verbatim.
  */
-export type ActivityQuality =
-  | 'Resonance'
-  | 'Flow'
-  | 'Scattered'
-  | 'Overstimulated'
-  | 'Zone out'
-  | 'Numb'
-  | 'Engaged'
-  | 'Bored'
-  | 'Resistant'
-  | 'Frozen'
-  | 'Avoiding'
-  | 'Confusion'
-  | 'Compulsive persistent'
-  | 'Interoceptive Override'
-  | 'Addictive'
-  | 'Nourishing'
-  | 'Draining'
-  | 'Energizing'
+export type ActivityQuality = string
 
 /**
  * A multi-select, optional set of chronic symptoms noticed around a logged
@@ -155,9 +142,11 @@ export type ActivityQuality =
  * `ScheduledActivity.symptoms` is a plain array with no "at most one"
  * client-side contract, mirroring the DB's own `text[]` storage shape
  * (`symptoms_encrypted`, encrypted the same way `flags_encrypted` originally
- * was, before flags narrowed to single-select).
+ * was, before flags narrowed to single-select). Same PICKER-CUSTOM-1
+ * generalization as `FlagId`/`ActivityQuality` — was a fixed 6-value union,
+ * now plain `string`; see `FlagId`'s own doc comment for the full reasoning.
  */
-export type Symptom = 'Pitta' | 'Inflammation' | 'Right knee pain' | 'Calves pain' | 'Temporal pain' | 'Dryness'
+export type Symptom = string
 
 /**
  * The selected values for one MULTISELECT-kind `header_button_note_fields`
