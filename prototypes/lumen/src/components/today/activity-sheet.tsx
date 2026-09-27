@@ -59,7 +59,7 @@ export function ActivitySheet({
       leading={
         category ? (
           initial ? (
-            <IconBubble icon={category.icon} hue={category.hue} />
+            <IconBubble icon={category.icon} color={category.color} />
           ) : (
             <Button variant="ghost" size="icon" className="-ml-2 h-10 w-10" aria-label="Back to categories" onClick={() => setCategory(null)}>
               <ChevronLeft className="h-5 w-5" />
@@ -114,7 +114,7 @@ export function ActivitySheet({
                 onClick={() => setCategory(c)}
                 className="flex min-h-14 items-center gap-3 rounded-control px-2 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]"
               >
-                <IconBubble icon={c.icon} hue={c.hue} />
+                <IconBubble icon={c.icon} color={c.color} />
                 <span className="flex-1 text-[15px] text-ink">{c.label}</span>
                 <span className="text-xs text-ink-faint">{c.activities.length} activities</span>
                 <ChevronRight className="h-4 w-4 text-ink-faint" />

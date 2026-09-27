@@ -32,7 +32,7 @@ export function CustomizeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
       <ul className="divide-y divide-line/[0.06]">
         {categories.map((c) => (
           <li key={c.id} className="flex min-h-14 items-center gap-3">
-            <IconBubble icon={c.icon} hue={c.hue} size="sm" />
+            <IconBubble icon={c.icon} color={c.color} size="sm" />
             <span className="flex-1 text-sm text-ink">{c.label}</span>
             <Switch
               checked={!hiddenCategories.includes(c.id)}

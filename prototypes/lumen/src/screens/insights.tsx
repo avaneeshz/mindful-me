@@ -2,7 +2,8 @@ import { motion } from 'motion/react'
 import { Flame, Sun, Timer } from 'lucide-react'
 import { useState } from 'react'
 import { IconBubble, Segmented } from '@/components/ui/primitives'
-import { categories, hueStyles, windowEntries } from '@/lib/data'
+import { categories, windowEntries } from '@/lib/data'
+import { paletteColor } from '@/lib/palette'
 import { useStore } from '@/lib/store'
 import { addDays, cn, formatClock, formatDuration, fromKey, todayKey } from '@/lib/utils'
 
@@ -82,7 +83,8 @@ export function InsightsScreen() {
                     return (
                       <motion.span
                         key={c.id}
-                        className={cn('w-full transition-opacity duration-200', hueStyles[c.hue].bar, dim ? 'opacity-[0.08]' : 'opacity-85')}
+                        className={cn('w-full transition-opacity duration-200', dim ? 'opacity-[0.08]' : 'opacity-90')}
+                        style={{ backgroundColor: paletteColor(c.color).shades.base }}
                         initial={{ height: 0 }}
                         animate={{ height: `${(m / max) * 100}%` }}
                         transition={{ duration: 0.35, delay: i * 0.015, ease: [0.22, 1, 0.36, 1] }}
@@ -118,7 +120,7 @@ export function InsightsScreen() {
                       selected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]',
                     )}
                   >
-                    <IconBubble icon={c.icon} hue={c.hue} size="sm" />
+                    <IconBubble icon={c.icon} color={c.color} size="sm" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="truncate text-sm text-ink">{c.label}</span>
@@ -126,7 +128,8 @@ export function InsightsScreen() {
                       </div>
                       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.05]">
                         <motion.div
-                          className={cn('h-full rounded-full', hueStyles[c.hue].bar)}
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: paletteColor(c.color).shades.base }}
                           initial={false}
                           animate={{ width: `${(m / allMax) * 100}%` }}
                           transition={{ duration: 0.3 }}

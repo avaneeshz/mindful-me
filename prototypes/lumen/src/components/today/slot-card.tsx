@@ -183,7 +183,7 @@ function CategoryTile({
           : 'border-line/[0.07] bg-surface-1/60 hover:border-line/[0.14] hover:bg-surface-2/80',
       )}
     >
-      <IconBubble icon={category.icon} hue={category.hue} className="h-9 w-9 sm:h-10 sm:w-10 [&_svg]:h-[18px] [&_svg]:w-[18px] sm:[&_svg]:h-5 sm:[&_svg]:w-5" />
+      <IconBubble icon={category.icon} color={category.color} className="h-9 w-9 sm:h-10 sm:w-10 [&_svg]:h-[18px] [&_svg]:w-[18px] sm:[&_svg]:h-5 sm:[&_svg]:w-5" />
       <span className="mt-auto pt-3 text-sm font-medium leading-[18px] text-ink [overflow-wrap:anywhere] sm:text-[15px] sm:leading-5">
         {category.label}
       </span>
@@ -221,7 +221,7 @@ function SlotEntries() {
                     transition={{ duration: 0.18 }}
                     className="flex min-h-12 items-center gap-3 rounded-control bg-white/[0.03] py-1.5 pl-2 pr-1"
                   >
-                    <IconBubble icon={c.icon} hue={c.hue} size="sm" />
+                    <IconBubble icon={c.icon} color={c.color} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-ink">{activityLabel(e.categoryId, e.activityId)}</p>
                     </div>

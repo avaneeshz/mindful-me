@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown, Hourglass } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState, IconBubble, SectionTitle } from '@/components/ui/primitives'
-import { activityLabel, categories, categoryById, hueStyles, type Entry } from '@/lib/data'
+import { activityLabel, categories, categoryById, type Entry } from '@/lib/data'
+import { paletteColor } from '@/lib/palette'
 import { useStore } from '@/lib/store'
 import { cn, formatDuration, slotStart } from '@/lib/utils'
 
@@ -60,10 +61,10 @@ export function DayFlow() {
             {byCategory.map(({ c, minutes }) => (
               <motion.span
                 key={c.id}
-                className={cn('h-full first:rounded-l-full last:rounded-r-full', hueStyles[c.hue].bar)}
+                className="h-full first:rounded-l-full last:rounded-r-full"
                 initial={false}
                 animate={{ flexGrow: minutes }}
-                style={{ flexBasis: 0 }}
+                style={{ flexBasis: 0, backgroundColor: paletteColor(c.color).shades.base }}
                 transition={{ duration: 0.3 }}
                 title={`${c.short} · ${formatDuration(minutes)}`}
               />
@@ -72,7 +73,7 @@ export function DayFlow() {
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
             {byCategory.slice(0, 5).map(({ c, minutes }) => (
               <li key={c.id} className="flex items-center gap-1.5 text-xs text-ink-muted">
-                <span className={cn('h-1.5 w-1.5 rounded-full', hueStyles[c.hue].bar)} />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: paletteColor(c.color).shades.base }} />
                 {c.short}
                 <span className="tabular text-ink-faint">{formatDuration(minutes)}</span>
               </li>
@@ -103,7 +104,7 @@ export function DayFlow() {
                         active ? 'bg-white/[0.04]' : 'hover:bg-white/[0.03]',
                       )}
                     >
-                      <IconBubble icon={c.icon} hue={c.hue} className="ring-4 ring-surface-1" />
+                      <IconBubble icon={c.icon} color={c.color} className="ring-4 ring-surface-1" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-ink">{activityLabel(b.categoryId, b.activityId)}</p>
                         <p className="text-xs text-ink-faint">{c.label}</p>

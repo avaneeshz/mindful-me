@@ -1,6 +1,6 @@
 import { motion } from 'motion/react'
 import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { categoryById, hueStyles, type Entry } from '@/lib/data'
+import { categoryColor, type Entry } from '@/lib/data'
 import { useStore } from '@/lib/store'
 import {
   DAY_FIRST_SLOT,
@@ -158,12 +158,12 @@ function Strip({ half }: { half: Half }) {
               : 'shadow-[0_8px_24px_-14px_rgb(251_214_140/0.45)]',
           )}
         >
-          <span className="absolute inset-0" style={{ background: lightGradient(half), opacity: night ? 0.92 : 0.82 }} />
+          <span className="absolute inset-0" style={{ background: lightGradient(half), opacity: night ? 0.92 : 0.72 }} />
           {spans.map((s) => (
             <motion.span
               key={`${s.categoryId}-${s.start}`}
-              className={cn('absolute inset-y-0', hueStyles[categoryById[s.categoryId].hue].bar)}
-              style={{ left: pct(s.start) }}
+              className="absolute inset-y-0"
+              style={{ left: pct(s.start), backgroundColor: categoryColor(s.categoryId).shades.base }}
               initial={{ width: 0 }}
               animate={{ width: pct(s.end - s.start) }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}

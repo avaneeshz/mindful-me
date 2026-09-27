@@ -102,7 +102,7 @@ export function CalendarScreen() {
             {pickedTotals.length === 0 && <li className="text-sm text-ink-muted">No entries for this day.</li>}
             {pickedTotals.map(({ c, m }) => (
               <li key={c.id} className="flex items-center gap-3">
-                <IconBubble icon={c.icon} hue={c.hue} size="sm" />
+                <IconBubble icon={c.icon} color={c.color} size="sm" />
                 <span className="flex-1 text-sm text-ink">{c.label}</span>
                 <span className="text-sm tabular text-ink-muted">{formatDuration(m)}</span>
               </li>

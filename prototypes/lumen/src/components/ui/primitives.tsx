@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { hueStyles, type Hue } from '@/lib/data'
+import { paletteColor } from '@/lib/palette'
 import type { LucideIcon } from 'lucide-react'
 
 /* ——— Popover ——— */
@@ -85,16 +86,31 @@ export function MenuItem({
 export function IconBubble({
   icon: Icon,
   hue,
+  color,
   size = 'md',
   className,
 }: {
   icon: LucideIcon
-  hue: Hue
+  /** A UI hue (metrics, stats)… */
+  hue?: Hue
+  /** …or a palette colour id (activities). */
+  color?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }) {
-  const s = hueStyles[hue]
   const dims = { sm: 'h-8 w-8 [&_svg]:h-4 [&_svg]:w-4', md: 'h-10 w-10 [&_svg]:h-5 [&_svg]:w-5', lg: 'h-12 w-12 [&_svg]:h-6 [&_svg]:w-6' }[size]
+  if (color !== undefined) {
+    const { shades } = paletteColor(color)
+    return (
+      <span
+        className={cn('relative grid shrink-0 place-items-center rounded-full', dims, className)}
+        style={{ backgroundColor: shades.bubble }}
+      >
+        <Icon style={{ color: shades.base }} strokeWidth={1.8} />
+      </span>
+    )
+  }
+  const s = hueStyles[hue ?? 'accent']
   return (
     <span className={cn('relative grid shrink-0 place-items-center rounded-full', s.bubble, dims, className)}>
       <Icon className={s.icon} strokeWidth={1.8} />
