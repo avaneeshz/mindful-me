@@ -14,19 +14,33 @@ import {
 } from 'lucide-react'
 import { DAY_FIRST_SLOT, SLOTS_PER_DAY, addDays, seeded, todayKey, currentSlot } from './utils'
 
-export type Hue = 'accent' | 'sky' | 'mint' | 'lilac' | 'rose' | 'sun' | 'sand' | 'sage' | 'neutral'
+/** Semantic hues used by metrics and stats. */
+type UiHue = 'accent' | 'sky' | 'mint' | 'sun'
+/**
+ * Activity hues. Up to 12 categories; the last three are reserved for future ones.
+ * None of them sit in the Day strip's amber/cream or the Night strip's indigo/violet.
+ */
+export type CategoryHue = 'cyan' | 'crimson' | 'lime' | 'seafoam' | 'pink' | 'magenta' | 'azure' | 'green' | 'graphite' | 'teal' | 'ice' | 'blush'
+export type Hue = UiHue | CategoryHue
 
 /** Static class strings per hue so Tailwind can see them. */
 export const hueStyles: Record<Hue, { icon: string; bubble: string; bar: string; ring: string }> = {
   accent: { icon: 'text-accent-ink', bubble: 'bg-accent/15', bar: 'bg-accent-ink', ring: 'ring-accent-ink/40' },
   sky: { icon: 'text-sky', bubble: 'bg-sky/[0.12]', bar: 'bg-sky', ring: 'ring-sky/40' },
   mint: { icon: 'text-mint', bubble: 'bg-mint/[0.12]', bar: 'bg-mint', ring: 'ring-mint/40' },
-  lilac: { icon: 'text-lilac', bubble: 'bg-lilac/[0.12]', bar: 'bg-lilac', ring: 'ring-lilac/40' },
-  rose: { icon: 'text-rose', bubble: 'bg-rose/[0.12]', bar: 'bg-rose', ring: 'ring-rose/40' },
   sun: { icon: 'text-sun', bubble: 'bg-sun/[0.12]', bar: 'bg-sun', ring: 'ring-sun/40' },
-  sand: { icon: 'text-sand', bubble: 'bg-sand/[0.12]', bar: 'bg-sand', ring: 'ring-sand/40' },
-  sage: { icon: 'text-sage', bubble: 'bg-sage/[0.12]', bar: 'bg-sage', ring: 'ring-sage/40' },
-  neutral: { icon: 'text-ink-muted', bubble: 'bg-white/[0.06]', bar: 'bg-ink-faint', ring: 'ring-white/20' },
+  cyan: { icon: 'text-cat-cyan', bubble: 'bg-cat-cyan/[0.13]', bar: 'bg-cat-cyan', ring: 'ring-cat-cyan/40' },
+  crimson: { icon: 'text-cat-crimson', bubble: 'bg-cat-crimson/[0.13]', bar: 'bg-cat-crimson', ring: 'ring-cat-crimson/40' },
+  lime: { icon: 'text-cat-lime', bubble: 'bg-cat-lime/[0.13]', bar: 'bg-cat-lime', ring: 'ring-cat-lime/40' },
+  seafoam: { icon: 'text-cat-seafoam', bubble: 'bg-cat-seafoam/[0.13]', bar: 'bg-cat-seafoam', ring: 'ring-cat-seafoam/40' },
+  pink: { icon: 'text-cat-pink', bubble: 'bg-cat-pink/[0.13]', bar: 'bg-cat-pink', ring: 'ring-cat-pink/40' },
+  magenta: { icon: 'text-cat-magenta', bubble: 'bg-cat-magenta/[0.13]', bar: 'bg-cat-magenta', ring: 'ring-cat-magenta/40' },
+  azure: { icon: 'text-cat-azure', bubble: 'bg-cat-azure/[0.13]', bar: 'bg-cat-azure', ring: 'ring-cat-azure/40' },
+  green: { icon: 'text-cat-green', bubble: 'bg-cat-green/[0.13]', bar: 'bg-cat-green', ring: 'ring-cat-green/40' },
+  graphite: { icon: 'text-cat-graphite', bubble: 'bg-cat-graphite/[0.13]', bar: 'bg-cat-graphite', ring: 'ring-cat-graphite/40' },
+  teal: { icon: 'text-cat-teal', bubble: 'bg-cat-teal/[0.13]', bar: 'bg-cat-teal', ring: 'ring-cat-teal/40' },
+  ice: { icon: 'text-cat-ice', bubble: 'bg-cat-ice/[0.13]', bar: 'bg-cat-ice', ring: 'ring-cat-ice/40' },
+  blush: { icon: 'text-cat-blush', bubble: 'bg-cat-blush/[0.13]', bar: 'bg-cat-blush', ring: 'ring-cat-blush/40' },
 }
 
 export type Activity = { id: string; label: string; minutes: number }
@@ -37,7 +51,7 @@ export type Category = {
   /** Short form for dense places (scrubber legend, charts) */
   short: string
   icon: LucideIcon
-  hue: Hue
+  hue: CategoryHue
   activities: Activity[]
 }
 
@@ -47,7 +61,7 @@ export const categories: Category[] = [
     label: 'Deep Focus',
     short: 'Focus',
     icon: Brain,
-    hue: 'accent',
+    hue: 'cyan',
     activities: [
       { id: 'deep-work', label: 'Deep work block', minutes: 30 },
       { id: 'planning', label: 'Planning & review', minutes: 15 },
@@ -60,7 +74,7 @@ export const categories: Category[] = [
     label: 'Movement',
     short: 'Move',
     icon: Footprints,
-    hue: 'sky',
+    hue: 'crimson',
     activities: [
       { id: 'run', label: 'Run', minutes: 30 },
       { id: 'strength', label: 'Strength training', minutes: 30 },
@@ -74,7 +88,7 @@ export const categories: Category[] = [
     label: 'Meals & Fuel',
     short: 'Meals',
     icon: UtensilsCrossed,
-    hue: 'mint',
+    hue: 'lime',
     activities: [
       { id: 'breakfast', label: 'Breakfast', minutes: 20 },
       { id: 'lunch', label: 'Lunch', minutes: 30 },
@@ -88,7 +102,7 @@ export const categories: Category[] = [
     label: 'Rest & Recover',
     short: 'Rest',
     icon: Moon,
-    hue: 'lilac',
+    hue: 'seafoam',
     activities: [
       { id: 'nap', label: 'Nap', minutes: 20 },
       { id: 'meditate', label: 'Meditation', minutes: 10 },
@@ -101,7 +115,7 @@ export const categories: Category[] = [
     label: 'Friends & Family',
     short: 'People',
     icon: Users,
-    hue: 'rose',
+    hue: 'pink',
     activities: [
       { id: 'call', label: 'Call a friend', minutes: 15 },
       { id: 'family-meal', label: 'Family meal', minutes: 30 },
@@ -114,7 +128,7 @@ export const categories: Category[] = [
     label: 'Make & Create',
     short: 'Create',
     icon: Palette,
-    hue: 'sun',
+    hue: 'magenta',
     activities: [
       { id: 'sketch', label: 'Sketching', minutes: 30 },
       { id: 'music', label: 'Guitar practice', minutes: 30 },
@@ -127,7 +141,7 @@ export const categories: Category[] = [
     label: 'Read & Learn',
     short: 'Learn',
     icon: BookOpen,
-    hue: 'sand',
+    hue: 'azure',
     activities: [
       { id: 'reading', label: 'Reading', minutes: 30 },
       { id: 'course', label: 'Online course', minutes: 30 },
@@ -140,7 +154,7 @@ export const categories: Category[] = [
     label: 'Time Outdoors',
     short: 'Outside',
     icon: Trees,
-    hue: 'sage',
+    hue: 'green',
     activities: [
       { id: 'walk', label: 'Walk', minutes: 20 },
       { id: 'garden', label: 'Gardening', minutes: 30 },
@@ -153,7 +167,7 @@ export const categories: Category[] = [
     label: 'Life Admin',
     short: 'Admin',
     icon: ListChecks,
-    hue: 'neutral',
+    hue: 'graphite',
     activities: [
       { id: 'email', label: 'Inbox & messages', minutes: 15 },
       { id: 'errands', label: 'Errands', minutes: 30 },

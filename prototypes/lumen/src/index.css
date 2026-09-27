@@ -30,6 +30,23 @@
     --sage: 120 200 150;
     --sand: 220 184 130;
 
+    /* Activity palette — up to 12 categories. Chosen to stay clear of the Day strip's
+       amber/cream and the Night strip's indigo/violet, so logged time never blends into
+       empty time. Pairs that share a hue family differ in lightness. */
+    --cat-cyan: 34 211 238;
+    --cat-crimson: 244 63 94;
+    --cat-lime: 132 224 72;
+    --cat-seafoam: 110 231 183;
+    --cat-pink: 244 114 182;
+    --cat-magenta: 232 121 249;
+    --cat-azure: 56 189 248;
+    --cat-green: 34 197 94;
+    --cat-graphite: 139 149 167;
+    /* Reserved for categories 10–12 */
+    --cat-teal: 13 148 136;
+    --cat-ice: 165 243 252;
+    --cat-blush: 253 164 175;
+
     color-scheme: dark;
   }
 
