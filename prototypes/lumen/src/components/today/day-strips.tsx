@@ -159,6 +159,11 @@ function Strip({ half }: { half: Half }) {
           )}
         >
           <span className="absolute inset-0" style={{ background: lightGradient(half), opacity: night ? 0.92 : 0.72 }} />
+          {/* Glass highlight on the empty sky only — it sits under the activity blocks so they stay one clean colour */}
+          <span
+            className="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_1px_0_rgb(255_255_255/0.18),inset_0_8px_14px_-12px_rgb(255_255_255/0.12)]"
+            aria-hidden
+          />
           {spans.map((s) => (
             <motion.span
               key={`${s.categoryId}-${s.start}`}
@@ -172,11 +177,6 @@ function Strip({ half }: { half: Half }) {
           {futureFrom !== null && (
             <span className="absolute inset-y-0 right-0 bg-canvas/30" style={{ left: pct(futureFrom) }} aria-hidden />
           )}
-          {/* Glass: a soft highlight along the top edge only, so the lower edge meets the essence line cleanly */}
-          <span
-            className="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_1px_0_rgb(255_255_255/0.18),inset_0_8px_14px_-12px_rgb(255_255_255/0.12)]"
-            aria-hidden
-          />
         </span>
 
         <EssenceLine half={half} />
@@ -253,9 +253,9 @@ function EssenceLine({ half }: { half: Half }) {
   }, [])
 
   const r = STRIP_H / 2
-  // The line's centre sits just inside the capsule edge, so the stroke straddles it and reads as
-  // part of the pill's lower rim rather than something drawn next to it.
-  const R = r - 0.5
+  // The line's inner edge touches the capsule's edge exactly (no gap), but it never overlaps the
+  // capsule, so activity blocks keep one clean colour right down to their bottom edge.
+  const R = r + LINE_W / 2
   // Start at the very side of each rounded end (180°) and sweep down around the corner.
   const d =
     width > STRIP_H
@@ -271,8 +271,8 @@ function EssenceLine({ half }: { half: Half }) {
       className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
       style={{
         filter: night
-          ? 'drop-shadow(0 0 2.5px rgb(129 128 255 / 0.45))'
-          : 'drop-shadow(0 0 3px rgb(255 214 150 / 0.5))',
+          ? 'drop-shadow(0 1.5px 2px rgb(129 128 255 / 0.4))'
+          : 'drop-shadow(0 1.5px 2px rgb(255 214 150 / 0.45))',
       }}
       aria-hidden
     >
