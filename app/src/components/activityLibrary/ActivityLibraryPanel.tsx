@@ -8,7 +8,7 @@ import { TileForm, TileList } from '@/components/activityLibrary/TileList'
 import { Button } from '@/components/ui/button'
 import { resolveIcon } from '@/lib/iconRegistry'
 import { cn } from '@/lib/utils'
-import { activityPathNames, collectSubtreeIds } from '@/domain/pickerHierarchy'
+import { collectSubtreeIds, tileIdForActivity } from '@/domain/pickerHierarchy'
 import { usePickerData } from '@/state/PickerDataContext'
 import { useActivityParameterSelections } from '@/state/useActivityParameterSelections'
 import { useParameterVocabulary } from '@/state/useParameterVocabulary'
@@ -125,9 +125,17 @@ export function ActivityLibraryPanel({ open, onClose }: { open: boolean; onClose
       return
     }
     if (selectedTileId) {
-      const path = activityPathNames(activitiesResult.activities, selectedActivityId)
-      const topLevel = activitiesResult.activities.find((a) => a.name === path[0] && a.parentId === null)
-      if (topLevel && topLevel.tileId !== selectedTileId) setSelectedActivityId(null)
+      // Found in code review: this used to resolve "which tile does this
+      // activity belong to" by matching NAME against a top-level row
+      // (`.find(a => a.name === path[0] && a.parentId === null)`) — silently
+      // wrong whenever two top-level activities in different tiles share a
+      // name (the exact bug `20260927060000_activities_unique_top_level_
+      // name_per_user.sql` now prevents at the database level going
+      // forward). `tileIdForActivity` answers the same question by walking
+      // `parentId` BY ID instead, which was always the correct approach —
+      // no name-uniqueness assumption needed at all.
+      const ownerTileId = tileIdForActivity(activitiesResult.activities, selectedActivityId)
+      if (ownerTileId !== null && ownerTileId !== selectedTileId) setSelectedActivityId(null)
     }
   }, [activitiesResult.activities, selectedActivityId, selectedTileId])
 

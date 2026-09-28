@@ -51,6 +51,19 @@ export async function apiProvisionDefaultActivities(): Promise<boolean> {
   return true
 }
 
+/**
+ * `reason: 'duplicate_name'` is a PERMANENT rejection (`create_activity`'s
+ * own `duplicate_top_level_name`/`duplicate_sibling_name`,
+ * `20260927060000_activities_unique_top_level_name_per_user.sql`) — never
+ * one a retry can fix, unlike `'unreachable'`. Distinguished from the
+ * generic case so the caller can actually roll back the optimistic local
+ * insert instead of leaving a phantom activity that can never sync (found
+ * in code review: the client-side `isTopLevelNameTaken` pre-check closes
+ * the common case, but a stale multi-tab/multi-device local activity list
+ * can still race past it to a server that knows better).
+ */
+export type CreateActivityResult = { ok: true; id: string } | { ok: false; reason: 'duplicate_name' | 'unreachable' }
+
 /** Exactly one of `tileId` (a new top-level activity) or `parentId` (a new drill-down option, at any depth) must be set. `id` is client-supplied for the same idempotent-retry reason every create RPC in this schema takes one. */
 export async function apiCreateActivity(input: {
   id: string
@@ -61,8 +74,8 @@ export async function apiCreateActivity(input: {
   /** Top-level only (see `ActivityRow.disappearMode`'s own doc comment) — ignored server-side for a drill-down option. */
   disappearMode?: 'manual' | 'auto'
   disappearLimit?: number | null
-}): Promise<string | null> {
-  if (!supabase) return null
+}): Promise<CreateActivityResult> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
   const { data, error } = await supabase.rpc('create_activity', {
     p_id: input.id,
     p_name: input.name,
@@ -73,20 +86,26 @@ export async function apiCreateActivity(input: {
     p_disappear_limit: input.disappearLimit ?? null,
   })
   if (error) {
+    if (error.message.includes('duplicate_top_level_name') || error.message.includes('duplicate_sibling_name')) {
+      return { ok: false, reason: 'duplicate_name' }
+    }
     // eslint-disable-next-line no-console
     console.warn('[activityHierarchy] create_activity failed — kept locally, will retry on next load', error.message)
-    return null
+    return { ok: false, reason: 'unreachable' }
   }
-  return data as string
+  return { ok: true, id: data as string }
 }
+
+/** Same `reason` contract as `apiCreateActivity` — see that type's own doc comment. */
+export type UpdateActivityResult = { ok: true } | { ok: false; reason: 'duplicate_name' | 'unreachable' }
 
 export async function apiUpdateActivity(
   id: string,
   name: string,
   iconKey?: string | null,
   disappear?: { mode: 'manual' | 'auto'; limit: number | null },
-): Promise<boolean> {
-  if (!supabase) return false
+): Promise<UpdateActivityResult> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
   const { error } = await supabase.rpc('update_activity', {
     p_id: id,
     p_name: name,
@@ -95,11 +114,14 @@ export async function apiUpdateActivity(
     p_disappear_limit: disappear?.limit ?? null,
   })
   if (error) {
+    if (error.message.includes('duplicate_top_level_name') || error.message.includes('duplicate_sibling_name')) {
+      return { ok: false, reason: 'duplicate_name' }
+    }
     // eslint-disable-next-line no-console
     console.warn('[activityHierarchy] update_activity failed — kept locally, will retry on next load', error.message)
-    return false
+    return { ok: false, reason: 'unreachable' }
   }
-  return true
+  return { ok: true }
 }
 
 export async function apiSetActivityHidden(id: string, hidden: boolean): Promise<boolean> {

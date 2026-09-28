@@ -60,7 +60,22 @@ export function buildActivityTree(activities: readonly ActivityRow[], tileId: st
   return topLevel.map(toNode)
 }
 
-/** Every id in the subtree rooted at `activityId`, INCLUDING that id itself — used to know which rows a tile/activity delete would need to check history for, and to clear a stale "selected activity" pointer when its whole subtree disappears. */
+/**
+ * Every id in the subtree rooted at `activityId`, INCLUDING that id itself —
+ * used to know which rows a tile/activity delete would need to check
+ * history for, to clear a stale "selected activity" pointer when its whole
+ * subtree disappears, and (via `useActivityHierarchy.ts`'s
+ * `removeSubtreeLocally`) to roll back a whole in-flight-added subtree on a
+ * rejected save.
+ *
+ * Guards against a `parentId` cycle the same way `activityPathNames`/
+ * `tileIdForActivity` do (found in code review: this walk used to have no
+ * such guard — a `visited` Set here is what actually makes that safe, not
+ * merely "unlikely to matter" — a corrupted local cache with a real cycle
+ * would otherwise re-descend into the same nodes forever, growing `result`/
+ * `stack` without bound and hanging the tab on every one of this function's
+ * three real call sites, two of them on interactive paths).
+ */
 export function collectSubtreeIds(activities: readonly ActivityRow[], activityId: string): string[] {
   const byParent = new Map<string, ActivityRow[]>()
   for (const activity of activities) {
@@ -71,10 +86,13 @@ export function collectSubtreeIds(activities: readonly ActivityRow[], activityId
   }
 
   const result: string[] = [activityId]
+  const visited = new Set<string>([activityId])
   const stack = [activityId]
   while (stack.length > 0) {
     const current = stack.pop()!
     for (const child of byParent.get(current) ?? []) {
+      if (visited.has(child.id)) continue
+      visited.add(child.id)
       result.push(child.id)
       stack.push(child.id)
     }
@@ -82,16 +100,131 @@ export function collectSubtreeIds(activities: readonly ActivityRow[], activityId
   return result
 }
 
-/** The display path from the tile's top-level activity down to `activityId`, e.g. ["Body Care (self)", "Oiling", "Face"] — empty if `activityId` isn't found. */
+/**
+ * The display path from the tile's top-level activity down to `activityId`,
+ * e.g. ["Body Care (self)", "Oiling", "Face"] — empty if `activityId` isn't
+ * found.
+ *
+ * Guards against a `parentId` cycle the same way the sibling `tileIdForActivity`
+ * below does (found in code review: this walk has the identical unbounded
+ * shape, and it runs on an interactive path too — `ActivityTree.tsx`'s
+ * "Show N hidden activities" list, once per hidden row) — a real cycle
+ * should never exist, but a corrupted local cache is cheap insurance against
+ * hanging the render rather than failing gracefully like its sibling.
+ */
 export function activityPathNames(activities: readonly ActivityRow[], activityId: string): string[] {
   const byId = new Map(activities.map((a) => [a.id, a]))
   const path: string[] = []
+  const visited = new Set<string>()
   let current = byId.get(activityId)
   while (current) {
+    if (visited.has(current.id)) break
+    visited.add(current.id)
     path.unshift(current.name)
     current = current.parentId ? byId.get(current.parentId) : undefined
   }
   return path
+}
+
+/**
+ * Which tile `activityId` ultimately belongs to — walks `parentId` up BY ID
+ * to the root, then returns that root's own `tileId`. Found in code review:
+ * a caller (`ActivityLibraryPanel.tsx`) used to answer this by NAME instead
+ * (`activities.find(a => a.name === path[0] && a.parentId === null)`), which
+ * silently matches the WRONG root whenever two different top-level
+ * activities across two different tiles happen to share a name — the same
+ * root cause `20260927060000_activities_unique_top_level_name_per_user.sql`
+ * closes at the database level (a DB constraint now prevents that collision
+ * from being created at all, going forward), but the correct client-side
+ * fix is simply to never resolve "which tile" by name in the first place —
+ * an activity's own `parentId` chain already answers that unambiguously,
+ * with no uniqueness assumption needed at all. Returns `null` for an unknown
+ * id or a root with no `tileId` (a legacy shared-catalog row, or the
+ * activity itself no longer exists in `activities`).
+ *
+ * Guards against a `parentId` cycle (found in code review: this walk has no
+ * bound otherwise, and it runs on an interactive path —
+ * `ActivityLibraryPanel`'s own effect, re-run on every activities/selection
+ * change) — a real cycle should never exist (nothing in this codebase's own
+ * create/reorder paths can construct one), but a corrupted local cache is
+ * cheap insurance against either an infinite loop, so this bails out to
+ * `null` rather than hanging the render the moment it revisits a node.
+ */
+export function tileIdForActivity(activities: readonly ActivityRow[], activityId: string): string | null {
+  const byId = new Map(activities.map((a) => [a.id, a]))
+  const visited = new Set<string>()
+  let current = byId.get(activityId)
+  while (current && current.parentId !== null) {
+    if (visited.has(current.id)) return null
+    visited.add(current.id)
+    current = byId.get(current.parentId)
+  }
+  return current?.tileId ?? null
+}
+
+/**
+ * Shared by `isTopLevelNameTaken`/`isSiblingNameTaken` (found in code
+ * review: the two used to duplicate this exact trim+exclude-self+name-match
+ * logic, differing only in which `parentId` scopes the comparison — a
+ * future change to the comparison rule, e.g. case-insensitivity, would have
+ * had to be kept in sync by hand across both copies otherwise).
+ */
+function isNameTakenAtParent(
+  activities: readonly ActivityRow[],
+  parentId: string | null,
+  name: string,
+  excludeActivityId?: string,
+): boolean {
+  const trimmed = name.trim()
+  return activities.some((a) => a.parentId === parentId && a.id !== excludeActivityId && a.name === trimmed)
+}
+
+/**
+ * Whether `name` (exact match — the same case-sensitive comparison the
+ * database's own `activities_top_level_name_per_user_idx` uses) already
+ * belongs to one of this user's OTHER top-level activities — across EVERY
+ * tile, not just one (the approved fix is a user-wide constraint, not a
+ * per-tile one — see that migration's own doc comment). `excludeActivityId`
+ * (the node itself, when renaming) is never counted as a collision against
+ * its own current name. A HIDDEN top-level activity still occupies its name
+ * exactly as a visible one does — callers must pass the full, unfiltered
+ * activity list, never one already filtered down to visible/one-tile rows.
+ *
+ * The one client-side check standing between a user and the DB's own
+ * `duplicate_top_level_name` rejection — see `ActivityTree.tsx`'s add/rename
+ * forms, the actual UX fix (the DB constraint is the safety net behind it,
+ * per rule 1's "enforce in the DB too, never rely on only one layer").
+ */
+export function isTopLevelNameTaken(
+  activities: readonly ActivityRow[],
+  name: string,
+  excludeActivityId?: string,
+): boolean {
+  return isNameTakenAtParent(activities, null, name, excludeActivityId)
+}
+
+/**
+ * Whether `name` already belongs to one of `parentId`'s OTHER direct
+ * children — the scope the database's own pre-existing
+ * `activities_parent_id_name_key` (`unique (parent_id, name)`) already
+ * enforces correctly (a non-null `parent_id` was never subject to the
+ * NULL-distinctness problem `isTopLevelNameTaken`'s own doc comment
+ * describes, so no DB-side change was needed for this scope). This
+ * client-side check exists purely so a sub-activity rename or a new
+ * sub-activity gets the same immediate inline feedback a top-level one now
+ * does (found in code review: without it, a sibling-name collision still
+ * gets rejected, just via a round trip to the server and the generic
+ * top-of-tree error banner instead of the inline error next to the row that
+ * actually failed) — see `ActivityTree.tsx`'s rename / add-sub-activity
+ * forms.
+ */
+export function isSiblingNameTaken(
+  activities: readonly ActivityRow[],
+  parentId: string,
+  name: string,
+  excludeActivityId?: string,
+): boolean {
+  return isNameTakenAtParent(activities, parentId, name, excludeActivityId)
 }
 
 /** Every activity a tile-deletion would take with it (its whole owned subtree) — used only to decide whether `activity_has_history` needs checking client-side before even attempting the RPC (the RPC re-checks server-side regardless; this is purely a fast "should we warn first" signal, never the actual authority). */

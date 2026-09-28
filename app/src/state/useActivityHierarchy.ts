@@ -10,7 +10,7 @@ import {
 } from '@/api/activityHierarchy'
 import { ACTIVITY_CARDS, CATEGORY_ORDER } from '@/data/activities'
 import { generateId } from '@/domain/scheduling'
-import type { ActivityRow } from '@/domain/pickerHierarchy'
+import { collectSubtreeIds, type ActivityRow } from '@/domain/pickerHierarchy'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 
 export type ActivityHierarchyStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -139,6 +139,24 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     }
   }, [])
 
+  // Removes a node AND every descendant already added under it locally —
+  // shared by `deleteActivity` (a real server-confirmed delete cascades to
+  // the whole subtree server-side too) and `addActivity`'s own
+  // `duplicate_name` rollback below (found in code review: rolling back
+  // just the rejected parent left any sub-activity the user had already
+  // added under it, before the rejection came back, as an invisible orphan
+  // referencing a `parentId` that no longer exists).
+  const removeSubtreeLocally = useCallback((id: string): void => {
+    // `collectSubtreeIds` (found in code review: this used to hand-roll the
+    // exact same fixed-point walk `pickerHierarchy.ts` already provides,
+    // tested, and this file's own sibling `ActivityLibraryPanel.tsx` already
+    // uses) already returns `id` itself plus every descendant.
+    setActivities((prev) => {
+      const removed = new Set(collectSubtreeIds(prev, id))
+      return prev.filter((a) => !removed.has(a.id))
+    })
+  }, [])
+
   const addActivity = useCallback(
     (input: { name: string; tileId?: string | null; parentId?: string | null }): ActivityRow => {
       const id = generateId()
@@ -163,21 +181,67 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
       setActivities((prev) => [...prev, created])
       if (supabaseConfigured) {
         void apiCreateActivity({ id, name: input.name, tileId: input.tileId, parentId: input.parentId }).then(
-          (serverId) => {
-            if (serverId === null) setError('Saved on this device — will sync once you’re back online.')
+          (result) => {
+            if (result.ok) return
+            if (result.reason === 'duplicate_name') {
+              // A PERMANENT rejection, not a transient one (found in code
+              // review: the client-side `isTopLevelNameTaken` pre-check in
+              // `ActivityTree.tsx` closes the common case, but a stale
+              // multi-tab/multi-device local list can still race past it) —
+              // "will sync once you're back online" would be a lie here,
+              // since retrying the exact same name can never succeed. Roll
+              // the optimistic insert back instead of leaving a phantom
+              // activity behind forever — via `removeSubtreeLocally`, not a
+              // plain filter, since the user may already have added a
+              // sub-activity under this since-rejected parent while the
+              // request was in flight (found in code review: a plain filter
+              // left that child behind as an invisible orphan).
+              removeSubtreeLocally(id)
+              setError(`"${input.name}" is already the name of one of your other activities — try a different name.`)
+              return
+            }
+            setError('Saved on this device — will sync once you’re back online.')
           },
         )
       }
       return created
     },
-    [activities],
+    [activities, removeSubtreeLocally],
   )
 
   const renameActivity = useCallback((id: string, name: string): void => {
-    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, name } : a)))
+    // Captured so a permanent `duplicate_name` rejection (see `addActivity`'s
+    // own comment on why that case is handled differently) can revert this
+    // rename instead of leaving the local copy showing a name the server
+    // never actually accepted.
+    let previousName: string | undefined
+    setActivities((prev) =>
+      prev.map((a) => {
+        if (a.id !== id) return a
+        previousName = a.name
+        return { ...a, name }
+      }),
+    )
     if (supabaseConfigured) {
-      void apiUpdateActivity(id, name).then((ok) => {
-        if (!ok) setError('Saved on this device — will sync once you’re back online.')
+      void apiUpdateActivity(id, name).then((result) => {
+        if (result.ok) return
+        if (result.reason === 'duplicate_name') {
+          // Found in code review: a stale in-flight rejection must never
+          // clobber a NEWER rename the user already made while this request
+          // was still in flight (e.g. "Walk" -> "Jog" [rejected, slow] ->
+          // "Run" [accepted] before the "Jog" rejection comes back) — only
+          // revert if the row's name is still exactly what THIS attempt set
+          // it to; if a later rename has since changed it again, leave that
+          // newer value alone.
+          if (previousName !== undefined) {
+            setActivities((prev) =>
+              prev.map((a) => (a.id === id && a.name === name ? { ...a, name: previousName! } : a)),
+            )
+          }
+          setError(`"${name}" is already the name of one of your other activities — try a different name.`)
+          return
+        }
+        setError('Saved on this device — will sync once you’re back online.')
       })
     }
   }, [])
@@ -202,27 +266,6 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
         if (!ok) setError('Saved on this device — will sync once you’re back online.')
       })
     }
-  }, [])
-
-  // A successful delete also cascades to every descendant (server-side,
-  // `activity_has_history` already covered the whole subtree before
-  // allowing it; locally, there's nothing else to check) — drop them all
-  // from local state rather than waiting for a refetch.
-  const removeSubtreeLocally = useCallback((id: string): void => {
-    setActivities((prev) => {
-      const removed = new Set<string>([id])
-      let changed = true
-      while (changed) {
-        changed = false
-        for (const a of prev) {
-          if (a.parentId && removed.has(a.parentId) && !removed.has(a.id)) {
-            removed.add(a.id)
-            changed = true
-          }
-        }
-      }
-      return prev.filter((a) => !removed.has(a.id))
-    })
   }, [])
 
   const deleteActivity = useCallback(
