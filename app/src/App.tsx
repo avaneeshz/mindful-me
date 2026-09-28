@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { HeaderBar } from '@/components/HeaderBar'
@@ -10,8 +10,12 @@ import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { PickerDataProvider } from '@/state/PickerDataContext'
+import { InterfaceProvider, useInterfaceMode } from '@/state/InterfaceContext'
 import { ThemeProvider } from '@/state/ThemeContext'
 import { cn } from '@/lib/utils'
+
+// Lumen is a whole second interface; people on Classic never download it.
+const LumenApp = lazy(() => import('@/lumen/LumenApp'))
 
 interface AppProps {
   /** Pins "now" for deterministic tests. Omitted in the real app. */
@@ -57,9 +61,11 @@ function useHasContentBelow(ref: React.RefObject<HTMLElement | null>): boolean {
 export default function App({ now }: AppProps = {}) {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AuthGate now={now} />
-      </AuthProvider>
+      <InterfaceProvider>
+        <AuthProvider>
+          <AuthGate now={now} />
+        </AuthProvider>
+      </InterfaceProvider>
     </ThemeProvider>
   )
 }
@@ -74,22 +80,37 @@ export default function App({ now }: AppProps = {}) {
  */
 function AuthGate({ now }: { now?: Date }) {
   const { configured, status } = useAuth()
+  const { mode } = useInterfaceMode()
   const view = resolveGateView(configured, status)
 
   if (view === 'loading') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
-        <Loader2 aria-hidden="true" className="size-[28px] animate-spin text-ink" />
-        <span className="sr-only">Loading…</span>
-      </div>
-    )
+    return <FullScreenLoader />
   }
 
   if (view === 'authScreen') {
     return <AuthScreen />
   }
 
+  // The Classic / Lumen switch (`state/InterfaceContext.tsx`). Only the
+  // signed-in product differs; sign-in itself is shared.
+  if (mode === 'lumen') {
+    return (
+      <Suspense fallback={<FullScreenLoader />}>
+        <LumenApp />
+      </Suspense>
+    )
+  }
+
   return <AuthedApp now={now} />
+}
+
+function FullScreenLoader() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-bg">
+      <Loader2 aria-hidden="true" className="size-[28px] animate-spin text-ink" />
+      <span className="sr-only">Loading…</span>
+    </div>
+  )
 }
 
 function AuthedApp({ now }: { now?: Date }) {

@@ -6,7 +6,8 @@
 // for `bg-surface`/`text-ink`/etc. and the CSS variable underneath resolves to
 // whichever theme is active. No raw hex values may appear in components.
 export default {
-  content: ['./app/index.html', './app/src/**/*.{ts,tsx}'],
+  // Lumen (app/src/lumen) compiles against its own config — see tailwind.lumen.config.js.
+  content: ['./app/index.html', './app/src/**/*.{ts,tsx}', '!./app/src/lumen/**'],
   theme: {
     // --- Spacing scale (replaces Tailwind's default numeric scale entirely, so
     // an off-scale value like `p-5` simply does not compile). ---

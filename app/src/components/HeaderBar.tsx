@@ -25,6 +25,7 @@ import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
 import { cn } from '@/lib/utils'
+import { useInterfaceMode } from '@/state/InterfaceContext'
 
 /**
  * `YYYY-MM-DD` in the DEVICE's timezone, for the <time> element's machine-
@@ -336,6 +337,7 @@ function DatePill({
 
 function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [open, setOpen] = useState(false)
+  const { setMode } = useInterfaceMode()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -390,6 +392,17 @@ function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => voi
               {user.email}
             </div>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              setMode('lumen')
+            }}
+            className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-ink transition-colors hover:bg-bg"
+          >
+            Switch to Lumen
+          </button>
           <button
             type="button"
             role="menuitem"
