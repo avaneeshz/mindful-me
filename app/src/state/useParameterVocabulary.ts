@@ -148,8 +148,18 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
     const cancelledRef = { current: false }
     activeCancelRef.current = cancelledRef
     void load(cancelledRef)
+    // Found in code review: this used to close over `cancelledRef`, the
+    // object created at THIS effect run — correct for the mount-time load,
+    // but a `retry()` call in between mount and unmount replaces
+    // `activeCancelRef.current` with a DIFFERENT object (see `retry` below)
+    // without this cleanup ever finding out, so an in-flight retry survived
+    // unmount uncancelled and could still call `setStatus`/`setError`/
+    // `setByType` afterwards. Reading `activeCancelRef.current` here instead
+    // (rather than the closed-over `cancelledRef`) always cancels whichever
+    // load is actually active at unmount time, mount's own or a later
+    // retry's.
     return () => {
-      cancelledRef.current = true
+      activeCancelRef.current.current = true
     }
   }, [load])
 
