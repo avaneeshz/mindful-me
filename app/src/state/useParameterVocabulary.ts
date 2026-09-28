@@ -46,6 +46,13 @@ export interface UseParameterVocabularyResult {
   addOption: (type: ParameterType, label: string) => Promise<string | null>
   /** Removes one global option. `skipped: true` means the server blocked it (real logged history — rule 11); the caller should say so rather than pretend it disappeared. */
   removeOption: (id: string) => Promise<{ ok: true } | { ok: false; skipped: boolean }>
+  /**
+   * Re-runs the initial load (including first-time provisioning if that's
+   * still what's needed). Exists for `status === 'error'` — see `load`'s own
+   * doc comment on the provisioning-failure branch for why a retry needs to
+   * be explicitly offered here rather than assumed to happen on its own.
+   */
+  retry: () => void
 }
 
 /** The current 18/6/14 defaults, read-only preview with zero backend configured — same synthetic ids `useActivityParameterSelections`'s own local-only branch uses (`parameterOptionsLocalOnly.ts`), so the two interoperate offline. */
@@ -100,6 +107,24 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
         await load(cancelledRef)
         return
       }
+      // Provisioning failed — deferred finding from PR #41's own code
+      // review, fixed now: this used to fall straight through to
+      // `setByType(groupByType(rows))` below with `rows` still `[]`, landing
+      // on `status: 'ready'` with an empty list and no error at all —
+      // indistinguishable from "you genuinely have zero options," when
+      // what actually happened is "we couldn't set your defaults up."
+      // Surface it as the real error it is, and reset the guard so a
+      // real retry attempts provisioning again instead of skipping it
+      // forever: `ActivityLibraryPanel` mounts this hook ONCE and keeps it
+      // mounted for the dialog's entire lifetime (see that component's own
+      // doc comment), so there's no natural remount here to fall back on —
+      // without resetting this ref, a failed first attempt would leave
+      // every later `retry()` (and every later "rows.length === 0" load) a
+      // permanent no-op for as long as the dialog stays open.
+      provisionedRef.current = false
+      setStatus('error')
+      setError('Could not set up your options right now — try again.')
+      return
     }
 
     if (rows === null) {
@@ -111,12 +136,38 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
     setStatus('ready')
   }, [])
 
+  // The cancellation flag for whichever `load` call is currently the "live"
+  // one — the mount effect's own, or a later manual `retry()`'s — so a
+  // retry started before unmount still gets cancelled correctly, and a
+  // retry never races a still-in-flight earlier call (both share the one
+  // active flag; the effect's own cleanup flips it, `retry` below starts a
+  // fresh one).
+  const activeCancelRef = useRef<{ current: boolean }>({ current: false })
+
   useEffect(() => {
     const cancelledRef = { current: false }
+    activeCancelRef.current = cancelledRef
     void load(cancelledRef)
+    // Found in code review: this used to close over `cancelledRef`, the
+    // object created at THIS effect run — correct for the mount-time load,
+    // but a `retry()` call in between mount and unmount replaces
+    // `activeCancelRef.current` with a DIFFERENT object (see `retry` below)
+    // without this cleanup ever finding out, so an in-flight retry survived
+    // unmount uncancelled and could still call `setStatus`/`setError`/
+    // `setByType` afterwards. Reading `activeCancelRef.current` here instead
+    // (rather than the closed-over `cancelledRef`) always cancels whichever
+    // load is actually active at unmount time, mount's own or a later
+    // retry's.
     return () => {
-      cancelledRef.current = true
+      activeCancelRef.current.current = true
     }
+  }, [load])
+
+  const retry = useCallback(() => {
+    activeCancelRef.current.current = true
+    const cancelledRef = { current: false }
+    activeCancelRef.current = cancelledRef
+    void load(cancelledRef)
   }, [load])
 
   const addOption = useCallback(
@@ -217,5 +268,5 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
     [instanceId],
   )
 
-  return { byType, status, error, addOption, removeOption }
+  return { byType, status, error, addOption, removeOption, retry }
 }
