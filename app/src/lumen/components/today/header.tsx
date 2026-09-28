@@ -1,17 +1,18 @@
-import { Bell, ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Download, FileText, HeartPulse, Loader2, Pencil, Share2, Settings, LogOut, UserRound, LayoutGrid } from 'lucide-react'
-import { useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileText, LayoutGrid, LogOut, Pencil, Settings, UserRound } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/lumen/components/ui/button'
 import { MenuItem, Popover } from '@/lumen/components/ui/primitives'
-import { categoryById, activityLabel, windowEntries } from '@/lumen/lib/data'
-import { useStore } from '@/lumen/lib/store'
 import { useLumenAccount } from '@/lumen/lib/account'
+import { useStore } from '@/lumen/lib/store'
+import { useLumenRange } from '@/lumen/data/useLumenRange'
+import { activitiesWithin, axisClock, loggedMinutes, LUMEN_DAY_END, LUMEN_DAY_START, minutesWithin, toAxis } from '@/lumen/domain/lumenDay'
+import { addDays, cn, dateKey, formatDay, fromKey, relativeDay } from '@/lumen/lib/utils'
 import { useInterfaceMode } from '@/state/InterfaceContext'
-import { addDays, cn, dateKey, formatDay, fromKey, relativeDay, slotStart, todayKey } from '@/lumen/lib/utils'
 import { CustomizeSheet } from './customize-sheet'
+import { SyncStatus } from './sync-status'
 
-function greeting() {
-  const h = new Date().getHours()
+function greeting(now: Date) {
+  const h = now.getHours()
   if (h < 5) return 'Still up'
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
@@ -19,65 +20,31 @@ function greeting() {
 }
 
 export function TodayHeader() {
-  const { date } = useStore()
+  const { day, today, now } = useStore()
   const { firstName } = useLumenAccount()
-  const rel = relativeDay(date)
+  const rel = relativeDay(day, today)
   return (
     <header className="flex items-center gap-4">
-      {/* Phone: one row — date, day tools, notifications and account */}
+      {/* Phone: one row — date, day tools and account */}
       <div className="flex min-w-0 flex-1 items-center gap-1.5 md:hidden">
-        <h1 className="sr-only">{formatDay(date, 'long')}</h1>
+        <h1 className="sr-only">{formatDay(day, 'long')}</h1>
         <DayToolbar compact />
-        <NotificationsButton />
         <ProfileButton />
       </div>
       {/* Tablet & desktop: the day is the headline */}
       <div className="hidden min-w-0 flex-1 md:block">
         <p className="text-sm text-ink-muted">
-          {greeting()}{firstName ? `, ${firstName}` : ''}{rel && rel !== 'Today' ? ` · viewing ${rel.toLowerCase()}` : ''}
+          {greeting(now)}
+          {firstName ? `, ${firstName}` : ''}
+          {rel && rel !== 'Today' ? ` · viewing ${rel.toLowerCase()}` : ''}
         </p>
-        <h1 className="mt-1 font-display text-4xl text-ink">{formatDay(date, 'long')}</h1>
+        <h1 className="mt-1 font-display text-4xl text-ink">{formatDay(day, 'long')}</h1>
       </div>
       <div className="hidden items-center gap-2 md:flex">
-        <NotificationsButton />
+        <SyncStatus />
         <ProfileButton />
       </div>
     </header>
-  )
-}
-
-function NotificationsButton() {
-  const { notices, markNoticesRead } = useStore()
-  const unread = notices.filter((n) => n.unread).length
-  return (
-    <Popover
-      align="end"
-      className="w-[min(340px,calc(100vw-32px))] p-0"
-      onOpenChange={(o) => !o && markNoticesRead()}
-      trigger={
-        <Button size="icon" aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'} className="relative">
-          <Bell className="h-5 w-5" strokeWidth={1.8} />
-          {unread > 0 && <span className="absolute right-[11px] top-[10px] h-2 w-2 rounded-full bg-mint ring-2 ring-surface-1" />}
-        </Button>
-      }
-    >
-      <div className="flex items-center justify-between px-4 pb-2 pt-4">
-        <p className="text-sm font-semibold text-ink">Notifications</p>
-        {unread > 0 && <span className="text-xs text-ink-muted">{unread} new</span>}
-      </div>
-      <ul className="p-2 pt-0">
-        {notices.map((n) => (
-          <li key={n.id} className="flex gap-3 rounded-control px-2 py-3 hover:bg-white/[0.03]">
-            <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', n.unread ? 'bg-mint' : 'bg-white/10')} />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-ink">{n.title}</p>
-              <p className="mt-0.5 text-sm leading-snug text-ink-muted">{n.body}</p>
-              <p className="mt-1 text-xs text-ink-faint">{n.time}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Popover>
   )
 }
 
@@ -120,41 +87,16 @@ function ProfileButton() {
   )
 }
 
-/* ——— Toolbar: date, export, health sync, customize ——— */
+/* ——— Toolbar: date, export, edit ——— */
 
-/** `compact` is the phone version that shares the top row with notifications and account. */
+/** `compact` is the phone version that shares the top row with the account button. */
 export function DayToolbar({ compact = false }: { compact?: boolean }) {
-  const { healthSync, toggleHealthSync } = useStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
   return (
     <div className={cn('flex items-center', compact ? 'min-w-0 flex-1 gap-1.5' : 'gap-2 sm:gap-3')}>
       <DatePicker compact={compact} />
       <ExportMenu />
-      <Button
-        size="icon"
-        variant={healthSync === 'off' ? 'quiet' : 'active'}
-        onClick={toggleHealthSync}
-        aria-pressed={healthSync !== 'off'}
-        aria-label={healthSync === 'off' ? 'Connect Health' : 'Health sync on'}
-        title={healthSync === 'off' ? 'Sync with Health' : 'Health sync on'}
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span
-            key={healthSync === 'syncing' ? 'spin' : 'heart'}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.15 }}
-            className="grid place-items-center"
-          >
-            {healthSync === 'syncing' ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <HeartPulse className="h-5 w-5" strokeWidth={1.8} />
-            )}
-          </motion.span>
-        </AnimatePresence>
-      </Button>
+      {compact && <SyncStatus compact />}
       {compact ? (
         <Button size="icon" onClick={() => setCustomizeOpen(true)} aria-label="Edit">
           <Pencil className="h-[18px] w-[18px]" strokeWidth={1.8} />
@@ -171,9 +113,9 @@ export function DayToolbar({ compact = false }: { compact?: boolean }) {
 }
 
 function DatePicker({ compact }: { compact: boolean }) {
-  const { date, setDate } = useStore()
-  const rel = relativeDay(date)
-  const isToday = date === todayKey()
+  const { day, setDay, today } = useStore()
+  const rel = relativeDay(day, today)
+  const isToday = day === today
   return (
     <div className={cn('flex min-w-0 flex-1 items-center', !compact && 'sm:flex-none')}>
       <Popover
@@ -181,7 +123,7 @@ function DatePicker({ compact }: { compact: boolean }) {
         trigger={
           <button
             type="button"
-            aria-label={`Change date, ${formatDay(date, 'long')}`}
+            aria-label={`Change date, ${formatDay(day, 'long')}`}
             className={cn(
               'flex h-11 min-w-0 flex-1 items-center rounded-full border border-line/[0.09] bg-surface-1/70 text-sm font-medium text-ink transition-colors hover:border-line/[0.14] hover:bg-surface-2',
               compact ? 'justify-center gap-2 px-3' : 'gap-2.5 pl-3.5 pr-3 sm:min-w-[196px]',
@@ -193,7 +135,7 @@ function DatePicker({ compact }: { compact: boolean }) {
             />
             {/* Phone row is tight: "Sun 27" there, "Sun, 27 Sept" elsewhere */}
             <span className="truncate tabular">
-              {compact ? fromKey(date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }) : formatDay(date)}
+              {compact ? fromKey(day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }) : formatDay(day)}
             </span>
             {rel && !compact && <span className="hidden text-ink-faint sm:inline">· {rel}</span>}
             {!compact && <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-ink-muted" />}
@@ -202,19 +144,19 @@ function DatePicker({ compact }: { compact: boolean }) {
       >
         {(close) => (
           <MonthGrid
-            value={date}
+            value={day}
             onSelect={(d) => {
-              setDate(d)
+              setDay(d)
               close()
             }}
           />
         )}
       </Popover>
       <div className="ml-1 hidden items-center lg:flex">
-        <Button variant="ghost" size="icon" aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
+        <Button variant="ghost" size="icon" aria-label="Previous day" onClick={() => setDay(addDays(day, -1))}>
           <ChevronLeft className="h-[18px] w-[18px]" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Next day" disabled={isToday} onClick={() => setDate(addDays(date, 1))}>
+        <Button variant="ghost" size="icon" aria-label="Next day" disabled={isToday} onClick={() => setDay(addDays(day, 1))}>
           <ChevronRight className="h-[18px] w-[18px]" />
         </Button>
       </div>
@@ -223,14 +165,17 @@ function DatePicker({ compact }: { compact: boolean }) {
 }
 
 export function MonthGrid({ value, onSelect }: { value: string; onSelect: (d: string) => void }) {
-  const { days } = useStore()
+  const { today, data } = useStore()
   const [cursor, setCursor] = useState(() => {
     const d = fromKey(value)
     return new Date(d.getFullYear(), d.getMonth(), 1)
   })
-  const today = todayKey()
   const lead = (cursor.getDay() + 6) % 7 // Monday-first
   const count = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate()
+  const first = dateKey(cursor)
+  const range = useLumenRange(first, count)
+  // The open day's own live data wins over the range read (it may hold writes the range hasn't seen).
+  const byDate = useMemo(() => ({ ...range.byDate, ...data.byDate }), [range.byDate, data.byDate])
   const cells = Array.from({ length: lead + count }, (_, i) =>
     i < lead ? null : dateKey(new Date(cursor.getFullYear(), cursor.getMonth(), i - lead + 1)),
   )
@@ -262,7 +207,7 @@ export function MonthGrid({ value, onSelect }: { value: string; onSelect: (d: st
           if (!k) return <span key={i} />
           const future = k > today
           const selected = k === value
-          const logged = windowEntries(days, k).length > 0
+          const logged = !future && loggedMinutes(toAxis(k, byDate)) > 0
           return (
             <button
               key={k}
@@ -270,6 +215,7 @@ export function MonthGrid({ value, onSelect }: { value: string; onSelect: (d: st
               disabled={future}
               onClick={() => onSelect(k)}
               aria-pressed={selected}
+              aria-label={`${formatDay(k, 'long')}${logged ? ', has entries' : ''}`}
               className={cn(
                 'relative mx-auto grid h-10 w-10 place-items-center rounded-full text-sm tabular transition-colors disabled:text-ink-faint/50',
                 selected ? 'bg-accent font-semibold text-white' : 'text-ink hover:bg-white/[0.06]',
@@ -291,22 +237,38 @@ export function MonthGrid({ value, onSelect }: { value: string; onSelect: (d: st
   )
 }
 
+const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`
+
+/** The Lumen day's entries as a CSV — every field the entry carries, in time order. */
 function ExportMenu() {
-  const { entries, date, toast } = useStore()
+  const { axis, day, tileOf, toast } = useStore()
   const exportCsv = () => {
+    const items = activitiesWithin(axis, LUMEN_DAY_START, LUMEN_DAY_END)
     const rows = [
-      ['date', 'start', 'category', 'activity', 'minutes'],
-      ...[...entries]
-        .sort((a, b) => a.slot - b.slot)
-        .map((e) => [date, slotStart(e.slot), categoryById[e.categoryId].label, activityLabel(e.categoryId, e.activityId), String(e.minutes)]),
+      ['lumen_day', 'date', 'start', 'end', 'minutes_in_day', 'tile', 'activity', 'type', 'done', 'quality', 'symptoms', 'protective_response', 'notes'],
+      ...items.map(({ activity: a, start, end }) => [
+        day,
+        addDays(day, Math.floor(start / 1440)),
+        axisClock(start),
+        axisClock(end),
+        String(minutesWithin({ start, end }, LUMEN_DAY_START, LUMEN_DAY_END)),
+        tileOf(a)?.label ?? '',
+        a.name ?? '',
+        a.path.join(' / '),
+        a.status === 'completed' ? 'yes' : 'no',
+        a.quality.join('; '),
+        a.symptoms.join('; '),
+        a.flags.join('; '),
+        a.notes ?? '',
+      ]),
     ]
-    const blob = new Blob([rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n')], { type: 'text/csv' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `lumen-${date}.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
-    toast({ message: `Exported ${entries.length} entries` })
+    const blob = new Blob([rows.map((r) => r.map(csvCell).join(',')).join('\n')], { type: 'text/csv' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `mindful-me-${day}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+    toast({ message: items.length ? `Exported ${items.length} ${items.length === 1 ? 'entry' : 'entries'}` : 'Nothing logged to export' })
   }
   return (
     <Popover
@@ -319,18 +281,9 @@ function ExportMenu() {
     >
       {(close) => (
         <>
-          <p className="px-3 pb-1 pt-2 text-xs font-medium text-ink-faint">Export {formatDay(date)}</p>
+          <p className="px-3 pb-1 pt-2 text-xs font-medium text-ink-faint">Export {formatDay(day)}</p>
           <MenuItem icon={FileText} hint=".csv" onSelect={() => { exportCsv(); close() }}>
             Download entries
-          </MenuItem>
-          <MenuItem
-            icon={Share2}
-            onSelect={() => {
-              close()
-              toast({ message: 'Summary link copied' })
-            }}
-          >
-            Share day summary
           </MenuItem>
         </>
       )}

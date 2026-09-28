@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 /** Rail on tablet, full sidebar on desktop. */
 function SideNav() {
-  const { tab, setTab, setQuickLogOpen } = useStore()
+  const { tab, setTab, quickLog } = useStore()
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[84px] flex-col border-r border-line/[0.06] bg-canvas/60 px-3 py-6 backdrop-blur md:flex xl:w-[252px] xl:px-4">
       <div className="flex items-center gap-3 px-1 xl:px-2">
@@ -48,7 +48,7 @@ function SideNav() {
 
       <button
         type="button"
-        onClick={() => setQuickLogOpen(true)}
+        onClick={quickLog}
         className="mt-8 flex h-11 items-center justify-center gap-2 rounded-full bg-accent text-sm font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_8px_20px_-8px_rgb(var(--lm-accent)/0.7)] transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.97] xl:justify-start xl:px-4"
         aria-label="Log activity"
       >
@@ -96,7 +96,7 @@ function SideNav() {
 }
 
 function BottomNav() {
-  const { tab, setTab, setQuickLogOpen } = useStore()
+  const { tab, setTab, quickLog } = useStore()
   const left = nav.slice(0, 2)
   const right = nav.slice(2)
   const item = (n: (typeof nav)[number]) => {
@@ -134,7 +134,7 @@ function BottomNav() {
         <div className="flex flex-1 justify-center">
           <button
             type="button"
-            onClick={() => setQuickLogOpen(true)}
+            onClick={quickLog}
             aria-label="Log activity"
             className="-mt-7 grid h-[60px] w-[60px] place-items-center rounded-full bg-accent text-white shadow-fab transition-transform duration-150 active:scale-95"
           >

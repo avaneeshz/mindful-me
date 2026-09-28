@@ -2,7 +2,7 @@ import * as RPopover from '@radix-ui/react-popover'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState, type ReactNode } from 'react'
 import { cn } from '@/lumen/lib/utils'
-import { hueStyles, type Hue } from '@/lumen/lib/data'
+import { hueStyles, type Hue } from '@/lumen/lib/hues'
 import { paletteColor } from '@/lumen/lib/palette'
 import type { LucideIcon } from 'lucide-react'
 
@@ -270,5 +270,57 @@ export function EmptyState({ icon: Icon, title, body, action }: { icon: LucideIc
       <p className="mt-1 max-w-[260px] text-sm text-ink-muted">{body}</p>
       {action && <div className="mt-4">{action}</div>}
     </div>
+  )
+}
+
+/* ——— Choice chips: pick any number, or exactly one ——— */
+
+/**
+ * A wrapping row of pill choices. `multi` toggles each independently
+ * (checkbox semantics); `single` picks at most one, with an explicit
+ * "None" first (radio semantics) — the shape Classic's protective-response
+ * picker has, so the two interfaces offer the same choices the same way.
+ */
+export function ChoiceChips({
+  label,
+  options,
+  selected,
+  onToggle,
+  mode = 'multi',
+  noneLabel = 'None',
+}: {
+  label: string
+  options: readonly string[]
+  selected: readonly string[]
+  onToggle: (option: string | null) => void
+  mode?: 'multi' | 'single'
+  noneLabel?: string
+}) {
+  const single = mode === 'single'
+  const chip = (key: string, text: string, on: boolean, onClick: () => void) => (
+    <button
+      key={key}
+      type="button"
+      role={single ? 'radio' : 'checkbox'}
+      aria-checked={on}
+      onClick={onClick}
+      className={cn(
+        'min-h-9 rounded-full border px-3.5 py-1.5 text-left text-sm transition-colors duration-150',
+        on
+          ? 'border-accent-ink/50 bg-accent/[0.14] text-ink'
+          : 'border-line/[0.09] bg-white/[0.02] text-ink-muted hover:border-line/[0.16] hover:text-ink',
+      )}
+    >
+      {text}
+    </button>
+  )
+  return (
+    <fieldset>
+      <legend className="mb-2 text-xs font-medium text-ink-muted">{label}</legend>
+      <div role={single ? 'radiogroup' : 'group'} aria-label={label} className="flex flex-wrap gap-2">
+        {single && chip('__none', noneLabel, selected.length === 0, () => onToggle(null))}
+        {options.map((option) => chip(option, option, selected.includes(option), () => onToggle(option)))}
+      </div>
+    </fieldset>
   )
 }

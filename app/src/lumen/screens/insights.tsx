@@ -1,37 +1,45 @@
 import { motion } from 'motion/react'
 import { Flame, Sun, Timer } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { IconBubble, Segmented } from '@/lumen/components/ui/primitives'
-import { categories, windowEntries } from '@/lumen/lib/data'
-import { paletteColor } from '@/lumen/lib/palette'
+import { useLumenRange } from '@/lumen/data/useLumenRange'
+import { axisClock, LUMEN_DAY_START, loggedMinutes, minutesByKey, toAxis } from '@/lumen/domain/lumenDay'
+import { FALLBACK_COLOR } from '@/lumen/lib/palette'
 import { useStore } from '@/lumen/lib/store'
-import { addDays, cn, formatClock, formatDuration, fromKey, todayKey } from '@/lumen/lib/utils'
+import { addDays, cn, formatDuration, fromKey } from '@/lumen/lib/utils'
 
 export function InsightsScreen() {
-  const { days } = useStore()
+  const { today, data, allTiles, tileOf } = useStore()
   const [range, setRange] = useState<7 | 28>(7)
-  const [focusCat, setFocusCat] = useState<string | null>(null)
-  const today = todayKey()
+  const [focusTile, setFocusTile] = useState<string | null>(null)
   const keys = Array.from({ length: range }, (_, i) => addDays(today, -(range - 1 - i)))
+  const read = useLumenRange(keys[0], range)
+  // Today's live data wins over the range read (it may hold writes the read hasn't seen yet).
+  const byDate = useMemo(() => ({ ...read.byDate, ...data.byDate }), [read.byDate, data.byDate])
 
+  // Every Lumen day counts 06:00 → 06:00, the same as Today and Calendar.
+  const series = [
+    ...allTiles.map((t) => ({ id: t.id, label: t.label, short: t.short, icon: t.icon, color: t.color })),
+    { id: 'other', label: 'Other', short: 'Other', icon: Timer, color: FALLBACK_COLOR },
+  ]
   const perDay = keys.map((k) => {
-    const entries = windowEntries(days, k)
-    const byCat = Object.fromEntries(categories.map((c) => [c.id, entries.filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0)]))
-    return { k, byCat, total: entries.reduce((s, e) => s + e.minutes, 0) }
+    const axis = toAxis(k, byDate)
+    const byTile = minutesByKey(axis, (a) => tileOf(a)?.id ?? 'other')
+    // When the day got going: the first entry that STARTED inside it —
+    // not a sleep carried over from the night before.
+    const firstStart = axis.find((item) => item.start >= LUMEN_DAY_START)?.start ?? null
+    return { k, byTile, total: loggedMinutes(axis), firstStart }
   })
   const max = Math.max(...perDay.map((d) => d.total), 60)
   const loggedDays = perDay.filter((d) => d.total > 0)
   const avg = loggedDays.length ? loggedDays.reduce((s, d) => s + d.total, 0) / loggedDays.length : 0
-  const totals = categories
-    .map((c) => ({ c, m: perDay.reduce((s, d) => s + d.byCat[c.id], 0), days: perDay.filter((d) => d.byCat[c.id] > 0).length }))
+  const totals = series
+    .map((c) => ({ c, m: perDay.reduce((s, d) => s + (d.byTile.get(c.id) ?? 0), 0), days: perDay.filter((d) => (d.byTile.get(c.id) ?? 0) > 0).length }))
+    .filter((x) => x.m > 0)
     .sort((a, b) => b.m - a.m)
   const consistent = [...totals].sort((a, b) => b.days - a.days)[0]
-  // When the day usually gets going: the first logged half-hour, averaged over days with entries.
-  const starts = keys
-    .map((k) => windowEntries(days, k))
-    .filter((es) => es.length > 0)
-    .map((es) => Math.min(...es.map((e) => e.slot)) * 30)
-  const avgStart = starts.length ? Math.round(starts.reduce((a, b) => a + b, 0) / starts.length / 5) * 5 : 0
+  const starts = perDay.map((d) => d.firstStart).filter((m): m is number => m !== null)
+  const avgStart = starts.length ? Math.round(starts.reduce((a, b) => a + b, 0) / starts.length / 5) * 5 : null
   const allMax = totals[0]?.m || 1
 
   return (
@@ -63,28 +71,30 @@ export function InsightsScreen() {
           value={consistent?.c.short ?? '—'}
           hint={consistent ? `${consistent.days} of ${range} days` : undefined}
         />
-        <Stat icon={Sun} hue="sun" label="Day usually starts" value={starts.length ? `${formatClock(avgStart).time} ${formatClock(avgStart).suffix}` : '—'} />
+        <Stat icon={Sun} hue="sun" label="Day usually starts" value={avgStart !== null ? axisClock(avgStart) : '—'} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
         <section className="surface rounded-panel p-4 sm:p-6">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-medium text-ink">Time by day</h2>
-            <p className="text-xs text-ink-faint">{focusCat ? 'Tap a category again to clear' : 'Tap a category to isolate it'}</p>
+            <p className="text-xs text-ink-faint">
+              {read.status === 'offline' ? 'Showing this device only' : focusTile ? 'Tap a tile again to clear' : 'Tap a tile to isolate it'}
+            </p>
           </div>
           <div className="mt-6 flex h-56 items-end gap-[3px] sm:gap-1.5">
             {perDay.map((d, i) => (
               <div key={d.k} className="flex h-full min-w-0 flex-1 flex-col items-center gap-2">
                 <div className="flex w-full flex-1 flex-col-reverse gap-px overflow-hidden rounded-[6px] bg-white/[0.03]">
-                  {categories.map((c) => {
-                    const m = d.byCat[c.id]
+                  {series.map((c) => {
+                    const m = d.byTile.get(c.id) ?? 0
                     if (!m) return null
-                    const dim = focusCat && focusCat !== c.id
+                    const dim = focusTile && focusTile !== c.id
                     return (
                       <motion.span
                         key={c.id}
                         className={cn('w-full transition-opacity duration-200', dim ? 'opacity-[0.08]' : 'opacity-90')}
-                        style={{ backgroundColor: paletteColor(c.color).shades.base }}
+                        style={{ backgroundColor: c.color.shades.base }}
                         initial={{ height: 0 }}
                         animate={{ height: `${(m / max) * 100}%` }}
                         transition={{ duration: 0.35, delay: i * 0.015, ease: [0.22, 1, 0.36, 1] }}
@@ -105,22 +115,23 @@ export function InsightsScreen() {
         </section>
 
         <section className="surface rounded-panel p-4 sm:p-6">
-          <h2 className="text-base font-medium text-ink">By category</h2>
+          <h2 className="text-base font-medium text-ink">By tile</h2>
           <ul className="mt-4 flex flex-col gap-1">
+            {totals.length === 0 && <li className="px-2 py-6 text-center text-sm text-ink-muted">Nothing logged in this range yet.</li>}
             {totals.map(({ c, m }) => {
-              const selected = focusCat === c.id
+              const selected = focusTile === c.id
               return (
                 <li key={c.id}>
                   <button
                     type="button"
-                    onClick={() => setFocusCat(selected ? null : c.id)}
+                    onClick={() => setFocusTile(selected ? null : c.id)}
                     aria-pressed={selected}
                     className={cn(
                       'flex min-h-12 w-full items-center gap-3 rounded-control px-2 text-left transition-colors',
                       selected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]',
                     )}
                   >
-                    <IconBubble icon={c.icon} color={c.color} size="sm" />
+                    <IconBubble icon={c.icon} color={c.color.id} size="sm" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="truncate text-sm text-ink">{c.label}</span>
@@ -129,7 +140,7 @@ export function InsightsScreen() {
                       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.05]">
                         <motion.div
                           className="h-full rounded-full"
-                          style={{ backgroundColor: paletteColor(c.color).shades.base }}
+                          style={{ backgroundColor: c.color.shades.base }}
                           initial={false}
                           animate={{ width: `${(m / allMax) * 100}%` }}
                           transition={{ duration: 0.3 }}

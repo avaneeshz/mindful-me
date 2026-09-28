@@ -1,15 +1,15 @@
 import { motion } from 'motion/react'
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/lumen/components/ui/button'
 import { IconBubble } from '@/lumen/components/ui/primitives'
-import { categories, windowEntries } from '@/lumen/lib/data'
+import { useLumenRange } from '@/lumen/data/useLumenRange'
+import { loggedMinutes, minutesByKey, toAxis } from '@/lumen/domain/lumenDay'
 import { useStore } from '@/lumen/lib/store'
-import { cn, dateKey, formatDay, formatDuration, fromKey, todayKey } from '@/lumen/lib/utils'
+import { cn, dateKey, formatDay, formatDuration, fromKey } from '@/lumen/lib/utils'
 
 export function CalendarScreen() {
-  const { days, setDate, setTab } = useStore()
-  const today = todayKey()
+  const { setDay, setTab, today, data, allTiles, tileOf } = useStore()
   const [cursor, setCursor] = useState(() => {
     const d = fromKey(today)
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -21,11 +21,14 @@ export function CalendarScreen() {
     const n = i - lead + 1
     return n < 1 || n > count ? null : dateKey(new Date(cursor.getFullYear(), cursor.getMonth(), n))
   })
-  const logged = (k: string) => windowEntries(days, k).reduce((s, e) => s + e.minutes, 0)
+  const range = useLumenRange(dateKey(cursor), count)
+  // The open day's live data wins over the range read (it may hold writes the read hasn't seen yet).
+  const byDate = useMemo(() => ({ ...range.byDate, ...data.byDate }), [range.byDate, data.byDate])
+  const logged = (k: string) => loggedMinutes(toAxis(k, byDate))
   const maxLogged = 16 * 60
-  const pickedEntries = windowEntries(days, picked)
-  const pickedTotals = categories
-    .map((c) => ({ c, m: pickedEntries.filter((e) => e.categoryId === c.id).reduce((s, e) => s + e.minutes, 0) }))
+  const pickedByTile = minutesByKey(toAxis(picked, byDate), (a) => tileOf(a)?.id ?? 'other')
+  const pickedTotals = allTiles
+    .map((t) => ({ t, m: pickedByTile.get(t.id) ?? 0 }))
     .filter((x) => x.m > 0)
     .sort((a, b) => b.m - a.m)
   const isCurrentMonth = cursor.getMonth() === fromKey(today).getMonth() && cursor.getFullYear() === fromKey(today).getFullYear()
@@ -42,7 +45,10 @@ export function CalendarScreen() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <section className="surface rounded-panel p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-ink-muted">Darker days hold more logged time</p>
+            <p className="text-sm text-ink-muted">
+              Darker days hold more logged time
+              {range.status === 'offline' && <span className="text-ink-faint"> · showing this device only</span>}
+            </p>
             <div className="-mr-2 flex">
               <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>
                 <ChevronLeft className="h-[18px] w-[18px]" />
@@ -100,10 +106,10 @@ export function CalendarScreen() {
           </p>
           <ul className="mt-5 flex flex-col gap-3">
             {pickedTotals.length === 0 && <li className="text-sm text-ink-muted">No entries for this day.</li>}
-            {pickedTotals.map(({ c, m }) => (
-              <li key={c.id} className="flex items-center gap-3">
-                <IconBubble icon={c.icon} color={c.color} size="sm" />
-                <span className="flex-1 text-sm text-ink">{c.label}</span>
+            {pickedTotals.map(({ t, m }) => (
+              <li key={t.id} className="flex items-center gap-3">
+                <IconBubble icon={t.icon} color={t.color.id} size="sm" />
+                <span className="flex-1 text-sm text-ink">{t.label}</span>
                 <span className="text-sm tabular text-ink-muted">{formatDuration(m)}</span>
               </li>
             ))}
@@ -111,7 +117,7 @@ export function CalendarScreen() {
           <Button
             className="mt-6 w-full"
             onClick={() => {
-              setDate(picked)
+              setDay(picked)
               setTab('today')
             }}
           >

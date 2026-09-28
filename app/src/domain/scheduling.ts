@@ -54,6 +54,22 @@ export const DEFAULT_DURATION_MINUTES = 30
 /** One calendar day, in minutes — the board's own time axis. */
 export const MINUTES_PER_DAY = 1440
 
+/**
+ * The minute range a placement may occupy. Classic's board is one calendar
+ * day, so its bounds are that day's [0, 1440) and every caller that omits
+ * this gets exactly that. Lumen's day runs 06:00 → 06:00 over three loaded
+ * calendar dates on one continuous minute axis (see
+ * `lumen/domain/lumenDay.ts`), so it passes wider bounds — the placement
+ * rules themselves (no overlap, no split, the continuous-block ceiling) are
+ * identical either way; only the edges move.
+ */
+export interface ScheduleBounds {
+  floor: number
+  horizon: number
+}
+
+export const CALENDAR_DAY_BOUNDS: ScheduleBounds = { floor: 0, horizon: MINUTES_PER_DAY }
+
 export interface ActivityRef {
   name: string
   path: string[]
@@ -134,10 +150,11 @@ export function maxContiguousDuration(
   existing: ActivityList,
   start: number,
   excludeId: string | null = null,
+  bounds: ScheduleBounds = CALENDAR_DAY_BOUNDS,
 ): number {
   if (blockerAt(existing, start, excludeId)) return 0
 
-  let ceiling = MINUTES_PER_DAY - start
+  let ceiling = bounds.horizon - start
   for (const a of existing) {
     if (a.id === excludeId || !isReal(a)) continue
     if (a.startMinutes >= start && a.startMinutes - start < ceiling) {
@@ -161,9 +178,10 @@ export function moveBounds(
   anchorStart: number,
   durationMinutes: number,
   excludeId: string | null = null,
+  bounds: ScheduleBounds = CALENDAR_DAY_BOUNDS,
 ): { min: number; max: number } {
-  let min = 0
-  let max = MINUTES_PER_DAY - durationMinutes
+  let min = bounds.floor
+  let max = bounds.horizon - durationMinutes
   for (const a of existing) {
     if (a.id === excludeId || !isReal(a)) continue
     const aEnd = a.startMinutes + a.durationMinutes
@@ -182,8 +200,9 @@ export function clampMove(
   durationMinutes: number,
   desiredStart: number,
   excludeId: string | null = null,
+  bounds: ScheduleBounds = CALENDAR_DAY_BOUNDS,
 ): number {
-  const { min, max } = moveBounds(existing, anchorStart, durationMinutes, excludeId)
+  const { min, max } = moveBounds(existing, anchorStart, durationMinutes, excludeId, bounds)
   return Math.min(max, Math.max(min, Math.round(desiredStart)))
 }
 
@@ -199,8 +218,9 @@ export function resizeStartBounds(
   currentStart: number,
   currentEnd: number,
   excludeId: string | null = null,
+  bounds: ScheduleBounds = CALENDAR_DAY_BOUNDS,
 ): { min: number; max: number } {
-  let min = 0
+  let min = bounds.floor
   for (const a of existing) {
     if (a.id === excludeId || !isReal(a)) continue
     const aEnd = a.startMinutes + a.durationMinutes
@@ -217,8 +237,9 @@ export function clampResizeStart(
   currentEnd: number,
   desiredStart: number,
   excludeId: string | null = null,
+  bounds: ScheduleBounds = CALENDAR_DAY_BOUNDS,
 ): number {
-  const { min, max } = resizeStartBounds(existing, currentStart, currentEnd, excludeId)
+  const { min, max } = resizeStartBounds(existing, currentStart, currentEnd, excludeId, bounds)
   return Math.min(max, Math.max(min, Math.round(desiredStart)))
 }
 
@@ -258,11 +279,11 @@ export function computeCandidateSchedule(
   activity: ActivityRef | null,
   startMinutes: number,
   existing: ActivityList,
-  opts: { editingId?: string | null; requestedDuration?: number } = {},
+  opts: { editingId?: string | null; requestedDuration?: number; bounds?: ScheduleBounds } = {},
 ): CandidateSchedule {
   const editingId = opts.editingId ?? null
   const anchor = nextFreeStart(existing, startMinutes, editingId)
-  const ceiling = maxContiguousDuration(existing, anchor, editingId)
+  const ceiling = maxContiguousDuration(existing, anchor, editingId, opts.bounds)
   const requested = opts.requestedDuration ?? DEFAULT_DURATION_MINUTES
   return {
     id: editingId,
@@ -281,8 +302,10 @@ export function computeCandidateSchedule(
 export function validateSchedule(
   candidate: CandidateSchedule,
   existing: ActivityList,
+  bounds: ScheduleBounds = CALENDAR_DAY_BOUNDS,
 ): ValidationResult {
-  const ceiling = maxContiguousDuration(existing, candidate.startMinutes, candidate.id)
+  if (candidate.startMinutes < bounds.floor) return { ok: false, reason: 'occupied', maxDuration: 0 }
+  const ceiling = maxContiguousDuration(existing, candidate.startMinutes, candidate.id, bounds)
   if (ceiling <= 0) return { ok: false, reason: 'occupied', maxDuration: 0 }
   if (candidate.durationMinutes > ceiling) {
     return { ok: false, reason: 'too-long', maxDuration: ceiling }

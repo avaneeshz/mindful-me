@@ -31,6 +31,7 @@ export default {
         },
         accent: { DEFAULT: token('accent'), ink: token('accent-ink') },
         mint: token('mint'),
+        danger: token('danger'),
         sun: token('sun'),
         dusk: token('dusk'),
         rose: token('rose'),

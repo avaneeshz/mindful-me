@@ -1,15 +1,15 @@
-import { Bell, ChevronRight, Clock3, Download, HeartPulse, LayoutGrid, Lock, LogOut, Palette, Sparkles, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, LayoutGrid, LogOut, Palette, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
-import { Segmented, Switch } from '@/lumen/components/ui/primitives'
+import { Segmented } from '@/lumen/components/ui/primitives'
+import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
 import { useLumenAccount } from '@/lumen/lib/account'
 import { useInterfaceMode } from '@/state/InterfaceContext'
 import type { InterfaceMode } from '@/lib/interfaceMode'
 import { useStore } from '@/lumen/lib/store'
 
 export function MoreScreen() {
-  const { healthSync, toggleHealthSync } = useStore()
-  const [reminders, setReminders] = useState(true)
-  const [digest, setDigest] = useState(false)
+  const { allTiles, hiddenTiles } = useStore()
+  const [customizeOpen, setCustomizeOpen] = useState(false)
   const { mode, setMode } = useInterfaceMode()
   const { signedIn, email, firstName, initials, signOut } = useLumenAccount()
 
@@ -57,27 +57,16 @@ export function MoreScreen() {
         </div>
       </Group>
 
-      <Group title="Tracking">
-        <Row icon={HeartPulse} label="Health sync" hint="Steps and sleep from your phone">
-          <Switch checked={healthSync !== 'off'} onChange={toggleHealthSync} label="Health sync" />
-        </Row>
-        <Row icon={Clock3} label="Slot length" value="30 min" />
-        <Row icon={Palette} label="Categories" value="9 active" />
+      <Group title="Today">
+        <Row
+          icon={Palette}
+          label="Tiles"
+          hint="Choose which tiles show on Today"
+          value={`${allTiles.length - hiddenTiles.filter((id) => allTiles.some((t) => t.id === id)).length} of ${allTiles.length}`}
+          onClick={() => setCustomizeOpen(true)}
+        />
       </Group>
-
-      <Group title="Notifications">
-        <Row icon={Bell} label="Gentle check-ins" hint="A nudge when a slot goes unlogged">
-          <Switch checked={reminders} onChange={() => setReminders((r) => !r)} label="Gentle check-ins" />
-        </Row>
-        <Row icon={Sparkles} label="Weekly reflection" hint="Sunday evening summary">
-          <Switch checked={digest} onChange={() => setDigest((d) => !d)} label="Weekly reflection" />
-        </Row>
-      </Group>
-
-      <Group title="Data">
-        <Row icon={Download} label="Export all data" value="CSV" />
-        <Row icon={Lock} label="Privacy" value="On device" />
-      </Group>
+      <CustomizeSheet open={customizeOpen} onOpenChange={setCustomizeOpen} />
 
       {signedIn && (
         <button
@@ -102,7 +91,21 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   )
 }
 
-function Row({ icon: Icon, label, hint, value, children }: { icon: LucideIcon; label: string; hint?: string; value?: string; children?: React.ReactNode }) {
+function Row({
+  icon: Icon,
+  label,
+  hint,
+  value,
+  children,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  hint?: string
+  value?: string
+  children?: React.ReactNode
+  onClick?: () => void
+}) {
   const body = (
     <>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.05] text-ink-muted">
@@ -122,7 +125,7 @@ function Row({ icon: Icon, label, hint, value, children }: { icon: LucideIcon; l
   )
   if (children) return <div className="flex min-h-16 items-center gap-3 px-4 py-3">{body}</div>
   return (
-    <button type="button" className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]">
+    <button type="button" onClick={onClick} className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]">
       {body}
     </button>
   )

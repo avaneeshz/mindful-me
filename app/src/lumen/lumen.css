@@ -31,6 +31,7 @@
     --lm-accent: 104 106 246; /* primary action / selection */
     --lm-accent-ink: 172 176 255;
     --lm-mint: 52 211 163; /* live / on-track */
+    --lm-danger: 244 163 163; /* errors: something didn't fit or didn't sync */
     --lm-sun: 251 186 72; /* morning */
     --lm-dusk: 99 102 220; /* evening */
 

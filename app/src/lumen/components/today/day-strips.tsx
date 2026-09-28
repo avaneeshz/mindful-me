@@ -1,23 +1,15 @@
 import { motion } from 'motion/react'
 import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { categoryColor, type Entry } from '@/lumen/lib/data'
-import { useStore } from '@/lumen/lib/store'
-import {
-  DAY_FIRST_SLOT,
-  NIGHT_FIRST_SLOT,
-  SLOT_MINUTES,
-  addDays,
-  cn,
-  formatDay,
-  formatDuration,
-  slotRange,
-} from '@/lumen/lib/utils'
+import { axisClock, STRIP_RANGE, stripPieces, type StripPeriod } from '@/lumen/domain/lumenDay'
+import { FALLBACK_COLOR } from '@/lumen/lib/palette'
+import { SLOT_MINUTES, useStore } from '@/lumen/lib/store'
+import { addDays, cn, formatDay, formatDuration } from '@/lumen/lib/utils'
 
-type Half = 'day' | 'night'
+type Half = StripPeriod
 
-const HALVES: Record<Half, { first: number; label: string; range: string; ticks: string[] }> = {
-  day: { first: DAY_FIRST_SLOT, label: 'Day', range: '6 AM – 6 PM', ticks: ['6 AM', '9', '12 PM', '3', '6 PM'] },
-  night: { first: NIGHT_FIRST_SLOT, label: 'Night', range: '6 PM – 6 AM', ticks: ['6 PM', '9', '12 AM', '3', '6 AM'] },
+const HALVES: Record<Half, { label: string; range: string; ticks: string[] }> = {
+  day: { label: 'Day', range: '6 AM – 6 PM', ticks: ['6 AM', '9', '12 PM', '3', '6 PM'] },
+  night: { label: 'Night', range: '6 PM – 6 AM', ticks: ['6 PM', '9', '12 AM', '3', '6 AM'] },
 }
 const SLOTS = 24 // half-hours per strip
 const SPAN = SLOTS * SLOT_MINUTES // 720 minutes
@@ -71,49 +63,45 @@ export function DayStrips() {
   )
 }
 
-/** Continuous coloured spans in strip-minutes; back-to-back pieces of one category join up. */
-function toSpans(entries: Entry[], first: number) {
-  const out: { categoryId: string; start: number; end: number }[] = []
-  for (let i = 0; i < SLOTS; i++) {
-    let t = i * SLOT_MINUTES
-    for (const e of entries.filter((x) => x.slot === first + i)) {
-      const last = out[out.length - 1]
-      if (last && last.categoryId === e.categoryId && last.end === t) last.end = t + e.minutes
-      else out.push({ categoryId: e.categoryId, start: t, end: t + e.minutes })
-      t += e.minutes
-    }
-  }
-  return out
-}
+type Span = { key: string; color: string; start: number; end: number }
 
 function Strip({ half }: { half: Half }) {
-  const { entries, selectedSlot, setSelectedSlot, nowSlot, isToday, date } = useStore()
+  const { axis, tileOf, selectedSlot, setSelectedSlot, nowMinute, isToday, day, today } = useStore()
   const cfg = HALVES[half]
+  const range = STRIP_RANGE[half]
   const night = half === 'night'
   const ref = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
 
-  const own = useMemo(() => entries.filter((e) => e.slot >= cfg.first && e.slot < cfg.first + SLOTS), [entries, cfg.first])
-  const spans = useMemo(() => toSpans(own, cfg.first), [own, cfg.first])
-  const total = own.reduce((s, e) => s + e.minutes, 0)
+  // Real activities, clipped to this strip. Back-to-back pieces from the
+  // same tile join into one span so the strip reads as blocks of time,
+  // not a row of seams.
+  const { spans, total } = useMemo(() => {
+    const pieces = stripPieces(axis, half)
+    const out: Span[] = []
+    for (const p of pieces) {
+      const color = (tileOf(p.activity)?.color ?? FALLBACK_COLOR).shades.base
+      const start = p.start - range.start
+      const end = p.end - range.start
+      const last = out[out.length - 1]
+      if (last && last.color === color && last.end === start) last.end = end
+      else out.push({ key: `${p.activity.id}-${p.start}`, color, start, end })
+    }
+    return { spans: out, total: pieces.reduce((sum, p) => sum + (p.end - p.start), 0) }
+  }, [axis, half, range.start, tileOf])
 
-  const index = selectedSlot - cfg.first
+  const index = (selectedSlot - range.start) / SLOT_MINUTES
   const selectedHere = index >= 0 && index < SLOTS
-  // "Now" to the minute, so the line moves smoothly rather than jumping per slot.
-  const nowMinutes = (() => {
-    if (!isToday) return null
-    const d = new Date()
-    const offset = (nowSlot - cfg.first) * SLOT_MINUTES + (d.getMinutes() % SLOT_MINUTES)
-    return offset >= 0 && offset < SPAN ? offset : null
-  })()
-  const allPast = !isToday || nowSlot >= cfg.first + SLOTS
-  const futureFrom = allPast ? null : Math.max(0, nowMinutes ?? 0)
-  const nextDay = formatDay(addDays(date, 1)).split(' ').slice(0, 2).join(' ').replace(',', '')
+  const nowHere = nowMinute !== null && nowMinute >= range.start && nowMinute < range.end ? nowMinute - range.start : null
+  // Veil the part of today that hasn't happened yet. Past days are fully lived.
+  const futureFrom = !isToday || day !== today ? null : nowMinute === null ? null : nowMinute < range.start ? 0 : nowHere
+  const nextDay = formatDay(addDays(day, 1)).split(' ').slice(0, 2).join(' ').replace(',', '')
 
+  const slotAt = (i: number) => range.start + i * SLOT_MINUTES
   const pickAt = (clientX: number) => {
     const r = ref.current!.getBoundingClientRect()
     const i = Math.max(0, Math.min(SLOTS - 1, Math.floor(((clientX - r.left) / r.width) * SLOTS)))
-    if (cfg.first + i !== selectedSlot) setSelectedSlot(cfg.first + i)
+    if (slotAt(i) !== selectedSlot) setSelectedSlot(slotAt(i))
   }
   const onPointerDown = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -125,7 +113,7 @@ function Strip({ half }: { half: Half }) {
     if (delta === undefined) return
     e.preventDefault()
     const from = selectedHere ? index : delta > 0 ? -1 : SLOTS
-    setSelectedSlot(cfg.first + Math.max(0, Math.min(SLOTS - 1, from + delta)))
+    setSelectedSlot(slotAt(Math.max(0, Math.min(SLOTS - 1, from + delta))))
   }
 
   return (
@@ -135,10 +123,10 @@ function Strip({ half }: { half: Half }) {
         role="slider"
         tabIndex={0}
         aria-label={`${cfg.label} half-hours`}
-        aria-valuemin={cfg.first}
-        aria-valuemax={cfg.first + SLOTS - 1}
+        aria-valuemin={range.start}
+        aria-valuemax={range.end - SLOT_MINUTES}
         aria-valuenow={selectedHere ? selectedSlot : undefined}
-        aria-valuetext={selectedHere ? slotRange(selectedSlot) : 'No half-hour selected'}
+        aria-valuetext={selectedHere ? `${axisClock(selectedSlot)} to ${axisClock(selectedSlot + SLOT_MINUTES)}` : 'No half-hour selected'}
         onPointerDown={onPointerDown}
         onPointerMove={(e) => dragging && pickAt(e.clientX)}
         onPointerUp={() => setDragging(false)}
@@ -166,9 +154,9 @@ function Strip({ half }: { half: Half }) {
           />
           {spans.map((s) => (
             <motion.span
-              key={`${s.categoryId}-${s.start}`}
+              key={s.key}
               className="absolute inset-y-0"
-              style={{ left: pct(s.start), backgroundColor: categoryColor(s.categoryId).shades.base }}
+              style={{ left: pct(s.start), backgroundColor: s.color }}
               initial={{ width: 0 }}
               animate={{ width: pct(s.end - s.start) }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -193,8 +181,8 @@ function Strip({ half }: { half: Half }) {
           />
         )}
 
-        {nowMinutes !== null && (
-          <span className="pointer-events-none absolute -bottom-2 -top-2 w-0.5 -translate-x-1/2 rounded-full bg-mint" style={{ left: pct(nowMinutes) }}>
+        {nowHere !== null && (
+          <span className="pointer-events-none absolute -bottom-2 -top-2 w-0.5 -translate-x-1/2 rounded-full bg-mint" style={{ left: pct(nowHere) }}>
             <span className="absolute -left-[3px] -top-1 h-2 w-2 rounded-full bg-mint" />
           </span>
         )}

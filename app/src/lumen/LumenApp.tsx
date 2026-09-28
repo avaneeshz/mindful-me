@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { AppShell } from '@/lumen/components/shell'
-import { ActivitySheet } from '@/lumen/components/today/activity-sheet'
+import { LogSheet } from '@/lumen/components/log/log-sheet'
 import { Toaster } from '@/lumen/components/ui/toaster'
 import { StoreProvider, useStore } from '@/lumen/lib/store'
 import { CalendarScreen } from '@/lumen/screens/calendar'
@@ -9,6 +9,7 @@ import { InsightsScreen } from '@/lumen/screens/insights'
 import { MoreScreen } from '@/lumen/screens/more'
 import { TodayScreen } from '@/lumen/screens/today'
 import { setLumenDocumentClass } from '@/lib/interfaceMode'
+import { PickerDataProvider } from '@/state/PickerDataContext'
 import './lumen.css'
 
 /**
@@ -24,15 +25,18 @@ export default function LumenApp() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <StoreProvider>
-        <LumenScreens />
-      </StoreProvider>
+      {/* The same shared tile/activity data Classic mounts — see PickerDataContext. */}
+      <PickerDataProvider>
+        <StoreProvider>
+          <LumenScreens />
+        </StoreProvider>
+      </PickerDataProvider>
     </MotionConfig>
   )
 }
 
 function LumenScreens() {
-  const { tab, quickLogOpen, setQuickLogOpen } = useStore()
+  const { tab, quickLog, logTarget, openLog } = useStore()
 
   // "L" opens quick log from anywhere (desktop affordance shown in the sidebar).
   useEffect(() => {
@@ -46,12 +50,13 @@ function LumenScreens() {
         !t.isContentEditable &&
         !document.querySelector('[role="dialog"]')
       ) {
-        setQuickLogOpen(true)
+        e.preventDefault()
+        quickLog()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setQuickLogOpen])
+  }, [quickLog])
 
   useEffect(() => window.scrollTo({ top: 0 }), [tab])
 
@@ -70,7 +75,7 @@ function LumenScreens() {
           <Screen />
         </motion.div>
       </AnimatePresence>
-      <ActivitySheet category={null} open={quickLogOpen} onOpenChange={setQuickLogOpen} />
+      <LogSheet target={logTarget} onClose={() => openLog(null)} />
       <Toaster />
     </AppShell>
   )
