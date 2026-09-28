@@ -32,11 +32,30 @@ export function ParameterVocabularyPanel({ data }: { data: UseParameterVocabular
         </div>
         {data.status === 'loading' && <Loader2 aria-hidden="true" className="size-[16px] animate-spin text-ink-dim" />}
       </div>
-      {data.error && <p className="text-caption text-ink-dim">{data.error}</p>}
 
-      {SECTIONS.map((section) => (
-        <VocabularySection key={section.type} section={section} data={data} />
-      ))}
+      {data.status === 'error' ? (
+        // Found in code review: a provisioning failure used to surface as a
+        // silent, empty "ready" state (see `useParameterVocabulary`'s own
+        // doc comment on `load`) — indistinguishable from "you really have
+        // no options." Now that it's a real `status: 'error'`, show it as
+        // one, with an actual way to retry rather than leaving the user
+        // stuck until they reload the whole page.
+        <div className="flex flex-col items-start gap-sm">
+          <p role="alert" className="text-caption text-ink-dim">
+            {data.error}
+          </p>
+          <Button variant="outline" size="inline" onClick={data.retry}>
+            Try again
+          </Button>
+        </div>
+      ) : (
+        <>
+          {data.error && <p className="text-caption text-ink-dim">{data.error}</p>}
+          {SECTIONS.map((section) => (
+            <VocabularySection key={section.type} section={section} data={data} />
+          ))}
+        </>
+      )}
     </section>
   )
 }
@@ -54,7 +73,6 @@ function VocabularySection({
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   const options = data.byType[section.type]
-  const busy = removingId !== null
 
   // Deliberately NOT async, no busy/spinner state of its own (found in code
   // review: an earlier version wrapped this in `submittingAdd` + an
@@ -65,7 +83,10 @@ function VocabularySection({
   // submit). Matches `TileList`'s own "Add tile" flow exactly: the add
   // lands locally and instantly, so there's nothing to show a spinner FOR,
   // and the form is gone (replaced by the "Add option" button) in the same
-  // tick a click could ever reach it a second time.
+  // tick a click could ever reach it a second time. Also, deliberately not
+  // gated on `removingId` — adding a new option has nothing to do with some
+  // OTHER chip's in-flight removal (see the per-row scoping below, same
+  // reasoning).
   function handleAdd(label: string) {
     setRowError(null)
     data.addOption(section.type, label)
@@ -74,7 +95,7 @@ function VocabularySection({
   }
 
   async function handleRemove(id: string, label: string) {
-    if (busy) return
+    if (removingId !== null) return
     // Never let this list empty out entirely — found in code review: every
     // activity's EFFECTIVE list for a type it hasn't customized resolves,
     // via inheritance, to "every option currently in this global list" (see
@@ -121,6 +142,14 @@ function VocabularySection({
       <ul className="flex flex-wrap gap-xs" aria-label={`${section.label} options`}>
         {options.map((option) => {
           const isRemoving = removingId === option.id
+          // Scoped to just this row — found in code review, reintroducing
+          // the exact bug `ParameterOptionsPanel`'s own checklist already
+          // fixed a round earlier (see that component's own doc comment): a
+          // single section-wide "busy" flag disabling every OTHER chip's
+          // remove button while one removal is in flight reads as an
+          // unresponsive click, not a real double-submit guard (that guard
+          // already lives in `handleRemove` itself).
+          const disabled = removingId !== null && !isRemoving
           return (
             <li key={option.id}>
               <Chip size="sm" tone="surface" className="gap-xs pr-xs">
@@ -129,7 +158,7 @@ function VocabularySection({
                   type="button"
                   aria-label={`Remove ${option.label}`}
                   onClick={() => void handleRemove(option.id, option.label)}
-                  disabled={busy}
+                  disabled={disabled}
                   className="flex size-[16px] items-center justify-center rounded-full text-ink-dim hover:text-ink disabled:opacity-50"
                 >
                   {isRemoving ? (
@@ -156,7 +185,7 @@ function VocabularySection({
           onSubmit={(e) => {
             e.preventDefault()
             const trimmed = draft.trim()
-            if (trimmed === '' || busy) return
+            if (trimmed === '') return
             handleAdd(trimmed)
           }}
         >
@@ -167,17 +196,16 @@ function VocabularySection({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             aria-label={`New ${section.label} option`}
-            disabled={busy}
           />
-          <Button type="submit" size="inline" disabled={draft.trim() === '' || busy}>
+          <Button type="submit" size="inline" disabled={draft.trim() === ''}>
             Add
           </Button>
-          <Button type="button" variant="ghost" size="inline" onClick={() => setAdding(false)} disabled={busy}>
+          <Button type="button" variant="ghost" size="inline" onClick={() => setAdding(false)}>
             Cancel
           </Button>
         </form>
       ) : (
-        <Button variant="outline" size="inline" onClick={() => setAdding(true)} disabled={busy} className="self-start px-md py-sm">
+        <Button variant="outline" size="inline" onClick={() => setAdding(true)} className="self-start px-md py-sm">
           <Plus aria-hidden="true" className="size-[13px]" />
           <span>Add option</span>
         </Button>
