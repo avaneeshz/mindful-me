@@ -19,8 +19,31 @@ export interface UseParameterVocabularyResult {
   byType: Record<ParameterType, ParameterOptionDto[]>
   status: ParameterVocabularyStatus
   error: string | null
-  /** Adds one label to the global vocabulary for `type`. */
-  addOption: (type: ParameterType, label: string) => void
+  /**
+   * Adds one label to the global vocabulary for `type`. The LOCAL, optimistic
+   * chip appears synchronously, before this call even returns (rule 6) —
+   * what the returned promise resolves to is the id this option is known by
+   * (the fresh optimistic id for a genuinely new label, or the existing
+   * option's id for an exact-match duplicate), once that's actually settled:
+   * immediately for a duplicate or with no backend configured, or after the
+   * real create round-trip confirms for a genuinely new label. `null` only
+   * for a blank/whitespace-only label, which is never added at all.
+   *
+   * Returning a promise (rather than the id synchronously) is deliberate —
+   * found in code review: a caller that needs to act on this option right
+   * away, not just show it (Lumen's `useParameterSectionEditor` selecting a
+   * brand-new label for one activity in the same motion it's created) used
+   * to fire that SELECT call immediately against the synchronously-returned
+   * optimistic id, racing the CREATE's own still-in-flight round trip — the
+   * select could reach the server and fail its `invalid_option` check before
+   * the create's insert had even committed. Awaiting this promise first
+   * closes that race without giving up the instant local chip, which
+   * appears before the promise resolves either way. Classic's own
+   * `ParameterVocabularyPanel` predates this return value, never awaits it,
+   * and is unaffected — its own optimistic update already happens
+   * synchronously inside this call, same as before.
+   */
+  addOption: (type: ParameterType, label: string) => Promise<string | null>
   /** Removes one global option. `skipped: true` means the server blocked it (real logged history — rule 11); the caller should say so rather than pretend it disappeared. */
   removeOption: (id: string) => Promise<{ ok: true } | { ok: false; skipped: boolean }>
 }
@@ -97,9 +120,9 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
   }, [load])
 
   const addOption = useCallback(
-    (type: ParameterType, label: string): void => {
+    async (type: ParameterType, label: string): Promise<string | null> => {
       const trimmed = label.trim()
-      if (trimmed === '') return
+      if (trimmed === '') return null
       const id = generateId()
       // Already shown (exact-match, the server's own uniqueness scope) — a
       // silent no-op rather than a visible duplicate chip. Found in code
@@ -112,10 +135,13 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
       // one row on the next reload with no in-between reconciliation — a
       // visible duplicate that fixes itself with no explanation.
       let isDuplicate = false
+      let duplicateId: string | null = null
       // Local-first (rule 6): materializes instantly, before any round trip.
       setByType((prev) => {
-        if (prev[type].some((o) => o.label === trimmed)) {
+        const existing = prev[type].find((o) => o.label === trimmed)
+        if (existing) {
           isDuplicate = true
+          duplicateId = existing.id
           return prev
         }
         const nextSortOrder = prev[type].reduce((max, o) => Math.max(max, o.sortOrder), -1) + 1
@@ -124,28 +150,36 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
           [type]: [...prev[type], { id, parameterType: type, label: trimmed, iconKey: null, sortOrder: nextSortOrder }],
         }
       })
-      if (isDuplicate || !supabaseConfigured) return
-      void apiCreateParameterOption(type, trimmed, null, id).then((serverId) => {
-        if (serverId === null) {
-          setError('Saved on this device — will sync once you’re back online.')
-          return
-        }
-        // A genuine cross-device/cross-tab race on the exact same NEW label
-        // (found in code review): the server's own dedupe-by-label fix
-        // (`create_parameter_option`, `20260925070100_...`) can legitimately
-        // return an EXISTING id that isn't the one this optimistic insert
-        // used — reconcile this instance's own row to that real id rather
-        // than leaving a phantom local-only id nothing on the server
-        // actually has (any later action on it, e.g. removing it, would
-        // otherwise fail as "not found" with no way to ever succeed).
-        if (serverId !== id) {
-          setByType((prev) => ({
-            ...prev,
-            [type]: prev[type].map((o) => (o.id === id ? { ...o, id: serverId } : o)),
-          }))
-        }
-        notifyParameterVocabularyChanged(instanceId)
-      })
+      if (isDuplicate) return duplicateId
+      if (!supabaseConfigured) return id
+      const serverId = await apiCreateParameterOption(type, trimmed, null, id)
+      if (serverId === null) {
+        setError('Saved on this device — will sync once you’re back online.')
+        // Still resolves with the optimistic id — the local chip already
+        // exists and this codebase's own convention (rule 6) is "kept
+        // locally, will retry," never rolled back for a plain unreachable
+        // failure. A caller awaiting this (e.g. to select it for an
+        // activity right after) can still act on it locally; that
+        // selection's own write will separately surface as unreachable too
+        // if the connection is really down.
+        return id
+      }
+      // A genuine cross-device/cross-tab race on the exact same NEW label
+      // (found in code review): the server's own dedupe-by-label fix
+      // (`create_parameter_option`, `20260925070100_...`) can legitimately
+      // return an EXISTING id that isn't the one this optimistic insert
+      // used — reconcile this instance's own row to that real id rather
+      // than leaving a phantom local-only id nothing on the server actually
+      // has (any later action on it, e.g. removing it, would otherwise fail
+      // as "not found" with no way to ever succeed).
+      if (serverId !== id) {
+        setByType((prev) => ({
+          ...prev,
+          [type]: prev[type].map((o) => (o.id === id ? { ...o, id: serverId } : o)),
+        }))
+      }
+      notifyParameterVocabularyChanged(instanceId)
+      return serverId
     },
     [instanceId],
   )

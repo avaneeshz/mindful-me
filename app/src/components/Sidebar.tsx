@@ -8,6 +8,7 @@ import {
   Leaf,
   Lightbulb,
   Menu,
+  Palette,
   PanelLeftClose,
   PieChart,
   Settings,
@@ -17,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useInterfaceMode } from '@/state/InterfaceContext'
 
 /**
  * PORTED AS-IS — explicitly frozen and out of scope for this redesign.
@@ -105,6 +107,7 @@ export function Sidebar() {
   // (`mobileOpen`) is separate and already starts closed.
   const [collapsed, setCollapsed] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { setMode } = useInterfaceMode()
   const launcherRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const mountedRef = useRef(false)
@@ -259,6 +262,23 @@ export function Sidebar() {
         <div className="my-sm border-t border-line-soft" aria-hidden="true" />
 
         {NAV_REST.map((entry) => renderNavEntry(entry, () => setMobileOpen(false)))}
+
+        <div className="my-sm border-t border-line-soft" aria-hidden="true" />
+
+        {/* The Classic / Lumen switch — same data, different screens. Lumen's
+            own profile menu and Settings switch back. */}
+        <button
+          type="button"
+          title="Switch to Lumen"
+          onClick={() => {
+            setMobileOpen(false)
+            setMode('lumen')
+          }}
+          className={cn(navItemClass, 'transition-colors hover:bg-ink/10 hover:text-ink')}
+        >
+          <Palette aria-hidden="true" className="size-[18px] shrink-0" />
+          <span className="sidebar-label">Switch to Lumen</span>
+        </button>
       </nav>
 
       <div className="sidebar-label relative z-10 mx-lg rounded-lg bg-ink/[0.06] p-lg">

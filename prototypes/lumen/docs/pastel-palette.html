@@ -1,0 +1,128 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lumen Pastel Palette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* Lumen is a deliberately single-theme (dark) product, so colours are set explicitly. */
+  :root { color-scheme: dark; --canvas:#060912; --s1:#0b101d; --s2:#0f1627; --line:rgb(148 170 220/.08); --ink:#ecf0f8; --muted:#96a2bc; --faint:#626e8a; --accent:#acb0ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--canvas); background-image:radial-gradient(1000px 500px at 10% -10%, rgb(52 72 140/.22), transparent 60%); color:var(--ink); font:15px/22px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-font-smoothing:antialiased; padding-inline:16px; }
+  .wrap { max-width:1080px; margin:0 auto; padding-block:40px 72px; display:grid; grid-template-columns:minmax(0,1fr); gap:36px; }
+  h1 { font-family:Fraunces, Georgia, serif; font-weight:400; font-size:40px; line-height:44px; letter-spacing:-.03em; margin:6px 0 12px; text-wrap:balance; }
+  h2 { margin:0 0 4px; font-size:18px; font-weight:500; }
+  p { margin:0; }
+  .eyebrow { font-size:13px; color:var(--muted); }
+  .lede, .note { color:var(--muted); max-width:68ch; }
+  .note { font-size:14px; }
+  section { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+  .picker { display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:10px; max-width:720px; }
+  .dot { appearance:none; border:0; padding:0; aspect-ratio:1; width:100%; border-radius:999px; cursor:pointer; position:relative; transition:transform .15s; }
+  .dot:hover { transform:scale(1.08); }
+  .dot:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  .dot[aria-pressed="true"] { box-shadow:0 0 0 3px var(--canvas), 0 0 0 5px var(--ink); }
+  .row-label { font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.08em; }
+  .detail { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:20px; padding:20px; border-radius:24px; background:linear-gradient(180deg,var(--s2),var(--s1)); border:1px solid var(--line); }
+  @media (max-width:760px) { .detail { grid-template-columns:minmax(0,1fr); } }
+  .big { display:flex; align-items:center; gap:14px; }
+  .big i { width:56px; height:56px; border-radius:999px; flex-shrink:0; }
+  .big b { display:block; font-size:22px; font-weight:500; letter-spacing:-.01em; }
+  .big span { color:var(--muted); font-size:13px; }
+  .shades { display:grid; gap:6px; }
+  .shade { display:grid; grid-template-columns:44px 90px minmax(0,1fr) auto; align-items:center; gap:12px; padding:6px; border-radius:12px; background:rgb(255 255 255/.025); font-size:13px; }
+  .shade i { width:44px; height:28px; border-radius:8px; border:1px solid var(--line); }
+  .shade em { font-style:normal; color:var(--muted); }
+  .shade code { color:var(--faint); font:12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .shade > * { min-width:0; }
+  @media (max-width:560px) {
+    .shade { grid-template-columns:36px minmax(0,1fr) auto; }
+    .shade i { width:36px; }
+    .shade em { grid-column:2 / -1; grid-row:2; font-size:12px; }
+  }
+  .preview { display:grid; gap:14px; align-content:start; }
+  .tile { display:flex; align-items:center; gap:12px; padding:12px; border-radius:18px; border:1px solid var(--line); }
+  .bubble { width:40px; height:40px; border-radius:999px; display:grid; place-items:center; }
+  .bubble svg { width:20px; height:20px; }
+  .strip { height:36px; border-radius:999px; overflow:hidden; position:relative; background:var(--s1); }
+  .strip .sky { position:absolute; inset:0; }
+  .strip .blk { position:absolute; top:0; bottom:0; }
+  .assign { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; }
+  .assign div { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px; background:rgb(255 255 255/.03); font-size:13px; }
+  .assign i { width:20px; height:20px; border-radius:99px; flex-shrink:0; }
+  .assign small { color:var(--faint); margin-left:auto; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lumen · design system</div>
+    <h1>Soft pastel palette</h1>
+    <p class="lede">52 colours people will be able to choose from for their activities. Every colour shares the same softness and one of two brightness levels, so any combination looks like it belongs together. Hues that would blend into the Day strip's amber or the Night strip's indigo are left out. Tap a colour to see its shades and how it looks in Lumen.</p>
+  </header>
+
+  <section>
+    <h2>Palette</h2>
+    <p class="row-label">Pastel · 24</p>
+    <div class="picker" id="row-pastel"></div>
+    <p class="row-label">Deep pastel · 24</p>
+    <div class="picker" id="row-deep"></div>
+    <p class="row-label">Neutral · 4</p>
+    <div class="picker" id="row-neutral"></div>
+  </section>
+
+  <section class="detail" id="detail" aria-live="polite"></section>
+
+  <section>
+    <h2>Current activity colours</h2>
+    <p class="note">The defaults Lumen uses today. People will be able to change any of these.</p>
+    <div class="assign" id="assign"></div>
+  </section>
+
+  <section>
+    <h2>Shade roles</h2>
+    <p class="note">Each colour comes with five shades, generated from the same recipe, so every part of the interface stays consistent whichever colour someone picks.</p>
+    <div class="shades" id="roles"></div>
+  </section>
+</div>
+
+<script>
+const P = [{"id": "rose", "name": "Rose", "hue": 5, "tone": "pastel", "shades": {"highlight": "#ffe1e8", "base": "#ffbac9", "hover": "#ffc4d5", "surface": "#493035", "bubble": "#342024"}, "skyDistance": 29.2, "usedBy": null}, {"id": "rosewood", "name": "Rosewood", "hue": 5, "tone": "deep", "shades": {"highlight": "#e8c3ca", "base": "#e89bac", "hover": "#fba4b8", "surface": "#4b2f35", "bubble": "#351f24"}, "skyDistance": 34.3, "usedBy": null}, {"id": "coral", "name": "Coral", "hue": 15, "tone": "pastel", "shades": {"highlight": "#ffe1e3", "base": "#ffbbbf", "hover": "#ffc5ca", "surface": "#4a3031", "bubble": "#352021"}, "skyDistance": 26.1, "usedBy": "Movement"}, {"id": "clay", "name": "Clay", "hue": 15, "tone": "deep", "shades": {"highlight": "#e8c3c5", "base": "#ea9ba1", "hover": "#fda5ab", "surface": "#4c2f31", "bubble": "#361f21"}, "skyDistance": 30.2, "usedBy": null}, {"id": "salmon", "name": "Salmon", "hue": 25, "tone": "pastel", "shades": {"highlight": "#ffe2de", "base": "#ffbcb5", "hover": "#ffc6be", "surface": "#4a302e", "bubble": "#35201e"}, "skyDistance": 24.0, "usedBy": null}, {"id": "terracotta", "name": "Terracotta", "hue": 25, "tone": "deep", "shades": {"highlight": "#e9c4c0", "base": "#eb9c96", "hover": "#fea69f", "surface": "#4c2f2d", "bubble": "#361f1d"}, "skyDistance": 26.6, "usedBy": null}, {"id": "peach", "name": "Peach", "hue": 35, "tone": "pastel", "shades": {"highlight": "#ffe3da", "base": "#ffbeac", "hover": "#ffc8b4", "surface": "#4a312a", "bubble": "#34211c"}, "skyDistance": 22.8, "usedBy": null}, {"id": "copper", "name": "Copper", "hue": 35, "tone": "deep", "shades": {"highlight": "#e8c5bb", "base": "#ea9e8b", "hover": "#fda893", "surface": "#4c3029", "bubble": "#36201a"}, "skyDistance": 22.4, "usedBy": null}, {"id": "lime", "name": "Lime", "hue": 115, "tone": "pastel", "shades": {"highlight": "#eaefd2", "base": "#cfd898", "hover": "#dce69d", "surface": "#373a23", "bubble": "#262816"}, "skyDistance": 15.8, "usedBy": null}, {"id": "leaf", "name": "Leaf", "hue": 115, "tone": "deep", "shades": {"highlight": "#ccd2b2", "base": "#b2bc74", "hover": "#bec978", "surface": "#373b20", "bubble": "#262913"}, "skyDistance": 17.4, "usedBy": null}, {"id": "pistachio", "name": "Pistachio", "hue": 125, "tone": "pastel", "shades": {"highlight": "#e5f0d5", "base": "#c4db9e", "hover": "#cfeaa4", "surface": "#333c25", "bubble": "#232918"}, "skyDistance": 19.4, "usedBy": "Meals & Fuel"}, {"id": "sage", "name": "Sage", "hue": 125, "tone": "deep", "shades": {"highlight": "#c7d3b5", "base": "#a6bf7b", "hover": "#b1cd81", "surface": "#333c23", "bubble": "#222a16"}, "skyDistance": 20.5, "usedBy": null}, {"id": "clover", "name": "Clover", "hue": 135, "tone": "pastel", "shades": {"highlight": "#e0f1d8", "base": "#b9dea6", "hover": "#c3edad", "surface": "#2f3d28", "bubble": "#202a1a"}, "skyDistance": 23.3, "usedBy": null}, {"id": "basil", "name": "Basil", "hue": 135, "tone": "deep", "shades": {"highlight": "#c2d5b9", "base": "#9ac285", "hover": "#a4d08b", "surface": "#2e3d26", "bubble": "#1f2a18"}, "skyDistance": 24.1, "usedBy": null}, {"id": "spring", "name": "Spring", "hue": 145, "tone": "pastel", "shades": {"highlight": "#dcf2dc", "base": "#afe0af", "hover": "#b7efb7", "surface": "#2b3d2c", "bubble": "#1c2b1d"}, "skyDistance": 25.7, "usedBy": null}, {"id": "fern", "name": "Fern", "hue": 145, "tone": "deep", "shades": {"highlight": "#bdd6bd", "base": "#8ec58f", "hover": "#96d397", "surface": "#2a3e2a", "bubble": "#1b2b1b"}, "skyDistance": 28.4, "usedBy": "Time Outdoors"}, {"id": "jade", "name": "Jade", "hue": 155, "tone": "pastel", "shades": {"highlight": "#d8f3e0", "base": "#a4e2b9", "hover": "#abf1c3", "surface": "#283e2f", "bubble": "#192b1f"}, "skyDistance": 27.4, "usedBy": null}, {"id": "emerald", "name": "Emerald", "hue": 155, "tone": "deep", "shades": {"highlight": "#b9d7c2", "base": "#82c79a", "hover": "#88d5a3", "surface": "#253f2e", "bubble": "#172c1f"}, "skyDistance": 31.7, "usedBy": null}, {"id": "mint", "name": "Mint", "hue": 165, "tone": "pastel", "shades": {"highlight": "#d5f4e5", "base": "#9be3c3", "hover": "#a0f3ce", "surface": "#243e33", "bubble": "#162c22"}, "skyDistance": 28.7, "usedBy": null}, {"id": "pine", "name": "Pine", "hue": 165, "tone": "deep", "shades": {"highlight": "#b5d7c7", "base": "#76c8a5", "hover": "#7bd7b0", "surface": "#213f32", "bubble": "#142c22"}, "skyDistance": 33.1, "usedBy": null}, {"id": "seafoam", "name": "Seafoam", "hue": 175, "tone": "pastel", "shades": {"highlight": "#d2f4ea", "base": "#93e4ce", "hover": "#97f3da", "surface": "#213f37", "bubble": "#142c25"}, "skyDistance": 30.2, "usedBy": null}, {"id": "lagoon", "name": "Lagoon", "hue": 175, "tone": "deep", "shades": {"highlight": "#b2d7cc", "base": "#6dc8b1", "hover": "#6fd7bd", "surface": "#1d3f37", "bubble": "#112c25"}, "skyDistance": 33.8, "usedBy": "Rest & Recover"}, {"id": "aqua", "name": "Aqua", "hue": 185, "tone": "pastel", "shades": {"highlight": "#d0f4ee", "base": "#8ee4d8", "hover": "#91f3e6", "surface": "#1f3e3a", "bubble": "#122c28"}, "skyDistance": 31.3, "usedBy": null}, {"id": "teal", "name": "Teal", "hue": 185, "tone": "deep", "shades": {"highlight": "#afd7d1", "base": "#65c8bc", "hover": "#67d7ca", "surface": "#1b3f3b", "bubble": "#0e2c29"}, "skyDistance": 35.1, "usedBy": null}, {"id": "glacier", "name": "Glacier", "hue": 195, "tone": "pastel", "shades": {"highlight": "#cff4f3", "base": "#8be3e2", "hover": "#8df2f1", "surface": "#1e3e3e", "bubble": "#112b2b"}, "skyDistance": 32.4, "usedBy": null}, {"id": "ocean", "name": "Ocean", "hue": 195, "tone": "deep", "shades": {"highlight": "#aed7d6", "base": "#61c7c7", "hover": "#62d6d6", "surface": "#193f3f", "bubble": "#0d2c2c"}, "skyDistance": 36.1, "usedBy": null}, {"id": "sky", "name": "Sky", "hue": 205, "tone": "pastel", "shades": {"highlight": "#cff3f7", "base": "#8be2eb", "hover": "#8df1fc", "surface": "#1e3e41", "bubble": "#112b2e"}, "skyDistance": 33.6, "usedBy": "Deep Focus"}, {"id": "cerulean", "name": "Cerulean", "hue": 205, "tone": "deep", "shades": {"highlight": "#aed6db", "base": "#61c6d1", "hover": "#62d5e1", "surface": "#193e42", "bubble": "#0d2b2f"}, "skyDistance": 37.2, "usedBy": null}, {"id": "ice", "name": "Ice", "hue": 215, "tone": "pastel", "shades": {"highlight": "#cff2fb", "base": "#8de0f4", "hover": "#90efff", "surface": "#1f3d44", "bubble": "#122a30"}, "skyDistance": 35.2, "usedBy": null}, {"id": "harbor", "name": "Harbor", "hue": 215, "tone": "deep", "shades": {"highlight": "#afd5df", "base": "#65c4da", "hover": "#66d2eb", "surface": "#1b3e46", "bubble": "#0e2b31"}, "skyDistance": 38.4, "usedBy": null}, {"id": "powder", "name": "Powder", "hue": 225, "tone": "pastel", "shades": {"highlight": "#d1f1ff", "base": "#92ddfb", "hover": "#96ecff", "surface": "#213c47", "bubble": "#142a32"}, "skyDistance": 36.6, "usedBy": null}, {"id": "denim", "name": "Denim", "hue": 225, "tone": "deep", "shades": {"highlight": "#b1d4e3", "base": "#6cc1e2", "hover": "#6ecff4", "surface": "#1d3d49", "bubble": "#102a34"}, "skyDistance": 40.0, "usedBy": null}, {"id": "cornflower", "name": "Cornflower", "hue": 235, "tone": "pastel", "shades": {"highlight": "#d4f0ff", "base": "#99dbff", "hover": "#9ee9ff", "surface": "#243b49", "bubble": "#162934"}, "skyDistance": 37.3, "usedBy": null}, {"id": "azure", "name": "Azure", "hue": 235, "tone": "deep", "shades": {"highlight": "#b4d3e6", "base": "#75bee8", "hover": "#79ccfb", "surface": "#213c4b", "bubble": "#132936"}, "skyDistance": 41.6, "usedBy": "Read & Learn"}, {"id": "periwinkle", "name": "Periwinkle", "hue": 245, "tone": "pastel", "shades": {"highlight": "#d7efff", "base": "#a2d8ff", "hover": "#a8e5ff", "surface": "#273a4b", "bubble": "#192835"}, "skyDistance": 36.8, "usedBy": null}, {"id": "cobalt", "name": "Cobalt", "hue": 245, "tone": "deep", "shades": {"highlight": "#b7d1e8", "base": "#7fbbed", "hover": "#85c8ff", "surface": "#243a4d", "bubble": "#172837"}, "skyDistance": 37.8, "usedBy": null}, {"id": "orchid", "name": "Orchid", "hue": 305, "tone": "pastel", "shades": {"highlight": "#f1e5ff", "base": "#dec3fe", "hover": "#eccfff", "surface": "#3c3348", "bubble": "#2a2233"}, "skyDistance": 33.6, "usedBy": null}, {"id": "amethyst", "name": "Amethyst", "hue": 305, "tone": "deep", "shades": {"highlight": "#d4c7e5", "base": "#c2a5e5", "hover": "#d1b0f8", "surface": "#3d324a", "bubble": "#2a2235"}, "skyDistance": 23.7, "usedBy": null}, {"id": "mauve", "name": "Mauve", "hue": 315, "tone": "pastel", "shades": {"highlight": "#f5e4fd", "base": "#e6c1f8", "hover": "#f6cbff", "surface": "#3f3246", "bubble": "#2c2231"}, "skyDistance": 35.5, "usedBy": "Make & Create"}, {"id": "plum", "name": "Plum", "hue": 315, "tone": "deep", "shades": {"highlight": "#d9c6e1", "base": "#cba2de", "hover": "#dbacf0", "surface": "#403147", "bubble": "#2d2133"}, "skyDistance": 26.3, "usedBy": null}, {"id": "fuchsia", "name": "Fuchsia", "hue": 325, "tone": "pastel", "shades": {"highlight": "#f9e3fa", "base": "#eebef0", "hover": "#ffc9ff", "surface": "#423143", "bubble": "#2f212f"}, "skyDistance": 38.1, "usedBy": null}, {"id": "magenta", "name": "Magenta", "hue": 325, "tone": "deep", "shades": {"highlight": "#ddc5dd", "base": "#d39fd6", "hover": "#e4aae6", "surface": "#433044", "bubble": "#2f2030"}, "skyDistance": 29.9, "usedBy": null}, {"id": "peony", "name": "Peony", "hue": 335, "tone": "pastel", "shades": {"highlight": "#fce2f6", "base": "#f5bce7", "hover": "#ffc7f7", "surface": "#453040", "bubble": "#30202d"}, "skyDistance": 37.5, "usedBy": null}, {"id": "berry", "name": "Berry", "hue": 335, "tone": "deep", "shades": {"highlight": "#e0c4d9", "base": "#da9dcc", "hover": "#eca7dc", "surface": "#462f41", "bubble": "#31202d"}, "skyDistance": 34.7, "usedBy": null}, {"id": "bubblegum", "name": "Bubblegum", "hue": 345, "tone": "pastel", "shades": {"highlight": "#ffe2f1", "base": "#fabbde", "hover": "#ffc5ec", "surface": "#47303c", "bubble": "#32202a"}, "skyDistance": 35.0, "usedBy": null}, {"id": "cerise", "name": "Cerise", "hue": 345, "tone": "deep", "shades": {"highlight": "#e3c3d4", "base": "#e09cc2", "hover": "#f2a5d0", "surface": "#482f3d", "bubble": "#331f2a"}, "skyDistance": 39.2, "usedBy": null}, {"id": "blossom", "name": "Blossom", "hue": 355, "tone": "pastel", "shades": {"highlight": "#ffe1ec", "base": "#ffbad4", "hover": "#ffc4e1", "surface": "#483039", "bubble": "#332027"}, "skyDistance": 32.8, "usedBy": "Friends & Family"}, {"id": "raspberry", "name": "Raspberry", "hue": 355, "tone": "deep", "shades": {"highlight": "#e6c3cf", "base": "#e59bb7", "hover": "#f7a4c4", "surface": "#4a2f39", "bubble": "#351f27"}, "skyDistance": 36.8, "usedBy": null}, {"id": "cloud", "name": "Cloud", "hue": null, "tone": "neutral", "shades": {"highlight": "#f0f2f3", "base": "#dbdee2", "hover": "#e3ecf6", "surface": "#373839", "bubble": "#262627"}, "skyDistance": 15.3, "usedBy": null}, {"id": "silver", "name": "Silver", "hue": null, "tone": "neutral", "shades": {"highlight": "#d5d8db", "base": "#b8bec5", "hover": "#c0ccd9", "surface": "#36383b", "bubble": "#252729"}, "skyDistance": 16.5, "usedBy": "Life Admin"}, {"id": "slate", "name": "Slate", "hue": null, "tone": "neutral", "shades": {"highlight": "#adb2b7", "base": "#8f9aa4", "hover": "#97a7b7", "surface": "#35383d", "bubble": "#24272a"}, "skyDistance": 26.0, "usedBy": null}, {"id": "stone", "name": "Stone", "hue": null, "tone": "neutral", "shades": {"highlight": "#c6c3c0", "base": "#b0aaa3", "hover": "#c1b5a9", "surface": "#3a3735", "bubble": "#282624"}, "skyDistance": 14.0, "usedBy": null}];
+const ROLES = [
+  ['highlight', 'Brightest; text or outlines that must read clearly'],
+  ['base', 'The colour itself; strip blocks, charts, swatches'],
+  ['hover', 'A touch brighter; hover and pressed states'],
+  ['surface', 'Dark tint; selected tiles and tinted panels'],
+  ['bubble', 'Darker tint; the circle behind an activity icon'],
+];
+const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>';
+const SKY = 'linear-gradient(90deg,#c9744f 0%,#dc9a5a 10%,#efc576 25%,#f7e0a6 40%,#fff4d8 50%,#f7e0a6 60%,#efc576 75%,#dc9a5a 90%,#c9744f 100%)';
+const NIGHT = 'linear-gradient(90deg,#8b84e4 0%,#6865cb 12%,#42419c 25%,#1f2062 40%,#0c0d2c 50%,#1f2062 60%,#42419c 75%,#6865cb 88%,#8b84e4 100%)';
+let current = P.find(c => c.id === 'sky');
+
+function renderPicker() {
+  for (const tone of ['pastel', 'deep', 'neutral']) {
+    document.getElementById('row-' + tone).innerHTML = P.filter(c => c.tone === tone).map(c =>
+      `<button class="dot" data-id="${c.id}" aria-pressed="${c.id === current.id}" title="${c.name}" aria-label="${c.name}${c.usedBy ? ', used by ' + c.usedBy : ''}" style="background:${c.shades.base}"></button>`).join('');
+  }
+}
+function renderDetail() {
+  const c = current, s = c.shades;
+  document.getElementById('detail').innerHTML = `
+    <div class="shades">
+      <div class="big"><i style="background:${s.base}"></i><div><b>${c.name}</b><span>${c.tone === 'neutral' ? 'Neutral' : (c.tone === 'deep' ? 'Deep pastel' : 'Pastel') + ' · hue ' + c.hue + '°'}${c.usedBy ? ' · ' + c.usedBy : ''}</span></div></div>
+      ${ROLES.map(([k, why]) => `<div class="shade"><i style="background:${s[k]}"></i><span>${k}</span><em>${why}</em><code>${s[k].toUpperCase()}</code></div>`).join('')}
+    </div>
+    <div class="preview">
+      <div class="tile" style="background:${s.surface}"><span class="bubble" style="background:${s.bubble};color:${s.base}">${ICON}</span><span>Selected tile</span></div>
+      <div class="tile"><span class="bubble" style="background:${s.bubble};color:${s.base}">${ICON}</span><span>Activity tile</span></div>
+      <div class="strip"><span class="sky" style="background:${SKY};opacity:.72"></span><span class="blk" style="left:18%;width:22%;background:${s.base}"></span><span class="blk" style="left:55%;width:12%;background:${s.base}"></span></div>
+      <div class="strip"><span class="sky" style="background:${NIGHT};opacity:.92"></span><span class="blk" style="left:8%;width:18%;background:${s.base}"></span><span class="blk" style="left:48%;width:10%;background:${s.base}"></span></div>
+    </div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.dot'); if (!b) return;
+  current = P.find(c => c.id === b.dataset.id); renderPicker(); renderDetail();
+});
+document.getElementById('assign').innerHTML = P.filter(c => c.usedBy).map(c => `<div><i style="background:${c.shades.base}"></i>${c.usedBy}<small>${c.name}</small></div>`).join('');
+document.getElementById('roles').innerHTML = ROLES.map(([k, why]) => `<div class="shade"><i style="background:linear-gradient(90deg,${['sky','coral','pistachio','blossom','mauve'].map(id => P.find(c => c.id === id).shades[k]).join(',')})"></i><span>${k}</span><em>${why}</em><code></code></div>`).join('');
+renderPicker(); renderDetail();
+</script>

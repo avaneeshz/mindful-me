@@ -17,22 +17,12 @@ import {
 } from './boardReducer'
 import { createSeedActivities } from './seed'
 import { slotIndexFromDate } from '@/domain/slots'
-import { deriveSyncIntents, runIntent } from './sync'
+import { deriveSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
 import { reconcileServerActivities } from './reconcileServerActivities'
+import { pendingActivityIds, pendingDeleteActivityIds, type SyncQueue } from './syncQueue'
+import { useSyncQueue } from './useSyncQueue'
 import {
-  enqueueIntents,
-  markQueueItemFailed,
-  nextItemToAttempt,
-  pendingActivityIds,
-  pendingDeleteActivityIds,
-  removeQueueItem,
-  describeSyncError,
-  type SyncQueue,
-} from './syncQueue'
-import { loadSyncQueue, saveSyncQueue } from './syncQueueStorage'
-import {
-  dateFromLocalDateISO,
   isSameLocalDay,
   localDateISO,
   localDayRange,
@@ -41,9 +31,6 @@ import {
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
 import type { ScheduledActivity } from '@/domain/types'
 import { useLiveActivityCatalogSync } from './useLiveActivityCatalogSync'
-
-/** How often the queue is woken to check for backed-off items becoming due again — see `drainQueue` below. */
-const SYNC_RETRY_INTERVAL_MS = 15_000
 
 interface BoardContextValue {
   state: BoardState
@@ -179,72 +166,10 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     dispatch(action)
   }
 
-  // Bug B/C (write-failure-visibility incident) — the durable retry queue.
-  // `queue` drives the UI (the sync indicator, `ActivitySummary`'s
-  // per-activity badge); `queueRef` is the single source of truth `drainQueue`
-  // reads/mutates synchronously so a tight retry loop never has to wait for a
-  // render to see its own previous iteration's result. `updateQueue` is the
-  // ONLY thing allowed to write either — every mutation goes through it, so
-  // the two never drift and every mutation is persisted (`saveSyncQueue`)
-  // before anything else observes it.
-  const [queue, setQueue] = useState<SyncQueue>(() => (isTest ? [] : loadSyncQueue()))
-  const queueRef = useRef(queue)
-
-  function updateQueue(updater: (current: SyncQueue) => SyncQueue): void {
-    setQueue((current) => {
-      const next = updater(current)
-      queueRef.current = next
-      if (!isTest) saveSyncQueue(next)
-      return next
-    })
-  }
-
-  // Drains every currently-DUE item, one at a time (never in parallel — see
-  // `nextItemToAttempt`'s own doc comment for why one-at-a-time is enough
-  // here), stopping once nothing is left to attempt right now. `processingRef`
-  // makes concurrent calls (mount + interval + online event all firing close
-  // together, or a retry click while an interval tick is already mid-drain)
-  // a no-op rather than double-sending the same write.
-  const processingRef = useRef(false)
-  async function drainQueue(): Promise<void> {
-    if (isTest || processingRef.current) return
-    processingRef.current = true
-    try {
-      for (;;) {
-        const item = nextItemToAttempt(queueRef.current, Date.now())
-        if (!item) return
-        try {
-          await runIntent(item.intent, dateFromLocalDateISO(item.referenceDateISO))
-          updateQueue((current) => removeQueueItem(current, item.id))
-        } catch (error) {
-          // Never thrown into the UI (rule 6) — recorded durably instead, so
-          // it survives a reload and keeps retrying with backoff until it
-          // clears (Bug C), and stays visible until it does (Bug B).
-          updateQueue((current) => markQueueItemFailed(current, item.id, describeSyncError(error), Date.now()))
-        }
-      }
-    } finally {
-      processingRef.current = false
-    }
-  }
-
-  // Wakes the queue: once on mount (a reload with pending/failed writes must
-  // retry them without waiting for the interval), on an interval (catches
-  // items whose backoff has expired with no other trigger), and the instant
-  // connectivity returns. `retrySyncNow` (exposed below) is the same
-  // function, for the indicator's explicit "Retry now" action.
-  useEffect(() => {
-    if (isTest) return
-    const wake = () => void drainQueue()
-    wake()
-    const interval = window.setInterval(wake, SYNC_RETRY_INTERVAL_MS)
-    window.addEventListener('online', wake)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener('online', wake)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTest])
+  // Bug B/C (write-failure-visibility incident) — the durable retry queue,
+  // shared with Lumen's data provider so the two interfaces retry, back off
+  // and persist identically. See `useSyncQueue`'s own doc comment.
+  const { queue, queueRef, enqueue, retryNow } = useSyncQueue(isTest)
 
   // Local-first write + background sync (rule 6). Runs after every action
   // that actually changed state — persisting is unconditional (any change to
@@ -256,10 +181,9 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   //
   // Every intent is enqueued (never fired directly) — Bug B/C means a write
   // is only ever considered done once the queue confirms it, not merely
-  // because this effect ran. `drainQueue()` is kicked immediately after
-  // enqueueing purely so a healthy connection still feels instant (no need to
-  // wait for the interval) — it is not what makes the write durable; the
-  // enqueue + persist above already is.
+  // because this effect ran. `enqueue` also kicks a drain purely so a healthy
+  // connection still feels instant — it is not what makes the write durable;
+  // the enqueue + persist already is.
   useEffect(() => {
     const prev = prevStateRef.current
     const action = lastActionRef.current
@@ -269,12 +193,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
 
     if (!isTest) saveLocalActivities(viewedDate, state.activities)
     if (!isTest && action) {
-      const intents = deriveSyncIntents(action, prev, state)
-      if (intents.length > 0) {
-        const referenceDateISO = localDateISO(viewedDate)
-        updateQueue((current) => enqueueIntents(current, intents, referenceDateISO, Date.now(), () => crypto.randomUUID()))
-        void drainQueue()
-      }
+      enqueue(deriveSyncIntents(action, prev, state), localDateISO(viewedDate))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, viewedDate, isTest])
@@ -378,7 +297,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       isViewingToday,
       setViewedDate,
       syncQueue: queue,
-      retrySyncNow: () => void drainQueue(),
+      retrySyncNow: retryNow,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, now, nowSlot, viewedDate, isViewingToday, queue],
