@@ -2,7 +2,8 @@ import { ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Plus, RotateCcw, X,
 import { useState, type ReactNode } from 'react'
 import type { ParameterType } from '@/api/parameterOptions'
 import { ICON_CHOICES } from '@/lib/iconRegistry'
-import type { UseParameterOptionsResult } from '@/state/useParameterOptions'
+import type { UseActivityParameterSelectionsResult } from '@/state/useActivityParameterSelections'
+import type { UseParameterVocabularyResult } from '@/state/useParameterVocabulary'
 import { useParameterSectionEditor } from '@/state/useParameterSectionEditor'
 import { Button } from '@/lumen/components/ui/button'
 import { Popover } from '@/lumen/components/ui/primitives'
@@ -343,19 +344,28 @@ export const OPTION_SECTIONS: { type: ParameterType; label: string; helper: stri
 
 /**
  * Lumen's view of one option list — the behaviour (never emptying a list,
- * keeping options with logged history, one write at a time) is Classic's
- * own, shared through `useParameterSectionEditor`.
+ * keeping options with logged history, one write at a time) AND the data
+ * itself (the shared global vocabulary, and each activity's own selection
+ * against it — account-level, not interface-specific) are Classic's own,
+ * reached through the shared `useParameterSectionEditor` — see that hook's
+ * own doc comment.
  */
 export function OptionSection({
   section,
   activityName,
-  data,
+  activityId,
+  selections,
+  vocabulary,
 }: {
   section: (typeof OPTION_SECTIONS)[number]
   activityName: string | null
-  data: UseParameterOptionsResult
+  /** `null` for the global default scope, a real activity id otherwise — see `useParameterSectionEditor`'s own doc comment. */
+  activityId: string | null
+  /** One shared instance per SCREEN, not one per section — see `useParameterSectionEditor`'s own doc comment on why this is a prop, not minted here. */
+  selections: UseActivityParameterSelectionsResult
+  vocabulary: UseParameterVocabularyResult
 }) {
-  const editor = useParameterSectionEditor(section, activityName, data)
+  const editor = useParameterSectionEditor(section, activityId, selections, vocabulary)
   const [draft, setDraft] = useState('')
   const status = activityName === null ? 'Default for every activity' : editor.overridden ? 'Customized here' : 'Inherited'
 
@@ -369,7 +379,13 @@ export function OptionSection({
         <span className="shrink-0 rounded-full bg-white/[0.05] px-2.5 py-1 text-xs text-ink-muted">{status}</span>
       </div>
 
-      {data.status === 'ready' && editor.effective.length === 0 && <p className="text-sm text-ink-faint">No options yet.</p>}
+      {editor.error && (
+        <p role="alert" className="text-sm text-danger">
+          {editor.error}
+        </p>
+      )}
+
+      {editor.status === 'ready' && editor.effective.length === 0 && <p className="text-sm text-ink-faint">No options yet.</p>}
       <ul className="flex flex-wrap gap-2" aria-label={`${section.label} options`}>
         {editor.effective.map((option) => (
           <li

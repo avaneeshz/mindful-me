@@ -4,7 +4,8 @@ import { buildActivityTree, type ActivityNode, type ActivityRow } from '@/domain
 import { resolveIcon } from '@/lib/iconRegistry'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { usePickerData } from '@/state/PickerDataContext'
-import { useParameterOptions } from '@/state/useParameterOptions'
+import { useActivityParameterSelections } from '@/state/useActivityParameterSelections'
+import { useParameterVocabulary } from '@/state/useParameterVocabulary'
 import { Button } from '@/lumen/components/ui/button'
 import { IconBubble, MenuItem } from '@/lumen/components/ui/primitives'
 import { FALLBACK_COLOR } from '@/lumen/lib/palette'
@@ -17,10 +18,14 @@ type Level = { kind: 'tile'; id: string } | { kind: 'activity'; id: string } | {
 /**
  * Tiles & activities — Lumen's own editor over the same per-person data
  * Classic's Activity Library edits (`usePickerData`'s shared tiles and
- * activity hierarchy, `useParameterOptions` for option lists). Built to
- * drill down, one level at a time, which suits a phone: tiles → a tile's
- * activities → an activity's sub-options and option lists. Every change is
- * the person's own and shows in both interfaces.
+ * activity hierarchy; option lists via `useParameterSectionEditor`, which
+ * reads/writes the exact same `useParameterVocabulary`/
+ * `useActivityParameterSelections` data Classic's own `ParameterOptionsPanel`/
+ * `ParameterVocabularyPanel` do — not the same hook call, the same
+ * underlying account-level data; see `useParameterSectionEditor`'s own doc
+ * comment). Built to drill down, one level at a time, which suits a phone:
+ * tiles → a tile's activities → an activity's sub-options and option lists.
+ * Every change is the person's own and shows in both interfaces.
  */
 export function LibraryScreen({ onBack }: { onBack: () => void }) {
   const [stack, setStack] = useState<Level[]>([])
@@ -304,33 +309,61 @@ function NodeLevel({
   )
 }
 
-/** The activity's own option lists, falling back to its parent's (then the defaults) until customized here. */
+/**
+ * The activity's own option lists, falling back to its parent's (then the
+ * defaults) until customized here. `useActivityParameterSelections`/
+ * `useParameterVocabulary` are instantiated ONCE here, for the whole screen,
+ * and passed to every `OptionSection` — found in code review: an earlier
+ * version let each of the 3 sections mint its own pair of instances,
+ * tripling the fetch cost per screen load for no benefit (the old
+ * `useParameterOptions(activity.id)`-passed-as-a-shared-prop design this
+ * replaced never had that problem either).
+ */
 function ActivityOptions({ activity }: { activity: ActivityRow }) {
-  const data = useParameterOptions(activity.id)
+  const selections = useActivityParameterSelections(activity.id)
+  const vocabulary = useParameterVocabulary()
   return (
     <section className="flex flex-col gap-3">
       <div className="px-1">
         <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-ink-faint">Options when logging</h2>
         <p className="mt-1 text-sm text-ink-muted">Customize what “How it went” offers for {activity.name}.</p>
       </div>
-      {data.error && <Notice>{data.error}</Notice>}
       {OPTION_SECTIONS.map((section) => (
-        <OptionSection key={`${activity.id}:${section.type}`} section={section} activityName={activity.name} data={data} />
+        <OptionSection
+          key={`${activity.id}:${section.type}`}
+          section={section}
+          activityName={activity.name}
+          activityId={activity.id}
+          selections={selections}
+          vocabulary={vocabulary}
+        />
       ))}
     </section>
   )
 }
 
 function DefaultsLevel({ onBack }: { onBack: () => void }) {
-  const data = useParameterOptions(null)
   const notice = useLocalOnlyNotice()
+  // `activityId: null` throughout — the fallback scope has no activity to
+  // select against, only the shared vocabulary itself (see
+  // `useParameterSectionEditor`'s own doc comment) — but every `OptionSection`
+  // still needs a (harmlessly idle) `selections` instance to satisfy its
+  // props, same as `ActivityOptions`'s one-instance-per-screen pattern.
+  const selections = useActivityParameterSelections(null)
+  const vocabulary = useParameterVocabulary()
   return (
     <SettingsPage eyebrow="Tiles & activities" title="Default options" onBack={onBack}>
       {notice}
       <p className="text-sm text-ink-muted">These show for every activity that doesn’t have its own list.</p>
-      {data.error && <Notice>{data.error}</Notice>}
       {OPTION_SECTIONS.map((section) => (
-        <OptionSection key={`default:${section.type}`} section={section} activityName={null} data={data} />
+        <OptionSection
+          key={`default:${section.type}`}
+          section={section}
+          activityName={null}
+          activityId={null}
+          selections={selections}
+          vocabulary={vocabulary}
+        />
       ))}
     </SettingsPage>
   )

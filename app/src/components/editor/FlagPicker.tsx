@@ -22,12 +22,12 @@ const DEFAULT_FLAG_OPTIONS: readonly string[] = FLAGS.map((f) => f.id)
  * re-clicking the currently active flag chip, which already toggles it off
  * (`onSelect(isSelected ? null : option)` below).
  *
- * PICKER-CUSTOM-1: the option list is now per-activity and user-editable
- * (`public.activity_parameter_options`, inherited — see `internal.
- * effective_parameter_options`'s own doc comment), so it's a prop now,
- * never a hardcoded import — `options` defaults to the original static
- * 14-value set so every existing call site (and every test) that doesn't
- * pass one keeps behaving exactly as before.
+ * PICKER-CUSTOM-1: the option list is now user-editable — a shared,
+ * growable vocabulary (`public.parameter_options`) each activity selects
+ * from, with inheritance (see `internal.effective_parameter_options`'s own
+ * doc comment) — so it's a prop now, never a hardcoded import — `options`
+ * defaults to the original static 14-value set so every existing call site
+ * (and every test) that doesn't pass one keeps behaving exactly as before.
  */
 export function FlagPicker({
   selected,

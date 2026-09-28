@@ -164,7 +164,10 @@ function AuthedApp({ now }: { now?: Date }) {
               <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
                 <AppHeaderBar editMode={editMode} onToggleEditMode={() => setEditMode((value) => !value)} />
                 <Routes>
-                  <Route path="/" element={<TodayPage editMode={editMode} />} />
+                  <Route
+                    path="/"
+                    element={<TodayPage editMode={editMode} onCloseEditMode={() => setEditMode(false)} />}
+                  />
                   <Route path="/health-sync" element={<HealthSyncPage />} />
                   <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
                   {/*

@@ -6,7 +6,7 @@ import { displayButtonForActivityName, songCountToMinutes, WORSHIP_MINUTES_PER_S
 import { maxContiguousDuration } from '@/domain/scheduling'
 import type { ActivityCard, FieldSelections } from '@/domain/types'
 import { useCatalogActivityId } from '@/state/useCatalogActivityId'
-import { useParameterOptions } from '@/state/useParameterOptions'
+import { useEffectiveParameterOptions } from '@/state/useEffectiveParameterOptions'
 import { Button } from '@/lumen/components/ui/button'
 import { ChoiceChips, IconBubble } from '@/lumen/components/ui/primitives'
 import { Sheet } from '@/lumen/components/ui/sheet'
@@ -149,7 +149,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
 
   // The person's own option lists for this activity; the built-in defaults until they load.
   const catalogId = useCatalogActivityId(draft?.cardName ?? null)
-  const parameterOptions = useParameterOptions(catalogId)
+  const parameterOptions = useEffectiveParameterOptions(catalogId)
   const ready = parameterOptions.status === 'ready'
   const qualityOptions = ready ? parameterOptions.effective.quality.map((o) => o.label) : QUALITIES.map((q) => q.id)
   const symptomOptions = ready ? parameterOptions.effective.symptom.map((o) => o.label) : SYMPTOMS.map((s) => s.id)

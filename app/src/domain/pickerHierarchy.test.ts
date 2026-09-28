@@ -5,8 +5,11 @@ import {
   activityPathNames,
   buildActivityTree,
   collectSubtreeIds,
+  isSiblingNameTaken,
+  isTopLevelNameTaken,
   liveActivityCardsFromRows,
   liveCategoriesFromTiles,
+  tileIdForActivity,
   type ActivityRow,
   type LiveTile,
 } from './pickerHierarchy'
@@ -80,6 +83,14 @@ describe('collectSubtreeIds', () => {
     const rows: ActivityRow[] = [row({ id: 'leaf', name: 'Leaf' })]
     expect(collectSubtreeIds(rows, 'leaf')).toEqual(['leaf'])
   })
+
+  it('terminates instead of looping forever on a corrupted parentId cycle', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'a', name: 'A', parentId: 'b' }),
+      row({ id: 'b', name: 'B', parentId: 'a' }),
+    ]
+    expect(new Set(collectSubtreeIds(rows, 'a'))).toEqual(new Set(['a', 'b']))
+  })
 })
 
 describe('activityPathNames', () => {
@@ -99,6 +110,154 @@ describe('activityPathNames', () => {
   it('returns a single-element path for a flat top-level activity', () => {
     const rows: ActivityRow[] = [row({ id: 'top', name: 'Walking' })]
     expect(activityPathNames(rows, 'top')).toEqual(['Walking'])
+  })
+
+  it('bails out instead of looping forever on a corrupted parentId cycle', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'a', name: 'A', parentId: 'b' }),
+      row({ id: 'b', name: 'B', parentId: 'a' }),
+    ]
+    expect(() => activityPathNames(rows, 'a')).not.toThrow()
+  })
+})
+
+describe('tileIdForActivity', () => {
+  it("resolves a top-level activity's own tileId directly", () => {
+    const rows: ActivityRow[] = [row({ id: 'top', name: 'Walk', tileId: 't1' })]
+    expect(tileIdForActivity(rows, 'top')).toBe('t1')
+  })
+
+  it('walks parentId (by id, never by name) up to the root for a deeply nested activity', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'sub', name: 'Oiling', parentId: 'top' }),
+      row({ id: 'third', name: 'Face', parentId: 'sub' }),
+    ]
+    expect(tileIdForActivity(rows, 'third')).toBe('t1')
+  })
+
+  it('never gets confused by two DIFFERENT top-level activities sharing a name across two tiles (the exact bug this replaced a name-based lookup to fix)', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'walk-morning', name: 'Walk', tileId: 'morning' }),
+      row({ id: 'walk-evening', name: 'Walk', tileId: 'evening' }),
+      row({ id: 'walk-evening-sub', name: 'Loop', parentId: 'walk-evening' }),
+    ]
+    // A name-based lookup for "Walk" could resolve to either row — walking
+    // by id from the SUB-activity's own real parentId must always resolve
+    // to its OWN root, not whichever same-named row happens to come first.
+    expect(tileIdForActivity(rows, 'walk-evening-sub')).toBe('evening')
+    expect(tileIdForActivity(rows, 'walk-morning')).toBe('morning')
+  })
+
+  it('returns null for an unknown id', () => {
+    expect(tileIdForActivity([], 'missing')).toBeNull()
+  })
+
+  it('returns null for a legacy shared-catalog root (no tileId of its own)', () => {
+    const rows: ActivityRow[] = [row({ id: 'legacy', name: 'Night Sleep', tileId: null })]
+    expect(tileIdForActivity(rows, 'legacy')).toBeNull()
+  })
+
+  it('bails out to null instead of looping forever on a corrupted parentId cycle', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'a', name: 'A', parentId: 'b' }),
+      row({ id: 'b', name: 'B', parentId: 'a' }),
+    ]
+    expect(tileIdForActivity(rows, 'a')).toBeNull()
+  })
+})
+
+describe('isTopLevelNameTaken', () => {
+  it('is true when another top-level activity already has this exact name, even in a different tile', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'walk-morning', name: 'Walk', tileId: 'morning' }),
+      row({ id: 'run-evening', name: 'Run', tileId: 'evening' }),
+    ]
+    expect(isTopLevelNameTaken(rows, 'Walk')).toBe(true)
+    expect(isTopLevelNameTaken(rows, 'Swim')).toBe(false)
+  })
+
+  it('is true for a HIDDEN top-level activity\'s name too — hiding never frees up the name', () => {
+    const rows: ActivityRow[] = [row({ id: 'walk', name: 'Walk', tileId: 'morning', hidden: true })]
+    expect(isTopLevelNameTaken(rows, 'Walk')).toBe(true)
+  })
+
+  it('never counts a sub-activity\'s name as a top-level collision', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'sub', name: 'Walk', parentId: 'top' }),
+    ]
+    expect(isTopLevelNameTaken(rows, 'Walk')).toBe(false)
+  })
+
+  it('excludes the activity being renamed from colliding with its own current name', () => {
+    const rows: ActivityRow[] = [row({ id: 'walk', name: 'Walk', tileId: 'morning' })]
+    expect(isTopLevelNameTaken(rows, 'Walk', 'walk')).toBe(false)
+    expect(isTopLevelNameTaken(rows, 'Walk')).toBe(true)
+  })
+
+  it('trims the candidate name the same way the database does', () => {
+    const rows: ActivityRow[] = [row({ id: 'walk', name: 'Walk', tileId: 'morning' })]
+    expect(isTopLevelNameTaken(rows, '  Walk  ')).toBe(true)
+  })
+
+  it('is case-sensitive, matching the database\'s own exact-match uniqueness', () => {
+    const rows: ActivityRow[] = [row({ id: 'walk', name: 'Walk', tileId: 'morning' })]
+    expect(isTopLevelNameTaken(rows, 'walk')).toBe(false)
+  })
+})
+
+describe('isSiblingNameTaken', () => {
+  it('is true when another direct child of the same parent already has this exact name', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'face', name: 'Face', parentId: 'top' }),
+      row({ id: 'hands', name: 'Hands', parentId: 'top' }),
+    ]
+    expect(isSiblingNameTaken(rows, 'top', 'Face')).toBe(true)
+    expect(isSiblingNameTaken(rows, 'top', 'Feet')).toBe(false)
+  })
+
+  it('never counts a same-named activity under a DIFFERENT parent as a collision', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top-a', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'top-b', name: 'Skincare', tileId: 't1' }),
+      row({ id: 'face-a', name: 'Face', parentId: 'top-a' }),
+    ]
+    expect(isSiblingNameTaken(rows, 'top-b', 'Face')).toBe(false)
+  })
+
+  it('never counts a top-level activity\'s own name as a collision for a sibling check (different scope)', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Walk', tileId: 't1' }),
+      row({ id: 'sub', name: 'Loop', parentId: 'top' }),
+    ]
+    expect(isSiblingNameTaken(rows, 'top', 'Walk')).toBe(false)
+  })
+
+  it('excludes the activity being renamed from colliding with its own current name', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'face', name: 'Face', parentId: 'top' }),
+    ]
+    expect(isSiblingNameTaken(rows, 'top', 'Face', 'face')).toBe(false)
+    expect(isSiblingNameTaken(rows, 'top', 'Face')).toBe(true)
+  })
+
+  it('trims the candidate name the same way the database does', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'face', name: 'Face', parentId: 'top' }),
+    ]
+    expect(isSiblingNameTaken(rows, 'top', '  Face  ')).toBe(true)
+  })
+
+  it('is case-sensitive, matching the database\'s own exact-match uniqueness', () => {
+    const rows: ActivityRow[] = [
+      row({ id: 'top', name: 'Body Care (self)', tileId: 't1' }),
+      row({ id: 'face', name: 'Face', parentId: 'top' }),
+    ]
+    expect(isSiblingNameTaken(rows, 'top', 'face')).toBe(false)
   })
 })
 

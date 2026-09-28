@@ -13,14 +13,23 @@ export interface TodayPageProps {
    * hoisted app-wide shell (see `App.tsx`'s own comment), a sibling of this
    * page rather than an ancestor, so the flag has to be lifted to where
    * both of them descend from and passed down. `SlotEditor` reads the same
-   * flag to reveal its own inline tile/activity management panel
-   * (`ActivityLibraryPanel` — see `SlotEditor.tsx`'s own doc comment for why
+   * flag to open its own tile/activity management dialog (`ActivityLibraryPanel`,
+   * a real `Dialog.Root` — see `SlotEditor.tsx`'s own doc comment for why
    * it's rendered there rather than inside `TileRow`).
    */
   editMode: boolean
+  /**
+   * Fires when that dialog wants to close itself (X, Escape, overlay click).
+   * `AuthedApp` turns `editMode` off in response, the same master switch
+   * that also governs `HeaderBar`'s quick-log pill controls — passed
+   * straight through to `SlotEditor`, which is the only thing that actually
+   * calls it; this page merely relays it, having no `editMode` setter of its
+   * own any more now that `AuthedApp` owns the state.
+   */
+  onCloseEditMode: () => void
 }
 
-export function TodayPage({ editMode }: TodayPageProps) {
+export function TodayPage({ editMode, onCloseEditMode }: TodayPageProps) {
   const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
 
   // Which activity + reflection card the note-entry popup is currently open
@@ -91,6 +100,7 @@ export function TodayPage({ editMode }: TodayPageProps) {
           onOpenReflectionNote={openMapping}
           syncQueue={syncQueue}
           editMode={editMode}
+          onCloseEditMode={onCloseEditMode}
         />
       </div>
 

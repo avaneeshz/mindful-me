@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
-import { activitiesForTile, activityPathNames, buildActivityTree, type ActivityNode } from '@/domain/pickerHierarchy'
+import {
+  activitiesForTile,
+  activityPathNames,
+  buildActivityTree,
+  isSiblingNameTaken,
+  isTopLevelNameTaken,
+  type ActivityNode,
+  type ActivityRow,
+} from '@/domain/pickerHierarchy'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import { cn } from '@/lib/utils'
 
@@ -13,31 +21,47 @@ type Actions = Pick<
 
 function InlineNameForm({
   initial = '',
+  error,
   onSave,
   onCancel,
 }: {
   initial?: string
+  /**
+   * A validation error from the LAST submit attempt — found in code review:
+   * a duplicate top-level name needs to keep this form open with the
+   * rejected text still visible so the user can fix it in place, not close
+   * it out from under them the way every other (always-succeeds, purely
+   * local-first) save here does. `null`/omitted renders nothing.
+   */
+  error?: string | null
   onSave: (name: string) => void
   onCancel: () => void
 }) {
   const [name, setName] = useState(initial)
   return (
-    <form
-      className="flex items-center gap-sm"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (name.trim() === '') return
-        onSave(name.trim())
-      }}
-    >
-      <input autoFocus className={cn(fieldClass, 'py-xs')} value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
-      <Button type="submit" size="inline" disabled={name.trim() === ''}>
-        Save
-      </Button>
-      <Button type="button" variant="ghost" size="inline" onClick={onCancel}>
-        Cancel
-      </Button>
-    </form>
+    <div className="flex flex-col gap-xs">
+      <form
+        className="flex items-center gap-sm"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (name.trim() === '') return
+          onSave(name.trim())
+        }}
+      >
+        <input autoFocus className={cn(fieldClass, 'py-xs')} value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
+        <Button type="submit" size="inline" disabled={name.trim() === ''}>
+          Save
+        </Button>
+        <Button type="button" variant="ghost" size="inline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </form>
+      {error && (
+        <p role="alert" className="text-caption text-ink-dim">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -46,6 +70,7 @@ function ActivityRowView({
   depth,
   siblingIndex,
   siblingCount,
+  activities,
   selectedActivityId,
   onSelect,
   actions,
@@ -56,6 +81,8 @@ function ActivityRowView({
   depth: number
   siblingIndex: number
   siblingCount: number
+  /** The FULL flat activity list (every tile, hidden included) — needed only for `isTopLevelNameTaken`'s own duplicate check when renaming a top-level node. */
+  activities: readonly ActivityRow[]
   selectedActivityId: string | null
   onSelect: (id: string) => void
   actions: Actions
@@ -63,7 +90,9 @@ function ActivityRowView({
   setDeleteError: (message: string | null) => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [renameError, setRenameError] = useState<string | null>(null)
   const [addingChild, setAddingChild] = useState(false)
+  const [addChildError, setAddChildError] = useState<string | null>(null)
   const isSelected = node.id === selectedActivityId
 
   async function handleDelete() {
@@ -90,11 +119,32 @@ function ActivityRowView({
         {editing ? (
           <InlineNameForm
             initial={node.name}
+            error={renameError}
             onSave={(name) => {
+              // A TOP-LEVEL rename can collide user-wide (the bug this round
+              // fixes — see `isTopLevelNameTaken`'s own doc comment); a
+              // sub-activity rename can only collide with its OWN siblings
+              // (already a narrower, always-correctly-enforced DB scope via
+              // `activities_parent_id_name_key` — `isSiblingNameTaken` just
+              // gives it the same inline feedback the top-level case now
+              // gets, found missing in code review).
+              if (node.parentId === null) {
+                if (isTopLevelNameTaken(activities, name, node.id)) {
+                  setRenameError(`You already have a top-level activity named "${name}" — pick a different name.`)
+                  return
+                }
+              } else if (isSiblingNameTaken(activities, node.parentId, name, node.id)) {
+                setRenameError(`You already have an activity named "${name}" here — pick a different name.`)
+                return
+              }
+              setRenameError(null)
               actions.renameActivity(node.id, name)
               setEditing(false)
             }}
-            onCancel={() => setEditing(false)}
+            onCancel={() => {
+              setEditing(false)
+              setRenameError(null)
+            }}
           />
         ) : (
           <>
@@ -108,7 +158,10 @@ function ActivityRowView({
               <button
                 type="button"
                 aria-label={`Add a sub-activity under ${node.name}`}
-                onClick={() => setAddingChild(true)}
+                onClick={() => {
+                  setAddingChild(true)
+                  setAddChildError(null)
+                }}
                 className="flex size-[24px] items-center justify-center rounded-sm text-ink-dim hover:text-ink"
               >
                 <Plus aria-hidden="true" className="size-[13px]" />
@@ -116,7 +169,10 @@ function ActivityRowView({
               <button
                 type="button"
                 aria-label={`Rename ${node.name}`}
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setEditing(true)
+                  setRenameError(null)
+                }}
                 className="flex size-[24px] items-center justify-center rounded-sm text-ink-dim hover:text-ink"
               >
                 <Pencil aria-hidden="true" className="size-[13px]" />
@@ -150,11 +206,20 @@ function ActivityRowView({
       {addingChild && (
         <div className="mt-xs" style={{ marginLeft: (depth + 1) * 20 }}>
           <InlineNameForm
+            error={addChildError}
             onSave={(name) => {
+              if (isSiblingNameTaken(activities, node.id, name)) {
+                setAddChildError(`You already have an activity named "${name}" here — pick a different name.`)
+                return
+              }
+              setAddChildError(null)
               actions.addActivity({ name, parentId: node.id })
               setAddingChild(false)
             }}
-            onCancel={() => setAddingChild(false)}
+            onCancel={() => {
+              setAddingChild(false)
+              setAddChildError(null)
+            }}
           />
         </div>
       )}
@@ -168,6 +233,7 @@ function ActivityRowView({
               depth={depth + 1}
               siblingIndex={index}
               siblingCount={node.children.length}
+              activities={activities}
               selectedActivityId={selectedActivityId}
               onSelect={onSelect}
               actions={actions}
@@ -207,6 +273,7 @@ export function ActivityTree({
   actions: Actions
 }) {
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [showHidden, setShowHidden] = useState(false)
 
@@ -276,6 +343,7 @@ export function ActivityTree({
                 depth={0}
                 siblingIndex={index}
                 siblingCount={tree.length}
+                activities={activities}
                 selectedActivityId={selectedActivityId}
                 onSelect={onSelect}
                 actions={actions}
@@ -289,15 +357,42 @@ export function ActivityTree({
 
       {adding ? (
         <InlineNameForm
+          error={addError}
           onSave={(name) => {
+            // Found in code review: a top-level activity's name has to be
+            // unique across the WHOLE user, not just this tile — two
+            // different top-level activities in two different tiles sharing
+            // a name used to silently corrupt which one a real log actually
+            // attached to (`catalogIdForName`/`liveCardsByName` are both
+            // plain name-keyed maps spanning every tile). This client-side
+            // check is what actually stops it in normal use; the database
+            // itself now also enforces it
+            // (`activities_top_level_name_per_user_idx`) as the safety net
+            // behind this, per rule 1.
+            if (isTopLevelNameTaken(activities, name)) {
+              setAddError(`You already have a top-level activity named "${name}" — pick a different name.`)
+              return
+            }
+            setAddError(null)
             const created = actions.addActivity({ name, tileId })
             onSelect(created.id)
             setAdding(false)
           }}
-          onCancel={() => setAdding(false)}
+          onCancel={() => {
+            setAdding(false)
+            setAddError(null)
+          }}
         />
       ) : (
-        <Button variant="outline" size="inline" onClick={() => setAdding(true)} className="self-start px-md py-sm">
+        <Button
+          variant="outline"
+          size="inline"
+          onClick={() => {
+            setAdding(true)
+            setAddError(null)
+          }}
+          className="self-start px-md py-sm"
+        >
           <Plus aria-hidden="true" className="size-[14px]" />
           <span>Add activity</span>
         </Button>
