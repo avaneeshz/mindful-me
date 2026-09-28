@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { ActivityLibraryPanel } from '@/components/activityLibrary/ActivityLibraryPanel'
 import {
   activitiesTouchingSlot,
@@ -13,41 +13,13 @@ import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
-import { catalogIdForName } from '@/api/catalog'
+import { useCatalogActivityId } from '@/state/useCatalogActivityId'
 import { useParameterOptions } from '@/state/useParameterOptions'
 import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
 import { TileRow } from './TileRow'
-
-/**
- * Resolves the staged TOP-LEVEL card's own server `activities.id` (never a
- * sub/third-level path segment — this codebase has no id resolution for
- * those at all today, only for top-level cards; see `api/catalog.ts`'s
- * `catalogIdForName`). Used purely to scope which activity's own
- * quality/symptom/flag option list (PICKER-CUSTOM-1) the modal shows —
- * `null` while unresolved (zero backend configured, not yet loaded, or a
- * name with no catalog entry) falls back to this user's own default list,
- * never blocking the modal on the network (rule 6).
- */
-function useStagedActivityId(cardName: string | null): string | null {
-  const [id, setId] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    if (!cardName) {
-      setId(null)
-      return
-    }
-    void catalogIdForName(cardName).then((resolved) => {
-      if (!cancelled) setId(resolved)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [cardName])
-  return id
-}
 
 /** How long the undo affordance stays available after a removal. */
 const UNDO_WINDOW_MS = 4000
@@ -177,7 +149,7 @@ export function SlotEditor({ state, dispatch, nowSlot, viewedDate, onOpenReflect
   // priority follow-up rather than building a full shared, multi-key cache,
   // which felt like more machinery than this feedback round's scope
   // justified.
-  const stagedActivityId = useStagedActivityId(staging.cardName)
+  const stagedActivityId = useCatalogActivityId(staging.cardName)
   const parameterOptions = useParameterOptions(stagedActivityId)
   const qualityOptions =
     parameterOptions.status === 'ready' ? parameterOptions.effective.quality.map((o) => o.label) : undefined
