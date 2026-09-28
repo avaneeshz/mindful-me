@@ -85,12 +85,6 @@ function SideNav() {
         })}
       </nav>
 
-      <div className="mt-auto hidden rounded-card border border-line/[0.07] bg-surface-1/60 p-4 xl:block">
-        <p className="text-sm font-medium text-ink">Week 39</p>
-        <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-          Mornings are your most consistent hours. Protect 7–9 AM.
-        </p>
-      </div>
     </aside>
   )
 }

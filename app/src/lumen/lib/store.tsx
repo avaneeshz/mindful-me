@@ -77,6 +77,8 @@ type Store = {
   slotItems: AxisActivity[]
   /** The first free minute inside the half-hour starting at `slot`, or null when it's full. */
   freeStartIn: (slot: number) => number | null
+  /** The first free minute at or after `minute`, wherever it falls — where a quick log starts. */
+  nextFreeFrom: (minute: number) => number
   minutesByTile: Map<string, number>
   totalLogged: number
   /** Classic's disappear rule over the Lumen day: done once logged `limit` times, or marked done by hand. */
@@ -261,6 +263,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     [axis],
   )
+  const nextFreeFrom = useCallback((minute: number) => nextFreeStart(schedulingList(axis), minute), [axis])
   const minutesByTile = useMemo(() => minutesByKey(axis, (a) => tileOf(a)?.id ?? 'other'), [axis, tileOf])
   const totalLogged = useMemo(() => loggedMinutes(axis), [axis])
 
@@ -344,8 +347,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const [logTarget, setLogTarget] = useState<LogTarget | null>(null)
   const quickLog = useCallback(() => {
-    setLogTarget({ kind: 'new', tileId: null, start: freeStartIn(selectedSlot) ?? selectedSlot })
-  }, [freeStartIn, selectedSlot])
+    setLogTarget({ kind: 'new', tileId: null, start: nextFreeFrom(selectedSlot) })
+  }, [nextFreeFrom, selectedSlot])
 
   const value: Store = {
     tab,
@@ -366,6 +369,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     axis,
     slotItems,
     freeStartIn,
+    nextFreeFrom,
     minutesByTile,
     totalLogged,
     isCardDone,

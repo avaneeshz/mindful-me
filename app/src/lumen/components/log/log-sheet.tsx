@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Circle, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { FLAGS, QUALITIES, SYMPTOMS } from '@/data/activities'
-import { displayButtonForActivityName } from '@/domain/displayButtons'
+import { displayButtonForActivityName, songCountToMinutes, WORSHIP_MINUTES_PER_SONG } from '@/domain/displayButtons'
 import { maxContiguousDuration } from '@/domain/scheduling'
 import type { ActivityCard, FieldSelections } from '@/domain/types'
 import { useCatalogActivityId } from '@/state/useCatalogActivityId'
@@ -24,8 +24,14 @@ import { useStore } from '@/lumen/lib/store'
 import { addDays, cn, formatDuration, weekdayShort } from '@/lumen/lib/utils'
 import { ReflectionsSection } from './reflections'
 
-/** What the sheet is for: a new entry (optionally from a tile, at a start on the axis), or editing one. */
-export type LogTarget = { kind: 'new'; tileId: string | null; start: number } | { kind: 'edit'; id: string }
+/**
+ * What the sheet is for: a new entry (optionally from a tile, or straight to
+ * one activity — a header button's quick log — at a start on the axis), or
+ * editing one.
+ */
+export type LogTarget =
+  | { kind: 'new'; tileId: string | null; start: number; cardName?: string }
+  | { kind: 'edit'; id: string }
 
 const QUICK_DURATIONS = [15, 30, 45, 60, 120]
 const DEFAULT_DURATION = 30
@@ -87,7 +93,17 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
     }
     setSubmitting(false)
     if (target.kind === 'new') {
-      setDraft({ tileId: target.tileId, cardName: null, path: [], start: target.start, duration: DEFAULT_DURATION, ...emptyDetails })
+      // Straight to one activity (a header button): find the tile it lives in.
+      const home = target.cardName ? allTiles.find((t) => t.cards.some((c) => c.name === target.cardName)) : undefined
+      const room = maxContiguousDuration(schedulingList(axis), target.start, null, LUMEN_AXIS_BOUNDS)
+      setDraft({
+        tileId: home?.id ?? target.tileId,
+        cardName: home ? target.cardName! : null,
+        path: [],
+        start: target.start,
+        duration: Math.max(1, Math.min(DEFAULT_DURATION, room || DEFAULT_DURATION)),
+        ...emptyDetails,
+      })
       setShowDetails(false)
       return
     }
@@ -134,6 +150,8 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
   const configured = draft?.cardName ? displayButtonForActivityName(draft.cardName) : undefined
   const secondaryNoteLabel = configured?.noteFields?.find((f) => f.fieldKind === 'text' && f.key === 'secondary')?.label
   const multiselectFields = (configured?.noteFields ?? []).filter((f) => f.fieldKind === 'multiselect')
+  // Counted in songs (Worship): the duration is songs × minutes-per-song.
+  const bySongs = configured?.input === 'songCount'
 
   // Room: the same continuous-block ceiling every placement is validated against.
   const list = useMemo(() => schedulingList(axis), [axis])
@@ -360,13 +378,31 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
                   value={axisClock(draft.start)}
                   onChange={(clock) => set({ start: axisFromClock(clock) })}
                 />
-                <TimeField
-                  label="End"
-                  value={axisClock(draft.start + draft.duration)}
-                  hint={endsNextDay ? weekdayShort(addDays(day, 1)) : undefined}
-                  onChange={(clock) => set({ duration: durationToClock(draft.start, clock) })}
-                />
+                {bySongs ? (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-ink-muted">Songs</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={Math.max(1, Math.round(draft.duration / WORSHIP_MINUTES_PER_SONG))}
+                      onChange={(e) => {
+                        const minutes = songCountToMinutes(Number.parseInt(e.target.value, 10))
+                        if (minutes !== null) set({ duration: minutes })
+                      }}
+                      className="h-11 rounded-control border border-line/[0.09] bg-surface-2/60 px-3.5 text-[15px] tabular text-ink focus-visible:border-accent-ink/60"
+                    />
+                  </label>
+                ) : (
+                  <TimeField
+                    label="End"
+                    value={axisClock(draft.start + draft.duration)}
+                    hint={endsNextDay ? weekdayShort(addDays(day, 1)) : undefined}
+                    onChange={(clock) => set({ duration: durationToClock(draft.start, clock) })}
+                  />
+                )}
               </div>
+              {!bySongs && (
               <div role="group" aria-label="Duration" className="flex flex-wrap gap-2">
                 {QUICK_DURATIONS.map((m) => (
                   <button
@@ -386,6 +422,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
                   </button>
                 ))}
               </div>
+              )}
               <p className={cn('text-sm', problem ? 'text-danger' : 'text-ink-faint')} role={problem ? 'alert' : undefined}>
                 {problem ?? `${formatDuration(draft.duration)}${ceiling < 24 * 60 ? ` · up to ${formatDuration(ceiling)} free here` : ''}`}
               </p>
