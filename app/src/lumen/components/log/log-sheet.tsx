@@ -132,11 +132,20 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target])
 
+  // The entry being edited vanished (removed elsewhere, then synced in): nothing left to edit.
+  const editVanished = target?.kind === 'edit' && editing === null
+  useEffect(() => {
+    if (editVanished) onClose()
+  }, [editVanished, onClose])
+
   const tile: LumenTile | undefined = allTiles.find((t) => t.id === draft?.tileId)
   const card = tile?.cards.find((c) => c.name === draft?.cardName)
   const node = nodeAt(card, draft?.path ?? [])
   const atLeaf = Boolean(draft?.cardName) && (editing !== null || (node !== undefined && !node.children?.length))
-  const step: 'tile' | 'activity' | 'details' = !draft || !tile ? 'tile' : !atLeaf ? 'activity' : 'details'
+  // Editing always shows the entry itself — even one whose activity has
+  // since been renamed or deleted from the catalog (it keeps its own name).
+  const step: 'tile' | 'activity' | 'details' =
+    draft && editing ? 'details' : !draft || !tile ? 'tile' : !atLeaf ? 'activity' : 'details'
 
   // The person's own option lists for this activity; the built-in defaults until they load.
   const catalogId = useCatalogActivityId(draft?.cardName ?? null)
