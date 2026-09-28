@@ -62,19 +62,28 @@ export function MenuItem({
   children,
   hint,
   onSelect,
+  disabled,
+  tone,
 }: {
   icon?: LucideIcon
   children: ReactNode
   hint?: ReactNode
   onSelect?: () => void
+  disabled?: boolean
+  /** `danger` for destructive actions (delete). */
+  tone?: 'danger'
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-sm text-ink transition-colors hover:bg-white/[0.05] active:bg-white/[0.08]"
+      disabled={disabled}
+      className={cn(
+        'flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-sm transition-colors hover:bg-white/[0.05] active:bg-white/[0.08] disabled:pointer-events-none disabled:opacity-40',
+        tone === 'danger' ? 'text-danger' : 'text-ink',
+      )}
     >
-      {Icon && <Icon className="h-4 w-4 text-ink-muted" />}
+      {Icon && <Icon className={cn('h-4 w-4', tone === 'danger' ? 'text-danger' : 'text-ink-muted')} />}
       <span className="flex-1">{children}</span>
       {hint && <span className="text-xs text-ink-faint">{hint}</span>}
     </button>

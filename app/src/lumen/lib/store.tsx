@@ -37,6 +37,9 @@ import { formatDuration, fromKey } from './utils'
 
 export type Tab = 'today' | 'calendar' | 'insights' | 'more'
 
+/** Which page of Settings is showing: the list itself, or one of its editors. */
+export type SettingsView = 'root' | 'library' | 'buttons'
+
 export type Toast = { id: string; message: string; action?: { label: string; run: () => void } }
 
 /** One half-hour on the strips. */
@@ -48,6 +51,9 @@ const DEFAULT_SLOT = 9 * 60
 type Store = {
   tab: Tab
   setTab: (t: Tab) => void
+  settingsView: SettingsView
+  /** Opens Settings at one of its pages. */
+  openSettings: (view: SettingsView) => void
 
   /** The viewed Lumen day, `YYYY-MM-DD` — it runs 06:00 on this date to 06:00 the next. */
   day: string
@@ -187,7 +193,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const now = useClock()
   const today = lumenDayOf(now)
-  const [tab, setTab] = useState<Tab>('today')
+  const [tab, setTabState] = useState<Tab>('today')
+  const [settingsView, setSettingsView] = useState<SettingsView>('root')
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t)
+    setSettingsView('root')
+  }, [])
+  const openSettings = useCallback((view: SettingsView) => {
+    setTabState('more')
+    setSettingsView(view)
+  }, [])
   const [day, setDayState] = useState(today)
   const isToday = day === today
 
@@ -353,6 +368,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value: Store = {
     tab,
     setTab,
+    settingsView,
+    openSettings,
     day,
     setDay,
     today,

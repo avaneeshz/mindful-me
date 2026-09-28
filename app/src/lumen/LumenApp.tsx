@@ -36,7 +36,7 @@ export default function LumenApp() {
 }
 
 function LumenScreens() {
-  const { tab, quickLog, logTarget, openLog } = useStore()
+  const { tab, settingsView, quickLog, logTarget, openLog } = useStore()
 
   // "L" opens quick log from anywhere (desktop affordance shown in the sidebar).
   useEffect(() => {
@@ -58,7 +58,7 @@ function LumenScreens() {
     return () => window.removeEventListener('keydown', onKey)
   }, [quickLog])
 
-  useEffect(() => window.scrollTo({ top: 0 }), [tab])
+  useEffect(() => window.scrollTo({ top: 0 }), [tab, settingsView])
 
   const Screen = { today: TodayScreen, calendar: CalendarScreen, insights: InsightsScreen, more: MoreScreen }[tab]
 

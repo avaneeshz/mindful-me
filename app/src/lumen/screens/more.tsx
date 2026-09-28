@@ -1,17 +1,22 @@
-import { ChevronRight, LayoutGrid, LogOut, Palette, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, Eye, LayoutGrid, LogOut, Rows3, Shapes, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Segmented } from '@/lumen/components/ui/primitives'
 import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
+import { ButtonsScreen } from './settings/buttons'
+import { LibraryScreen } from './settings/library'
 import { useLumenAccount } from '@/lumen/lib/account'
 import { useInterfaceMode } from '@/state/InterfaceContext'
 import type { InterfaceMode } from '@/lib/interfaceMode'
 import { useStore } from '@/lumen/lib/store'
 
 export function MoreScreen() {
-  const { allTiles, hiddenTiles } = useStore()
+  const { allTiles, hiddenTiles, settingsView, openSettings, headerButtons } = useStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const { mode, setMode } = useInterfaceMode()
   const { signedIn, email, firstName, initials, signOut } = useLumenAccount()
+
+  if (settingsView === 'library') return <LibraryScreen onBack={() => openSettings('root')} />
+  if (settingsView === 'buttons') return <ButtonsScreen onBack={() => openSettings('root')} />
 
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col gap-6">
@@ -57,11 +62,25 @@ export function MoreScreen() {
         </div>
       </Group>
 
-      <Group title="Today">
+      <Group title="Your setup">
         <Row
-          icon={Palette}
-          label="Tiles"
-          hint="Choose which tiles show on Today"
+          icon={Shapes}
+          label="Tiles & activities"
+          hint="Add, rename, reorder, colour; options when logging"
+          value={`${allTiles.length}`}
+          onClick={() => openSettings('library')}
+        />
+        <Row
+          icon={Rows3}
+          label="Header buttons"
+          hint="Quick logs, day values, checklists and notes"
+          value={`${headerButtons.visible.length}`}
+          onClick={() => openSettings('buttons')}
+        />
+        <Row
+          icon={Eye}
+          label="Tiles on Today"
+          hint="Tidy this screen without changing the tiles themselves"
           value={`${allTiles.length - hiddenTiles.filter((id) => allTiles.some((t) => t.id === id)).length} of ${allTiles.length}`}
           onClick={() => setCustomizeOpen(true)}
         />
