@@ -10,21 +10,44 @@ import type { HealthMetricPoint } from '@/api/healthSync'
  * dataviz skill's own exception for exactly this case.
  */
 
-interface ChartRow {
+export interface ChartRow {
   label: string
   value: number
 }
 
-function toChartRows(points: HealthMetricPoint[], meta: HealthDataTypeMeta): ChartRow[] {
-  return points
-    .map((p) => {
-      const value = meta.toChartValue(p.value, p.unit)
-      if (value === null) return null
-      const date = new Date(p.recordedAt)
-      const label = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-      return { label, value }
-    })
-    .filter((r): r is ChartRow => r !== null)
+function dayKey(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Chart rows for a data type. Types that store several points per day
+ * (`dayAggregate` other than `'none'`) are collapsed into one row per day so
+ * a day with ten readings is one bar/point, not ten crowded on one label.
+ */
+export function toChartRows(points: HealthMetricPoint[], meta: HealthDataTypeMeta): ChartRow[] {
+  const values = points
+    .map((p) => ({ at: p.recordedAt, value: meta.toChartValue(p.value, p.unit) }))
+    .filter((p): p is { at: string; value: number } => p.value !== null)
+
+  const label = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+  if (meta.dayAggregate === 'none') return values.map((p) => ({ label: label(p.at), value: p.value }))
+
+  const byDay = new Map<string, { at: string; sum: number; n: number }>()
+  for (const p of values) {
+    const key = dayKey(p.at)
+    const entry = byDay.get(key) ?? { at: p.at, sum: 0, n: 0 }
+    entry.sum += p.value
+    entry.n += 1
+    byDay.set(key, entry)
+  }
+  return [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([, e]) => ({
+      label: label(e.at),
+      value: meta.dayAggregate === 'avg' ? Math.round((e.sum / e.n) * 10) / 10 : e.sum,
+    }))
 }
 
 function ChartTooltip({ active, payload, meta }: { active?: boolean; payload?: any[]; meta: HealthDataTypeMeta }) {
