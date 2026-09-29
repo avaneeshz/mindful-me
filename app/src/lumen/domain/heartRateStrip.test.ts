@@ -10,21 +10,21 @@ function localRow(y: number, m: number, d: number, points: Array<[number, number
 const S = (minute: number, bpm: number): HeartSample => ({ minute, bpm })
 
 describe('heartRateOnAxis', () => {
-  it('averages readings into 5-minute buckets', () => {
+  it('keeps one point per minute, not an average over several minutes', () => {
     const row = localRow(2026, 5, 10, [[360, 60], [361, 62], [364, 64], [365, 70]])
-    expect(heartRateOnAxis([row], '2026-05-10')).toEqual([S(360, 62), S(365, 70)])
+    expect(heartRateOnAxis([row], '2026-05-10')).toEqual([S(360, 60), S(361, 62), S(364, 64), S(365, 70)])
   })
 
   it('drops readings outside 06:00 -> 06:00', () => {
     const row = localRow(2026, 5, 10, [[359, 60], [360, 61], [1439, 62]])
-    expect(heartRateOnAxis([row], '2026-05-10').map((s) => s.minute)).toEqual([360, 1435])
+    expect(heartRateOnAxis([row], '2026-05-10').map((s) => s.minute)).toEqual([360, 1439])
   })
 
   it('night spans two calendar rows', () => {
     const a = localRow(2026, 5, 10, [[1200, 55], [1439, 50]])
     const b = localRow(2026, 5, 11, [[0, 51], [359, 58], [360, 90]])
     const out = heartRateOnAxis([b, a], '2026-05-10')
-    expect(out.map((s) => s.minute)).toEqual([1200, 1435, 1440, 1795])
+    expect(out.map((s) => s.minute)).toEqual([1200, 1439, 1440, 1799])
     expect(out[3].bpm).toBe(58)
   })
 
@@ -34,7 +34,7 @@ describe('heartRateOnAxis', () => {
     const at = new Date(Date.parse(row.recordedAt) + 420 * 60_000)
     const expected = (Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) - Date.UTC(2026, 4, 10)) / 60_000 + at.getHours() * 60 + at.getMinutes()
     const out = heartRateOnAxis([row], '2026-05-10')
-    if (expected >= 360 && expected < 1800) expect(out).toEqual([S(Math.floor(expected / 5) * 5, 70)])
+    if (expected >= 360 && expected < 1800) expect(out).toEqual([S(expected, 70)])
     else expect(out).toEqual([])
   })
 
