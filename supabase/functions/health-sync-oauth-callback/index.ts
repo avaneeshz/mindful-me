@@ -2,7 +2,6 @@
 import { handleCorsPreflight, jsonResponse } from '../_shared/cors.ts'
 import { serviceRoleClient, verifyUser } from '../_shared/supabaseClients.ts'
 import { ALL_HEALTH_SCOPES, GOOGLE_HEALTH_PROVIDER, GOOGLE_OAUTH_TOKEN_ENDPOINT } from '../_shared/googleHealth.ts'
-import { runHealthSync } from '../_shared/runHealthSync.ts'
 
 /**
  * POST { code, redirectUri }, Authorization: Bearer <the signed-in user's
@@ -90,18 +89,12 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'store_failed', message: storeError.message }, 500)
   }
 
-  // Best effort — a failed first sync (a Google hiccup, a data type with no
-  // data yet) must never make the connect flow itself look like it failed.
-  // The scheduled/manual sync endpoint will pick it back up.
-  let firstSync: { ok: boolean; pointsSynced?: number } = { ok: false }
-  try {
-    firstSync = await runHealthSync(admin, user.id, clientId, clientSecret)
-  } catch (err) {
-    console.warn('[health-sync-oauth-callback] first sync failed:', err instanceof Error ? err.message : err)
-  }
-
+  // No sync here. A first sync pulls a lot of data and used to run inside
+  // this request, which could exhaust the function's memory and turn a
+  // successful sign-in into a 502. The connection is stored; the page starts
+  // the first sync itself right after it lands (health-sync-sync).
   return jsonResponse(
-    { ok: true, scopes: grantedScopes, firstSync },
+    { ok: true, scopes: grantedScopes },
     200,
   )
 })
