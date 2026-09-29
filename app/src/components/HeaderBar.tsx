@@ -267,7 +267,6 @@ function DatePill({
   onSelectDate: (date: Date) => void
 }) {
   const [open, setOpen] = useState(false)
-  const navigate = useNavigate()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -326,6 +325,7 @@ function DatePill({
 
 function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 

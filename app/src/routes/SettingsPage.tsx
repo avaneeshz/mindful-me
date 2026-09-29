@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Activity, ChevronRight, HeartPulse, Loader2, Plus, Route as RouteIcon, Watch, type LucideIcon } from 'lucide-react'
+import { ChevronRight, HeartPulse, Loader2, Plus, Watch, type LucideIcon } from 'lucide-react'
 import { apiGetHealthConnectionStatus, type HealthConnectionStatus } from '@/api/healthSync'
 import { availableDeviceProviders, type DeviceProvider } from '@/domain/deviceProviders'
 import { buttonVariants } from '@/components/ui/button'
@@ -10,8 +10,6 @@ import { cn } from '@/lib/utils'
 /** Icon per provider — kept here (not in the pure domain module) since it's a rendering concern. */
 export const PROVIDER_ICONS: Record<string, LucideIcon> = {
   google_health: HeartPulse,
-  whoop: Activity,
-  strava: RouteIcon,
 }
 
 export function providerIcon(id: string): LucideIcon {

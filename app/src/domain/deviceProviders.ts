@@ -30,28 +30,12 @@ export interface DeviceProvider {
 export const DEVICE_PROVIDERS: DeviceProvider[] = [
   {
     id: 'google_health',
-    name: 'Google Health',
-    description: 'Steps, sleep, heart rate and more from your Fitbit or Pixel Watch account.',
+    name: 'Fitbit & Google Health',
+    description: 'Steps, sleep, heart rate and more from your Fitbit or Pixel Watch, through your Google account.',
     signInWith: 'Google account',
     worksWith: ['Fitbit', 'Pixel Watch', 'Google Health app'],
     availability: 'available',
     route: '/health-sync',
-  },
-  {
-    id: 'whoop',
-    name: 'Whoop',
-    description: 'Recovery, strain and sleep from your Whoop strap.',
-    signInWith: 'Whoop account',
-    worksWith: ['Whoop 4.0', 'Whoop 5.0'],
-    availability: 'coming_soon',
-  },
-  {
-    id: 'strava',
-    name: 'Strava',
-    description: 'Runs, rides and workouts recorded in Strava, whichever watch logged them.',
-    signInWith: 'Strava account',
-    worksWith: ['Strava app', 'Most sports watches'],
-    availability: 'coming_soon',
   },
 ]
 
