@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, HeartPulse, Loader2, RefreshCw, RotateCcw, Unplug } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, HeartPulse, Loader2, RefreshCw, RotateCcw, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { HealthMetricChart } from '@/components/healthsync/HealthMetricChart'
-import { apiListHealthMetrics, type HealthMetricPoint } from '@/api/healthSync'
-import { healthDataTypeMeta } from '@/domain/healthMetrics'
+import { AccountCard } from '@/components/healthsync/AccountCard'
+import { HealthTypeCard } from '@/components/healthsync/HealthTypeCard'
+import { HeartRateDayCard } from '@/components/healthsync/HeartRateDayCard'
+import { HEALTH_GROUPS, healthDataTypeMeta } from '@/domain/healthMetrics'
 import { useHealthConnection } from '@/state/useHealthConnection'
 import { formatRelativeTime } from '@/lib/relativeTime'
 import { cn } from '@/lib/utils'
-
-const RECENT_WINDOW_DAYS = 30
 
 /**
  * Read-only Health Sync dashboard — Phase-agnostic new feature, entirely
@@ -39,32 +38,8 @@ export function HealthSyncPage() {
 
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
 
-  const [expandedType, setExpandedType] = useState<string | null>(null)
-  const [pointsByType, setPointsByType] = useState<Record<string, HealthMetricPoint[]>>({})
-  const [pointsLoadingType, setPointsLoadingType] = useState<string | null>(null)
-
   async function handleDisconnect() {
-    if (await disconnect()) {
-      setPointsByType({})
-      setExpandedType(null)
-      setConfirmingDisconnect(false)
-    }
-  }
-
-  async function handleToggleExpand(dataType: string) {
-    if (expandedType === dataType) {
-      setExpandedType(null)
-      return
-    }
-    setExpandedType(dataType)
-    if (!pointsByType[dataType]) {
-      setPointsLoadingType(dataType)
-      const end = new Date()
-      const start = new Date(end.getTime() - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-      const rows = await apiListHealthMetrics(dataType, start, end)
-      setPointsByType((prev) => ({ ...prev, [dataType]: rows ?? [] }))
-      setPointsLoadingType(null)
-    }
+    if (await disconnect()) setConfirmingDisconnect(false)
   }
 
   // ---------------------------------------------------------------------
@@ -169,6 +144,9 @@ export function HealthSyncPage() {
   }
 
   // status.status === 'connected'
+  // Changes whenever a sync lands, so the cards below re-read their data.
+  const refreshKey = status.lastSyncedAt ? Date.parse(status.lastSyncedAt) : 0
+
   return (
     <PageShell>
       <div className="flex flex-wrap items-start justify-between gap-lg">
@@ -223,7 +201,7 @@ export function HealthSyncPage() {
         </p>
       ) : null}
 
-      <div className="mt-2xl">
+      <div className="mt-2xl flex flex-col gap-2xl">
         {summariesLoading ? (
           <div className="flex items-center justify-center py-3xl text-ink-dim">
             <Loader2 aria-hidden="true" className="size-[20px] animate-spin" />
@@ -241,48 +219,47 @@ export function HealthSyncPage() {
             </Button>
           </EmptyStateCard>
         ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-lg mobile:grid-cols-1">
-            {summaries.map((summary) => {
-              const meta = healthDataTypeMeta(summary.dataType)
-              const isExpanded = expandedType === summary.dataType
-              const points = pointsByType[summary.dataType]
-              const isLoadingPoints = pointsLoadingType === summary.dataType
+          <>
+            <HeartRateDayCard key={`hr-${refreshKey}`} refreshKey={refreshKey} />
+            {HEALTH_GROUPS.map((group) => {
+              // The full-day heart-rate view above already covers its own type.
+              const inGroup = summaries.filter((s) => {
+                const meta = healthDataTypeMeta(s.dataType)
+                return meta.group === group.id && meta.view !== 'intraday'
+              })
               return (
-                <li key={summary.dataType} className="rounded-md border border-line-soft bg-surface p-lg">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleExpand(summary.dataType)}
-                    aria-expanded={isExpanded}
-                    className="flex w-full items-center justify-between gap-md text-left"
-                  >
-                    <div>
-                      <div className="text-body font-semibold text-ink">{meta.label}</div>
-                      <div className="mt-xs text-caption text-ink-dim">
-                        {summary.pointCountRecent} point{summary.pointCountRecent === 1 ? '' : 's'} in the last 30 days
-                        {summary.latestRecordedAt ? ` · latest ${formatRelativeTime(summary.latestRecordedAt)}` : ''}
-                      </div>
-                    </div>
-                    <ChevronDown
-                      aria-hidden="true"
-                      className={cn('size-[18px] shrink-0 text-ink-dim transition-transform', isExpanded && 'rotate-180')}
-                    />
-                  </button>
-                  {isExpanded ? (
-                    <div className="mt-lg">
-                      {isLoadingPoints ? (
-                        <div className="flex h-[180px] items-center justify-center text-ink-dim">
-                          <Loader2 aria-hidden="true" className="size-[20px] animate-spin" />
-                          <span className="sr-only">Loading {meta.label}…</span>
-                        </div>
-                      ) : (
-                        <HealthMetricChart points={points ?? []} meta={meta} />
-                      )}
-                    </div>
-                  ) : null}
-                </li>
+                <section key={group.id} aria-labelledby={`group-${group.id}`}>
+                  <h2 id={`group-${group.id}`} className="text-body font-semibold text-ink">
+                    {group.label}
+                  </h2>
+                  <p className="mt-xs text-caption text-ink-dim">{group.blurb}</p>
+                  {inGroup.length === 0 ? (
+                    <p className="mt-md rounded-md border border-dashed border-line px-lg py-md text-caption text-ink-dim">
+                      {group.id === 'location'
+                        ? 'Nothing to show. Location is only used when an exercise route is exported.'
+                        : 'Nothing from your device yet. Not every device records this.'}
+                    </p>
+                  ) : (
+                    <ul className="mt-md grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] items-start gap-lg mobile:grid-cols-1">
+                      {inGroup.map((summary) => {
+                        const meta = healthDataTypeMeta(summary.dataType)
+                        return meta.view === 'account' ? (
+                          <AccountCard
+                            key={`${summary.dataType}-${refreshKey}`}
+                            dataType={summary.dataType as 'profile' | 'settings'}
+                            title={meta.label}
+                            refreshKey={refreshKey}
+                          />
+                        ) : (
+                          <HealthTypeCard key={`${summary.dataType}-${refreshKey}`} summary={summary} />
+                        )
+                      })}
+                    </ul>
+                  )}
+                </section>
               )
             })}
-          </ul>
+          </>
         )}
       </div>
     </PageShell>

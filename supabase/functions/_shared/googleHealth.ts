@@ -6,6 +6,8 @@
  * frontend's authorize-URL builder) read from one source of truth.
  */
 
+import { toKebab, type FilterKind } from './healthTypes.ts'
+
 export const GOOGLE_HEALTH_BASE_URL = 'https://health.googleapis.com/v4/'
 export const GOOGLE_OAUTH_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 export const GOOGLE_OAUTH_AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -100,12 +102,43 @@ interface ListDataType {
   unboundedEnd?: boolean
 }
 
+/**
+ * A data type this app doesn't hand-map: the list endpoint is queried with
+ * the filter family its points use, and the points are stored as the API sent
+ * them (`mode: 'raw'`, one row per point) or rolled into one row per local day
+ * (`mode: 'daily'`, for types that emit a point every minute or so).
+ */
+interface GenericDataType {
+  kind: 'generic'
+  /** The camelCase `DataPoint` field this type lives under — the id and filter names derive from it. */
+  field: string
+  filter: FilterKind
+  mode: 'raw' | 'daily'
+  /** `daily` only: a numeric field (dotted path) whose per-day sum is worth keeping. */
+  sumPath?: string
+  /** How far back repeat syncs walk. Kept short for chatty types. */
+  maxBackfillDays: number
+}
+
+/** A full day of heart-rate readings, reduced to one per minute — see `reduceHeartRateDay`. */
+interface IntradayHeartRateDataType {
+  kind: 'intraday-hr'
+  /** How many recent local days each sync refreshes. */
+  days: number
+}
+
+/** A one-off account document rather than a series: `users/me/profile` or `users/me/settings`. */
+interface AccountDataType {
+  kind: 'account'
+  path: 'profile' | 'settings'
+}
+
 export interface DataTypeConfig {
   /** Kebab-case Google Health data type id — also this app's `health_metrics.data_type`. */
   id: string
   label: string
   scope: HealthScopeCategory
-  spec: RollupDataType | ListDataType
+  spec: RollupDataType | ListDataType | GenericDataType | IntradayHeartRateDataType | AccountDataType
 }
 
 function num(v: unknown): number | null {
@@ -303,6 +336,72 @@ export const DATA_TYPES: DataTypeConfig[] = [
       },
     },
   },
+
+  // ---------------------------------------------------------------------
+  // Everything else the API exposes for the scopes this app requests.
+  // Field names and time shapes are from the client's `v4.ts`; the
+  // permission group each belongs to is our best reading of it — a type whose
+  // group wasn't granted is simply skipped, and one Google rejects fails soft
+  // (see `runHealthSync`'s per-type try/catch).
+  // ---------------------------------------------------------------------
+  {
+    id: 'heart-rate-intraday',
+    label: 'Heart rate through the day',
+    scope: 'health_metrics_and_measurements',
+    spec: { kind: 'intraday-hr', days: 14 },
+  },
+  ...[
+    // activity_and_fitness — a point per minute or so, so rolled into days.
+    ['activeEnergyBurned', 'activity_and_fitness', 'interval', 'daily', 'kcal'],
+    ['basalEnergyBurned', 'activity_and_fitness', 'interval', 'daily', 'kcal'],
+    ['activeMinutes', 'activity_and_fitness', 'interval', 'daily'],
+    ['activityLevel', 'activity_and_fitness', 'interval', 'daily'],
+    ['activeZoneMinutes', 'activity_and_fitness', 'interval', 'daily', 'activeZoneMinutes'],
+    ['sedentaryPeriod', 'activity_and_fitness', 'interval', 'daily'],
+    ['swimLengthsData', 'activity_and_fitness', 'interval', 'daily', 'strokeCount'],
+    ['timeInHeartRateZone', 'activity_and_fitness', 'interval', 'daily'],
+    // health_metrics_and_measurements
+    ['bloodGlucose', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['bodyFat', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['coreBodyTemperature', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['heartRateVariability', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['height', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['oxygenSaturation', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['respiratoryRateSleepSummary', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['runVo2Max', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['vo2Max', 'health_metrics_and_measurements', 'sample', 'raw'],
+    ['dailyHeartRateVariability', 'health_metrics_and_measurements', 'date', 'raw'],
+    ['dailyHeartRateZones', 'health_metrics_and_measurements', 'date', 'raw'],
+    ['dailyOxygenSaturation', 'health_metrics_and_measurements', 'date', 'raw'],
+    ['dailyRespiratoryRate', 'health_metrics_and_measurements', 'date', 'raw'],
+    ['dailyRestingHeartRate', 'health_metrics_and_measurements', 'date', 'raw'],
+    ['dailySleepTemperatureDerivations', 'health_metrics_and_measurements', 'date', 'raw'],
+    ['dailyVo2Max', 'health_metrics_and_measurements', 'date', 'raw'],
+    // irn / logged_symptoms / mindfulness / reproductive_health
+    ['irregularRhythmNotification', 'irn', 'interval', 'raw'],
+    ['symptoms', 'logged_symptoms', 'sample', 'raw'],
+    ['moods', 'mindfulness', 'sample', 'raw'],
+    ['menstrualPeriod', 'reproductive_health', 'interval', 'raw'],
+    ['ovulationTest', 'reproductive_health', 'sample', 'raw'],
+  ].map(
+    ([field, scope, filter, mode, sumPath]): DataTypeConfig => ({
+      id: toKebab(field),
+      label: toKebab(field).replace(/-/g, ' '),
+      scope: scope as HealthScopeCategory,
+      spec: {
+        kind: 'generic',
+        field,
+        filter: filter as FilterKind,
+        mode: mode as 'raw' | 'daily',
+        sumPath,
+        maxBackfillDays: mode === 'daily' || filter === 'sample' ? 30 : 90,
+      },
+    }),
+  ),
+  // The two account documents. `profile`/`settings` are their own permission
+  // groups, and there is nothing to chart — one snapshot row per day.
+  { id: 'profile', label: 'Profile', scope: 'profile', spec: { kind: 'account', path: 'profile' } },
+  { id: 'settings', label: 'Settings', scope: 'settings', spec: { kind: 'account', path: 'settings' } },
 ]
 
 /** `YYYY-MM-DDTHH:mm:ss` (no trailing `Z`) — the civil-time literal format `interval.civil_start_time` filters expect. */
