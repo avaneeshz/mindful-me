@@ -7,6 +7,8 @@ import { AuthScreen } from '@/components/auth/AuthScreen'
 import { TodayPage } from '@/routes/TodayPage'
 import { HealthSyncPage } from '@/routes/HealthSyncPage'
 import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
+import { SettingsPage } from '@/routes/SettingsPage'
+import { AddDevicePage } from '@/routes/AddDevicePage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { ThemeProvider } from '@/state/ThemeContext'
@@ -126,8 +128,11 @@ function AuthedApp({ now }: { now?: Date }) {
                 <Route path="/" element={<TodayPage />} />
                 <Route path="/health-sync" element={<HealthSyncPage />} />
                 <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/devices/add" element={<AddDevicePage />} />
                 {/*
-                  "Today" and "Health Sync" are the only built screens. The
+                  "Today", "Health Sync" and "Settings" (with its Add device
+                  picker) are the only built screens. The
                   remaining sidebar entries are placeholders with no
                   destination, exactly as they are today.
                 */}

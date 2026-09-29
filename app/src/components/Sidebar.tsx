@@ -57,7 +57,7 @@ const NAV_REST: NavEntry[] = [
   // connecting a third-party health account is its own concern, not app
   // configuration.
   { label: 'Health Sync', icon: HeartPulse, to: '/health-sync' },
-  { label: 'Settings', icon: Settings },
+  { label: 'Settings', icon: Settings, to: '/settings' },
 ]
 
 const navItemClass =
@@ -74,7 +74,7 @@ function renderNavEntry({ label, icon: Icon, to }: NavEntry, onNavigate: () => v
       <NavLink
         key={label}
         to={to}
-        end
+        end={to === '/'}
         className={({ isActive }) => cn(navItemClass, isActive && 'bg-ink/10 font-semibold text-ink')}
         onClick={onNavigate}
         title={label}
