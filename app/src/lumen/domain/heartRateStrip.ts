@@ -21,7 +21,8 @@ export interface HeartSample {
   bpm: number
 }
 
-export const BUCKET_MINUTES = 5
+/** One point per minute — the resolution the sync stores. Readings landing on the same minute are averaged. */
+export const BUCKET_MINUTES = 1
 /** Consecutive buckets further apart than this are a gap: the line breaks there. */
 export const GAP_MINUTES = 10
 export const STRIP_SPAN = 720
@@ -33,7 +34,7 @@ export interface HeartRateRow {
 }
 
 /**
- * One 5-minute-bucket average per bucket across the whole Lumen day
+ * One point per minute (the stored per-minute reading) across the whole Lumen day
  * (axis 360 -> 1800), sorted by time. Bad rows and readings are skipped.
  */
 export function heartRateOnAxis(rows: readonly HeartRateRow[] | null | undefined, dayISO: string): HeartSample[] {
