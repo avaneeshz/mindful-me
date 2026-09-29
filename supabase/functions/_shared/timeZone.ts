@@ -8,11 +8,43 @@
 
 const FALLBACK_TZ = 'UTC'
 
+// Building an Intl.DateTimeFormat is expensive and these run once per reading
+// (tens of thousands per sync), so each zone's formatters are built once.
+const partsFormatters = new Map<string, Intl.DateTimeFormat>()
+const dateKeyFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function partsFormatter(tz: string): Intl.DateTimeFormat {
+  let f = partsFormatters.get(tz)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    partsFormatters.set(tz, f)
+  }
+  return f
+}
+
+function dateKeyFormatter(tz: string): Intl.DateTimeFormat {
+  let f = dateKeyFormatters.get(tz)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+    dateKeyFormatters.set(tz, f)
+  }
+  return f
+}
+
 /** `tz` if `Intl` accepts it, otherwise UTC — a bad zone must never fail a sync. */
 export function safeTimeZone(tz: string | null | undefined): string {
   if (!tz) return FALLBACK_TZ
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    dateKeyFormatter(tz)
     return tz
   } catch {
     return FALLBACK_TZ
@@ -21,16 +53,7 @@ export function safeTimeZone(tz: string | null | undefined): string {
 
 /** Milliseconds `tz` is ahead of UTC at the instant `utcMs` (negative when behind). */
 export function tzOffsetMs(utcMs: number, tz: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date(utcMs))
+  const parts = partsFormatter(tz).formatToParts(new Date(utcMs))
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value)
   const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
   return asUtc - Math.floor(utcMs / 1000) * 1000
@@ -53,9 +76,7 @@ export function localMidnightUtc({ year, month, day }: Ymd, tz: string): number 
 
 /** `YYYY-MM-DD` of the local calendar day containing `utcMs`. */
 export function localDateKey(utcMs: number, tz: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
-    new Date(utcMs),
-  )
+  return dateKeyFormatter(tz).format(new Date(utcMs))
 }
 
 export function parseYmd(key: string): Ymd {

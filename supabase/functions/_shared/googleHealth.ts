@@ -100,6 +100,12 @@ interface ListDataType {
    * deduped work — the honest tradeoff for a data type this low-volume.
    */
   unboundedEnd?: boolean
+  /** Points per page. ECG points carry a whole waveform, so they are read a few at a time. */
+  pageSize?: number
+  /** Pages per request window (default `MAX_LIST_PAGES`). */
+  maxPages?: number
+  /** `unboundedEnd` only: how far back the lower bound sits (default a year). */
+  windowDays?: number
 }
 
 /**
@@ -318,6 +324,11 @@ export const DATA_TYPES: DataTypeConfig[] = [
       // is supported for this data type; there is no upper-bound filter.
       buildFilter: (startIso) => `electrocardiogram.interval.start_time >= "${startIso}"`,
       unboundedEnd: true,
+      // Each ECG point carries its full waveform — parsing a year of them
+      // blew the function's CPU budget. A few recent readings at a time.
+      pageSize: 20,
+      maxPages: 2,
+      windowDays: 90,
       parse: (dp) => {
         const ecg = dp.electrocardiogram as Record<string, unknown> | undefined
         if (!ecg) return null
