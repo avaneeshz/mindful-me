@@ -8,7 +8,7 @@ import { heartRateOnAxis, heartRateScale, type HeartSample } from '@/lumen/domai
 const NONE: HeartSample[] = []
 
 /**
- * The person's heart rate across one Lumen day, in 5-minute buckets on the
+ * The person's heart rate across one Lumen day, one point per minute on the
  * day's axis. Rule 8: one bounded read, local midnight of D-1 to D+2. Loading,
  * failure and local-only mode all just return no samples (no line, no spinner).
  */
