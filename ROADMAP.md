@@ -26,7 +26,7 @@ The **history** below is factual — what was actually built, in order. The **ah
 - Recurring/repeating activities.
 - External calendar sync (Google/Apple Calendar).
 - Reminders and notifications.
-- A native mobile app (the product is a responsive web app today).
+- A native mobile app (the product is a responsive web app today). Not approved, but the codebase is kept portable in the meantime: see `CLAUDE.md` → Platform Portability and the prep backlog in [`MOBILE-READINESS.md`](./MOBILE-READINESS.md).
 - AI-assisted scheduling (a deliberate product-philosophy question, not just an engineering one — mindful-me is built around the user staying in full manual control of their own schedule).
 
 Nothing in this section is committed. Raise it explicitly before it gets built.
