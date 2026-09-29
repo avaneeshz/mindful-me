@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { HeaderBar } from '@/components/HeaderBar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
+import { InterfaceErrorBoundary } from '@/components/InterfaceErrorBoundary'
 import { TodayPage } from '@/routes/TodayPage'
 import { HealthSyncPage } from '@/routes/HealthSyncPage'
 import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
@@ -93,15 +94,25 @@ function AuthGate({ now }: { now?: Date }) {
 
   // The Classic / Lumen switch (`state/InterfaceContext.tsx`). Only the
   // signed-in product differs; sign-in itself is shared.
-  if (mode === 'lumen') {
-    return (
-      <Suspense fallback={<FullScreenLoader />}>
-        <LumenApp />
-      </Suspense>
-    )
-  }
-
-  return <AuthedApp now={now} />
+  //
+  // `InterfaceErrorBoundary` (found missing in review): neither branch had
+  // anything above it to catch a render error, so a crash in either
+  // interface blanked the whole screen with no way back except a manual
+  // refresh. `key={mode}` remounts the boundary itself on every switch —
+  // on top of the boundary's own `resetKey` reset, this also guarantees a
+  // completely fresh boundary instance (not just a cleared error) each time,
+  // so a crash on one side can never linger into the other.
+  return (
+    <InterfaceErrorBoundary key={mode} resetKey={mode}>
+      {mode === 'lumen' ? (
+        <Suspense fallback={<FullScreenLoader />}>
+          <LumenApp />
+        </Suspense>
+      ) : (
+        <AuthedApp now={now} />
+      )}
+    </InterfaceErrorBoundary>
+  )
 }
 
 function FullScreenLoader() {
