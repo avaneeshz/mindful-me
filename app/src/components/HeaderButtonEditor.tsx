@@ -6,37 +6,25 @@ import { Button } from '@/components/ui/button'
 import {
   HEADER_BUTTON_CATEGORIES,
   headerButtonCategoryLabel,
-  isBlank,
   type HeaderButtonCategory,
   type HeaderButtonConfig,
 } from '@/domain/headerButtons'
-import type { CreateHeaderButtonInput, HeaderButtonNoteFieldInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
-import { ACTIVITY_CARDS, findCard } from '@/data/activities'
+import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
+import {
+  addNoteField,
+  defaultNewFieldKind,
+  MAX_TEXT_FIELDS,
+  textFieldCount as countTextFields,
+  toCreateInput,
+  toUpdateInput,
+  validateHeaderButtonDraft,
+  type FieldDraft,
+  type HeaderButtonDraft,
+} from '@/domain/headerButtonForm'
+import { ACTIVITY_CARDS, findCard, firstLevelOptionNames } from '@/data/activities'
 import { catalogIdForName } from '@/api/catalog'
+import { fieldClass, labelClass } from '@/components/ui/formField'
 import { cn } from '@/lib/utils'
-
-/** The max number of `'text'`-kind fields a button may carry — the physical
- * column limit (`scheduled_activities.notes_encrypted`/`dreams_encrypted`),
- * see `domain/headerButtons.ts`'s own doc comment. `'multiselect'` fields
- * are never capped (proper child-table storage). */
-const MAX_TEXT_FIELDS = 2
-
-/** One field row's in-progress local shape — `id` is present only for a
- * field that already exists on the server (carried through unchanged so a
- * later edit preserves its `scheduled_activity_field_selections` history);
- * a brand-new field has no `id` yet and the server assigns one on save. */
-interface FieldDraft {
-  id?: string
-  fieldKind: 'text' | 'multiselect'
-  key: 'primary' | 'secondary' | null
-  label: string
-  options: string[]
-}
-
-const fieldClass =
-  'w-full rounded-md border border-line bg-surface px-md py-sm text-body text-ink transition-colors placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-
-const labelClass = 'text-caption font-semibold text-ink-dim'
 
 /**
  * The header/home-screen "edit mode" toggle and everything it turns on —
@@ -201,12 +189,26 @@ export function HeaderButtonFormDialog({
     el?.focus()
   }, [])
 
-  const typeOptions = category === 'activity' && activityName ? (findCard(activityName)?.sub ?? []) : []
+  const typeOptions = category === 'activity' && activityName ? firstLevelOptionNames(findCard(activityName)) : []
 
-  const textFieldCount = fields.filter((f) => f.fieldKind === 'text').length
+  const textFieldCount = countTextFields(fields)
+
+  // The form's rules live in `domain/headerButtonForm.ts`, shared with Lumen's editor.
+  const draft: HeaderButtonDraft = {
+    category,
+    label,
+    activityName,
+    quickLogType,
+    quickLogTypeLabel,
+    fields,
+    dayValueUnit,
+    dayValueTarget,
+    noteTypesText,
+    checklistItemsText,
+  }
 
   function openAddField(): void {
-    setDraftKind(textFieldCount >= MAX_TEXT_FIELDS ? 'multiselect' : 'text')
+    setDraftKind(defaultNewFieldKind(fields))
     setDraftLabel('')
     setDraftOptions([''])
     setFieldError(null)
@@ -219,22 +221,12 @@ export function HeaderButtonFormDialog({
   }
 
   function confirmAddField(): void {
-    if (isBlank(draftLabel)) {
-      setFieldError('Give this field a title.')
+    const result = addNoteField(fields, { kind: draftKind, label: draftLabel, options: draftOptions })
+    if (!result.ok) {
+      setFieldError(result.error)
       return
     }
-    if (draftKind === 'text' && textFieldCount >= MAX_TEXT_FIELDS) {
-      setFieldError(`Text notes are limited to ${MAX_TEXT_FIELDS} per button.`)
-      return
-    }
-    const trimmedOptions = draftOptions.map((o) => o.trim()).filter((o) => o !== '')
-    if (draftKind === 'multiselect' && trimmedOptions.length === 0) {
-      setFieldError('Add at least one option.')
-      return
-    }
-    const key: 'primary' | 'secondary' | null =
-      draftKind === 'text' ? (fields.some((f) => f.key === 'primary') ? 'secondary' : 'primary') : null
-    setFields([...fields, { fieldKind: draftKind, key, label: draftLabel.trim(), options: trimmedOptions }])
+    setFields(result.fields)
     setIsAddingField(false)
     setFieldError(null)
   }
@@ -251,23 +243,8 @@ export function HeaderButtonFormDialog({
     setDraftOptions(draftOptions.filter((_, i) => i !== index))
   }
 
-  function validate(): string | null {
-    if (isBlank(label)) return 'Give this button a name.'
-    if (!isEdit) {
-      if (category === 'activity' && isBlank(activityName)) return 'Choose an activity to quick-log.'
-      if (category === 'day_value' && dayValueUnit === 'target' && isBlank(dayValueTarget)) {
-        return 'Set a daily target.'
-      }
-      if (category === 'checklist' && isBlank(checklistItemsText)) return 'Add at least one checklist item.'
-    }
-    if (category === 'day_value' && dayValueUnit === 'target' && isBlank(dayValueTarget)) {
-      return 'Set a daily target.'
-    }
-    return null
-  }
-
   async function handleSubmit(): Promise<void> {
-    const validationError = validate()
+    const validationError = validateHeaderButtonDraft(draft, isEdit)
     if (validationError) {
       setError(validationError)
       return
@@ -276,59 +253,14 @@ export function HeaderButtonFormDialog({
     setSubmitting(true)
     setError(null)
 
-    const noteFields: HeaderButtonNoteFieldInput[] = fields.map((f) => ({
-      id: f.id,
-      fieldKind: f.fieldKind,
-      key: f.key,
-      label: f.label,
-      options: f.fieldKind === 'multiselect' ? f.options : [],
-    }))
-    const noteTypes = noteTypesText
-      .split('\n')
-      .map((v) => v.trim())
-      .filter((v) => v !== '')
-    const checklistItems = checklistItemsText
-      .split('\n')
-      .map((v) => v.trim())
-      .filter((v) => v !== '')
-      .map((v) => ({ label: v }))
-
     if (isEdit) {
-      onUpdate({
-        id: existing!.id,
-        category,
-        label: label.trim(),
-        quickLogTypeLabel: category === 'activity' ? quickLogTypeLabel.trim() || 'Type' : null,
-        dayValueTarget: category === 'day_value' && dayValueUnit === 'target' ? Number(dayValueTarget) : null,
-        noteFields: category === 'activity' ? noteFields : null,
-        noteTypes: category === 'notes' ? noteTypes : null,
-        checklistItems:
-          category === 'checklist'
-            ? checklistItems.map((item, index) => ({ key: existing!.checklistItems[index]?.key, label: item.label }))
-            : null,
-      })
+      onUpdate(toUpdateInput(draft, existing!))
       onClose()
       return
     }
 
-    let activityId: string | null = null
-    if (category === 'activity') {
-      activityId = await catalogIdForName(activityName)
-    }
-
-    onCreate({
-      category,
-      label: label.trim(),
-      activityId,
-      entryMode: 'duration',
-      quickLogType: category === 'activity' ? quickLogType : false,
-      quickLogTypeLabel: category === 'activity' && quickLogType ? quickLogTypeLabel.trim() || 'Type' : null,
-      dayValueUnit: category === 'day_value' ? dayValueUnit : null,
-      dayValueTarget: category === 'day_value' && dayValueUnit === 'target' ? Number(dayValueTarget) : null,
-      noteFields: category === 'activity' ? noteFields : [],
-      noteTypes: category === 'notes' ? noteTypes : [],
-      checklistItems: category === 'checklist' ? checklistItems : [],
-    })
+    const activityId = category === 'activity' ? await catalogIdForName(activityName) : null
+    onCreate(toCreateInput(draft, activityId))
     onClose()
   }
 

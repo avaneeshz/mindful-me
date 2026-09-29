@@ -23,7 +23,21 @@ async function fetchCatalog(): Promise<CatalogMaps> {
   const byId = new Map<string, string>()
   if (!supabase) return { byName, byId }
 
-  const { data, error } = await supabase.from('activities').select('id, name').is('parent_id', null)
+  // PICKER-CUSTOM-1: a signed-in user with their own provisioned catalog
+  // (`provision_default_activities()`) now has TWO rows that can share the
+  // same name — the legacy shared/system one (`created_by is null`, still
+  // readable for back-compat with old history) and this user's own copy.
+  // `nullsFirst: true` puts the shared rows into the map FIRST, so the
+  // user's OWN row (inserted second, same `name` key) always wins the
+  // last-write on `byName`/`byId` below — a fresh sync must always attach a
+  // NEW activity to the user's own catalog entry, never the shared one, or
+  // any per-activity customization (parameter options, hidden state) on
+  // their own copy would silently never apply.
+  const { data, error } = await supabase
+    .from('activities')
+    .select('id, name')
+    .is('parent_id', null)
+    .order('created_by', { ascending: true, nullsFirst: true })
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[catalog] failed to load activity catalog — sync will stall until it does', error.message)

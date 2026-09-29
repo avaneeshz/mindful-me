@@ -8,6 +8,7 @@ import {
   type BoardState,
 } from '@/state/boardReducer'
 import { formatSlotRange } from '@/domain/slots'
+import { PickerDataProvider } from '@/state/PickerDataContext'
 
 /**
  * The editor is the ONE activity-configuration surface in the product. These
@@ -34,6 +35,8 @@ function renderEditor(state: BoardState): string {
       viewedDate={AT_4PM}
       onOpenReflectionNote={() => {}}
       syncQueue={[]}
+      editMode={false}
+      onCloseEditMode={() => {}}
     />,
   )
 }
@@ -352,5 +355,159 @@ describe('editing a spanning activity in place from a later cell', () => {
     const html = renderEditor(grown)
     expect(html).toMatch(/>30 min</)
     expect(html).toContain('This slot is full')
+  })
+})
+
+describe('the unified tile/activity management panel (real user feedback: same Edit button, no second hidden page)', () => {
+  // `ActivityLibraryPanel` reads `usePickerData()`, so any render with
+  // `editMode: true` needs a real `<PickerDataProvider>` ancestor.
+  function renderInProvider(state: BoardState, editMode: boolean): string {
+    return renderToStaticMarkup(
+      <PickerDataProvider>
+        <SlotEditor
+          state={state}
+          dispatch={() => {}}
+          nowSlot={32}
+          viewedDate={AT_4PM}
+          onOpenReflectionNote={() => {}}
+          syncQueue={[]}
+          editMode={editMode}
+          onCloseEditMode={() => {}}
+        />
+      </PickerDataProvider>,
+    )
+  }
+
+  const slotModeState = run(DROP)
+  const activityModeState = (() => {
+    const committed = run(
+      { type: 'selectSlot', slot: 20 },
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    return boardReducer(committed, { type: 'selectScheduledActivity', id: realId(committed) })
+  })()
+
+  it('renders no management panel while edit mode is off, in either slot or activity mode', () => {
+    expect(renderInProvider(slotModeState, false)).not.toContain('Manage tiles')
+    expect(renderInProvider(activityModeState, false)).not.toContain('Manage tiles')
+  })
+
+  it('renders the management panel — reusing TileList/ActivityTree/ParameterOptionsPanel — in slot mode once edit mode is on', () => {
+    const html = renderInProvider(slotModeState, true)
+    expect(html).toContain('Manage tiles')
+    expect(html).toContain('aria-label="Tiles"')
+    // No activity is selected in the management panel by default (only a
+    // tile auto-selects) — "Parameter options" must NOT appear merely
+    // because a tile is open; see `ActivityLibraryPanel`'s own doc comment
+    // for the fix this asserts (it used to render unconditionally here).
+    expect(html).not.toContain('aria-label="Parameter options"')
+    // The ordinary tile row is still there too — managing the hierarchy
+    // never blocks quick-logging. Two `.tile-row` grids now exist while edit
+    // mode is on: the everyday picker's own row, and the management panel's
+    // tile grid (redesigned to look exactly the same — see `TileList`'s own
+    // doc comment).
+    expect(html.match(/class="tile-row/g)?.length).toBe(2)
+  })
+
+  it('keeps the management panel reachable in activity mode too — found in self-review: it used to live inside TileRow, which activity mode replaces entirely with ActivitySummary, silently hiding it', () => {
+    const html = renderInProvider(activityModeState, true)
+    expect(html).toContain('Manage tiles')
+    expect(html).toContain('aria-label="Tiles"')
+    // Activity mode's own summary is still what's shown above the panel —
+    // the panel supplements it, it doesn't replace it.
+    expect(html).toContain('Homework')
+    expect(html).toContain('aria-label="Selected activity"')
+  })
+})
+
+describe('the management panel’s tile grid matches the everyday picker’s own tile look (confirmed prototype fix)', () => {
+  function renderPanel(editMode: boolean): string {
+    return renderToStaticMarkup(
+      <PickerDataProvider>
+        <SlotEditor
+          state={run(DROP)}
+          dispatch={() => {}}
+          nowSlot={32}
+          viewedDate={AT_4PM}
+          onOpenReflectionNote={() => {}}
+          syncQueue={[]}
+          editMode={editMode}
+          onCloseEditMode={() => {}}
+        />
+      </PickerDataProvider>,
+    )
+  }
+
+  it('gives each tile card a pencil "Open" badge and an × "Delete" badge, never top-level reorder arrows', () => {
+    const html = renderPanel(true)
+    // "Sleep & Rest" is the first of the static local-only catalog's 9
+    // default tiles (`CATEGORY_ORDER`/`CATEGORIES`).
+    expect(html).toContain('aria-label="Open Sleep &amp; Rest"')
+    expect(html).toContain('aria-label="Delete Sleep &amp; Rest"')
+    // Dropped in the approved redesign — a tile's position is no longer
+    // adjustable from this grid (activities/sub-activities one level in
+    // still reorder via ↑↓ inside `ActivityTree`, untouched).
+    expect(html).not.toContain('aria-label="Move Sleep &amp; Rest up"')
+    expect(html).not.toContain('aria-label="Move Sleep &amp; Rest down"')
+  })
+
+  it('renders the trailing "Add tile" card as a dashed, square, plus-icon card, same shape as a real tile', () => {
+    const html = renderPanel(true)
+    const addTileButton = html.match(/<button[^>]*aria-label="Add tile"[^>]*>/)?.[0]
+    expect(addTileButton).toBeDefined()
+    expect(addTileButton).toContain('aspect-square')
+    expect(addTileButton).toContain('border-dashed')
+  })
+})
+
+describe('the management panel is a real dialog, not inline content (confirmed prototype fix)', () => {
+  function renderPanel(editMode: boolean): string {
+    return renderToStaticMarkup(
+      <PickerDataProvider>
+        <SlotEditor
+          state={run(DROP)}
+          dispatch={() => {}}
+          nowSlot={32}
+          viewedDate={AT_4PM}
+          onOpenReflectionNote={() => {}}
+          syncQueue={[]}
+          editMode={editMode}
+          onCloseEditMode={() => {}}
+        />
+      </PickerDataProvider>,
+    )
+  }
+
+  it('renders nothing from the dialog at all while closed — Radix unmounts Dialog.Content when `open` is false', () => {
+    // `editMode` was never true here, so `ActivityLibraryPanel` never even
+    // mounts (see `SlotEditor`'s own lazy-mount-once ref) — the strongest
+    // form of "renders nothing."
+    expect(renderPanel(false)).not.toContain('Manage tiles')
+  })
+
+  it('renders a dimmed overlay behind a centered, rounded popup at tablet/desktop width, and an edge-to-edge full-screen sheet below the mobile breakpoint', () => {
+    const html = renderPanel(true)
+    // The overlay — dims the rest of the page, which stays visible behind it
+    // (never removed from the DOM, unlike a full-screen takeover).
+    expect(html).toContain('bg-black/45')
+    // Mobile (≤768px, the one global breakpoint `SlotEditor` itself already
+    // uses): fills the viewport edge to edge.
+    expect(html).toContain('mobile:inset-0')
+    // Tablet/desktop: centered, sized, rounded popup — never full-bleed.
+    expect(html).toContain('md:left-1/2')
+    expect(html).toContain('md:top-1/2')
+    expect(html).toContain('md:rounded-lg')
+  })
+
+  it('closes via a real Dialog.Close (X) control, labeled for assistive tech', () => {
+    const html = renderPanel(true)
+    expect(html).toContain('aria-label="Close"')
+  })
+
+  it('shows the global options vocabulary editor by default (no activity open yet) — the earlier "no home for your defaults" gap this round also fixes', () => {
+    const html = renderPanel(true)
+    expect(html).toContain('aria-label="Your options"')
+    expect(html).not.toContain('aria-label="Parameter options"')
   })
 })

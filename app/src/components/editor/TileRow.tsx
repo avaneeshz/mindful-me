@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle2, Circle, Info, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { CATEGORIES, CATEGORY_ORDER, cardsForCategory } from '@/data/activities'
+import { cardsForCategory, effectiveCategories, effectiveCategoryOrder } from '@/data/activities'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
 import type { ActivityCard, ActivityList, Category, CategoryId } from '@/domain/types'
 import { cn } from '@/lib/utils'
@@ -58,9 +58,11 @@ export function TileRow({
   const [draggingCard, setDraggingCard] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<CategoryId | null>(null)
 
+  const categories = effectiveCategories()
+  const categoryOrder = effectiveCategoryOrder()
   const openCards = openCategory ? cardsForCategory(openCategory) : null
   const openProgress = openCards ? tileProgress(openCards, activities, dismissed) : null
-  const openCategoryDef = openCategory ? CATEGORIES[openCategory] : null
+  const openCategoryDef = openCategory ? categories[openCategory] : null
 
   function toggleTile(categoryId: CategoryId) {
     setOpenCategory((current) => (current === categoryId ? null : categoryId))
@@ -90,8 +92,8 @@ export function TileRow({
       )}
 
       <div className={cn('tile-row', atCapacity && 'opacity-40')}>
-        {CATEGORY_ORDER.map((categoryId) => {
-          const category = CATEGORIES[categoryId]
+        {categoryOrder.map((categoryId) => {
+          const category = categories[categoryId]
           const progress = tileProgress(cardsForCategory(categoryId), activities, dismissed)
           const isActive = openCategory === categoryId
           return (
@@ -294,7 +296,7 @@ function ItemChip({
           onDragStart()
         }}
         onDragEnd={onDragEnd}
-        aria-label={card.sub ? `${card.name}, ${card.sub.length} options` : card.name}
+        aria-label={card.children?.length ? `${card.name}, ${card.children.length} options` : card.name}
         className={cn(
           'relative flex aspect-square w-[92px] shrink-0 cursor-grab flex-col items-center justify-center gap-xs',
           'rounded-lg border border-line bg-bg p-xs transition-colors',
@@ -311,12 +313,12 @@ function ItemChip({
           {card.name}
         </span>
 
-        {card.sub && (
+        {!!card.children?.length && (
           <span
             aria-hidden="true"
             className="absolute right-xs top-xs flex size-[18px] items-center justify-center rounded-full bg-surface text-nano font-extrabold text-ink"
           >
-            {card.sub.length}
+            {card.children.length}
           </span>
         )}
 

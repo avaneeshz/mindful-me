@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { CalendarDays, User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
@@ -26,6 +26,7 @@ import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
 import { cn } from '@/lib/utils'
+import { useInterfaceMode } from '@/state/InterfaceContext'
 
 /**
  * `YYYY-MM-DD` in the DEVICE's timezone, for the <time> element's machine-
@@ -84,6 +85,17 @@ export interface HeaderBarProps {
   onRetrySyncNow: () => void
   /** Dispatches `editActivity` — a `DisplayValueButton`'s session-history row opens the same `LogActivityModal` edit flow the Timeline itself uses. */
   onEditActivity: (id: string) => void
+  /**
+   * The ONE edit-mode toggle for the whole day screen — owned by `TodayPage`
+   * (not local to this component any more) so `SlotEditor` can read the
+   * exact same flag and reveal its own inline tile/activity management
+   * panel (`ActivityLibraryPanel`) when it's on, rather than needing a
+   * second, disconnected entry point (real user feedback: the separate
+   * Activity Library page, reachable only from the sidebar, was never found
+   * — see `SlotEditor.tsx`'s own doc comment).
+   */
+  editMode: boolean
+  onToggleEditMode: () => void
 }
 
 export function HeaderBar({
@@ -97,6 +109,8 @@ export function HeaderBar({
   syncQueue,
   onRetrySyncNow,
   onEditActivity,
+  editMode,
+  onToggleEditMode,
 }: HeaderBarProps) {
   // One-time upload of any pre-migration Steps data still sitting only in
   // this browser's localStorage — see `state/useStepsBackfill.ts`. A no-op
@@ -110,7 +124,6 @@ export function HeaderBar({
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
   const { visible, hidden, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
-  const [editMode, setEditMode] = useState(false)
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -173,7 +186,7 @@ export function HeaderBar({
 
           <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
 
-          <EditModeToggle active={editMode} onToggle={() => setEditMode((value) => !value)} />
+          <EditModeToggle active={editMode} onToggle={onToggleEditMode} />
 
           <WeatherPill className="mobile:hidden" />
 
@@ -325,6 +338,7 @@ function DatePill({
 
 function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [open, setOpen] = useState(false)
+  const { setMode } = useInterfaceMode()
   const navigate = useNavigate()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -390,6 +404,17 @@ function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => voi
             className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-ink transition-colors hover:bg-bg"
           >
             Settings
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              setMode('lumen')
+            }}
+            className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-ink transition-colors hover:bg-bg"
+          >
+            Switch to Lumen
           </button>
           <button
             type="button"

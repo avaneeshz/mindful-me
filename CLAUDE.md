@@ -125,6 +125,20 @@ Business requirements and API contracts are authoritative.
 
 Do not modify API contracts, payloads or business behavior merely to simplify frontend implementation.
 
+## Platform Portability (future iOS & Android)
+
+mindful-me is a web application today. Native iOS and Android apps are not being built yet, but every change must keep that option cheap. The rule is to **keep the logic ("brain") separate from the screens ("face")**: logic and data code carry over to a future React Native / Expo app, and screens get rebuilt.
+
+1. **Three layers, one direction.** `domain/` (pure TypeScript rules and calculations) ← `data` (`api/`, `state/` hooks, local stores) ← UI (`components/`, `routes/`, screen files). UI components never call `api/*` functions or the Supabase client directly. They go through a hook. `domain/` never imports React, `window`, `document`, `navigator` or any storage.
+2. **Browser-only APIs live behind one small adapter each**: storage, OAuth/navigation redirects, file export/share, geolocation, notifications, theme/DOM attributes, environment config. New code never uses `localStorage`, `window.location` or `import.meta.env` outside its adapter.
+3. **New product modules are self-contained** (gardening, healthcare, baby care, food and so on): `app/src/modules/<name>/` with `domain/`, `data/`, `ui/` and one public `index.ts`, plus their own migrations and row-level security. Modules talk to each other only through `index.ts`. Shared concepts (user, day, time zone, activity) live in the shared core, never copied. Each module can be switched off with a feature flag.
+4. **The backend is the source of truth for rules.** Anything that must always hold (ownership, validation, limits, no-overlap) is enforced in Postgres or an edge function, not only in React.
+5. **Every drag or hover interaction has a tap equivalent.** Never put information only in a hover state.
+6. **Times are stored in UTC plus the user's IANA time zone.** Sensitive health, baby-care and personal data is marked and protected as such from day one.
+7. **Don't build for mobile yet.** No React Native, Capacitor, Expo or monorepo until a native app is an approved requirement. Never make the web experience worse to "look native".
+
+Known existing gaps against these rules are tracked in `MOBILE-READINESS.md`. Don't add new ones. When you touch a file listed there, fix its entry if the fix is small and in scope.
+
 ## Agent Workflow
 
 There is a single agent for this project: **full-stack-engineer** (`.claude/agents/full-stack-engineer.md`). It owns frontend, backend, and database work end-to-end — there is no separate design, QA, or review agent.

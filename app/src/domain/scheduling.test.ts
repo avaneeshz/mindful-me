@@ -409,3 +409,45 @@ describe('resizeStartBounds / clampResizeStart', () => {
     expect(clampResizeStart(existing, 600, 630, 640)).toBe(629) // clamped to end - 1
   })
 })
+
+describe("custom schedule bounds (Lumen's multi-day minute axis)", () => {
+  // Lumen lays three calendar days on one axis: [-1440, 2880), with its own
+  // day running 360 (06:00) → 1800 (06:00 next day). Only the edges move —
+  // every placement rule is the same one Classic uses.
+  const lumenBounds = { floor: -1440, horizon: 2880 }
+
+  it('defaults to the single calendar day, exactly as before', () => {
+    expect(maxContiguousDuration([], 1380)).toBe(60) // 23:00 → capped at midnight
+  })
+
+  it('lets a late-evening activity run past midnight when the horizon allows', () => {
+    // Sleep from 22:00 until the next activity at 07:00 the following morning.
+    const nextMorning = make(1440 + 420, 30)
+    expect(maxContiguousDuration([nextMorning], 1320, null, lumenBounds)).toBe(540)
+    const candidate = computeCandidateSchedule({ name: 'Sleep', path: [] }, 1320, [nextMorning], {
+      requestedDuration: 480,
+      bounds: lumenBounds,
+    })
+    expect(candidate).toMatchObject({ startMinutes: 1320, durationMinutes: 480 })
+    expect(validateSchedule(candidate, [nextMorning], lumenBounds)).toEqual({ ok: true })
+  })
+
+  it('still refuses to overlap an activity from the previous calendar day', () => {
+    // 23:00 the day before (axis -60) for 8h → covers until 07:00 (axis 420).
+    const lastNight = make(-60, 480)
+    expect(maxContiguousDuration([lastNight], 390, null, lumenBounds)).toBe(0)
+    expect(nextFreeStart([lastNight], 390)).toBe(420)
+    const candidate: CandidateSchedule = { id: null, activity: null, startMinutes: 400, durationMinutes: 30 }
+    expect(validateSchedule(candidate, [lastNight], lumenBounds)).toMatchObject({ ok: false, reason: 'occupied' })
+  })
+
+  it('rejects a start before the floor', () => {
+    const candidate: CandidateSchedule = { id: null, activity: null, startMinutes: -10, durationMinutes: 30 }
+    expect(validateSchedule(candidate, [])).toMatchObject({ ok: false })
+  })
+
+  it('moves and resizes within the wider bounds', () => {
+    expect(moveBounds([], 1400, 120, null, lumenBounds)).toEqual({ min: -1440, max: 2760 })
+    expect(resizeStartBounds([], 1500, 1560, null, lumenBounds)).toEqual({ min: -1440, max: 1559 })
+  })
+})
