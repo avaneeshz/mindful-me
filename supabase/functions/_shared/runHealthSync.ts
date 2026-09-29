@@ -131,7 +131,7 @@ async function fetchListRows(
   windowStart: Date,
   windowEnd: Date,
 ): Promise<
-  Array<{ recordedAt: string; endAt: string | null; value: number | Record<string, unknown>; unit: string | null; raw: unknown }>
+  Array<{ recordedAt: string; endAt: string | null; value: number | Record<string, unknown>; unit: string | null }>
 > {
   if (dt.spec.kind !== 'list') return []
   const filter = dt.spec.buildFilter(windowStart.toISOString(), windowEnd.toISOString())
@@ -140,7 +140,6 @@ async function fetchListRows(
     endAt: string | null
     value: number | Record<string, unknown>
     unit: string | null
-    raw: unknown
   }> = []
   let pageToken: string | undefined
   for (let page = 0; page < MAX_LIST_PAGES; page++) {
@@ -152,7 +151,9 @@ async function fetchListRows(
     for (const dp of dataPoints) {
       const parsed = dt.spec.parse(dp)
       if (!parsed) continue
-      rows.push({ ...parsed, raw: dp })
+      // Only the parsed point is kept — the full `dp` (an ECG carries its whole
+      // waveform) is dropped as soon as this loop moves on.
+      rows.push(parsed)
     }
     pageToken = res.nextPageToken || undefined
     if (!pageToken) break
@@ -165,7 +166,6 @@ type SeriesPoint = {
   endAt: string | null
   value: unknown
   unit: string | null
-  raw?: unknown
 }
 
 /** A page of up to 10,000 points — Google's documented maximum, and enough for a whole day of heart rate. */
@@ -352,7 +352,7 @@ export async function runHealthSync(
   const syncState: Record<string, SyncStateEntry> = { ...(connection.sync_state ?? {}) }
   const rows: HealthMetricRow[] = []
 
-  function pushRow(dt: DataTypeConfig, point: { recordedAt: string; endAt: string | null; value: unknown; unit: string | null }, raw?: unknown) {
+  function pushRow(dt: DataTypeConfig, point: { recordedAt: string; endAt: string | null; value: unknown; unit: string | null }) {
     rows.push({
       user_id: userId,
       connection_id: connection.id,
@@ -362,7 +362,10 @@ export async function runHealthSync(
       value: JSON.stringify(point.value),
       unit: point.unit,
       source: null,
-      raw_response: raw !== undefined ? JSON.stringify(raw) : null,
+      // Nothing reads the raw response, and for ECG it carries a whole
+      // waveform per point — enough to exhaust the function's memory. The
+      // parsed `value` is all that is kept.
+      raw_response: null,
       external_id: `${dt.id}:${point.recordedAt}:${point.endAt ?? ''}`,
     })
   }
@@ -402,7 +405,7 @@ export async function runHealthSync(
     try {
       // 1. The recent trailing window — always refreshed, keeps the
       // dashboard current regardless of how deep the backfill frontier is.
-      for (const point of await fetchSeries(dt, recentWindowStart, now)) pushRow(dt, point, point.raw)
+      for (const point of await fetchSeries(dt, recentWindowStart, now)) pushRow(dt, point)
 
       if (dt.spec.kind === 'list' && dt.spec.unboundedEnd) {
         // See `unboundedEnd`'s own doc comment in googleHealth.ts: this
@@ -416,7 +419,7 @@ export async function runHealthSync(
         // and never persist a completion claim for it — upsert dedup
         // (external_id) makes the overlap with the recent window free.
         const backfillWindowStart = new Date(now.getTime() - MAX_BACKFILL_DAYS * 24 * 60 * 60 * 1000)
-        for (const point of await fetchListRows(accessToken, dt, backfillWindowStart, now)) pushRow(dt, point, point.raw)
+        for (const point of await fetchListRows(accessToken, dt, backfillWindowStart, now)) pushRow(dt, point)
         delete syncState[dt.id]
       } else {
         // One more chunk of history, if backfill isn't done yet.
@@ -431,7 +434,7 @@ export async function runHealthSync(
             backfillComplete = true
           }
           if (chunkStart < frontier) {
-            for (const point of await fetchSeries(dt, chunkStart, frontier)) pushRow(dt, point, point.raw)
+            for (const point of await fetchSeries(dt, chunkStart, frontier)) pushRow(dt, point)
           }
           syncState[dt.id] = { frontier: chunkStart.toISOString(), backfillComplete }
         }
