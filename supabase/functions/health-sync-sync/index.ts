@@ -5,7 +5,8 @@ import { runHealthSync } from '../_shared/runHealthSync.ts'
 
 /**
  * POST, Authorization: Bearer <the signed-in user's own Supabase access
- * token>, empty body.
+ * token>, body `{ step?: number }`. Each call does one bounded slice of the
+ * sync and returns `nextStep` (or `null` when done); the caller loops.
  *
  * The manual "sync now" action, and also what a future scheduled trigger
  * would call — `runHealthSync` itself refreshes the access token first if
@@ -33,8 +34,18 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'not_configured', message: 'Google OAuth credentials are not set on this project yet.' }, 500)
   }
 
+  // `{ step }` resumes a sync where the previous call stopped (see
+  // `runHealthSync`); an empty body starts one from the beginning.
+  let step = 0
+  try {
+    const body = await req.json()
+    if (Number.isInteger(body?.step) && body.step >= 0) step = body.step
+  } catch {
+    // No body — start at 0.
+  }
+
   const admin = serviceRoleClient()
-  const result = await runHealthSync(admin, user.id, clientId, clientSecret, GOOGLE_HEALTH_PROVIDER)
+  const result = await runHealthSync(admin, user.id, clientId, clientSecret, GOOGLE_HEALTH_PROVIDER, step)
 
   if (!result.ok) {
     const status = result.reason === 'not_connected' ? 404 : result.reason === 'reauth_required' ? 409 : 500
