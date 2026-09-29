@@ -12,6 +12,7 @@ import { TodayScreen } from '@/lumen/screens/today'
 import { HealthCallbackScreen } from '@/lumen/screens/settings/health-callback'
 import { HEALTH_SYNC_CALLBACK_PATH } from '@/lib/googleHealthOAuth'
 import { setLumenDocumentClass } from '@/lib/interfaceMode'
+import { scrollLumenViewToTop } from '@/lumen/lib/scroll'
 import { PickerDataProvider } from '@/state/PickerDataContext'
 import './lumen.css'
 
@@ -63,7 +64,11 @@ function LumenScreens() {
     return () => window.removeEventListener('keydown', onKey)
   }, [quickLog])
 
-  useEffect(() => window.scrollTo({ top: 0 }), [tab, settingsView])
+  useEffect(() => {
+    // Effects may return only a cleanup function. Keep the DOM API's return
+    // value out of React's cleanup slot across browsers.
+    scrollLumenViewToTop()
+  }, [tab, settingsView])
 
   const Screen = { today: TodayScreen, calendar: CalendarScreen, insights: InsightsScreen, more: MoreScreen }[tab]
 
