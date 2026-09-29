@@ -1,5 +1,7 @@
 import { motion } from 'motion/react'
 import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useHeartRateDay } from '@/lumen/data/useHeartRateDay'
+import { heartRateSummary, stripSeries, waveformPath, type HeartSample } from '@/lumen/domain/heartRateStrip'
 import { axisClock, STRIP_RANGE, stripPieces, type StripPeriod } from '@/lumen/domain/lumenDay'
 import { FALLBACK_COLOR } from '@/lumen/lib/palette'
 import { SLOT_MINUTES, useStore } from '@/lumen/lib/store'
@@ -50,22 +52,26 @@ const LIGHT: Record<Half, Stop[]> = {
 const lightGradient = (half: Half) =>
   `linear-gradient(90deg, ${LIGHT[half].map(([at, c]) => `${c} ${at * 100}%`).join(', ')})`
 
+const NO_HEART: HeartSample[] = []
 const STRIP_H = 40 // px — the capsule's height; its radius is half of this
 const LINE_W = 2.5 // px — the essence line's stroke
 
 /** Day (6 AM – 6 PM) and Night (6 PM – 6 AM) as two continuous strips. */
 export function DayStrips() {
+  const { day } = useStore()
+  // One read for the whole Lumen day; both strips share its samples and vertical scale.
+  const { samples, scale } = useHeartRateDay(day)
   return (
     <div className="grid grid-cols-1 gap-5 px-1 py-1">
-      <Strip half="day" />
-      <Strip half="night" />
+      <Strip half="day" heart={samples} scale={scale} />
+      <Strip half="night" heart={samples} scale={scale} />
     </div>
   )
 }
 
 type Span = { key: string; color: string; start: number; end: number }
 
-function Strip({ half }: { half: Half }) {
+export function Strip({ half, heart = NO_HEART, scale }: { half: Half; heart?: HeartSample[]; scale: { min: number; max: number } }) {
   const { axis, tileOf, selectedSlot, setSelectedSlot, nowMinute, isToday, day, today } = useStore()
   const cfg = HALVES[half]
   const range = STRIP_RANGE[half]
@@ -95,6 +101,8 @@ function Strip({ half }: { half: Half }) {
   const nowHere = nowMinute !== null && nowMinute >= range.start && nowMinute < range.end ? nowMinute - range.start : null
   // Veil the part of today that hasn't happened yet. Past days are fully lived.
   const futureFrom = !isToday || day !== today ? null : nowMinute === null ? null : nowMinute < range.start ? 0 : nowHere
+  const segments = useMemo(() => stripSeries(heart, half), [heart, half])
+  const bpm = useMemo(() => heartRateSummary(segments.flat()), [segments])
   const nextDay = formatDay(addDays(day, 1)).split(' ').slice(0, 2).join(' ').replace(',', '')
 
   const slotAt = (i: number) => range.start + i * SLOT_MINUTES
@@ -117,7 +125,7 @@ function Strip({ half }: { half: Half }) {
   }
 
   return (
-    <section aria-label={`${cfg.label}, ${cfg.range}${night ? `, into ${nextDay}` : ''}, ${total > 0 ? formatDuration(total) : 'nothing'} logged`}>
+    <section aria-label={`${cfg.label}, ${cfg.range}${night ? `, into ${nextDay}` : ''}, ${total > 0 ? formatDuration(total) : 'nothing'} logged${bpm ? `, heart rate ${bpm.min} to ${bpm.max} bpm` : ''}`}>
       <div
         ref={ref}
         role="slider"
@@ -162,6 +170,7 @@ function Strip({ half }: { half: Half }) {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             />
           ))}
+          {segments.length > 0 && <HeartLine half={half} segments={segments} scale={scale} />}
           {futureFrom !== null && (
             <span className="absolute inset-y-0 right-0 bg-canvas/30" style={{ left: pct(futureFrom) }} aria-hidden />
           )}
@@ -294,5 +303,60 @@ function EssenceLine({ half }: { half: Half }) {
         />
       )}
     </svg>
+  )
+}
+
+const HEART_PAD_Y = 7 // px — keeps the line off the capsule's rounded edges
+const HEART_STROKE = { day: '#fff4e6', night: '#d9d6ff' } as const
+
+/**
+ * The person's heart rate, drawn inside the capsule and time-aligned with it: a thin glowing line,
+ * compressed to the capsule's height, no axes or labels. Width is measured like EssenceLine's so x
+ * maps to real pixels. Sits above the logged blocks and below the future veil.
+ */
+function HeartLine({ half, segments, scale }: { half: Half; segments: HeartSample[][]; scale: { min: number; max: number } }) {
+  const ref = useRef<SVGSVGElement>(null)
+  const [width, setWidth] = useState(0)
+  const night = half === 'night'
+
+  useLayoutEffect(() => {
+    const el = ref.current?.parentElement
+    if (!el) return
+    const update = () => setWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const paths = useMemo(
+    () =>
+      width > 0
+        ? segments.map((seg) =>
+            waveformPath(seg, { rangeStart: STRIP_RANGE[half].start, span: SPAN, width, height: STRIP_H, padY: HEART_PAD_Y, ...scale }),
+          )
+        : [],
+    [segments, half, width, scale],
+  )
+  const stroke = HEART_STROKE[half]
+
+  return (
+    <motion.svg
+      ref={ref}
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      style={{
+        filter: night
+          ? 'drop-shadow(0 0 3px rgb(190 186 255 / 0.55))'
+          : 'drop-shadow(0 0 3px rgb(255 226 180 / 0.6)) drop-shadow(0 0 0.5px rgb(120 60 20 / 0.45))',
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      aria-hidden
+    >
+      {paths.map((d, i) => (
+        <path key={i} d={d} fill="none" stroke={stroke} strokeOpacity={0.9} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+    </motion.svg>
   )
 }
