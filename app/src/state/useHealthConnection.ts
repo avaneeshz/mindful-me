@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   apiDisconnectHealthConnection,
   apiGetHealthConnectionStatus,
@@ -100,6 +100,16 @@ export function useHealthConnection() {
       setSyncMessage({ tone: 'error', text: result.message ?? 'Sync failed. Try again in a moment.' })
     }
   }, [syncing, refresh])
+
+  // Connecting no longer runs a sync inside the sign-in request, so the first
+  // one starts here: once, as soon as a connection exists that has never synced.
+  const autoSyncStarted = useRef(false)
+  useEffect(() => {
+    if (autoSyncStarted.current) return
+    if (status?.status !== 'connected' || status.lastSyncedAt) return
+    autoSyncStarted.current = true
+    void syncNow()
+  }, [status, syncNow])
 
   const restore = useCallback(async () => {
     if (restoring) return
