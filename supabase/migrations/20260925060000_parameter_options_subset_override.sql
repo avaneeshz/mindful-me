@@ -196,6 +196,7 @@ begin
 
   reset role;
   perform set_config('request.jwt.claim.sub', '', true);
+  delete from public.scheduled_activities where user_id = v_probe;
   delete from public.tiles where created_by = v_probe;
   delete from auth.users where id = v_probe;
   raise notice 'set_parameter_options_override: ALL CHECKS PASSED';
