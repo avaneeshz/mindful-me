@@ -18,22 +18,22 @@ function render(): string {
 describe('AddDevicePage', () => {
   it('links the available provider to its connect path', () => {
     auth.configured = true
-    expect(render()).toMatch(/<a[^>]*href="\/health-sync"[^>]*>.*Google Health/s)
+    expect(render()).toMatch(/<a[^>]*href="\/health-sync"[^>]*>.*Fitbit &amp; Google Health/s)
   })
 
-  it('shows unavailable providers as disabled, not as links', () => {
+  it('lists Fitbit & Google Health as the only option, with no disabled placeholders', () => {
     auth.configured = true
     const html = render()
-    expect(html).toContain('Whoop')
-    expect(html).toContain('Strava')
-    expect(html.match(/Coming soon/g)).toHaveLength(2)
-    expect(html.match(/aria-disabled="true"/g)).toHaveLength(2)
+    expect(html).toContain('Fitbit &amp; Google Health')
+    expect(html).not.toContain('Whoop')
+    expect(html).not.toContain('Strava')
+    expect(html).not.toContain('aria-disabled')
   })
 
   it('offers no providers in local-only mode', () => {
     auth.configured = false
     const html = render()
     expect(html).toContain('Sign in with a real account')
-    expect(html).not.toContain('Google Health')
+    expect(html).not.toContain('Fitbit')
   })
 })

@@ -1,38 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, HeartPulse, Loader2, RefreshCw, RotateCcw, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HealthMetricChart } from '@/components/healthsync/HealthMetricChart'
-import {
-  apiDisconnectHealthConnection,
-  apiGetHealthConnectionStatus,
-  apiIsHealthConnectionRecoverable,
-  apiListHealthDataTypeSummaries,
-  apiListHealthMetrics,
-  apiRestoreHealthConnection,
-  apiTriggerHealthSync,
-  type HealthConnectionStatus,
-  type HealthDataTypeSummary,
-  type HealthMetricPoint,
-} from '@/api/healthSync'
+import { apiListHealthMetrics, type HealthMetricPoint } from '@/api/healthSync'
 import { healthDataTypeMeta } from '@/domain/healthMetrics'
-import { beginGoogleHealthOAuthState, buildGoogleHealthAuthorizeUrl } from '@/lib/googleHealthOAuth'
-import { useAuth } from '@/state/AuthContext'
+import { useHealthConnection } from '@/state/useHealthConnection'
+import { formatRelativeTime } from '@/lib/relativeTime'
 import { cn } from '@/lib/utils'
 
 const RECENT_WINDOW_DAYS = 30
-
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return 'never'
-  const then = new Date(iso).getTime()
-  const diffMs = Date.now() - then
-  const minutes = Math.round(diffMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  return `${days}d ago`
-}
 
 /**
  * Read-only Health Sync dashboard — Phase-agnostic new feature, entirely
@@ -41,120 +17,37 @@ function formatRelativeTime(iso: string | null): string {
  * category it exposes, never write anything back.
  */
 export function HealthSyncPage() {
-  const { configured } = useAuth()
-
-  const [status, setStatus] = useState<HealthConnectionStatus | null>(null)
-  const [statusLoading, setStatusLoading] = useState(true)
-
-  const [summaries, setSummaries] = useState<HealthDataTypeSummary[]>([])
-  const [summariesLoading, setSummariesLoading] = useState(false)
-
-  const [connecting, setConnecting] = useState(false)
-  const [connectError, setConnectError] = useState<string | null>(null)
-
-  // Rule 11 — a disconnect is recoverable for 30 days. `status === null`
-  // covers BOTH "never connected" and "recently disconnected, still within
-  // the window" — this is what tells the two apart, so the empty state can
-  // offer a real "Reconnect" (no new Google consent) instead of only ever
-  // "Connect".
-  const [recoverable, setRecoverable] = useState(false)
-  const [restoring, setRestoring] = useState(false)
-  const [restoreError, setRestoreError] = useState<string | null>(null)
-
-  const [syncing, setSyncing] = useState(false)
-  const [syncMessage, setSyncMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const {
+    configured,
+    status,
+    statusLoading,
+    summaries,
+    summariesLoading,
+    connecting,
+    connectError,
+    recoverable,
+    restoring,
+    restoreError,
+    syncing,
+    syncMessage,
+    disconnecting,
+    connect: handleConnect,
+    syncNow: handleSyncNow,
+    restore: handleRestore,
+    disconnect,
+  } = useHealthConnection()
 
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
-  const [disconnecting, setDisconnecting] = useState(false)
 
   const [expandedType, setExpandedType] = useState<string | null>(null)
   const [pointsByType, setPointsByType] = useState<Record<string, HealthMetricPoint[]>>({})
   const [pointsLoadingType, setPointsLoadingType] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    const nextStatus = await apiGetHealthConnectionStatus()
-    setStatus(nextStatus)
-    setStatusLoading(false)
-    if (nextStatus?.status === 'connected') {
-      setSummariesLoading(true)
-      const nextSummaries = await apiListHealthDataTypeSummaries()
-      setSummaries(nextSummaries ?? [])
-      setSummariesLoading(false)
-      setRecoverable(false)
-    } else {
-      setSummaries([])
-      setRecoverable(nextStatus ? false : await apiIsHealthConnectionRecoverable())
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!configured) {
-      setStatusLoading(false)
-      return
-    }
-    refresh()
-  }, [configured, refresh])
-
-  function handleConnect() {
-    const clientId = import.meta.env.VITE_GOOGLE_HEALTH_CLIENT_ID as string | undefined
-    if (!clientId) {
-      setConnectError('Google Health isn’t configured for this environment yet — the OAuth client ID is missing.')
-      return
-    }
-    setConnectError(null)
-    setConnecting(true)
-    const state = beginGoogleHealthOAuthState()
-    window.location.href = buildGoogleHealthAuthorizeUrl(clientId, state)
-  }
-
-  async function handleSyncNow() {
-    if (syncing) return // rule 9's spirit — guard against a double-submit
-    setSyncing(true)
-    setSyncMessage(null)
-    const result = await apiTriggerHealthSync()
-    setSyncing(false)
-    if (result.ok) {
-      setSyncMessage({ tone: 'success', text: `Synced ${result.pointsSynced ?? 0} new data point${result.pointsSynced === 1 ? '' : 's'}.` })
-      refresh()
-    } else if (result.reason === 'reauth_required') {
-      await refresh()
-    } else {
-      setSyncMessage({ tone: 'error', text: result.message ?? 'Sync failed. Try again in a moment.' })
-    }
-  }
-
-  async function handleRestore() {
-    if (restoring) return // guard against a double-submit, same as every other write here
-    setRestoring(true)
-    setRestoreError(null)
-    try {
-      await apiRestoreHealthConnection()
-      await refresh()
-    } catch {
-      setRestoreError('Could not reconnect — the 30-day window may have closed. Try connecting again instead.')
-      setRecoverable(false)
-    } finally {
-      setRestoring(false)
-    }
-  }
-
   async function handleDisconnect() {
-    setDisconnecting(true)
-    try {
-      await apiDisconnectHealthConnection()
-      setStatus(null)
-      setSummaries([])
+    if (await disconnect()) {
       setPointsByType({})
       setExpandedType(null)
       setConfirmingDisconnect(false)
-      // Known true the instant the disconnect call above succeeds — no need
-      // for a second round trip to `apiIsHealthConnectionRecoverable` just
-      // to learn what we already know.
-      setRecoverable(true)
-    } catch {
-      setSyncMessage({ tone: 'error', text: 'Could not disconnect — try again.' })
-    } finally {
-      setDisconnecting(false)
     }
   }
 
