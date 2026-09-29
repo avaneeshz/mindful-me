@@ -29,6 +29,7 @@ export function HealthSyncPage() {
     restoreError,
     syncing,
     syncMessage,
+    syncProgress,
     disconnecting,
     connect: handleConnect,
     syncNow: handleSyncNow,
@@ -183,6 +184,13 @@ export function HealthSyncPage() {
           )}
         </div>
       </div>
+
+      {syncProgress ? (
+        <p role="status" className="mt-lg flex items-center gap-sm text-caption text-ink-dim">
+          <Loader2 aria-hidden="true" className="size-[14px] animate-spin" />
+          Syncing… {syncProgress.done} of {syncProgress.total}
+        </p>
+      ) : null}
 
       {syncMessage ? (
         <p

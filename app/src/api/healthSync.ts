@@ -149,11 +149,19 @@ export interface TriggerSyncResult {
   reason?: 'not_connected' | 'reauth_required' | 'sync_error'
   message?: string
   pointsSynced?: number
+  /** Where the next call should resume, or `null` once the sync is complete. */
+  nextStep?: number | null
+  totalSteps?: number
 }
 
-export async function apiTriggerHealthSync(): Promise<TriggerSyncResult> {
+/**
+ * Runs one slice of a sync, starting at `step`. A whole sync is too much work
+ * for one function call, so callers loop on `nextStep` (see
+ * `useHealthConnection.syncNow`).
+ */
+export async function apiTriggerHealthSync(step = 0): Promise<TriggerSyncResult> {
   if (!supabase) return { ok: false, reason: 'sync_error', message: 'not_configured' }
-  const { data, error } = await supabase.functions.invoke('health-sync-sync', { body: {} })
+  const { data, error } = await supabase.functions.invoke('health-sync-sync', { body: { step } })
   if (error) {
     return { ok: false, reason: 'sync_error', message: error.message }
   }
