@@ -1,8 +1,9 @@
-import { ChevronRight, Eye, LayoutGrid, LogOut, Rows3, Shapes, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, Eye, HeartPulse, LayoutGrid, LogOut, Rows3, Shapes, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Segmented } from '@/lumen/components/ui/primitives'
 import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
 import { ButtonsScreen } from './settings/buttons'
+import { AddDeviceScreen, DevicesScreen } from './settings/devices'
 import { LibraryScreen } from './settings/library'
 import { useLumenAccount } from '@/lumen/lib/account'
 import { useInterfaceMode } from '@/state/InterfaceContext'
@@ -17,6 +18,8 @@ export function MoreScreen() {
 
   if (settingsView === 'library') return <LibraryScreen onBack={() => openSettings('root')} />
   if (settingsView === 'buttons') return <ButtonsScreen onBack={() => openSettings('root')} />
+  if (settingsView === 'devices') return <DevicesScreen onBack={() => openSettings('root')} />
+  if (settingsView === 'devices-add') return <AddDeviceScreen onBack={() => openSettings('devices')} />
 
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col gap-6">
@@ -60,6 +63,15 @@ export function MoreScreen() {
             ]}
           />
         </div>
+      </Group>
+
+      <Group title="Connections">
+        <Row
+          icon={HeartPulse}
+          label="Devices & apps"
+          hint="Connect Fitbit or Google Health to see its data"
+          onClick={() => openSettings('devices')}
+        />
       </Group>
 
       <Group title="Your setup">

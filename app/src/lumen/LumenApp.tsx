@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { AppShell } from '@/lumen/components/shell'
 import { LogSheet } from '@/lumen/components/log/log-sheet'
@@ -8,6 +9,8 @@ import { CalendarScreen } from '@/lumen/screens/calendar'
 import { InsightsScreen } from '@/lumen/screens/insights'
 import { MoreScreen } from '@/lumen/screens/more'
 import { TodayScreen } from '@/lumen/screens/today'
+import { HealthCallbackScreen } from '@/lumen/screens/settings/health-callback'
+import { HEALTH_SYNC_CALLBACK_PATH } from '@/lib/googleHealthOAuth'
 import { setLumenDocumentClass } from '@/lib/interfaceMode'
 import { PickerDataProvider } from '@/state/PickerDataContext'
 import './lumen.css'
@@ -37,6 +40,8 @@ export default function LumenApp() {
 
 function LumenScreens() {
   const { tab, settingsView, quickLog, logTarget, openLog } = useStore()
+  const { pathname } = useLocation()
+  const onHealthCallback = pathname === HEALTH_SYNC_CALLBACK_PATH
 
   // "L" opens quick log from anywhere (desktop affordance shown in the sidebar).
   useEffect(() => {
@@ -72,7 +77,7 @@ function LumenScreens() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         >
-          <Screen />
+          {onHealthCallback ? <HealthCallbackScreen /> : <Screen />}
         </motion.div>
       </AnimatePresence>
       <LogSheet target={logTarget} onClose={() => openLog(null)} />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
@@ -338,6 +339,7 @@ function DatePill({
 function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [open, setOpen] = useState(false)
   const { setMode } = useInterfaceMode()
+  const navigate = useNavigate()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -392,6 +394,17 @@ function AccountMenu({ user, onSignOut }: { user: AuthUser; onSignOut: () => voi
               {user.email}
             </div>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              navigate('/settings')
+            }}
+            className="w-full rounded-sm px-md py-sm text-left text-body font-semibold text-ink transition-colors hover:bg-bg"
+          >
+            Settings
+          </button>
           <button
             type="button"
             role="menuitem"

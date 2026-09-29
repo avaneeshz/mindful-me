@@ -30,9 +30,9 @@ export interface HealthMetricPoint {
 }
 
 /** Zero or one row: `null` means "never connected" (never "failed to check" — see the try/catch below, which also collapses to `null` on a network failure, same contract `apiListScheduledActivities` uses elsewhere in this codebase). */
-export async function apiGetHealthConnectionStatus(): Promise<HealthConnectionStatus | null> {
+export async function apiGetHealthConnectionStatus(provider: string = GOOGLE_HEALTH_PROVIDER): Promise<HealthConnectionStatus | null> {
   if (!supabase) return null
-  const { data, error } = await supabase.rpc('get_health_connection_status', { p_provider: GOOGLE_HEALTH_PROVIDER })
+  const { data, error } = await supabase.rpc('get_health_connection_status', { p_provider: provider })
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[health-sync] get_health_connection_status failed', error.message)
