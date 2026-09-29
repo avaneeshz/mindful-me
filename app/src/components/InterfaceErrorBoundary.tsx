@@ -2,8 +2,6 @@ import { Component, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface Props {
-  /** Remounts the boundary (clearing any caught error) whenever this changes — the Classic/Lumen switch's own `mode`, so a crash in one interface doesn't permanently block switching to the other. */
-  resetKey: string
   children: ReactNode
 }
 
@@ -23,10 +21,11 @@ interface State {
  * (`FullScreenLoader`'s own visual language), with a real way out.
  *
  * A boundary can't recover on its own — React unmounts the failed subtree
- * for good once it catches — so `key={mode}` at the call site (see
- * `App.tsx`) is what actually lets switching away from the crashed
- * interface work again; this component only needs to reset its own error
- * state to match when that happens, via `resetKey` changing.
+ * for good once it catches — so the call site keys this component by `mode`
+ * (see `App.tsx`): switching away from the crashed interface tears down this
+ * whole instance (caught error included) and mounts a brand-new one, which
+ * is also why this component carries no reset-on-prop-change logic of its
+ * own — the `key` change already does that job one level up.
  */
 export class InterfaceErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
@@ -38,12 +37,6 @@ export class InterfaceErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     // eslint-disable-next-line no-console
     console.error('[InterfaceErrorBoundary] caught a render error', error, info.componentStack)
-  }
-
-  componentDidUpdate(prevProps: Props) {
-    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
-      this.setState({ error: null })
-    }
   }
 
   render() {

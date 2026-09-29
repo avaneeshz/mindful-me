@@ -98,12 +98,10 @@ function AuthGate({ now }: { now?: Date }) {
   // `InterfaceErrorBoundary` (found missing in review): neither branch had
   // anything above it to catch a render error, so a crash in either
   // interface blanked the whole screen with no way back except a manual
-  // refresh. `key={mode}` remounts the boundary itself on every switch —
-  // on top of the boundary's own `resetKey` reset, this also guarantees a
-  // completely fresh boundary instance (not just a cleared error) each time,
-  // so a crash on one side can never linger into the other.
+  // refresh. `key={mode}` remounts the boundary itself on every switch, so a
+  // crash on one side can never linger into the other.
   return (
-    <InterfaceErrorBoundary key={mode} resetKey={mode}>
+    <InterfaceErrorBoundary key={mode}>
       {mode === 'lumen' ? (
         <Suspense fallback={<FullScreenLoader />}>
           <LumenApp />
