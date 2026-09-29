@@ -2,6 +2,8 @@
 
 Confirmed requirements that are **not being implemented right now**. Ask "give me the pending backlog" any time and this file is the answer — everything below is understood and agreed, just sequenced after the current priority.
 
+Cleanup that keeps a future iOS/Android app cheap lives in its own file, [`MOBILE-READINESS.md`](./MOBILE-READINESS.md), not here.
+
 This file is additive: when something here starts implementation, move it out (note it as in progress / link its PR); when a new requirement is confirmed but deferred, add it here rather than losing it in chat history.
 
 ## Recently completed

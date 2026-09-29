@@ -19,7 +19,8 @@ Always, in this order:
 2. Read `WORKFLOW.md` (branching and release process). Cut your working branch from `develop`, not `main`, and never merge or push directly to `main` — `WORKFLOW.md` names the one emergency exception, and it doesn't apply by default.
 3. Read the **Current Frontend Architecture** and **Target Architecture** sections below — both are accurate as of the last architecture review, grounded in the actual repo.
 4. Identify which **migration phase** (below) the requested work belongs to. If it's ambiguous, ask rather than guessing — never implement Phase 3+ work on top of a Phase 1/2 foundation that isn't actually there yet.
-5. Skim the existing code at the paths cited below before editing them. Don't re-derive what's already documented here — trust it, then verify against the file.
+5. If the work adds a new product module or touches a file listed in `MOBILE-READINESS.md`, read the **Portability Rules** section below and that file first.
+6. Skim the existing code at the paths cited below before editing them. Don't re-derive what's already documented here — trust it, then verify against the file.
 
 ---
 
@@ -112,6 +113,21 @@ These were decided already — implement them as hard constraints, don't reopen 
 * Mirror the existing test style when adding domain logic — see `domain/slots.test.ts` and `state/boardReducer.test.ts` for the pattern: pure functions, exhaustive edge cases, no DOM needed.
 * Prefer simple abstractions and predictable state management over cleverness. Do not over-engineer.
 
+## Portability Rules (keep a future iOS/Android app cheap)
+
+`CLAUDE.md`'s **Platform Portability** section is the rule. This is how it maps onto this codebase:
+
+* **Layer direction:** `domain/` ← `api/` + `state/` (+ `lib/*LocalStore.ts`) ← `components/`, `routes/`, `lumen/screens/`, `lumen/components/`. A component needing server data or a write gets a hook in `state/` (or `lumen/data/`, or a module's `data/`). Components never call `api*` functions themselves. Types that UI and data share belong in `domain/types.ts` (or the module's `domain/`), not only in an `api/` file.
+* **`domain/` stays pure:** no React, no `window`/`document`/`navigator`, no storage, no Supabase. The two existing interfaces (Classic and Lumen) already share this layer, which shows the split works. Keep it that way, because a native app would be a third consumer of the same modules.
+* **Browser APIs only through adapters.** Until `MOBILE-READINESS.md` MR-1 lands, direct `localStorage`/`sessionStorage` use is confined to the eleven files MR-1 lists. It is never added to a component, a screen or `domain/`. Once the storage adapter exists, all new storage goes through it. Wrap any new browser capability (share, camera, notifications, geolocation, clipboard) the same way, in `lib/`.
+* **Config:** `import.meta.env` is read in one place (see MR-6). Don't add new readers.
+* **New modules** go in `app/src/modules/<name>/{domain,data,ui}/` with a single `index.ts` export surface. Tables, RPCs and RLS policies belong to that module's own migrations. The module is gated by `lib/featureFlags.ts`. Don't move existing Classic/Lumen code into `modules/` as a side effect of unrelated work.
+* **Rules live in the database.** Any invariant a native client would also need (ownership, validation, uniqueness, limits) is enforced in Postgres or an edge function, with the client check as a UX convenience only. This extends the existing no-overlap/RLS pattern.
+* **Tap parity:** every HTML5 drag or hover interaction (`Timeline.tsx`, `TileRow.tsx`, `DurationDragBlock.tsx`) keeps a working tap/click path. The select-slot-then-pick flow and the duration stepper are what make this true today, so don't remove them.
+* **No mobile tooling yet:** no React Native, Expo, Capacitor or workspace/monorepo restructure without explicit approval.
+
+When you fix an item from `MOBILE-READINESS.md`, move it to that file's **Done** section with the PR number. When you find a new gap, add it there rather than leaving it in chat.
+
 ## UI Quality (still applies to every screen you touch)
 
 Every implementation needs appropriate loading, empty, error, success, disabled, hover, focus, and active states, and must be tested structurally (not just visually scaled) against desktop, tablet, and mobile. Use semantic HTML, full keyboard navigation, accessible labels, visible focus states, ARIA where it's actually needed, and sufficient contrast.
@@ -126,7 +142,7 @@ Every implementation needs appropriate loading, empty, error, success, disabled,
 
 ## Before Calling Something Done
 
-Run the project's own checks — `npm run typecheck` and `npm test` at minimum — and reconcile the change against the Non-negotiable Product Rules above before saying it's finished. If a check fails or a rule doesn't hold, that's not done yet.
+Run the project's own checks — `npm run typecheck` and `npm test` at minimum — and reconcile the change against the Non-negotiable Product Rules and the Portability Rules above before saying it's finished. A change that adds a new `MOBILE-READINESS.md`-style gap (a component calling the API directly, new direct `localStorage`, browser APIs in `domain/`) isn't done. If a check fails or a rule doesn't hold, that's not done yet.
 
 ## Important
 
