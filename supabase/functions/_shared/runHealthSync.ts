@@ -35,8 +35,19 @@ interface SyncResult {
   reason?: 'not_connected' | 'reauth_required' | 'sync_error'
   message?: string
   pointsSynced?: number
-  dataTypesSynced?: string[]
+  /** The step to call next, or `null` once this sync is complete. */
+  nextStep?: number | null
+  totalSteps?: number
 }
+
+/**
+ * A function call gets roughly 2 seconds of CPU. Doing a whole sync in one
+ * call (40-odd data types, two weeks of per-minute heart rate) blew that, so a
+ * sync is a fixed list of tasks run a few per call: each call spends at most
+ * `STEP_BUDGET` cost units, then returns where the next call should resume.
+ */
+const STEP_BUDGET = 6
+
 
 interface GoogleErrorBody {
   error?: string
@@ -142,14 +153,15 @@ async function fetchListRows(
     unit: string | null
   }> = []
   let pageToken: string | undefined
-  for (let page = 0; page < MAX_LIST_PAGES; page++) {
-    const params = new URLSearchParams({ filter, pageSize: '100' })
+  const spec = dt.spec
+  for (let page = 0; page < (spec.maxPages ?? MAX_LIST_PAGES); page++) {
+    const params = new URLSearchParams({ filter, pageSize: String(spec.pageSize ?? 100) })
     if (pageToken) params.set('pageToken', pageToken)
     const url = `${GOOGLE_HEALTH_BASE_URL}users/me/dataTypes/${dt.id}/dataPoints?${params.toString()}`
     const res = await googleFetch(accessToken, url)
     const dataPoints: Array<Record<string, unknown>> = res.dataPoints ?? []
     for (const dp of dataPoints) {
-      const parsed = dt.spec.parse(dp)
+      const parsed = spec.parse(dp)
       if (!parsed) continue
       // Only the parsed point is kept — the full `dp` (an ECG carries its whole
       // waveform) is dropped as soon as this loop moves on.
@@ -255,18 +267,6 @@ async function fetchHeartRateDay(accessToken: string, dayStartMs: number, dayEnd
   return reduceHeartRateDay(samples, dayStartMs, dayEndMs)
 }
 
-/** Runs `worker` over `items` with at most `limit` in flight — many data types, but never a stampede on Google. */
-async function inBatches<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
-  for (let i = 0; i < items.length; i += limit) {
-    await Promise.all(items.slice(i, i + limit).map(worker))
-  }
-}
-
-interface SyncStateEntry {
-  frontier: string
-  backfillComplete?: boolean
-}
-
 /**
  * Pulls fresh data for every data type the connection's granted scopes
  * cover, upserts it, and records progress. Safe to call repeatedly — each
@@ -281,6 +281,7 @@ export async function runHealthSync(
   clientId: string,
   clientSecret: string,
   provider: string = GOOGLE_HEALTH_PROVIDER,
+  step = 0,
 ): Promise<SyncResult> {
   const { data: connections, error: connError } = await admin.rpc('get_external_connection_for_sync', {
     p_user_id: userId,
@@ -342,14 +343,14 @@ export async function runHealthSync(
 
   const grantedScopes = new Set<string>(connection.scopes ?? [])
   const grantedDataTypes = DATA_TYPES.filter((dt) => grantedScopes.has(fullScope(dt.scope)))
-  // Belt-and-braces: if somehow nothing in ALL_HEALTH_SCOPES was granted
-  // (a partial consent), still only sync what was actually granted — never
-  // silently widen the request beyond `connection.scopes`.
+  // Never widen the request beyond `connection.scopes`.
   void ALL_HEALTH_SCOPES
 
   const now = new Date()
   const recentWindowStart = new Date(now.getTime() - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-  const syncState: Record<string, SyncStateEntry> = { ...(connection.sync_state ?? {}) }
+  // Read fresh on every step, so each step sees what earlier steps recorded.
+  // deno-lint-ignore no-explicit-any
+  const syncState: Record<string, any> = { ...(connection.sync_state ?? {}) }
   const rows: HealthMetricRow[] = []
 
   function pushRow(dt: DataTypeConfig, point: { recordedAt: string; endAt: string | null; value: unknown; unit: string | null }) {
@@ -362,31 +363,18 @@ export async function runHealthSync(
       value: JSON.stringify(point.value),
       unit: point.unit,
       source: null,
-      // Nothing reads the raw response, and for ECG it carries a whole
-      // waveform per point — enough to exhaust the function's memory. The
-      // parsed `value` is all that is kept.
+      // Nothing reads the raw response, and for ECG it is a whole waveform.
       raw_response: null,
       external_id: `${dt.id}:${point.recordedAt}:${point.endAt ?? ''}`,
     })
   }
 
-  // Account documents and heart-rate-by-day have their own fetch paths; the
-  // settings document also tells us the person's time zone, which every
-  // per-day type below needs, so it is read first.
-  const accountTypes = grantedDataTypes.filter((dt) => dt.spec.kind === 'account')
-  const settingsDoc = grantedScopes.has(fullScope('settings'))
-    ? await fetchAccountDoc(accessToken, 'settings')
-    : null
+  // The person's time zone decides where their days start. Settings is one
+  // small request; it is re-read each step rather than trusted from state.
+  const settingsDoc = grantedScopes.has(fullScope('settings')) ? await fetchAccountDoc(accessToken, 'settings') : null
   const tz = safeTimeZone(typeof settingsDoc?.timeZone === 'string' ? settingsDoc.timeZone : null)
-  const days = recentLocalDays(now.getTime(), 1, tz)
-  const todayStart = new Date(days[days.length - 1].startMs).toISOString()
-
-  for (const dt of accountTypes) {
-    if (dt.spec.kind !== 'account') continue
-    const doc = dt.spec.path === 'settings' ? settingsDoc : await fetchAccountDoc(accessToken, dt.spec.path)
-    // One snapshot row per local day: a repeat sync the same day updates it.
-    if (doc) pushRow(dt, { recordedAt: todayStart, endAt: null, value: doc, unit: null })
-  }
+  const localDays = recentLocalDays(now.getTime(), 14, tz)
+  const todayStart = new Date(localDays[localDays.length - 1].startMs).toISOString()
 
   const maxBackfillDays = (dt: DataTypeConfig) => (dt.spec.kind === 'generic' ? dt.spec.maxBackfillDays : MAX_BACKFILL_DAYS)
 
@@ -397,81 +385,127 @@ export async function runHealthSync(
     return []
   }
 
-  const seriesTypes = grantedDataTypes.filter(
-    (dt) => dt.spec.kind === 'rollup' || dt.spec.kind === 'list' || dt.spec.kind === 'generic',
-  )
-
-  await inBatches(seriesTypes, 4, async (dt) => {
-    try {
-      // 1. The recent trailing window — always refreshed, keeps the
-      // dashboard current regardless of how deep the backfill frontier is.
-      for (const point of await fetchSeries(dt, recentWindowStart, now)) pushRow(dt, point)
-
-      if (dt.spec.kind === 'list' && dt.spec.unboundedEnd) {
-        // See `unboundedEnd`'s own doc comment in googleHealth.ts: this
-        // data type's filter can only express a lower bound, so a
-        // persisted [chunkStart, chunkEnd) frontier claim would be
-        // dishonest — Google returns newest-first, so an unbounded-above
-        // request can fill the page cap with points already covered by
-        // the recent-window pull above and never reach further back, while
-        // a frontier cursor would still advance as if it had. Instead:
-        // always re-request the full bounded-from-below manual window,
-        // and never persist a completion claim for it — upsert dedup
-        // (external_id) makes the overlap with the recent window free.
-        const backfillWindowStart = new Date(now.getTime() - MAX_BACKFILL_DAYS * 24 * 60 * 60 * 1000)
-        for (const point of await fetchListRows(accessToken, dt, backfillWindowStart, now)) pushRow(dt, point)
-        delete syncState[dt.id]
-      } else {
-        // One more chunk of history, if backfill isn't done yet.
-        const state = syncState[dt.id] ?? { frontier: recentWindowStart.toISOString(), backfillComplete: false }
-        if (!state.backfillComplete) {
-          const frontier = new Date(state.frontier)
-          const cap = new Date(now.getTime() - maxBackfillDays(dt) * 24 * 60 * 60 * 1000)
-          let chunkStart = new Date(frontier.getTime() - BACKFILL_CHUNK_DAYS * 24 * 60 * 60 * 1000)
-          let backfillComplete = false
-          if (chunkStart <= cap) {
-            chunkStart = cap
-            backfillComplete = true
-          }
-          if (chunkStart < frontier) {
-            for (const point of await fetchSeries(dt, chunkStart, frontier)) pushRow(dt, point)
-          }
-          syncState[dt.id] = { frontier: chunkStart.toISOString(), backfillComplete }
-        }
-      }
-    } catch (err) {
-      // One data type failing (a transient Google error, a data type this
-      // account has no data for yet) must never abort the whole sync run —
-      // every other granted data type still gets its chance.
-      // eslint-disable-next-line no-console
-      console.warn(`[health-sync] ${dt.id} failed:`, err instanceof Error ? err.message : err)
+  async function syncSeries(dt: DataTypeConfig) {
+    if (dt.spec.kind === 'list' && dt.spec.unboundedEnd) {
+      // This type's filter has only a lower bound, so no frontier is kept:
+      // each sync re-reads the whole (short) window; the upsert de-duplicates.
+      const days = dt.spec.windowDays ?? MAX_BACKFILL_DAYS
+      const windowStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+      for (const point of await fetchListRows(accessToken, dt, windowStart, now)) pushRow(dt, point)
+      delete syncState[dt.id]
+      return
     }
-  })
 
-  // Heart rate through each recent local day, one row per day.
-  for (const dt of grantedDataTypes) {
-    if (dt.spec.kind !== 'intraday-hr') continue
-    const spec = dt.spec
-    await inBatches(recentLocalDays(now.getTime(), spec.days, tz), 3, async (day) => {
-      try {
-        const reduced = await fetchHeartRateDay(accessToken, day.startMs, day.endMs)
-        if (reduced) {
-          pushRow(dt, {
-            recordedAt: new Date(day.startMs).toISOString(),
-            endAt: new Date(day.endMs).toISOString(),
-            value: reduced,
-            unit: 'bpm',
-          })
+    // The recent trailing window — always refreshed.
+    for (const point of await fetchSeries(dt, recentWindowStart, now)) pushRow(dt, point)
+
+    // One more chunk of history, until backfill is complete.
+    const state = syncState[dt.id] ?? { frontier: recentWindowStart.toISOString(), backfillComplete: false }
+    if (state.backfillComplete) return
+    const frontier = new Date(state.frontier)
+    const cap = new Date(now.getTime() - maxBackfillDays(dt) * 24 * 60 * 60 * 1000)
+    let chunkStart = new Date(frontier.getTime() - BACKFILL_CHUNK_DAYS * 24 * 60 * 60 * 1000)
+    let backfillComplete = false
+    if (chunkStart <= cap) {
+      chunkStart = cap
+      backfillComplete = true
+    }
+    if (chunkStart < frontier) {
+      for (const point of await fetchSeries(dt, chunkStart, frontier)) pushRow(dt, point)
+    }
+    syncState[dt.id] = { frontier: chunkStart.toISOString(), backfillComplete }
+  }
+
+  // ---------------------------------------------------------------------
+  // The task list. It depends only on the granted scopes and today's date,
+  // so every step of one sync sees the same list and `step` is a stable
+  // index into it. A task that has nothing to do costs nothing.
+  // ---------------------------------------------------------------------
+  interface Task {
+    label: string
+    cost: number
+    run: () => Promise<void>
+  }
+  const tasks: Task[] = []
+
+  const accountTypes = grantedDataTypes.filter((dt) => dt.spec.kind === 'account')
+  if (accountTypes.length > 0) {
+    tasks.push({
+      label: 'account',
+      cost: 1,
+      run: async () => {
+        for (const dt of accountTypes) {
+          if (dt.spec.kind !== 'account') continue
+          const doc = dt.spec.path === 'settings' ? settingsDoc : await fetchAccountDoc(accessToken, dt.spec.path)
+          // One snapshot row per local day: a repeat sync the same day updates it.
+          if (doc) pushRow(dt, { recordedAt: todayStart, endAt: null, value: doc, unit: null })
         }
-      } catch (err) {
-        console.warn(`[health-sync] ${dt.id} ${day.key} failed:`, err instanceof Error ? err.message : err)
-      }
+      },
     })
   }
 
+  for (const dt of grantedDataTypes) {
+    const spec = dt.spec
+    if (spec.kind === 'rollup') tasks.push({ label: dt.id, cost: 1, run: () => syncSeries(dt) })
+    // ECG waveforms and per-minute types are the heavy ones: each gets a call to itself.
+    else if (spec.kind === 'list') tasks.push({ label: dt.id, cost: spec.unboundedEnd ? STEP_BUDGET : 2, run: () => syncSeries(dt) })
+    else if (spec.kind === 'generic') tasks.push({ label: dt.id, cost: spec.mode === 'daily' ? STEP_BUDGET : 1, run: () => syncSeries(dt) })
+  }
+
+  // Heart rate through the day: one task per local day. A past day that has
+  // been fetched in full is recorded in state and skipped from then on;
+  // today and yesterday are always refreshed (a watch can upload late).
+  const hrType = grantedDataTypes.find((dt) => dt.spec.kind === 'intraday-hr')
+  if (hrType) {
+    const doneDays = new Set<string>(Array.isArray(syncState['heart-rate-intraday']?.doneDays) ? syncState['heart-rate-intraday'].doneDays : [])
+    const refreshAlways = new Set(localDays.slice(-2).map((d) => d.key))
+    for (const day of localDays) {
+      const skip = doneDays.has(day.key) && !refreshAlways.has(day.key)
+      tasks.push({
+        label: `heart-rate ${day.key}`,
+        cost: skip ? 0 : 3,
+        run: async () => {
+          if (skip) return
+          const reduced = await fetchHeartRateDay(accessToken, day.startMs, day.endMs)
+          if (reduced) {
+            pushRow(hrType, {
+              recordedAt: new Date(day.startMs).toISOString(),
+              endAt: new Date(day.endMs).toISOString(),
+              value: reduced,
+              unit: 'bpm',
+            })
+          }
+          if (!refreshAlways.has(day.key)) {
+            doneDays.add(day.key)
+            // Only the fortnight on screen needs remembering.
+            const keep = new Set(localDays.map((d) => d.key))
+            syncState['heart-rate-intraday'] = { doneDays: [...doneDays].filter((k) => keep.has(k)) }
+          }
+        },
+      })
+    }
+  }
+
+  // Run tasks from `step` until this call's budget is spent (always at least one).
+  let i = Math.max(0, Math.min(step, tasks.length))
+  let spent = 0
+  while (i < tasks.length) {
+    const task = tasks[i]
+    if (spent > 0 && spent + task.cost > STEP_BUDGET) break
+    try {
+      await task.run()
+    } catch (err) {
+      // One task failing (a transient Google error, a type this account has
+      // no data for) never aborts the sync — the rest still get their turn.
+      console.warn(`[health-sync] ${task.label} failed:`, err instanceof Error ? err.message : err)
+    }
+    spent += task.cost
+    i++
+  }
+  const nextStep = i < tasks.length ? i : null
+
   // One statement can't update the same row twice, and overlapping windows
-  // (a day total built from both the recent pull and a backfill chunk) can
-  // produce the same external id — keep the last of each.
+  // can produce the same external id — keep the last of each.
   const uniqueRows = [...new Map(rows.map((r) => [`${r.data_type}|${r.external_id}`, r])).values()]
 
   if (uniqueRows.length > 0) {
@@ -493,5 +527,5 @@ export async function runHealthSync(
     p_sync_state: syncState,
   })
 
-  return { ok: true, pointsSynced: uniqueRows.length, dataTypesSynced: grantedDataTypes.map((dt) => dt.id) }
+  return { ok: true, pointsSynced: uniqueRows.length, nextStep, totalSteps: tasks.length }
 }

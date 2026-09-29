@@ -12,6 +12,9 @@ import {
 import { beginGoogleHealthOAuthState, buildGoogleHealthAuthorizeUrl } from '@/lib/googleHealthOAuth'
 import { useAuth } from '@/state/AuthContext'
 
+/** Upper bound on calls in one sync — well above a real sync's step count. */
+const MAX_SYNC_CALLS = 60
+
 export interface SyncMessage {
   tone: 'success' | 'error'
   text: string
@@ -43,6 +46,7 @@ export function useHealthConnection() {
 
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<SyncMessage | null>(null)
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null)
 
   const [disconnecting, setDisconnecting] = useState(false)
 
@@ -86,18 +90,30 @@ export function useHealthConnection() {
     if (syncing) return // rule 9's spirit — guard against a double-submit
     setSyncing(true)
     setSyncMessage(null)
-    const result = await apiTriggerHealthSync()
+    setSyncProgress(null)
+    // A sync runs as a series of small calls; keep calling until the server
+    // says it's done. The cap only guards against a runaway loop.
+    let step = 0
+    let points = 0
+    let result = await apiTriggerHealthSync(step)
+    for (let calls = 1; result.ok && typeof result.nextStep === 'number' && calls < MAX_SYNC_CALLS; calls++) {
+      points += result.pointsSynced ?? 0
+      step = result.nextStep
+      setSyncProgress({ done: step, total: result.totalSteps ?? step })
+      result = await apiTriggerHealthSync(step)
+    }
     setSyncing(false)
+    setSyncProgress(null)
     if (result.ok) {
-      setSyncMessage({
-        tone: 'success',
-        text: `Synced ${result.pointsSynced ?? 0} new data point${result.pointsSynced === 1 ? '' : 's'}.`,
-      })
+      points += result.pointsSynced ?? 0
+      setSyncMessage({ tone: 'success', text: `Synced ${points} data point${points === 1 ? '' : 's'}.` })
       refresh()
     } else if (result.reason === 'reauth_required') {
       await refresh()
     } else {
       setSyncMessage({ tone: 'error', text: result.message ?? 'Sync failed. Try again in a moment.' })
+      // Whatever earlier steps saved is real — show it.
+      if (points > 0) refresh()
     }
   }, [syncing, refresh])
 
@@ -157,6 +173,7 @@ export function useHealthConnection() {
     restoreError,
     syncing,
     syncMessage,
+    syncProgress,
     disconnecting,
     refresh,
     connect,
