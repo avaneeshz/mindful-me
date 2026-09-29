@@ -22,5 +22,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(rootDir, 'dist'),
     emptyOutDir: true,
+    // 'hidden': the .map files are built and deployed (fetchable by exact
+    // URL for debugging a real production/preview crash from its minified
+    // stack trace) but the bundle carries no `//# sourceMappingURL=`
+    // comment, so an ordinary visitor's DevTools never auto-fetches one and
+    // never sees de-minified source just by opening the console — unlike
+    // plain `sourcemap: true`.
+    sourcemap: 'hidden',
   },
 })
