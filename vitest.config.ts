@@ -13,6 +13,6 @@ export default defineConfig({
   test: {
     // Pure logic only — no DOM environment needed, so no jsdom dependency.
     environment: 'node',
-    include: ['app/src/**/*.test.{ts,tsx}'],
+    include: ['app/src/**/*.test.{ts,tsx}', 'supabase/functions/**/*.test.ts'],
   },
 })
