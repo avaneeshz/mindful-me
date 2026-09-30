@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react'
-import { ActivityLibraryPanel } from '@/components/activityLibrary/ActivityLibraryPanel'
+import { useEffect } from 'react'
 import {
   activitiesTouchingSlot,
   flagMarkerAt,
@@ -45,10 +44,8 @@ interface SlotEditorProps {
   viewedDate: Date
   /** Bug B — drives the selected activity's "not yet synced" / "sync failed" badge; see `ActivitySummary`. */
   syncQueue: SyncQueue
-  /** The one Edit-mode toggle for the whole screen (owned by `TodayPage`) — this component renders `ActivityLibraryPanel` as a controlled dialog with `open={editMode}` while it's on (see the render site's own comment). */
+  /** The one Edit-mode toggle for the whole screen (owned by `AuthedApp`): while on, the tile row edits tiles and activities in place. */
   editMode: boolean
-  /** Fires when the tile/activity management dialog wants to close itself (X, Escape, overlay click) — `TodayPage` turns `editMode` off in response, the same master switch that also governs `HeaderBar`'s quick-log pill controls. */
-  onCloseEditMode: () => void
 }
 
 /**
@@ -75,26 +72,9 @@ export function SlotEditor({
   onOpenReflectionNote,
   syncQueue,
   editMode,
-  onCloseEditMode,
 }: SlotEditorProps) {
   const { activities, selectedSlot, staging, removal } = state
 
-  // Lazy-mount-once, then keep alive — `ActivityLibraryPanel` (rendered near
-  // the bottom of this component) is genuinely expensive to remount: it owns
-  // its own `selectedTileId`/`selectedActivityId` state and fires
-  // `useParameterVocabulary`/`useActivityParameterSelections` fetches.
-  // Mounting it unconditionally from the very first render (so closing and
-  // reopening the dialog never loses that state — see the render site's own
-  // comment) would mean EVERY visit to this screen pays those fetches, even
-  // for the vast majority of sessions that never open Edit mode at all. This
-  // ref instead remembers only that Edit mode was opened at least once THIS
-  // session — before that, the panel is never mounted (zero extra cost);
-  // once opened, it mounts and stays mounted for the rest of the session
-  // (its own `Dialog.Root open={editMode}` controls the dialog's own
-  // visibility from there), so switching Edit mode off and back on preserves
-  // exactly where the user left off.
-  const everOpenedManagementPanelRef = useRef(false)
-  if (editMode) everOpenedManagementPanelRef.current = true
   // "Activity mode": an activity was selected on the timeline (or by clicking
   // a fully-covered slot). Its summary REPLACES the whole slot body below —
   // the two are mutually exclusive by construction (`selectSlot` always
@@ -146,8 +126,8 @@ export function SlotEditor({
   // back to each picker's own static default set instead of flashing zero
   // options.
   //
-  // While `editMode` is on AND an activity is staged, `ActivityLibraryPanel`
-  // below mounts its OWN separate `useActivityParameterSelections`/
+  // While `editMode` is on, the tile editor's activity view
+  // (`ActivityEditView`) mounts its OWN separate `useActivityParameterSelections`/
   // `useParameterVocabulary` instances — unlike `tiles`/`activities`
   // (properly shared via `PickerDataContext`), none of these hooks share one
   // instance across the app. Two DIFFERENT concerns were found here in an
@@ -251,6 +231,7 @@ export function SlotEditor({
               dismissed={dismissed}
               onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
               onToggleDismiss={toggleDismissed}
+              editMode={editMode}
             />
           </div>
         </>
@@ -280,31 +261,6 @@ export function SlotEditor({
       />
     </section>
 
-    {/*
-      The unified tile/activity management dialog (real user feedback: the
-      same top-bar Edit toggle must manage tiles/activities, not a second
-      page reachable only from the sidebar — see `ActivityLibraryPanel`'s own
-      doc comment for the full history, including this round's move from
-      inline content to a real dialog). Rendered as its OWN top-level sibling
-      here, outside the `<section>` above, purely so it's never structurally
-      nested inside that section's own "Selected activity"/slot-heading
-      landmark — its own `Dialog.Content` is a fixed-position overlay
-      regardless of where in the tree it renders (no `<Dialog.Portal>`, see
-      `ActivityLibraryPanel`'s own doc comment for why), so this placement is
-      about correct landmark nesting, not visual layout.
-
-      Lazy-mount-once, then kept mounted forever after that first open —
-      mirrors `TileRow`'s own established "stays mounted regardless" pattern
-      for a toggled state. `open={editMode}` is what actually shows/hides the
-      dialog from here on; `ActivityLibraryPanel` itself stays mounted the
-      whole time so its own `selectedTileId`/`selectedActivityId` state
-      survives closing and reopening — see `everOpenedManagementPanelRef`'s
-      own comment above for why this isn't simply "always mounted from the
-      very first render" instead.
-    */}
-    {everOpenedManagementPanelRef.current && (
-      <ActivityLibraryPanel open={editMode} onClose={onCloseEditMode} />
-    )}
     </>
   )
 }

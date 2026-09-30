@@ -9,7 +9,7 @@ const START_DELAY_MS = 3_000
 
 /**
  * Keeps Google Health data fresh while the app is open: a sync shortly after
- * opening, again when the app comes back to the front, and every 15 minutes
+ * opening, again when the app comes back to the front, and every 5 minutes
  * while it stays visible. Each sync is `auto` — the server runs a light
  * "today" sync, or a full one when the last full sync is over 6 hours old.
  *

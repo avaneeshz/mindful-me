@@ -309,3 +309,30 @@ export function liveActivityCardsFromRows(
   const visible = activities.filter((a) => !a.hidden)
   return tileOrder.flatMap((tileId) => buildActivityTree(visible, tileId).map((node) => activityNodeToCard(node, tileId)))
 }
+
+/**
+ * The sibling order after moving `id` one place up (`-1`) or down (`1`), or
+ * `null` when it can't move that way (already first/last, or not in the
+ * list) — what the inline editor's up/down buttons hand to `reorder`. The tap
+ * equivalent of any drag-to-reorder (portability rule 5).
+ */
+export function moveInOrder(ids: readonly string[], id: string, direction: -1 | 1): string[] | null {
+  const index = ids.indexOf(id)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= ids.length) return null
+  const next = [...ids]
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}
+
+/** Direct children of `parentId` (or a tile's top-level rows when `parentId` is null), split by visibility and sorted like `buildActivityTree`'s siblings. */
+export function childrenOf(
+  activities: readonly ActivityRow[],
+  parentId: string | null,
+  tileId: string,
+): { visible: ActivityRow[]; hidden: ActivityRow[] } {
+  const rows = activities
+    .filter((a) => (parentId === null ? a.parentId === null && a.tileId === tileId : a.parentId === parentId))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+  return { visible: rows.filter((a) => !a.hidden), hidden: rows.filter((a) => a.hidden) }
+}

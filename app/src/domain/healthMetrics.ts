@@ -17,15 +17,22 @@ export const HEALTH_GROUPS = [
   { id: 'sleep', label: 'Sleep', blurb: 'Sleep sessions.' },
   { id: 'ecg', label: 'ECG', blurb: 'Electrocardiogram readings.' },
   { id: 'irn', label: 'Rhythm alerts', blurb: 'Irregular rhythm notifications.' },
-  { id: 'mindfulness', label: 'Mindfulness', blurb: 'Logged moods.' },
-  { id: 'logged_symptoms', label: 'Symptoms', blurb: 'Symptoms you logged.' },
-  { id: 'reproductive_health', label: 'Reproductive health', blurb: 'Menstrual periods and ovulation tests.' },
+  { id: 'mindfulness', label: 'Mindfulness', blurb: 'Logged moods.', readable: false },
+  { id: 'logged_symptoms', label: 'Symptoms', blurb: 'Symptoms you logged.', readable: false },
+  { id: 'reproductive_health', label: 'Reproductive health', blurb: 'Menstrual periods and ovulation tests.', readable: false },
   { id: 'location', label: 'Location', blurb: 'Only used to export an exercise route; nothing is stored.' },
   { id: 'profile', label: 'Profile', blurb: 'Your Google Health profile.' },
   { id: 'settings', label: 'Settings', blurb: 'Your Google Health settings.' },
 ] as const
 
 export type HealthGroupId = (typeof HEALTH_GROUPS)[number]['id']
+
+/**
+ * The groups worth showing. Google lets apps write moods, symptoms, periods
+ * and ovulation tests but never read them back, so those groups are not
+ * synced and would only ever be empty.
+ */
+export const READABLE_HEALTH_GROUPS = HEALTH_GROUPS.filter((g) => !('readable' in g && g.readable === false))
 
 /** How a data type is presented: a chart over time, an account card, or the full-day heart-rate view. */
 export type HealthView = 'chart' | 'account' | 'intraday'

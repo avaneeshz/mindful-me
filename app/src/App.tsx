@@ -134,7 +134,7 @@ function AuthedApp({ now }: { now?: Date }) {
   // The ONE edit-mode toggle for the whole app — `HeaderBar`'s top-bar
   // "Edit" button used to own this locally (Today-only, before HeaderBar
   // was hoisted here); now that HeaderBar is app-wide chrome (see the shell
-  // comment below) and `SlotEditor`'s inline `ActivityLibraryPanel` (a
+  // comment below) and `SlotEditor`'s inline tile editor (a
   // TodayPage descendant, not a HeaderBar descendant) needs the exact same
   // flag, it has to live at the one ancestor both share. Passed down to
   // `TodayPage` as a prop rather than lifted into `BoardContext` — it's
@@ -147,8 +147,8 @@ function AuthedApp({ now }: { now?: Date }) {
     // because `BoardProvider` itself calls `useLiveActivityCatalogSync`,
     // which reads this context — see `PickerDataContext.tsx`'s own doc
     // comment for why both the live picker (`useLiveActivityCatalogSync`)
-    // and the inline `ActivityLibraryPanel` (`SlotEditor`'s edit-mode panel,
-    // also a descendant of this provider) must share this one instance, not
+    // and the inline tile editor (`EditableTileRow`, also a
+    // descendant of this provider) must share this one instance, not
     // each mint their own.
     <PickerDataProvider>
       <BoardProvider now={now}>
@@ -180,7 +180,7 @@ function AuthedApp({ now }: { now?: Date }) {
                 <Routes>
                   <Route
                     path="/"
-                    element={<TodayPage editMode={editMode} onCloseEditMode={() => setEditMode(false)} />}
+                    element={<TodayPage editMode={editMode} />}
                   />
                   <Route path="/health-sync" element={<HealthSyncPage />} />
                   <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
@@ -190,9 +190,9 @@ function AuthedApp({ now }: { now?: Date }) {
                     "Today", "Health Sync" and "Settings" (with its Add device
                     picker) are the only routed screens.
                     "Activity Library" (PICKER-CUSTOM-1) isn't a route at all
-                    — real user feedback turned it into `ActivityLibraryPanel`,
-                    rendered inline by `SlotEditor` when the top-bar Edit
-                    toggle above is on, rather than a second hidden path. Every
+                    — it is the inline tile editor on Today (`EditableTileRow`),
+                    on whenever the top-bar Edit toggle above is on. The
+                    per-user option lists live in Settings. Every
                     other sidebar entry remains a placeholder with no
                     destination.
                   */}

@@ -89,7 +89,7 @@ export interface HeaderBarProps {
    * The ONE edit-mode toggle for the whole day screen — owned by `TodayPage`
    * (not local to this component any more) so `SlotEditor` can read the
    * exact same flag and reveal its own inline tile/activity management
-   * panel (`ActivityLibraryPanel`) when it's on, rather than needing a
+   * inline tile editor (`EditableTileRow`) when it's on, rather than needing a
    * second, disconnected entry point (real user feedback: the separate
    * Activity Library page, reachable only from the sidebar, was never found
    * — see `SlotEditor.tsx`'s own doc comment).

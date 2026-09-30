@@ -19,13 +19,10 @@ const SECTIONS: { type: ParameterType; label: string; helper: string }[] = [
  * means it's currently effective for this activity, whether that's because
  * this activity explicitly chose it or because it's inheriting the full
  * list/an ancestor's own choices. No free-text entry here at all any more;
- * that only ever happens in `ParameterVocabularyPanel`, the dialog's
- * "nothing selected yet" state in the same column (`ActivityLibraryPanel`'s
- * own doc comment covers the reachability call behind that). `onManageVocabulary`
- * (found in code review) is this checklist's own way back to it without
- * hunting for how to deselect the activity — used both as a persistent link
- * and, pointedly, in a section's own empty state when its global list has
- * nothing in it yet at all.
+ * that only ever happens in `ParameterVocabularyPanel`, the "Your options"
+ * section of the Settings page. `onManageVocabulary` takes the user there
+ * (from the inline activity editor) — used both as a persistent link and, in a
+ * section's own empty state, when its global list has nothing in it yet.
  */
 export function ParameterOptionsPanel({
   activityName,
@@ -43,7 +40,7 @@ export function ParameterOptionsPanel({
         {data.status === 'loading' && <Loader2 aria-hidden="true" className="size-[16px] animate-spin text-ink-dim" />}
       </div>
       <Button variant="accent" size="inline" onClick={onManageVocabulary} className="self-start">
-        Manage your options
+        Add or rename options in Settings
       </Button>
       {data.error && <p className="text-caption text-ink-dim">{data.error}</p>}
 
@@ -132,14 +129,6 @@ function ChecklistSection({
         <span className="text-caption text-ink-dim">{overridden ? 'Customized for this activity' : 'Inherited'}</span>
       </div>
 
-      {/*
-        Found in code review: this used to say "add some in 'Your options'
-        above" — but that section is never on screen AT THE SAME TIME as
-        this checklist (they're alternates in the same dialog column, see
-        `ActivityLibraryPanel`), so the instruction was unfollowable without
-        first figuring out how to get back there. A real button that does it
-        for you, instead.
-      */}
       {data.status === 'ready' && options.length === 0 && (
         <p className="text-caption text-ink-dim">
           No {section.label.toLowerCase()} options exist yet.{' '}
