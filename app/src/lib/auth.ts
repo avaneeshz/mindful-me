@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { authCallbackUrl } from './authRedirect'
 
 /**
  * Result of a sign-in/sign-up attempt. Deliberately not just `boolean` —
@@ -130,6 +131,44 @@ export async function signInWithPassword(email: string, password: string): Promi
     return { ok: false, message: 'Something went wrong signing you in. Please try again.' }
   } catch (error) {
     return { ok: false, message: isNetworkFailure(error) ? NETWORK_ERROR_MESSAGE : mapAuthErrorMessage(String(error)) }
+  }
+}
+
+/** User-facing copy for an `?error=` Google/Supabase sent back to the sign-in callback. */
+export function mapOAuthCallbackError(error: string): string {
+  if (error === 'access_denied') return 'Google sign-in was cancelled.'
+  return "Couldn't sign in with Google. Please try again."
+}
+
+/**
+ * Starts "Continue with Google". On success the browser leaves for Google
+ * and comes back to `AUTH_CALLBACK_PATH`, where `completeOAuthSignIn`
+ * finishes it — so a resolved `{ ok: true }` means "redirecting", not
+ * "signed in".
+ */
+export async function startGoogleSignIn(): Promise<AuthOutcome> {
+  if (!supabase) return { ok: false, message: NOT_CONFIGURED_MESSAGE }
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: authCallbackUrl() },
+    })
+    if (error) return { ok: false, message: mapAuthErrorMessage(error.message) }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: isNetworkFailure(error) ? NETWORK_ERROR_MESSAGE : mapAuthErrorMessage(String(error)) }
+  }
+}
+
+/** Trades the `?code=` from the sign-in callback for a session (PKCE). */
+export async function completeOAuthSignIn(code: string): Promise<AuthOutcome> {
+  if (!supabase) return { ok: false, message: NOT_CONFIGURED_MESSAGE }
+  try {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error || !data.session) return { ok: false, message: mapOAuthCallbackError('exchange_failed') }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: isNetworkFailure(error) ? NETWORK_ERROR_MESSAGE : mapOAuthCallbackError('exchange_failed') }
   }
 }
 
