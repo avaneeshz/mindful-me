@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { ChevronDown, Loader2 } from 'lucide-react'
-import { apiListHealthMetrics, type HealthDataTypeSummary, type HealthMetricPoint } from '@/api/healthSync'
+import type { HealthDataTypeSummary, HealthMetricPoint } from '@/api/healthSync'
 import { describeHealthValue, healthDataTypeMeta } from '@/domain/healthMetrics'
 import { HealthMetricChart } from '@/components/healthsync/HealthMetricChart'
 import { formatRelativeTime } from '@/lib/relativeTime'
 import { cn } from '@/lib/utils'
+import { useHealthMetrics } from '@/state/useHealthMetrics'
 
 const RECENT_WINDOW_DAYS = 30
 const DETAIL_LIMIT = 8
@@ -47,19 +48,12 @@ function EntryList({ points }: { points: HealthMetricPoint[] }) {
 export function HealthTypeCard({ summary }: { summary: HealthDataTypeSummary }) {
   const meta = healthDataTypeMeta(summary.dataType)
   const [open, setOpen] = useState(false)
-  const [points, setPoints] = useState<HealthMetricPoint[] | null>(null)
-  const [loading, setLoading] = useState(false)
+  // Nothing is read until the card is opened; once read, reopening shows it at once.
+  const points = useHealthMetrics(summary.dataType, { days: RECENT_WINDOW_DAYS, enabled: open })
+  const loading = open && points === null
 
-  async function toggle() {
-    const next = !open
-    setOpen(next)
-    if (next && points === null) {
-      setLoading(true)
-      const end = new Date()
-      const start = new Date(end.getTime() - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-      setPoints((await apiListHealthMetrics(summary.dataType, start, end)) ?? [])
-      setLoading(false)
-    }
+  function toggle() {
+    setOpen((value) => !value)
   }
 
   return (
