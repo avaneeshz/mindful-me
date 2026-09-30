@@ -38,7 +38,26 @@ interface SyncResult {
   /** The step to call next, or `null` once this sync is complete. */
   nextStep?: number | null
   totalSteps?: number
+  /** Which kind of sync ran — continuation calls must send this back as their mode. */
+  mode?: 'full' | 'quick'
 }
+
+/**
+ * `full` walks every granted type plus history (first sync, Sync now).
+ * `quick` refreshes only what moves during a day, for automatic syncs.
+ * `auto` lets the server choose: full when the last full sync is older than
+ * `FULL_SYNC_EVERY_MS` (so late uploads and history still arrive), else quick.
+ */
+export type SyncMode = 'full' | 'quick' | 'auto'
+
+/** How often an automatic sync is promoted to a full one. */
+const FULL_SYNC_EVERY_MS = 6 * 60 * 60 * 1000
+
+/** The types a quick sync refreshes — the ones that change through a day. */
+const QUICK_TYPE_IDS = new Set(['steps', 'heart-rate', 'sleep', 'exercise', 'active-energy-burned'])
+
+/** A quick sync is a handful of small reads, so it runs in one call. */
+const QUICK_BUDGET = 12
 
 /**
  * A function call gets roughly 2 seconds of CPU. Doing a whole sync in one
@@ -282,6 +301,7 @@ export async function runHealthSync(
   clientSecret: string,
   provider: string = GOOGLE_HEALTH_PROVIDER,
   step = 0,
+  mode: SyncMode = 'full',
 ): Promise<SyncResult> {
   const { data: connections, error: connError } = await admin.rpc('get_external_connection_for_sync', {
     p_user_id: userId,
@@ -352,6 +372,10 @@ export async function runHealthSync(
   // deno-lint-ignore no-explicit-any
   const syncState: Record<string, any> = { ...(connection.sync_state ?? {}) }
   const rows: HealthMetricRow[] = []
+
+  const lastFullMs = Date.parse(syncState.__lastFullSyncAt ?? '')
+  const resolved: 'full' | 'quick' =
+    mode === 'auto' ? (Number.isFinite(lastFullMs) && now.getTime() - lastFullMs < FULL_SYNC_EVERY_MS ? 'quick' : 'full') : mode
 
   function pushRow(dt: DataTypeConfig, point: { recordedAt: string; endAt: string | null; value: unknown; unit: string | null }) {
     rows.push({
@@ -428,70 +452,107 @@ export async function runHealthSync(
   }
   const tasks: Task[] = []
 
-  const accountTypes = grantedDataTypes.filter((dt) => dt.spec.kind === 'account')
-  if (accountTypes.length > 0) {
-    tasks.push({
-      label: 'account',
-      cost: 1,
-      run: async () => {
-        for (const dt of accountTypes) {
-          if (dt.spec.kind !== 'account') continue
-          const doc = dt.spec.path === 'settings' ? settingsDoc : await fetchAccountDoc(accessToken, dt.spec.path)
-          // One snapshot row per local day: a repeat sync the same day updates it.
-          if (doc) pushRow(dt, { recordedAt: todayStart, endAt: null, value: doc, unit: null })
-        }
-      },
-    })
-  }
-
-  for (const dt of grantedDataTypes) {
-    const spec = dt.spec
-    if (spec.kind === 'rollup') tasks.push({ label: dt.id, cost: 1, run: () => syncSeries(dt) })
-    // ECG waveforms and per-minute types are the heavy ones: each gets a call to itself.
-    else if (spec.kind === 'list') tasks.push({ label: dt.id, cost: spec.unboundedEnd ? STEP_BUDGET : 2, run: () => syncSeries(dt) })
-    else if (spec.kind === 'generic') tasks.push({ label: dt.id, cost: spec.mode === 'daily' ? STEP_BUDGET : 1, run: () => syncSeries(dt) })
-  }
-
-  // Heart rate through the day: one task per local day. A past day that has
-  // been fetched in full is recorded in state and skipped from then on;
-  // today and yesterday are always refreshed (a watch can upload late).
-  const hrType = grantedDataTypes.find((dt) => dt.spec.kind === 'intraday-hr')
-  if (hrType) {
-    const doneDays = new Set<string>(Array.isArray(syncState['heart-rate-intraday']?.doneDays) ? syncState['heart-rate-intraday'].doneDays : [])
-    const refreshAlways = new Set(localDays.slice(-2).map((d) => d.key))
-    for (const day of localDays) {
-      const skip = doneDays.has(day.key) && !refreshAlways.has(day.key)
+  if (resolved === 'quick') {
+    // Since the start of yesterday: covers a late upload of last night's
+    // sleep or late-evening steps, and nothing older.
+    const quickStart = new Date(localDays[localDays.length - 2].startMs)
+    for (const dt of grantedDataTypes) {
+      if (!QUICK_TYPE_IDS.has(dt.id)) continue
+      const cost = dt.spec.kind === 'rollup' ? 1 : dt.spec.kind === 'list' ? 2 : 3
       tasks.push({
-        label: `heart-rate ${day.key}`,
-        cost: skip ? 0 : 3,
+        label: `quick ${dt.id}`,
+        cost,
         run: async () => {
-          if (skip) return
-          const reduced = await fetchHeartRateDay(accessToken, day.startMs, day.endMs)
+          for (const point of await fetchSeries(dt, quickStart, now)) pushRow(dt, point)
+        },
+      })
+    }
+    const hrType = grantedDataTypes.find((dt) => dt.spec.kind === 'intraday-hr')
+    const today = localDays[localDays.length - 1]
+    if (hrType) {
+      tasks.push({
+        label: `quick heart-rate ${today.key}`,
+        cost: 3,
+        run: async () => {
+          const reduced = await fetchHeartRateDay(accessToken, today.startMs, today.endMs)
           if (reduced) {
             pushRow(hrType, {
-              recordedAt: new Date(day.startMs).toISOString(),
-              endAt: new Date(day.endMs).toISOString(),
+              recordedAt: new Date(today.startMs).toISOString(),
+              endAt: new Date(today.endMs).toISOString(),
               value: reduced,
               unit: 'bpm',
             })
           }
-          if (!refreshAlways.has(day.key)) {
-            doneDays.add(day.key)
-            // Only the fortnight on screen needs remembering.
-            const keep = new Set(localDays.map((d) => d.key))
-            syncState['heart-rate-intraday'] = { doneDays: [...doneDays].filter((k) => keep.has(k)) }
+        },
+      })
+    }
+  } else {
+    const accountTypes = grantedDataTypes.filter((dt) => dt.spec.kind === 'account')
+    if (accountTypes.length > 0) {
+      tasks.push({
+        label: 'account',
+        cost: 1,
+        run: async () => {
+          for (const dt of accountTypes) {
+            if (dt.spec.kind !== 'account') continue
+            const doc = dt.spec.path === 'settings' ? settingsDoc : await fetchAccountDoc(accessToken, dt.spec.path)
+            // One snapshot row per local day: a repeat sync the same day updates it.
+            if (doc) pushRow(dt, { recordedAt: todayStart, endAt: null, value: doc, unit: null })
           }
         },
       })
     }
+
+    for (const dt of grantedDataTypes) {
+      const spec = dt.spec
+      if (spec.kind === 'rollup') tasks.push({ label: dt.id, cost: 1, run: () => syncSeries(dt) })
+      // ECG waveforms and per-minute types are the heavy ones: each gets a call to itself.
+      else if (spec.kind === 'list') tasks.push({ label: dt.id, cost: spec.unboundedEnd ? STEP_BUDGET : 2, run: () => syncSeries(dt) })
+      else if (spec.kind === 'generic') tasks.push({ label: dt.id, cost: spec.mode === 'daily' ? STEP_BUDGET : 1, run: () => syncSeries(dt) })
+    }
+
+    // Heart rate through the day: one task per local day. A past day that has
+    // been fetched in full is recorded in state and skipped from then on;
+    // today and yesterday are always refreshed (a watch can upload late).
+    const hrType = grantedDataTypes.find((dt) => dt.spec.kind === 'intraday-hr')
+    if (hrType) {
+      const doneDays = new Set<string>(Array.isArray(syncState['heart-rate-intraday']?.doneDays) ? syncState['heart-rate-intraday'].doneDays : [])
+      const refreshAlways = new Set(localDays.slice(-2).map((d) => d.key))
+      for (const day of localDays) {
+        const skip = doneDays.has(day.key) && !refreshAlways.has(day.key)
+        tasks.push({
+          label: `heart-rate ${day.key}`,
+          cost: skip ? 0 : 3,
+          run: async () => {
+            if (skip) return
+            const reduced = await fetchHeartRateDay(accessToken, day.startMs, day.endMs)
+            if (reduced) {
+              pushRow(hrType, {
+                recordedAt: new Date(day.startMs).toISOString(),
+                endAt: new Date(day.endMs).toISOString(),
+                value: reduced,
+                unit: 'bpm',
+              })
+            }
+            if (!refreshAlways.has(day.key)) {
+              doneDays.add(day.key)
+              // Only the fortnight on screen needs remembering.
+              const keep = new Set(localDays.map((d) => d.key))
+              syncState['heart-rate-intraday'] = { doneDays: [...doneDays].filter((k) => keep.has(k)) }
+            }
+          },
+        })
+      }
+    }
   }
 
   // Run tasks from `step` until this call's budget is spent (always at least one).
+  const budget = resolved === 'quick' ? QUICK_BUDGET : STEP_BUDGET
   let i = Math.max(0, Math.min(step, tasks.length))
   let spent = 0
   while (i < tasks.length) {
     const task = tasks[i]
-    if (spent > 0 && spent + task.cost > STEP_BUDGET) break
+    if (spent > 0 && spent + task.cost > budget) break
     try {
       await task.run()
     } catch (err) {
@@ -503,6 +564,8 @@ export async function runHealthSync(
     i++
   }
   const nextStep = i < tasks.length ? i : null
+  // A finished full sync resets the clock for `auto`'s next promotion.
+  if (resolved === 'full' && nextStep === null) syncState.__lastFullSyncAt = now.toISOString()
 
   // One statement can't update the same row twice, and overlapping windows
   // can produce the same external id — keep the last of each.
@@ -527,5 +590,5 @@ export async function runHealthSync(
     p_sync_state: syncState,
   })
 
-  return { ok: true, pointsSynced: uniqueRows.length, nextStep, totalSteps: tasks.length }
+  return { ok: true, pointsSynced: uniqueRows.length, nextStep, totalSteps: tasks.length, mode: resolved }
 }

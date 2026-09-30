@@ -15,6 +15,7 @@ import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { PickerDataProvider } from '@/state/PickerDataContext'
 import { InterfaceProvider, useInterfaceMode } from '@/state/InterfaceContext'
 import { ThemeProvider } from '@/state/ThemeContext'
+import { useHealthAutoSync } from '@/state/useHealthAutoSync'
 import { cn } from '@/lib/utils'
 
 // Lumen is a whole second interface; people on Classic never download it.
@@ -85,6 +86,8 @@ function AuthGate({ now }: { now?: Date }) {
   const { configured, status } = useAuth()
   const { mode } = useInterfaceMode()
   const view = resolveGateView(configured, status)
+  // Keeps connected health data fresh in both interfaces while signed in.
+  useHealthAutoSync(configured && status === 'signedIn')
 
   if (view === 'loading') {
     return <FullScreenLoader />
