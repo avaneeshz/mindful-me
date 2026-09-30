@@ -118,8 +118,11 @@ describe('runHealthSync in steps', () => {
     const { admin, state } = fakeAdmin()
     const { cpuPerStep, steps } = await runWholeSync(admin)
 
-    // Node here is not the edge runtime, so leave generous headroom under 2,000 ms.
-    expect(Math.max(...cpuPerStep)).toBeLessThan(600)
+    // The edge limit is about 2,000 ms. The heaviest step measures 400-500 ms
+    // here, and `process.cpuUsage` counts the whole process (GC included), so it
+    // spikes past 600 ms when the full suite loads the machine. 1,000 ms still
+    // keeps twice the headroom without failing on load noise.
+    expect(Math.max(...cpuPerStep)).toBeLessThan(1000)
     expect(state.upserted).toBeGreaterThan(0)
     // Every past heart-rate day was fetched once and remembered.
     expect((state.sync_state['heart-rate-intraday'] as { doneDays: string[] }).doneDays.length).toBe(28)
