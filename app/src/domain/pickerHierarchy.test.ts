@@ -9,6 +9,7 @@ import {
   isTopLevelNameTaken,
   liveActivityCardsFromRows,
   liveCategoriesFromTiles,
+  moveInOrder,
   tileIdForActivity,
   type ActivityRow,
   type LiveTile,
@@ -377,5 +378,17 @@ describe('liveActivityCardsFromRows', () => {
     expect(top.children?.[0].children?.[0].name).toBe('Third')
     expect(top.children?.[0].children?.[0].children?.[0].name).toBe('Fourth')
     expect(top.children?.[0].children?.[0].children?.[0].children).toBeUndefined()
+  })
+})
+
+describe('moveInOrder', () => {
+  it('swaps with the neighbour in the given direction', () => {
+    expect(moveInOrder(['a', 'b', 'c'], 'b', -1)).toEqual(['b', 'a', 'c'])
+    expect(moveInOrder(['a', 'b', 'c'], 'b', 1)).toEqual(['a', 'c', 'b'])
+  })
+  it('returns null at the ends or for an unknown id', () => {
+    expect(moveInOrder(['a', 'b'], 'a', -1)).toBeNull()
+    expect(moveInOrder(['a', 'b'], 'b', 1)).toBeNull()
+    expect(moveInOrder(['a', 'b'], 'x', 1)).toBeNull()
   })
 })

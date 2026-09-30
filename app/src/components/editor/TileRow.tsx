@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { EditableTileRow } from '@/components/editor/EditableTileRow'
 import { CheckCircle2, Circle, Info, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { cardsForCategory, effectiveCategories, effectiveCategoryOrder } from '@/data/activities'
@@ -29,6 +30,8 @@ interface TileRowProps {
   dismissed: ReadonlySet<string>
   onPickCard: (cardName: string) => void
   onToggleDismiss: (cardName: string) => void
+  /** Edit mode: the row becomes the inline tile editor (`EditableTileRow`) instead of the logging row. */
+  editMode?: boolean
 }
 
 /**
@@ -46,7 +49,13 @@ interface TileRowProps {
  * (X button, Escape, overlay click), closes it; tapping a different tile
  * swaps the dialog's contents in place.
  */
-export function TileRow({
+export function TileRow(props: TileRowProps) {
+  // Two separate components (not one with a branch) so the editing row's
+  // `usePickerData` hook only ever runs while Edit mode is actually on.
+  return props.editMode ? <EditableTileRow /> : <LoggingTileRow {...props} />
+}
+
+function LoggingTileRow({
   atCapacity,
   activityCount,
   usedMinutes,
