@@ -20,6 +20,16 @@ The interaction model as actually built. For the visual language, see `UI-DESIGN
 
 **Save is a small centered pill; there is no separate Cancel.** The X close icon in the modal's own header is the only way to dismiss without saving — it discards the staged pick exactly like the old Cancel button did.
 
+## Editing tiles and activities
+
+**Edit happens in place.** The header's Edit chip (it turns into Done) puts pencil and cross icons on every tile and quick-log button. There is no separate window. A tile's pencil, or tapping the tile, opens a small popover beside it (a bottom sheet on a phone); nothing else on the screen changes, and no activity list appears under the tiles while editing. The cross hides a tile; hidden tiles wait below with Restore, and can be deleted for good unless they have logged history.
+
+**A tile's popover edits the tile and its activities.** Rename the tile and change its icon, add an activity, reorder with up/down buttons, hide with the cross, and restore or delete hidden ones. An activity row's pencil opens that activity's own editor in the same popover, with a back button.
+
+**An activity's editor holds subtypes and options.** Subtypes are child activities (Focus work: Deep work, Shallow work), each with its own pencil, so they nest as deep as the user wants. Below them the activity picks which options apply from the user's own three lists: Activity quality, Chronic symptoms, Protective response. An activity that has picked none offers the full list when logged.
+
+**The three lists are edited only in Settings.** Settings has a "Your options" section with one list per type: add, rename, remove. The activity editor never creates options; it links to that section. Removing an option that appears in logged history hides it, so old entries keep their label.
+
 ## Theme
 
 **One toggle, two themes, everywhere.** A monochrome light/dark pair — no per-category or per-item colour anywhere in either — switched instantly by tapping the Sun or Moon icon beside the Day/Night timeline rows (not a separate settings screen), and remembered per-device. This is a different axis from which row is glowing for the real current time of day: the glow still reflects the actual clock, the Sun/Moon fill reflects which theme is currently chosen, and the two can disagree (it's genuinely night, but the app is showing the light theme) without either being wrong. The Night timeline strip is the one deliberate exception — a fixed grey that never changes with the toggle.

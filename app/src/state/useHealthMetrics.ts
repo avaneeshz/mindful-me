@@ -48,7 +48,7 @@ export interface HeartRateDayEntry {
  * The stored full-day heart-rate rows, oldest day first, for a day picker.
  * `null` while loading.
  */
-export function useHeartRateDays({ days = 14, refreshKey = 0 }: { days?: number; refreshKey?: number } = {}): HeartRateDayEntry[] | null {
+export function useHeartRateDays({ days = 30, refreshKey = 0 }: { days?: number; refreshKey?: number } = {}): HeartRateDayEntry[] | null {
   const points = useHealthMetrics('heart-rate-intraday', { days: days + 1, refreshKey })
   if (points === null) return null
   const entries: HeartRateDayEntry[] = []

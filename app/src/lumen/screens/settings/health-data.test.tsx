@@ -51,14 +51,16 @@ describe('Lumen Health data', () => {
   it('lays out one section per permission group, with each synced type in its group', () => {
     conn.state.summaries = [
       { dataType: 'steps', latestRecordedAt: null, pointCountRecent: 5 },
-      { dataType: 'moods', latestRecordedAt: null, pointCountRecent: 1 },
+      { dataType: 'weight', latestRecordedAt: null, pointCountRecent: 1 },
       { dataType: 'settings', latestRecordedAt: null, pointCountRecent: 1 },
       { dataType: 'heart-rate-intraday', latestRecordedAt: null, pointCountRecent: 14 },
     ]
     const html = render()
-    for (const g of ['Activity &amp; fitness', 'Body &amp; vitals', 'Mindfulness', 'Reproductive health', 'Settings']) expect(html).toContain(g)
+    for (const g of ['Activity &amp; fitness', 'Body &amp; vitals', 'Sleep', 'Settings']) expect(html).toContain(g)
+    // Google never lets apps read these back, so their groups aren't shown.
+    for (const g of ['Mindfulness', 'Reproductive health', 'Symptoms']) expect(html).not.toContain(g)
     expect(html).toContain('Steps')
-    expect(html).toContain('Moods')
+    expect(html).toContain('Weight')
     // The settings snapshot shows as details, not a chart.
     expect(html).toContain('Asia/Kolkata')
     // The full-day heart rate has its own card, not a row of its own.

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiListHealthMetrics } from '@/api/healthSync'
 import { dateFromLocalDateISO } from '@/lib/localTime'
 import { supabaseConfigured } from '@/lib/supabaseClient'
+import { onHealthSyncFinished } from '@/state/healthSyncRunner'
 import { addDaysISO } from '@/lumen/domain/lumenDay'
 import { heartRateOnAxis, heartRateScale, type HeartSample } from '@/lumen/domain/heartRateStrip'
 
@@ -14,6 +15,9 @@ const NONE: HeartSample[] = []
  */
 export function useHeartRateDay(dayISO: string) {
   const [state, setState] = useState<{ day: string; samples: HeartSample[] }>({ day: dayISO, samples: NONE })
+  // Re-read after every sync, so the strips pick up new readings without a reload.
+  const [syncs, setSyncs] = useState(0)
+  useEffect(() => onHealthSyncFinished((o) => o.ok && setSyncs((n) => n + 1)), [])
 
   useEffect(() => {
     if (!supabaseConfigured) return
@@ -26,7 +30,7 @@ export function useHeartRateDay(dayISO: string) {
     return () => {
       cancelled = true
     }
-  }, [dayISO])
+  }, [dayISO, syncs])
 
   // A response for another day is never shown against this one.
   const samples = state.day === dayISO ? state.samples : NONE

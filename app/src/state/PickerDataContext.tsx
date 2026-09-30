@@ -23,9 +23,8 @@ const PickerDataContext = createContext<PickerDataContextValue | null>(null)
  *
  * Mounted once, above `BoardProvider`, in `App.tsx`. Both `BoardProvider`
  * (via `useLiveActivityCatalogSync`) and `SlotEditor`'s inline edit-mode
- * panel (`components/activityLibrary/ActivityLibraryPanel.tsx` — folded in
- * from that former separate route per later user feedback, see
- * `SlotEditor.tsx`'s own doc comment) are its descendants, so they now read
+ * inline tile editor (`components/editor/EditableTileRow.tsx`, replacing the
+ * former management dialog) are its descendants, so they now read
  * and mutate the exact same state: an edit in one is visible in the other on
  * the very next render, no reload needed.
  */

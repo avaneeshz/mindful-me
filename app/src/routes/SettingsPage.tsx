@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ChevronRight, HeartPulse, Loader2, Plus, Watch, type LucideIcon } from 'lucide-react'
 import { apiGetHealthConnectionStatus, type HealthConnectionStatus } from '@/api/healthSync'
 import { availableDeviceProviders, type DeviceProvider } from '@/domain/deviceProviders'
+import { ParameterVocabularyPanel } from '@/components/activityLibrary/ParameterVocabularyPanel'
 import { buttonVariants } from '@/components/ui/button'
 import { useAuth } from '@/state/AuthContext'
+import { useParameterVocabulary } from '@/state/useParameterVocabulary'
 import { cn } from '@/lib/utils'
 
 /** Icon per provider — kept here (not in the pure domain module) since it's a rendering concern. */
@@ -28,13 +30,22 @@ function statusLabel(status: HealthConnectionStatus): string {
 }
 
 /**
- * Settings hub. Today its one section is "Devices & apps": what's connected,
- * and the entry point to add another (`/settings/devices/add`).
+ * Settings hub: "Your options" (the per-user quality / chronic symptom /
+ * protective response lists every activity picks from — the only place they
+ * are added or renamed) and "Devices & apps" (what's connected, and the entry
+ * point to add another, `/settings/devices/add`).
  */
 export function SettingsPage() {
   const { configured } = useAuth()
   const [loading, setLoading] = useState(configured)
   const [devices, setDevices] = useState<ConnectedDevice[]>([])
+  const vocabulary = useParameterVocabulary()
+  const { hash } = useLocation()
+
+  // Arriving from an activity's "Add or rename options in Settings" link.
+  useEffect(() => {
+    if (hash === '#options') document.getElementById('options')?.scrollIntoView({ block: 'start' })
+  }, [hash])
 
   useEffect(() => {
     if (!configured) return
@@ -58,7 +69,11 @@ export function SettingsPage() {
     <div className="mb-5xl mx-auto w-full max-w-[640px]">
       <h1 className="font-display text-slot-time font-semibold text-ink">Settings</h1>
 
-      <section aria-labelledby="devices-heading" className="mt-2xl">
+      <section id="options" aria-label="Your options" className="mt-2xl scroll-mt-lg">
+        <ParameterVocabularyPanel data={vocabulary} />
+      </section>
+
+      <section aria-labelledby="devices-heading" className="mt-3xl">
         <div className="flex items-center justify-between gap-md">
           <h2 id="devices-heading" className="text-body font-semibold text-ink">
             Devices &amp; apps
