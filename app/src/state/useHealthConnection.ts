@@ -5,15 +5,12 @@ import {
   apiIsHealthConnectionRecoverable,
   apiListHealthDataTypeSummaries,
   apiRestoreHealthConnection,
-  apiTriggerHealthSync,
   type HealthConnectionStatus,
   type HealthDataTypeSummary,
 } from '@/api/healthSync'
 import { beginGoogleHealthOAuthState, buildGoogleHealthAuthorizeUrl } from '@/lib/googleHealthOAuth'
 import { useAuth } from '@/state/AuthContext'
-
-/** Upper bound on calls in one sync — well above a real sync's step count. */
-const MAX_SYNC_CALLS = 60
+import { onHealthSyncFinished, runHealthSync } from '@/state/healthSyncRunner'
 
 export interface SyncMessage {
   tone: 'success' | 'error'
@@ -91,31 +88,26 @@ export function useHealthConnection() {
     setSyncing(true)
     setSyncMessage(null)
     setSyncProgress(null)
-    // A sync runs as a series of small calls; keep calling until the server
-    // says it's done. The cap only guards against a runaway loop.
-    let step = 0
-    let points = 0
-    let result = await apiTriggerHealthSync(step)
-    for (let calls = 1; result.ok && typeof result.nextStep === 'number' && calls < MAX_SYNC_CALLS; calls++) {
-      points += result.pointsSynced ?? 0
-      step = result.nextStep
-      setSyncProgress({ done: step, total: result.totalSteps ?? step })
-      result = await apiTriggerHealthSync(step)
-    }
+    // Sync now is always a full sync. If an automatic one is running, the
+    // runner lets it finish first rather than running two at once.
+    const outcome = await runHealthSync('full', setSyncProgress)
     setSyncing(false)
     setSyncProgress(null)
-    if (result.ok) {
-      points += result.pointsSynced ?? 0
-      setSyncMessage({ tone: 'success', text: `Synced ${points} data point${points === 1 ? '' : 's'}.` })
-      refresh()
-    } else if (result.reason === 'reauth_required') {
-      await refresh()
-    } else {
-      setSyncMessage({ tone: 'error', text: result.message ?? 'Sync failed. Try again in a moment.' })
-      // Whatever earlier steps saved is real — show it.
-      if (points > 0) refresh()
+    if (outcome.ok) {
+      setSyncMessage({ tone: 'success', text: `Synced ${outcome.points} data point${outcome.points === 1 ? '' : 's'}.` })
+    } else if (outcome.reason !== 'reauth_required') {
+      setSyncMessage({ tone: 'error', text: outcome.message ?? 'Sync failed. Try again in a moment.' })
     }
-  }, [syncing, refresh])
+    // The finished-sync listener below refreshes the screen.
+  }, [syncing])
+
+  // Any sync — this screen's or the app's automatic one — refreshes what's shown.
+  useEffect(() => {
+    if (!configured) return
+    return onHealthSyncFinished(() => {
+      void refresh()
+    })
+  }, [configured, refresh])
 
   // Connecting no longer runs a sync inside the sign-in request, so the first
   // one starts here: once, as soon as a connection exists that has never synced.

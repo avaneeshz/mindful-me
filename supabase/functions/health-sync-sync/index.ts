@@ -1,11 +1,11 @@
 import { handleCorsPreflight, jsonResponse } from '../_shared/cors.ts'
 import { serviceRoleClient, verifyUser } from '../_shared/supabaseClients.ts'
 import { GOOGLE_HEALTH_PROVIDER } from '../_shared/googleHealth.ts'
-import { runHealthSync } from '../_shared/runHealthSync.ts'
+import { runHealthSync, type SyncMode } from '../_shared/runHealthSync.ts'
 
 /**
  * POST, Authorization: Bearer <the signed-in user's own Supabase access
- * token>, body `{ step?: number }`. Each call does one bounded slice of the
+ * token>, body `{ step?: number, mode?: 'full' | 'quick' | 'auto' }`. Each call does one bounded slice of the
  * sync and returns `nextStep` (or `null` when done); the caller loops.
  *
  * The manual "sync now" action, and also what a future scheduled trigger
@@ -37,15 +37,17 @@ Deno.serve(async (req: Request) => {
   // `{ step }` resumes a sync where the previous call stopped (see
   // `runHealthSync`); an empty body starts one from the beginning.
   let step = 0
+  let mode: SyncMode = 'full'
   try {
     const body = await req.json()
     if (Number.isInteger(body?.step) && body.step >= 0) step = body.step
+    if (body?.mode === 'quick' || body?.mode === 'auto' || body?.mode === 'full') mode = body.mode
   } catch {
     // No body — start at 0.
   }
 
   const admin = serviceRoleClient()
-  const result = await runHealthSync(admin, user.id, clientId, clientSecret, GOOGLE_HEALTH_PROVIDER, step)
+  const result = await runHealthSync(admin, user.id, clientId, clientSecret, GOOGLE_HEALTH_PROVIDER, step, mode)
 
   if (!result.ok) {
     const status = result.reason === 'not_connected' ? 404 : result.reason === 'reauth_required' ? 409 : 500
