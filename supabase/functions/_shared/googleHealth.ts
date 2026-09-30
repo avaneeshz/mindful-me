@@ -359,7 +359,7 @@ export const DATA_TYPES: DataTypeConfig[] = [
     id: 'heart-rate-intraday',
     label: 'Heart rate through the day',
     scope: 'health_metrics_and_measurements',
-    spec: { kind: 'intraday-hr', days: 14 },
+    spec: { kind: 'intraday-hr', days: 30 },
   },
   ...[
     // activity_and_fitness — a point per minute or so, so rolled into days.
@@ -388,12 +388,9 @@ export const DATA_TYPES: DataTypeConfig[] = [
     ['dailyRestingHeartRate', 'health_metrics_and_measurements', 'date', 'raw'],
     ['dailySleepTemperatureDerivations', 'health_metrics_and_measurements', 'date', 'raw'],
     ['dailyVo2Max', 'health_metrics_and_measurements', 'date', 'raw'],
-    // irn / logged_symptoms / mindfulness / reproductive_health
+    // irn. Symptoms, moods, menstrual periods and ovulation tests are left
+    // out: Google only lets apps write them ("List is not supported").
     ['irregularRhythmNotification', 'irn', 'interval', 'raw'],
-    ['symptoms', 'logged_symptoms', 'sample', 'raw'],
-    ['moods', 'mindfulness', 'sample', 'raw'],
-    ['menstrualPeriod', 'reproductive_health', 'interval', 'raw'],
-    ['ovulationTest', 'reproductive_health', 'sample', 'raw'],
   ].map(
     ([field, scope, filter, mode, sumPath]): DataTypeConfig => ({
       id: toKebab(field),

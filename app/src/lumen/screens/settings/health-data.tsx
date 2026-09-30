@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import type { HealthDataTypeSummary } from '@/api/healthSync'
 import { HealthMetricChart } from '@/components/healthsync/HealthMetricChart'
 import { HeartRateDayChart } from '@/components/healthsync/HeartRateDayChart'
-import { describeHealthValue, HEALTH_GROUPS, healthDataTypeMeta, latestHealthDetails } from '@/domain/healthMetrics'
+import { describeHealthValue, healthDataTypeMeta, latestHealthDetails, READABLE_HEALTH_GROUPS } from '@/domain/healthMetrics'
 import { formatRelativeTime } from '@/lib/relativeTime'
 import { Button } from '@/lumen/components/ui/button'
 import { EmptyState } from '@/lumen/components/ui/primitives'
@@ -13,7 +13,7 @@ import { useHealthConnection } from '@/state/useHealthConnection'
 import { useHealthMetrics, useHeartRateDays } from '@/state/useHealthMetrics'
 import { Group, Notice, SettingsPage } from './parts'
 
-const HISTORY_DAYS = 14
+const HISTORY_DAYS = 30
 const ENTRY_LIMIT = 6
 
 /**
@@ -87,7 +87,7 @@ export function HealthDataScreen({ onBack }: { onBack: () => void }) {
             />
           </Group>
         ) : (
-          HEALTH_GROUPS.map((group) => {
+          READABLE_HEALTH_GROUPS.map((group) => {
             const inGroup = h.summaries.filter((s) => {
               const meta = healthDataTypeMeta(s.dataType)
               return meta.group === group.id && meta.view !== 'intraday'

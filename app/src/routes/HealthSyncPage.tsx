@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { AccountCard } from '@/components/healthsync/AccountCard'
 import { HealthTypeCard } from '@/components/healthsync/HealthTypeCard'
 import { HeartRateDayCard } from '@/components/healthsync/HeartRateDayCard'
-import { HEALTH_GROUPS, healthDataTypeMeta } from '@/domain/healthMetrics'
+import { healthDataTypeMeta, READABLE_HEALTH_GROUPS } from '@/domain/healthMetrics'
 import { useHealthConnection } from '@/state/useHealthConnection'
 import { formatRelativeTime } from '@/lib/relativeTime'
 import { cn } from '@/lib/utils'
@@ -229,7 +229,7 @@ export function HealthSyncPage() {
         ) : (
           <>
             <HeartRateDayCard key={`hr-${refreshKey}`} refreshKey={refreshKey} />
-            {HEALTH_GROUPS.map((group) => {
+            {READABLE_HEALTH_GROUPS.map((group) => {
               // The full-day heart-rate view above already covers its own type.
               const inGroup = summaries.filter((s) => {
                 const meta = healthDataTypeMeta(s.dataType)

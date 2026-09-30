@@ -53,8 +53,14 @@ export type SyncMode = 'full' | 'quick' | 'auto'
 /** How often an automatic sync is promoted to a full one. */
 const FULL_SYNC_EVERY_MS = 6 * 60 * 60 * 1000
 
-/** The types a quick sync refreshes — the ones that change through a day. */
-const QUICK_TYPE_IDS = new Set(['steps', 'heart-rate', 'sleep', 'exercise', 'active-energy-burned'])
+/** The types a quick sync refreshes (plus today's per-minute heart rate) — the ones that change minute to minute. */
+const QUICK_TYPE_IDS = new Set(['steps', 'heart-rate', 'active-energy-burned'])
+
+/** How many local days of per-minute heart rate a sync keeps fresh, from the registry. */
+const HEART_RATE_DAYS = (() => {
+  const spec = DATA_TYPES.find((dt) => dt.spec.kind === 'intraday-hr')?.spec
+  return spec?.kind === 'intraday-hr' ? spec.days : 14
+})()
 
 /** A quick sync is a handful of small reads, so it runs in one call. */
 const QUICK_BUDGET = 12
@@ -397,7 +403,7 @@ export async function runHealthSync(
   // small request; it is re-read each step rather than trusted from state.
   const settingsDoc = grantedScopes.has(fullScope('settings')) ? await fetchAccountDoc(accessToken, 'settings') : null
   const tz = safeTimeZone(typeof settingsDoc?.timeZone === 'string' ? settingsDoc.timeZone : null)
-  const localDays = recentLocalDays(now.getTime(), 14, tz)
+  const localDays = recentLocalDays(now.getTime(), HEART_RATE_DAYS, tz)
   const todayStart = new Date(localDays[localDays.length - 1].startMs).toISOString()
 
   const maxBackfillDays = (dt: DataTypeConfig) => (dt.spec.kind === 'generic' ? dt.spec.maxBackfillDays : MAX_BACKFILL_DAYS)
@@ -503,24 +509,19 @@ export async function runHealthSync(
       })
     }
 
-    for (const dt of grantedDataTypes) {
-      const spec = dt.spec
-      if (spec.kind === 'rollup') tasks.push({ label: dt.id, cost: 1, run: () => syncSeries(dt) })
-      // ECG waveforms and per-minute types are the heavy ones: each gets a call to itself.
-      else if (spec.kind === 'list') tasks.push({ label: dt.id, cost: spec.unboundedEnd ? STEP_BUDGET : 2, run: () => syncSeries(dt) })
-      else if (spec.kind === 'generic') tasks.push({ label: dt.id, cost: spec.mode === 'daily' ? STEP_BUDGET : 1, run: () => syncSeries(dt) })
-    }
-
-    // Heart rate through the day: one task per local day. A past day that has
-    // been fetched in full is recorded in state and skipped from then on;
-    // today and yesterday are always refreshed (a watch can upload late).
+    // Heart rate through the day: one task per local day. Today and yesterday
+    // are always refreshed (a watch can upload late) and run right after the
+    // account snapshot, so the day on screen is fresh even if a long sync is
+    // cut short. Past days follow everything else, newest first; one fetched in
+    // full is recorded in state and skipped from then on.
     const hrType = grantedDataTypes.find((dt) => dt.spec.kind === 'intraday-hr')
+    const pastHeartRate: Task[] = []
     if (hrType) {
       const doneDays = new Set<string>(Array.isArray(syncState['heart-rate-intraday']?.doneDays) ? syncState['heart-rate-intraday'].doneDays : [])
       const refreshAlways = new Set(localDays.slice(-2).map((d) => d.key))
-      for (const day of localDays) {
+      for (const day of [...localDays].reverse()) {
         const skip = doneDays.has(day.key) && !refreshAlways.has(day.key)
-        tasks.push({
+        const task: Task = {
           label: `heart-rate ${day.key}`,
           cost: skip ? 0 : 3,
           run: async () => {
@@ -536,14 +537,25 @@ export async function runHealthSync(
             }
             if (!refreshAlways.has(day.key)) {
               doneDays.add(day.key)
-              // Only the fortnight on screen needs remembering.
+              // Only the days a sync covers need remembering.
               const keep = new Set(localDays.map((d) => d.key))
               syncState['heart-rate-intraday'] = { doneDays: [...doneDays].filter((k) => keep.has(k)) }
             }
           },
-        })
+        }
+        if (refreshAlways.has(day.key)) tasks.push(task)
+        else pastHeartRate.push(task)
       }
     }
+
+    for (const dt of grantedDataTypes) {
+      const spec = dt.spec
+      if (spec.kind === 'rollup') tasks.push({ label: dt.id, cost: 1, run: () => syncSeries(dt) })
+      // ECG waveforms and per-minute types are the heavy ones: each gets a call to itself.
+      else if (spec.kind === 'list') tasks.push({ label: dt.id, cost: spec.unboundedEnd ? STEP_BUDGET : 2, run: () => syncSeries(dt) })
+      else if (spec.kind === 'generic') tasks.push({ label: dt.id, cost: spec.mode === 'daily' ? STEP_BUDGET : 1, run: () => syncSeries(dt) })
+    }
+    tasks.push(...pastHeartRate)
   }
 
   // Run tasks from `step` until this call's budget is spent (always at least one).

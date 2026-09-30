@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { HeartRateDayChart } from '@/components/healthsync/HeartRateDayChart'
 import { useHeartRateDays } from '@/state/useHealthMetrics'
 
-const HISTORY_DAYS = 14
+const HISTORY_DAYS = 30
 
 /**
  * The whole day's heart rate, one reading per minute, with a day picker over
