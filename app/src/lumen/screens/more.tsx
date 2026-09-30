@@ -4,6 +4,7 @@ import { Segmented } from '@/lumen/components/ui/primitives'
 import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
 import { ButtonsScreen } from './settings/buttons'
 import { AddDeviceScreen, DevicesScreen } from './settings/devices'
+import { HealthDataScreen } from './settings/health-data'
 import { LibraryScreen } from './settings/library'
 import { useLumenAccount } from '@/lumen/lib/account'
 import { useInterfaceMode } from '@/state/InterfaceContext'
@@ -20,6 +21,7 @@ export function MoreScreen() {
   if (settingsView === 'buttons') return <ButtonsScreen onBack={() => openSettings('root')} />
   if (settingsView === 'devices') return <DevicesScreen onBack={() => openSettings('root')} />
   if (settingsView === 'devices-add') return <AddDeviceScreen onBack={() => openSettings('devices')} />
+  if (settingsView === 'health-data') return <HealthDataScreen onBack={() => openSettings('devices')} />
 
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col gap-6">

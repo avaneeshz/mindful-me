@@ -1,6 +1,7 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { HealthDataTypeMeta } from '@/domain/healthMetrics'
 import type { HealthMetricPoint } from '@/api/healthSync'
+import { CLASSIC_CHART_PALETTE, type HealthChartPalette } from './chartPalette'
 
 /**
  * One data type's trend — monochrome, matching this app's single-hue design
@@ -50,46 +51,62 @@ export function toChartRows(points: HealthMetricPoint[], meta: HealthDataTypeMet
     }))
 }
 
-function ChartTooltip({ active, payload, meta }: { active?: boolean; payload?: any[]; meta: HealthDataTypeMeta }) {
+function ChartTooltip({
+  active,
+  payload,
+  meta,
+  palette,
+}: {
+  active?: boolean
+  payload?: any[]
+  meta: HealthDataTypeMeta
+  palette: HealthChartPalette
+}) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload as ChartRow
   return (
-    <div className="rounded-md border border-line bg-surface px-md py-sm text-caption shadow-elevation-1">
-      <div className="font-semibold text-ink">{meta.formatValue(row.value)}</div>
-      <div className="text-ink-dim">{row.label}</div>
+    <div className={palette.tooltipClass}>
+      <div className={palette.tooltipValueClass}>{meta.formatValue(row.value)}</div>
+      <div className={palette.tooltipLabelClass}>{row.label}</div>
     </div>
   )
 }
 
-export function HealthMetricChart({ points, meta }: { points: HealthMetricPoint[]; meta: HealthDataTypeMeta }) {
+export function HealthMetricChart({
+  points,
+  meta,
+  palette = CLASSIC_CHART_PALETTE,
+}: {
+  points: HealthMetricPoint[]
+  meta: HealthDataTypeMeta
+  palette?: HealthChartPalette
+}) {
   const rows = toChartRows(points, meta)
+  const p = palette
 
   if (rows.length === 0) {
-    return (
-      <div className="flex h-[180px] items-center justify-center rounded-md border border-dashed border-line text-caption text-ink-dim">
-        No numeric data points in this window yet.
-      </div>
-    )
+    return <div className={`h-[180px] ${p.emptyClass}`}>No numeric data points in this window yet.</div>
   }
 
+  const tick = { fontSize: 11, fill: p.tick }
   return (
     <div className="h-[180px] w-full" role="img" aria-label={`${meta.label} over time, ${meta.axisLabel}`}>
       <ResponsiveContainer width="100%" height="100%">
         {meta.chartKind === 'bar' ? (
           <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--line-soft)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--ink-dim)' }} axisLine={{ stroke: 'var(--line)' }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: 'var(--ink-dim)' }} axisLine={false} tickLine={false} width={40} />
-            <Tooltip content={<ChartTooltip meta={meta} />} cursor={{ fill: 'var(--line-soft)' }} />
-            <Bar dataKey="value" fill="var(--ink)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <CartesianGrid strokeDasharray="3 3" stroke={p.grid} vertical={false} />
+            <XAxis dataKey="label" tick={tick} axisLine={{ stroke: p.axis }} tickLine={false} />
+            <YAxis tick={tick} axisLine={false} tickLine={false} width={40} />
+            <Tooltip content={<ChartTooltip meta={meta} palette={p} />} cursor={{ fill: p.cursor }} />
+            <Bar dataKey="value" fill={p.mark} radius={[4, 4, 0, 0]} maxBarSize={28} />
           </BarChart>
         ) : (
           <LineChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--line-soft)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--ink-dim)' }} axisLine={{ stroke: 'var(--line)' }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: 'var(--ink-dim)' }} axisLine={false} tickLine={false} width={40} domain={['dataMin', 'dataMax']} />
-            <Tooltip content={<ChartTooltip meta={meta} />} cursor={{ stroke: 'var(--line)' }} />
-            <Line type="monotone" dataKey="value" stroke="var(--ink)" strokeWidth={2} dot={{ r: 3, fill: 'var(--ink)' }} activeDot={{ r: 5 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={p.grid} vertical={false} />
+            <XAxis dataKey="label" tick={tick} axisLine={{ stroke: p.axis }} tickLine={false} />
+            <YAxis tick={tick} axisLine={false} tickLine={false} width={40} domain={['dataMin', 'dataMax']} />
+            <Tooltip content={<ChartTooltip meta={meta} palette={p} />} cursor={{ stroke: p.axis }} />
+            <Line type="monotone" dataKey="value" stroke={p.mark} strokeWidth={2} dot={{ r: 3, fill: p.mark }} activeDot={{ r: 5 }} />
           </LineChart>
         )}
       </ResponsiveContainer>

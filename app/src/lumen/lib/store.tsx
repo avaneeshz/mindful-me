@@ -38,7 +38,7 @@ import { formatDuration, fromKey } from './utils'
 export type Tab = 'today' | 'calendar' | 'insights' | 'more'
 
 /** Which page of Settings is showing: the list itself, or one of its editors. */
-export type SettingsView = 'root' | 'library' | 'buttons' | 'devices' | 'devices-add'
+export type SettingsView = 'root' | 'library' | 'buttons' | 'devices' | 'devices-add' | 'health-data'
 
 export type Toast = { id: string; message: string; action?: { label: string; run: () => void } }
 

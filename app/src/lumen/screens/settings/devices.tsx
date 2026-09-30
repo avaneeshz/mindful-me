@@ -1,7 +1,6 @@
-import { AlertTriangle, CheckCircle2, HeartPulse, Loader2, Plus, RefreshCw, RotateCcw, Unplug, Watch } from 'lucide-react'
+import { Activity, AlertTriangle, CheckCircle2, HeartPulse, Loader2, Plus, RefreshCw, RotateCcw, Unplug, Watch } from 'lucide-react'
 import { useState } from 'react'
 import { DEVICE_PROVIDERS, deviceProviderById } from '@/domain/deviceProviders'
-import { healthDataTypeMeta } from '@/domain/healthMetrics'
 import { formatRelativeTime } from '@/lib/relativeTime'
 import { Button } from '@/lumen/components/ui/button'
 import { EmptyState } from '@/lumen/components/ui/primitives'
@@ -15,8 +14,8 @@ const NOT_SIGNED_IN =
   'This device is running in local-only mode, so there’s nowhere to store a connected account’s data. Sign in with a real account to add a device.'
 
 /**
- * Settings → Devices & apps: what's connected, its synced categories, and the
- * manage actions. Same connection state and actions as Classic's Health Sync
+ * Settings → Devices & apps: what's connected, the manage actions, and the way
+ * into the synced data (Health data). Same connection state and actions as Classic's Health Sync
  * page (`useHealthConnection`) — only the presentation differs.
  */
 export function DevicesScreen({ onBack }: { onBack: () => void }) {
@@ -127,6 +126,12 @@ export function DevicesScreen({ onBack }: { onBack: () => void }) {
           </Notice>
         )}
 
+        {h.syncProgress && (
+          <p role="status" className="flex items-center gap-2 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Syncing… {h.syncProgress.done} of {h.syncProgress.total}
+          </p>
+        )}
         {h.syncMessage && (
           <p role="status" className="flex items-center gap-2 text-sm text-ink-muted">
             {h.syncMessage.tone === 'success' ? (
@@ -140,29 +145,19 @@ export function DevicesScreen({ onBack }: { onBack: () => void }) {
         {h.connectError && <Notice>{h.connectError}</Notice>}
 
         {!problem && (
-          <Group title="Synced data">
-            {h.summariesLoading ? (
-              <div className="flex justify-center py-6 text-ink-muted">
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                <span className="sr-only">Loading synced data…</span>
-              </div>
-            ) : h.summaries.length === 0 ? (
-              <EmptyState
-                icon={RefreshCw}
-                title="No data synced yet"
-                body="The first sync runs right after connecting and can take a few minutes. You can also sync now."
-              />
-            ) : (
-              h.summaries.map((s) => (
-                <EditRow
-                  key={s.dataType}
-                  label={healthDataTypeMeta(s.dataType).label}
-                  hint={`${s.pointCountRecent} point${s.pointCountRecent === 1 ? '' : 's'} in the last 30 days${
-                    s.latestRecordedAt ? ` · latest ${formatRelativeTime(s.latestRecordedAt)}` : ''
-                  }`}
-                />
-              ))
-            )}
+          <Group title="Your data">
+            <EditRow
+              lead={<SmallIcon icon={Activity} />}
+              label="Health data"
+              hint={
+                h.summariesLoading
+                  ? 'Heart rate, sleep, activity and more'
+                  : h.summaries.length === 0
+                    ? 'Nothing synced yet'
+                    : `Heart rate through the day and ${h.summaries.length} synced ${h.summaries.length === 1 ? 'category' : 'categories'}`
+              }
+              onOpen={() => openSettings('health-data')}
+            />
           </Group>
         )}
       </>

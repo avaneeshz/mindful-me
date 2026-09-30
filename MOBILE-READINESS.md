@@ -45,9 +45,6 @@ These UI files call `api*` functions at runtime instead of going through a hook,
 
 | File | Direct call |
 |---|---|
-| `components/healthsync/AccountCard.tsx` | `apiListHealthMetrics` |
-| `components/healthsync/HealthTypeCard.tsx` | `apiListHealthMetrics` |
-| `components/healthsync/HeartRateDayCard.tsx` | `apiListHealthMetrics` |
 | `routes/SettingsPage.tsx` | `apiGetHealthConnectionStatus` |
 | `components/DownloadDayButton.tsx` | `apiListNoteEntriesForDate` |
 | `components/HeaderButtonEditor.tsx` | `catalogIdForName` |

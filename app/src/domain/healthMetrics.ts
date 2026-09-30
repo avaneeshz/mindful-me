@@ -424,3 +424,10 @@ export function describeHealthValue(value: unknown, limit = 12): Array<{ label: 
   walk(value as Record<string, unknown>, '')
   return out
 }
+
+/** Readable lines for the most recent point — how a profile/settings snapshot is shown. `[]` when there is none. */
+export function latestHealthDetails(points: ReadonlyArray<{ recordedAt: string; value: unknown }>, limit = 20): Array<{ label: string; text: string }> {
+  let latest: { recordedAt: string; value: unknown } | undefined
+  for (const p of points) if (!latest || p.recordedAt > latest.recordedAt) latest = p
+  return latest ? describeHealthValue(latest.value, limit) : []
+}
