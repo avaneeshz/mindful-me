@@ -140,3 +140,50 @@ describe('runHealthSync in steps', () => {
     expect(secondHr).toBeLessThan(firstHr)
   }, 120_000)
 })
+
+describe('runHealthSync modes', () => {
+  function stubGoogle() {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      calls.push(String(input))
+      return new Response(JSON.stringify(fakeGoogle(input)), { status: 200 })
+    })
+    return calls
+  }
+
+  it('a quick sync is one call, a handful of reads, and well under the CPU budget', async () => {
+    const calls = stubGoogle()
+    const { admin, state } = fakeAdmin()
+    const before = process.cpuUsage()
+    const result = await runHealthSync(admin, 'u1', 'id', 'secret', 'google_health', 0, 'quick')
+    const used = process.cpuUsage(before)
+    expect(result.ok).toBe(true)
+    expect(result.mode).toBe('quick')
+    expect(result.nextStep).toBeNull()
+    // settings (time zone) + steps, heart-rate, sleep, exercise, active energy + today's heart rate
+    expect(calls.length).toBeLessThanOrEqual(8)
+    expect((used.user + used.system) / 1000).toBeLessThan(600)
+    expect(state.upserted).toBeGreaterThan(0)
+    // A quick sync never claims a full one happened.
+    expect(state.sync_state.__lastFullSyncAt).toBeUndefined()
+  })
+
+  it('auto runs a full sync first, then quick ones until the full sync is 6 hours old', async () => {
+    stubGoogle()
+    const { admin, state } = fakeAdmin()
+
+    const first = await runHealthSync(admin, 'u1', 'id', 'secret', 'google_health', 0, 'auto')
+    expect(first.mode).toBe('full')
+    // The caller continues a full sync with mode 'full' until it finishes.
+    let next = first.nextStep
+    while (typeof next === 'number') next = (await runHealthSync(admin, 'u1', 'id', 'secret', 'google_health', next, 'full')).nextStep
+    expect(typeof state.sync_state.__lastFullSyncAt).toBe('string')
+
+    const second = await runHealthSync(admin, 'u1', 'id', 'secret', 'google_health', 0, 'auto')
+    expect(second.mode).toBe('quick')
+
+    state.sync_state.__lastFullSyncAt = new Date(Date.now() - 7 * 3600_000).toISOString()
+    const third = await runHealthSync(admin, 'u1', 'id', 'secret', 'google_health', 0, 'auto')
+    expect(third.mode).toBe('full')
+  }, 120_000)
+})

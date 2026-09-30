@@ -152,16 +152,21 @@ export interface TriggerSyncResult {
   /** Where the next call should resume, or `null` once the sync is complete. */
   nextStep?: number | null
   totalSteps?: number
+  /** The kind of sync that ran; continuation calls send it back. */
+  mode?: 'full' | 'quick'
 }
+
+/** `full`: everything plus history. `quick`: today's moving data. `auto`: the server picks. */
+export type HealthSyncMode = 'full' | 'quick' | 'auto'
 
 /**
  * Runs one slice of a sync, starting at `step`. A whole sync is too much work
  * for one function call, so callers loop on `nextStep` (see
  * `useHealthConnection.syncNow`).
  */
-export async function apiTriggerHealthSync(step = 0): Promise<TriggerSyncResult> {
+export async function apiTriggerHealthSync(step = 0, mode: HealthSyncMode = 'full'): Promise<TriggerSyncResult> {
   if (!supabase) return { ok: false, reason: 'sync_error', message: 'not_configured' }
-  const { data, error } = await supabase.functions.invoke('health-sync-sync', { body: { step } })
+  const { data, error } = await supabase.functions.invoke('health-sync-sync', { body: { step, mode } })
   if (error) {
     return { ok: false, reason: 'sync_error', message: error.message }
   }
