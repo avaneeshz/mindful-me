@@ -1,25 +1,11 @@
-import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { apiListHealthMetrics } from '@/api/healthSync'
-import { describeHealthValue } from '@/domain/healthMetrics'
+import { latestHealthDetails } from '@/domain/healthMetrics'
+import { useHealthMetrics } from '@/state/useHealthMetrics'
 
 /** Profile or settings: the latest snapshot as a plain list — there is no series to chart. */
 export function AccountCard({ dataType, title, refreshKey }: { dataType: 'profile' | 'settings'; title: string; refreshKey: number }) {
-  const [lines, setLines] = useState<Array<{ label: string; text: string }> | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    const end = new Date(Date.now() + 24 * 3600_000)
-    const start = new Date(end.getTime() - 30 * 24 * 3600_000)
-    apiListHealthMetrics(dataType, start, end).then((points) => {
-      if (cancelled) return
-      const latest = [...(points ?? [])].sort((a, b) => (a.recordedAt < b.recordedAt ? 1 : -1))[0]
-      setLines(latest ? describeHealthValue(latest.value, 20) : [])
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [dataType, refreshKey])
+  const points = useHealthMetrics(dataType, { days: 30, refreshKey })
+  const lines = points === null ? null : latestHealthDetails(points)
 
   return (
     <li className="rounded-md border border-line-soft bg-surface p-lg">

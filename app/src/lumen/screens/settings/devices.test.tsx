@@ -15,6 +15,7 @@ const conn = vi.hoisted(() => ({
     restoreError: null,
     syncing: false,
     syncMessage: null,
+    syncProgress: null as null | { done: number; total: number },
     disconnecting: false,
     connect: () => {},
     syncNow: () => {},
@@ -67,5 +68,21 @@ describe('Lumen Devices & apps', () => {
     expect(html).toContain('Fitbit &amp; Google Health')
     expect(html).not.toContain('Whoop')
     expect(html).not.toContain('Strava')
+  })
+
+  it('offers the way into Health data once connected', () => {
+    conn.state.configured = true
+    conn.state.status = { status: 'connected', lastSyncedAt: null, lastError: null }
+    conn.state.summaries = [{ dataType: 'steps', latestRecordedAt: null, pointCountRecent: 3 }]
+    const html = renderToStaticMarkup(<DevicesScreen onBack={noop} />)
+    expect(html).toContain('Health data')
+    expect(html).toContain('1 synced category')
+  })
+
+  it('shows sync progress while a sync runs', () => {
+    conn.state.syncProgress = { done: 3, total: 20 }
+    const html = renderToStaticMarkup(<DevicesScreen onBack={noop} />)
+    expect(html).toContain('Syncing… 3 of 20')
+    conn.state.syncProgress = null
   })
 })

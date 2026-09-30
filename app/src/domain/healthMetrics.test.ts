@@ -157,3 +157,20 @@ describe('describeHealthValue', () => {
     expect(describeHealthValue(7)).toEqual([{ label: 'Value', text: '7' }])
   })
 })
+
+import { latestHealthDetails } from './healthMetrics'
+
+describe('latestHealthDetails', () => {
+  it('describes only the most recent point', () => {
+    expect(
+      latestHealthDetails([
+        { recordedAt: '2026-09-28T00:00:00Z', value: { timeZone: 'UTC' } },
+        { recordedAt: '2026-09-29T00:00:00Z', value: { timeZone: 'Asia/Kolkata' } },
+      ]),
+    ).toEqual([{ label: 'Time zone', text: 'Asia/Kolkata' }])
+  })
+
+  it('is empty when there is nothing synced', () => {
+    expect(latestHealthDetails([])).toEqual([])
+  })
+})
