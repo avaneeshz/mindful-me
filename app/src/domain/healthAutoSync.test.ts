@@ -9,7 +9,7 @@ describe('isAutoSyncDue', () => {
     expect(isAutoSyncDue(null, NOW)).toBe(true)
   })
   it('waits the full interval after a sync', () => {
-    expect(isAutoSyncDue(ago(5 * 60_000), NOW)).toBe(false)
+    expect(isAutoSyncDue(ago(2 * 60_000), NOW)).toBe(false)
     expect(isAutoSyncDue(ago(AUTO_SYNC_INTERVAL_MS), NOW)).toBe(true)
   })
   it('treats an unreadable timestamp as due', () => {
@@ -19,7 +19,8 @@ describe('isAutoSyncDue', () => {
 
 describe('nextAutoSyncDelay', () => {
   it('waits out the rest of the interval after a recent sync', () => {
-    expect(nextAutoSyncDelay(ago(5 * 60_000), NOW, 0)).toBe(10 * 60_000)
+    expect(AUTO_SYNC_INTERVAL_MS).toBe(5 * 60_000)
+    expect(nextAutoSyncDelay(ago(2 * 60_000), NOW, 0)).toBe(3 * 60_000)
   })
   it('never schedules sooner than a minute, even when overdue or skewed', () => {
     expect(nextAutoSyncDelay(ago(AUTO_SYNC_INTERVAL_MS * 3), NOW, 0)).toBe(60_000)

@@ -88,13 +88,16 @@ export function useHealthConnection() {
     setSyncing(true)
     setSyncMessage(null)
     setSyncProgress(null)
-    // Sync now is always a full sync. If an automatic one is running, the
-    // runner lets it finish first rather than running two at once.
-    const outcome = await runHealthSync('full', setSyncProgress)
+    // A quick sync first, so today's data shows within seconds, then a full
+    // one for everything else. If an automatic sync is running, the runner
+    // lets it finish first rather than running two at once.
+    const quick = await runHealthSync('quick')
+    const outcome = quick.ok ? await runHealthSync('full', setSyncProgress) : quick
     setSyncing(false)
     setSyncProgress(null)
     if (outcome.ok) {
-      setSyncMessage({ tone: 'success', text: `Synced ${outcome.points} data point${outcome.points === 1 ? '' : 's'}.` })
+      const points = quick.points + outcome.points
+      setSyncMessage({ tone: 'success', text: `Synced ${points} data point${points === 1 ? '' : 's'}.` })
     } else if (outcome.reason !== 'reauth_required') {
       setSyncMessage({ tone: 'error', text: outcome.message ?? 'Sync failed. Try again in a moment.' })
     }

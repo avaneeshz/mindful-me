@@ -122,7 +122,7 @@ describe('runHealthSync in steps', () => {
     expect(Math.max(...cpuPerStep)).toBeLessThan(600)
     expect(state.upserted).toBeGreaterThan(0)
     // Every past heart-rate day was fetched once and remembered.
-    expect((state.sync_state['heart-rate-intraday'] as { doneDays: string[] }).doneDays.length).toBe(12)
+    expect((state.sync_state['heart-rate-intraday'] as { doneDays: string[] }).doneDays.length).toBe(28)
   }, 120_000)
 
   it('makes a repeat sync cheaper: finished heart-rate days are not fetched again', async () => {
@@ -151,6 +151,20 @@ describe('runHealthSync modes', () => {
     return calls
   }
 
+  it("a full sync fetches today's heart rate in its very first call", async () => {
+    const calls = stubGoogle()
+    const { admin } = fakeAdmin()
+    const result = await runHealthSync(admin, 'u1', 'id', 'secret', 'google_health', 0, 'full')
+    expect(result.ok).toBe(true)
+    expect(result.nextStep).toBeGreaterThan(0)
+    // Today in the account's zone (Asia/Kolkata) starts at the previous UTC day's 18:30.
+    const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+    const [y, m, d] = todayKey.split('-').map(Number)
+    const todayStart = new Date(Date.UTC(y, m - 1, d) - 5.5 * 3600_000).toISOString()
+    const hr = calls.filter((c) => c.includes('/heart-rate/dataPoints?'))
+    expect(hr.some((c) => decodeURIComponent(new URL(c).searchParams.get('filter') ?? '').includes(todayStart))).toBe(true)
+  })
+
   it('a quick sync is one call, a handful of reads, and well under the CPU budget', async () => {
     const calls = stubGoogle()
     const { admin, state } = fakeAdmin()
@@ -160,8 +174,10 @@ describe('runHealthSync modes', () => {
     expect(result.ok).toBe(true)
     expect(result.mode).toBe('quick')
     expect(result.nextStep).toBeNull()
-    // settings (time zone) + steps, heart-rate, sleep, exercise, active energy + today's heart rate
-    expect(calls.length).toBeLessThanOrEqual(8)
+    // settings (time zone) + steps, heart-rate, active energy + today's heart rate
+    // (a reading every 5 s can take two pages)
+    expect(calls.length).toBeLessThanOrEqual(6)
+    expect(calls.some((c) => c.includes('/sleep/') || c.includes('/exercise/'))).toBe(false)
     expect((used.user + used.system) / 1000).toBeLessThan(600)
     expect(state.upserted).toBeGreaterThan(0)
     // A quick sync never claims a full one happened.

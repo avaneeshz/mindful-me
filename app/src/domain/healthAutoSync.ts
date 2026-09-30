@@ -2,11 +2,11 @@
  * When automatic Health Sync runs. Pure rules, no timers — the hook that owns
  * the timer (`state/useHealthAutoSync`) asks these.
  *
- * Wearables upload to Google roughly every 15 minutes at best, so syncing more
- * often than that mostly fetches nothing new.
+ * Every 5 minutes: an automatic sync is usually the light "quick" kind (a few
+ * small reads), so checking often keeps today's heart rate close to live.
  */
 
-export const AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000
+export const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000
 /** Longest wait after repeated failures. */
 export const AUTO_SYNC_MAX_BACKOFF_MS = 2 * 60 * 60 * 1000
 
