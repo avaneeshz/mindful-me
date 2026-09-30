@@ -4,11 +4,22 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
-import { signInWithPassword, signOut as signOutRequest, signUpWithPassword, type AuthOutcome } from '@/lib/auth'
+import {
+  completeOAuthSignIn,
+  mapOAuthCallbackError,
+  signInWithPassword,
+  signOut as signOutRequest,
+  signUpWithPassword,
+  startGoogleSignIn,
+  type AuthOutcome,
+} from '@/lib/auth'
+import { parseAuthCallback, type AuthCallback } from '@/lib/authRedirect'
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn'
 
@@ -24,6 +35,10 @@ interface AuthContextValue {
   user: AuthUser | null
   signIn(email: string, password: string): Promise<AuthOutcome>
   signUp(email: string, password: string): Promise<AuthOutcome>
+  /** Leaves for Google on success; see `startGoogleSignIn`. */
+  signInWithGoogle(): Promise<AuthOutcome>
+  /** Why the last Google round trip failed, for the auth screen to show once it's back. */
+  oauthError: string | null
   signOut(): Promise<void>
 }
 
@@ -57,12 +72,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // on a loading screen with no backend to ever answer it.
   const [status, setStatus] = useState<AuthStatus>(supabaseConfigured ? 'loading' : 'signedOut')
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [oauthError, setOauthError] = useState<string | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Read once on mount: a returning "Continue with Google" redirect. The
+  // exchange promise is kept here so StrictMode's double-run effect awaits
+  // the same one-time code exchange instead of spending the code twice.
+  const callbackRef = useRef<{ callback: AuthCallback; exchange?: Promise<AuthOutcome> } | null>(null)
+  if (callbackRef.current === null) {
+    callbackRef.current = { callback: parseAuthCallback(location.pathname, location.search) }
+  }
 
   useEffect(() => {
     if (!supabase) return
     let cancelled = false
 
-    supabase.auth.getSession().then(({ data }) => {
+    // Settle any sign-in callback before reading the session, so the gate
+    // stays on its loader instead of flashing the auth screen mid-exchange.
+    const pending = callbackRef.current!
+    const { callback } = pending
+    if (callback && !pending.exchange) {
+      pending.exchange =
+        'code' in callback
+          ? completeOAuthSignIn(callback.code)
+          : Promise.resolve({ ok: false, message: mapOAuthCallbackError(callback.error) })
+    }
+    const ready = pending.exchange
+      ? pending.exchange.then((outcome) => {
+          if (cancelled) return
+          if (!outcome.ok) setOauthError(outcome.message)
+          navigate('/', { replace: true })
+        })
+      : Promise.resolve()
+
+    ready.then(() => supabase!.auth.getSession()).then(({ data }) => {
       if (cancelled) return
       if (data.session) {
         setUser(toAuthUser(data.session.user))
@@ -89,15 +133,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true
       subscription.unsubscribe()
     }
+    // Mount-only by design: the callback is read once (see callbackRef).
   }, [])
 
   const signIn = useCallback(signInWithPassword, [])
   const signUp = useCallback(signUpWithPassword, [])
+  const signInWithGoogle = useCallback(startGoogleSignIn, [])
   const signOut = useCallback(signOutRequest, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ configured: supabaseConfigured, status, user, signIn, signUp, signOut }),
-    [status, user, signIn, signUp, signOut],
+    () => ({ configured: supabaseConfigured, status, user, signIn, signUp, signInWithGoogle, oauthError, signOut }),
+    [status, user, signIn, signUp, signInWithGoogle, oauthError, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

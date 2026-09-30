@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '@/state/AuthContext'
 import { AuthScreen } from './AuthScreen'
 
@@ -13,9 +14,11 @@ import { AuthScreen } from './AuthScreen'
  */
 function render(): string {
   return renderToStaticMarkup(
-    <AuthProvider>
-      <AuthScreen />
-    </AuthProvider>,
+    <MemoryRouter>
+      <AuthProvider>
+        <AuthScreen />
+      </AuthProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -55,6 +58,10 @@ describe('AuthScreen (initial render)', () => {
 
   it('shows no error banner at rest', () => {
     expect(html).not.toContain('role="alert"')
+  })
+
+  it('offers Continue with Google as a real button', () => {
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>.*Continue with Google<\/button>/)
   })
 
   it('offers the toggle to create an account instead', () => {

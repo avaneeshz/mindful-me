@@ -17,6 +17,11 @@ export const supabase: SupabaseClient | null = supabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        // PKCE for "Continue with Google": the callback carries a `?code=`
+        // that `lib/auth.ts#completeOAuthSignIn` exchanges explicitly. Auto
+        // detection stays off because the Google Health callback also
+        // returns a `?code=` that is not a Supabase Auth code.
+        flowType: 'pkce',
         detectSessionInUrl: false,
       },
     })
@@ -30,7 +35,7 @@ if (!supabaseConfigured && import.meta.env.DEV) {
   )
 }
 
-// Real email/password auth lives in `lib/auth.ts` (sign up / sign in / sign
+// Real email/password and Google auth lives in `lib/auth.ts` (sign up / sign in / sign
 // out) and `state/AuthContext.tsx` (session state + the app-level gate).
 // There is no anonymous-auth bootstrap any more — every `auth.uid()` RLS
 // policy and the `no_overlapping_activities` constraint key off a real,
