@@ -240,8 +240,8 @@ function Tile({
         onClick={onToggle}
         aria-label={`${category.label}, ${describeProgress(progress)}`}
         className={cn(
-          'relative flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-sm overflow-hidden',
-          'rounded-lg border bg-bg p-sm transition-colors',
+          'relative flex h-full min-h-[88px] w-full cursor-pointer flex-col items-center gap-sm overflow-hidden',
+          'rounded-lg border bg-bg px-xs py-sm transition-colors',
           'hover:border-ink',
           // Active: an ink ring, exactly the same treatment a selected chip
           // uses elsewhere — no colour swap, no separate accent hue.
@@ -252,9 +252,9 @@ function Tile({
         <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
         <span
           aria-hidden="true"
-          className="w-full line-clamp-2 px-xs text-center text-micro font-bold leading-tight text-ink"
+          className="flex w-full flex-1 items-center justify-center text-center text-micro font-bold leading-tight text-ink"
         >
-          {category.label}
+          <span className="min-w-0 max-w-full break-words hyphens-auto">{category.label}</span>
         </span>
 
         {/* Section B — a flat progress bar (fill width = done/total)
