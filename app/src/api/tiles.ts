@@ -7,6 +7,8 @@ export interface TileDto {
   iconKey: string
   sortOrder: number
   hidden: boolean
+  /** User-chosen `#rrggbb`, or null for the monochrome default. */
+  color: string | null
 }
 
 interface TileRow {
@@ -15,10 +17,18 @@ interface TileRow {
   icon_key: string
   sort_order: number
   hidden: boolean
+  color?: string | null
 }
 
 function fromRow(row: TileRow): TileDto {
-  return { id: row.id, label: row.label, iconKey: row.icon_key, sortOrder: row.sort_order, hidden: row.hidden }
+  return {
+    id: row.id,
+    label: row.label,
+    iconKey: row.icon_key,
+    sortOrder: row.sort_order,
+    hidden: row.hidden,
+    color: row.color ?? null,
+  }
 }
 
 /**
@@ -73,6 +83,18 @@ export async function apiUpdateTile(id: string, label: string, iconKey: string):
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[tiles] update_tile failed — kept locally, will retry on next load', error.message)
+    return false
+  }
+  return true
+}
+
+/** `color` null clears it. Normalized `#rrggbb` only — see `domain/colors.ts`. */
+export async function apiSetTileColor(id: string, color: string | null): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('set_tile_color', { p_id: id, p_color: color })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[tiles] set_tile_color failed — kept locally, will retry on next load', error.message)
     return false
   }
   return true

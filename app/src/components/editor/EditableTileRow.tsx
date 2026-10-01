@@ -5,6 +5,7 @@ import { EditOverlay } from '@/components/editor/EditOverlay'
 import { TileEditPanel } from '@/components/editor/TileEditPanel'
 import { TileForm } from '@/components/editor/TileForm'
 import { resolveIcon } from '@/lib/iconRegistry'
+import { colorTintStyle } from '@/components/ui/colorStyles'
 import { usePickerData } from '@/state/PickerDataContext'
 import type { TileDto } from '@/api/tiles'
 import { cn } from '@/lib/utils'
@@ -183,6 +184,7 @@ function EditTile({
               'rounded-lg border bg-bg p-sm transition-colors hover:border-ink',
               open ? 'border-ink shadow-[0_0_0_1px_var(--ink)]' : 'border-dashed border-line',
             )}
+            style={colorTintStyle(tile.color, { border: !open })}
           >
             <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
             <span aria-hidden="true" className="w-full line-clamp-2 px-xs text-center text-micro font-bold leading-tight text-ink">

@@ -5,6 +5,7 @@ import {
   apiListActivities,
   apiProvisionDefaultActivities,
   apiReorderActivities,
+  apiSetActivityColor,
   apiSetActivityHidden,
   apiUpdateActivity,
 } from '@/api/activityHierarchy'
@@ -21,6 +22,8 @@ export interface UseActivityHierarchyResult {
   error: string | null
   addActivity: (input: { name: string; tileId?: string | null; parentId?: string | null }) => ActivityRow
   renameActivity: (id: string, name: string) => void
+  /** `null` clears the activity's own colour so it inherits again. */
+  setActivityColor: (id: string, color: string | null) => void
   hideActivity: (id: string) => void
   unhideActivity: (id: string) => void
   reorder: (orderedIds: string[]) => void
@@ -246,6 +249,15 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     }
   }, [])
 
+  const setActivityColor = useCallback((id: string, color: string | null): void => {
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, color } : a)))
+    if (supabaseConfigured) {
+      void apiSetActivityColor(id, color).then((ok) => {
+        if (!ok) setError('Saved on this device — will sync once you’re back online.')
+      })
+    }
+  }, [])
+
   const setHidden = useCallback((id: string, hidden: boolean): void => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, hidden } : a)))
     if (supabaseConfigured) {
@@ -288,5 +300,5 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     [removeSubtreeLocally],
   )
 
-  return { activities, status, error, addActivity, renameActivity, hideActivity, unhideActivity, reorder, deleteActivity }
+  return { activities, status, error, addActivity, renameActivity, setActivityColor, hideActivity, unhideActivity, reorder, deleteActivity }
 }

@@ -5,6 +5,7 @@ import {
   apiListTiles,
   apiProvisionDefaultTiles,
   apiReorderTiles,
+  apiSetTileColor,
   apiSetTileHidden,
   apiUpdateTile,
   type TileDto,
@@ -35,6 +36,8 @@ export interface UseTilesResult {
   error: string | null
   addTile: (label: string, iconKey: string) => TileDto
   renameTile: (id: string, label: string, iconKey: string) => void
+  /** `null` clears the tile's colour back to the monochrome default. */
+  setTileColor: (id: string, color: string | null) => void
   hideTile: (id: string) => void
   unhideTile: (id: string) => void
   reorder: (orderedIds: string[]) => void
@@ -50,6 +53,7 @@ function localOnlyDefaults(): TileDto[] {
     iconKey: LOCAL_ONLY_TILE_ICON[id],
     sortOrder: index,
     hidden: false,
+    color: null,
   }))
 }
 
@@ -113,7 +117,7 @@ export function useTiles(): UseTilesResult {
     (label: string, iconKey: string): TileDto => {
       const id = generateId()
       const maxSortOrder = tiles.reduce((max, t) => Math.max(max, t.sortOrder), -1)
-      const created: TileDto = { id, label, iconKey, sortOrder: maxSortOrder + 1, hidden: false }
+      const created: TileDto = { id, label, iconKey, sortOrder: maxSortOrder + 1, hidden: false, color: null }
       setTiles((prev) => [...prev, created])
       if (supabaseConfigured) {
         void apiCreateTile(id, label, iconKey).then((serverId) => {
@@ -129,6 +133,15 @@ export function useTiles(): UseTilesResult {
     setTiles((prev) => prev.map((t) => (t.id === id ? { ...t, label, iconKey } : t)))
     if (supabaseConfigured) {
       void apiUpdateTile(id, label, iconKey).then((ok) => {
+        if (!ok) setError('Saved on this device — will sync once you’re back online.')
+      })
+    }
+  }, [])
+
+  const setTileColor = useCallback((id: string, color: string | null): void => {
+    setTiles((prev) => prev.map((t) => (t.id === id ? { ...t, color } : t)))
+    if (supabaseConfigured) {
+      void apiSetTileColor(id, color).then((ok) => {
         if (!ok) setError('Saved on this device — will sync once you’re back online.')
       })
     }
@@ -176,5 +189,5 @@ export function useTiles(): UseTilesResult {
     [],
   )
 
-  return { tiles, status, error, addTile, renameTile, hideTile, unhideTile, reorder, deleteTile }
+  return { tiles, status, error, addTile, renameTile, setTileColor, hideTile, unhideTile, reorder, deleteTile }
 }

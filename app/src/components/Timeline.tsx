@@ -22,6 +22,7 @@ import { isWindowFull } from '@/domain/scheduling'
 import { PERIOD_ICONS } from '@/data/periods'
 import { SunMoonLogPopover } from '@/components/SunMoonLogPopover'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
+import { readableInkOn } from '@/domain/colors'
 import { cn } from '@/lib/utils'
 
 /** Spoken description of a slot — never relies on colour to convey state. */
@@ -92,6 +93,12 @@ interface TimelineProps {
   selectedActivityId: string | null
   /** Dispatches `quickLogActivity` — threaded to the Sun/Moon end-cap popovers. See `state/boardReducer.ts`. */
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
+  /**
+   * The user-chosen colour a logged activity's segment fills with (see
+   * `state/useActivityColors.ts`), or `null` for the default monochrome wash.
+   * Omitted entirely means every segment is uncoloured.
+   */
+  colorFor?: (activity: ScheduledActivity) => string | null
 }
 
 export function Timeline({
@@ -103,6 +110,7 @@ export function Timeline({
   onSelectActivity,
   selectedActivityId,
   onQuickLog,
+  colorFor,
 }: TimelineProps) {
   const containerRef = useRef<HTMLElement>(null)
   /**
@@ -193,6 +201,7 @@ export function Timeline({
             onSelectActivity={onSelectActivity}
             selectedActivityId={selectedActivityId}
             onQuickLog={onQuickLog}
+            colorFor={colorFor}
             onKeyDown={handleKeyDown}
           />
         ))}
@@ -215,6 +224,7 @@ interface TimelineRowProps {
   onSelectActivity: (id: string) => void
   selectedActivityId: string | null
   onQuickLog: (cardName: string, startMinutes: number, durationMinutes: number) => void
+  colorFor?: (activity: ScheduledActivity) => string | null
   onKeyDown: (event: KeyboardEvent<HTMLElement>, period: Period, stop: RowFocusStop) => void
 }
 
@@ -230,6 +240,7 @@ function TimelineRow({
   onSelectActivity,
   selectedActivityId,
   onQuickLog,
+  colorFor,
   onKeyDown,
 }: TimelineRowProps) {
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
@@ -476,6 +487,11 @@ function TimelineRow({
                 rovingStop?.kind === 'activity' && rovingStop.activityId === segment.activity.id
               const isDragOverActivity = dragOverSlot === anchorSlot
               const isSelectedActivity = selectedActivityId === segment.activity.id
+              const fill = colorFor?.(segment.activity) ?? null
+              // On a user-chosen fill no theme token is guaranteed to
+              // contrast, so the hover/focus/selected outline switches to
+              // whichever of black/white reads on that fill.
+              const fillInk = fill ? readableInkOn(fill) : null
 
               return (
                 <div
@@ -487,10 +503,10 @@ function TimelineRow({
                   }}
                 >
                   {/* The VISUAL fill — exactly this box, never resized by the
-                      hit-area floor on the button below. No more per-item
-                      colour (Section A) — every real activity's segment is
-                      the same flat, theme-aware wash, with a matching
-                      hairline for its edges. The Night row's background is
+                      hit-area floor on the button below. An activity (or its
+                      tile) the user gave a colour fills with that colour;
+                      every other segment is the same flat, theme-aware
+                      wash, with a matching hairline for its edges. The Night row's background is
                       the one fixed, theme-independent surface (Section C),
                       so segments drawn on it reach for that surface's own
                       fixed companion tokens instead, the same reasoning the
@@ -498,13 +514,23 @@ function TimelineRow({
                   <div
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0"
-                    style={{
-                      background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
-                      boxShadow:
-                        period === 'day'
-                          ? 'inset 0 0 0 1px var(--line)'
-                          : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
-                    }}
+                    style={
+                      fill
+                        ? {
+                            // The user's own colour (Classic edit mode's
+                            // colour picker), with a slightly darker hairline
+                            // so adjacent segments stay distinguishable.
+                            background: fill,
+                            boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${fill} 70%, black)`,
+                          }
+                        : {
+                            background: period === 'day' ? 'var(--line-soft)' : 'var(--night-strip-fixed-line)',
+                            boxShadow:
+                              period === 'day'
+                                ? 'inset 0 0 0 1px var(--line)'
+                                : 'inset 0 0 0 1px var(--night-strip-fixed-ink)',
+                          }
+                    }
                   />
 
                   {/* The INTERACTIVE hit target, centred on the visual box
@@ -553,7 +579,10 @@ function TimelineRow({
                               'outline outline-2.5 -outline-offset-2.5 outline-night-strip-fixed-ink',
                           ],
                     )}
-                    style={{ width: `max(100%, ${MIN_ACTIVITY_HIT_WIDTH_PX}px)` }}
+                    style={{
+                      width: `max(100%, ${MIN_ACTIVITY_HIT_WIDTH_PX}px)`,
+                      ...(fillInk ? { outlineColor: fillInk } : {}),
+                    }}
                   />
                 </div>
               )

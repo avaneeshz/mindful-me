@@ -32,6 +32,8 @@ export interface ActivityRow {
    */
   disappearMode: 'manual' | 'auto'
   disappearLimit: number | null
+  /** User-chosen `#rrggbb`, or null/absent to inherit (see `domain/colors.ts`). */
+  color?: string | null
 }
 
 export interface ActivityNode extends ActivityRow {
@@ -248,6 +250,8 @@ export interface LiveTile {
   iconKey: string
   hidden: boolean
   sortOrder: number
+  /** User-chosen `#rrggbb`, or null/absent for the monochrome default. */
+  color?: string | null
 }
 
 /**

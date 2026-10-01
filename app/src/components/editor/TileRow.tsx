@@ -5,7 +5,9 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { cardsForCategory, effectiveCategories, effectiveCategoryOrder } from '@/data/activities'
 import { isCardLocked, tileProgress, isTileLocked, type TileProgress } from '@/domain/disappear'
 import type { ActivityCard, ActivityList, Category, CategoryId } from '@/domain/types'
+import { colorTintStyle } from '@/components/ui/colorStyles'
 import { cn } from '@/lib/utils'
+import { useActivityColors } from '@/state/useActivityColors'
 
 /** e.g. "1 activity totalling 30 minutes", "2 activities totalling 30 minutes". */
 export function describeSlotContents(activityCount: number, usedMinutes: number): string {
@@ -66,6 +68,7 @@ function LoggingTileRow({
 }: TileRowProps) {
   const [draggingCard, setDraggingCard] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<CategoryId | null>(null)
+  const colors = useActivityColors()
 
   const categories = effectiveCategories()
   const categoryOrder = effectiveCategoryOrder()
@@ -109,6 +112,7 @@ function LoggingTileRow({
             <Tile
               key={categoryId}
               category={category}
+              color={colors.tileColor(categoryId)}
               progress={progress}
               isActive={isActive}
               hiddenFromAT={atCapacity}
@@ -156,6 +160,7 @@ function LoggingTileRow({
                   <ItemChip
                     key={card.name}
                     card={card}
+                    color={colors.cardColor(card.name)}
                     locked={isCardLocked(card, activities, dismissed)}
                     atCapacity={atCapacity}
                     isDragging={draggingCard === card.name}
@@ -206,12 +211,15 @@ function PanelHeader({ category, progress }: { category: Category; progress: Til
 
 function Tile({
   category,
+  color,
   progress,
   isActive,
   hiddenFromAT,
   onToggle,
 }: {
   category: Category
+  /** User-chosen colour (Classic edit mode), or null for the monochrome default. */
+  color: string | null
   progress: TileProgress
   isActive: boolean
   hiddenFromAT: boolean
@@ -239,6 +247,7 @@ function Tile({
           // uses elsewhere — no colour swap, no separate accent hue.
           isActive ? 'border-ink shadow-[0_0_0_1px_var(--ink)]' : 'border-line',
         )}
+        style={colorTintStyle(color, { border: !isActive })}
       >
         <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
         <span
@@ -252,7 +261,10 @@ function Tile({
             replaces the old water-fill gauge. Always rendered, even at 0%,
             matching the reference implementation's own track/fill pair. */}
         <span aria-hidden="true" className="h-[4px] w-full overflow-hidden rounded-full bg-line">
-          <span className="block h-full rounded-full bg-ink" style={{ width: `${fillPct}%` }} />
+          <span
+            className="block h-full rounded-full bg-ink"
+            style={{ width: `${fillPct}%`, ...(color ? { background: color } : {}) }}
+          />
         </span>
 
         {locked && (
@@ -270,6 +282,7 @@ function Tile({
 
 function ItemChip({
   card,
+  color,
   locked,
   atCapacity,
   isDragging,
@@ -279,6 +292,7 @@ function ItemChip({
   onDragEnd,
 }: {
   card: ActivityCard
+  color: string | null
   locked: boolean
   atCapacity: boolean
   isDragging: boolean
@@ -316,6 +330,7 @@ function ItemChip({
           // colour swap.
           locked && 'opacity-40',
         )}
+        style={colorTintStyle(color)}
       >
         <Icon aria-hidden="true" className="size-[20px] shrink-0 text-ink" />
         <span aria-hidden="true" className="w-full truncate px-px text-center text-micro font-semibold text-ink">
