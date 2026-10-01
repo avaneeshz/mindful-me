@@ -39,3 +39,8 @@ export function usePickerData(): PickerDataContextValue {
   if (!value) throw new Error('usePickerData must be used inside a <PickerDataProvider>')
   return value
 }
+
+/** Same as `usePickerData`, but `null` outside a provider — for read-only consumers (colours) that must still render in isolation. */
+export function useOptionalPickerData(): PickerDataContextValue | null {
+  return useContext(PickerDataContext)
+}

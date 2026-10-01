@@ -11,6 +11,7 @@ interface ActivityRowDb {
   sort_order: number
   disappear_mode: 'manual' | 'auto'
   disappear_limit: number | null
+  color?: string | null
 }
 
 function fromRow(row: ActivityRowDb): ActivityRow {
@@ -24,6 +25,7 @@ function fromRow(row: ActivityRowDb): ActivityRow {
     sortOrder: row.sort_order,
     disappearMode: row.disappear_mode,
     disappearLimit: row.disappear_limit,
+    color: row.color ?? null,
   }
 }
 
@@ -122,6 +124,18 @@ export async function apiUpdateActivity(
     return { ok: false, reason: 'unreachable' }
   }
   return { ok: true }
+}
+
+/** `color` null clears it (the activity inherits again). Normalized `#rrggbb` only — see `domain/colors.ts`. */
+export async function apiSetActivityColor(id: string, color: string | null): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('set_activity_color', { p_id: id, p_color: color })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[activityHierarchy] set_activity_color failed — kept locally, will retry on next load', error.message)
+    return false
+  }
+  return true
 }
 
 export async function apiSetActivityHidden(id: string, hidden: boolean): Promise<boolean> {

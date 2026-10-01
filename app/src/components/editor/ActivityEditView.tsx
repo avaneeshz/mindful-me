@@ -4,7 +4,16 @@ import { Button } from '@/components/ui/button'
 import { ParameterOptionsPanel } from '@/components/activityLibrary/ParameterOptionsPanel'
 import { AddNameRow, EditableActivityList, HiddenActivityList, RowIconButton } from '@/components/editor/ActivityRows'
 import { InlineNameForm } from '@/components/editor/InlineNameForm'
-import { childrenOf, isSiblingNameTaken, isTopLevelNameTaken, moveInOrder, type ActivityRow } from '@/domain/pickerHierarchy'
+import { ColorPicker } from '@/components/ui/ColorPicker'
+import { effectiveActivityColor } from '@/domain/colors'
+import {
+  childrenOf,
+  isSiblingNameTaken,
+  isTopLevelNameTaken,
+  moveInOrder,
+  type ActivityRow,
+  type LiveTile,
+} from '@/domain/pickerHierarchy'
 import { useActivityParameterSelections } from '@/state/useActivityParameterSelections'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 
@@ -19,6 +28,8 @@ export function ActivityEditView({
   activity,
   tileId,
   backLabel,
+  tileLabel,
+  tiles,
   activities,
   onBack,
   onOpen,
@@ -29,6 +40,9 @@ export function ActivityEditView({
   tileId: string
   /** Name of what "back" returns to: the parent activity, or the tile. */
   backLabel: string
+  /** The tile's name — what an uncoloured top-level activity inherits from. */
+  tileLabel: string
+  tiles: readonly Pick<LiveTile, 'id' | 'color'>[]
   activities: UseActivityHierarchyResult
   onBack: () => void
   onOpen: (id: string) => void
@@ -40,6 +54,12 @@ export function ActivityEditView({
   const selections = useActivityParameterSelections(activity.id)
   const rows = activities.activities
   const { visible, hidden } = childrenOf(rows, activity.id, tileId)
+  const parent = activity.parentId ? rows.find((a) => a.id === activity.parentId) : null
+  // What shows when this activity has no colour of its own.
+  const inheritedColor = parent
+    ? effectiveActivityColor(rows, tiles, parent.id)
+    : (tiles.find((t) => t.id === tileId)?.color ?? null)
+  const inheritedFrom = parent ? parent.name : tileLabel
 
   function rename(name: string) {
     const taken =
@@ -85,6 +105,16 @@ export function ActivityEditView({
           </RowIconButton>
         </div>
       )}
+
+      <section aria-label="Colour" className="flex flex-col gap-sm">
+        <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>
+        <ColorPicker
+          value={activity.color ?? null}
+          onChange={(color) => activities.setActivityColor(activity.id, color)}
+          inheritedColor={inheritedColor}
+          inheritedLabel={inheritedColor ? `Same as ${inheritedFrom}` : 'No colour'}
+        />
+      </section>
 
       <section aria-label="Subtypes" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Subtypes</h4>
