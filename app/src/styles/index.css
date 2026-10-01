@@ -331,8 +331,8 @@
    that behaviour still applies; the top-level row above no longer scrolls. */
 .tile-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 8px;
 }
 
 .item-chip-row {
