@@ -5,6 +5,7 @@ import { ThemeFromSlot } from '@/components/ThemeFromSlot'
 import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
 import { useBoard } from '@/state/BoardContext'
+import { useActivityColors } from '@/state/useActivityColors'
 
 export interface TodayPageProps {
   /**
@@ -20,6 +21,7 @@ export interface TodayPageProps {
 
 export function TodayPage({ editMode }: TodayPageProps) {
   const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
+  const colors = useActivityColors()
 
   // Which activity + reflection card the note-entry popup is currently open
   // for, if any — set by EITHER path of reflection-card mapping (a grid
@@ -69,6 +71,7 @@ export function TodayPage({ editMode }: TodayPageProps) {
           onQuickLog={(cardName, startMinutes, durationMinutes) =>
             dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })
           }
+          colorFor={(activity) => colors.loggedColor(activity.name, activity.path)}
         />
       </div>
 

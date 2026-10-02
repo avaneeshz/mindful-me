@@ -5,7 +5,9 @@ import type { TileDto } from '@/api/tiles'
 import { ActivityEditView } from '@/components/editor/ActivityEditView'
 import { AddNameRow, EditableActivityList, HiddenActivityList, RowIconButton } from '@/components/editor/ActivityRows'
 import { TileForm } from '@/components/editor/TileForm'
+import { ColorPicker } from '@/components/ui/ColorPicker'
 import { childrenOf, isTopLevelNameTaken, moveInOrder } from '@/domain/pickerHierarchy'
+import { colorTintStyle } from '@/components/ui/colorStyles'
 import { resolveIcon } from '@/lib/iconRegistry'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import type { UseTilesResult } from '@/state/useTiles'
@@ -22,7 +24,7 @@ export function TileEditPanel({
   onClose,
 }: {
   tile: TileDto
-  tiles: Pick<UseTilesResult, 'renameTile'>
+  tiles: Pick<UseTilesResult, 'renameTile' | 'setTileColor' | 'tiles'>
   activities: UseActivityHierarchyResult
   onClose: () => void
 }) {
@@ -45,6 +47,8 @@ export function TileEditPanel({
         activity={openActivity}
         tileId={tile.id}
         backLabel={parent ? parent.name : tile.label}
+        tileLabel={tile.label}
+        tiles={tiles.tiles}
         activities={activities}
         onBack={() => setOpenActivityId(parent ? parent.id : null)}
         onOpen={setOpenActivityId}
@@ -72,7 +76,10 @@ export function TileEditPanel({
       ) : (
         <div className="flex items-center justify-between gap-sm">
           <div className="flex min-w-0 items-center gap-sm">
-            <span className="flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink">
+            <span
+              className="flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink"
+              style={colorTintStyle(tile.color ?? null, { border: false })}
+            >
               <Icon aria-hidden="true" className="size-[16px]" />
             </span>
             <h3 className="truncate text-btn font-semibold text-ink">{tile.label}</h3>
@@ -87,6 +94,15 @@ export function TileEditPanel({
           </div>
         </div>
       )}
+
+      <section aria-label="Colour" className="flex flex-col gap-sm">
+        <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>
+        <ColorPicker
+          value={tile.color ?? null}
+          onChange={(color) => tiles.setTileColor(tile.id, color)}
+          inheritedLabel="No colour"
+        />
+      </section>
 
       <section aria-label="Activities" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Activities</h4>
