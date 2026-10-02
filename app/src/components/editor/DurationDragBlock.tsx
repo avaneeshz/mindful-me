@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { DAY_START } from '@/domain/dayAxis'
 import { formatMinutes } from '@/domain/slots'
 import {
   clampMove,
@@ -10,6 +11,7 @@ import {
 } from '@/domain/scheduling'
 import type { ActivityList } from '@/domain/types'
 import { cn } from '@/lib/utils'
+import { LATEST_STAGED_START, stagingBounds } from '@/state/boardReducer'
 
 /**
  * The default and only visible duration control (Modal Redesign §C) — a mini
@@ -39,7 +41,6 @@ import { cn } from '@/lib/utils'
 
 /** Half the visible ruler window, in minutes either side of the anchor. */
 const WINDOW_HALF_MINUTES = 180
-const MINUTES_PER_DAY = 1440
 
 export const DURATION_DRAG_MESSAGE_ID = 'duration-drag-capacity-message'
 
@@ -70,10 +71,14 @@ export function DurationDragBlock({
   // Fixed for the component's lifetime (one modal open) so the ruler doesn't
   // visually re-center under a drag in progress — computed once from the
   // value staging had when this control first mounted.
-  const [windowStart] = useState(() =>
-    Math.max(0, Math.min(MINUTES_PER_DAY - WINDOW_HALF_MINUTES * 2, startMinutes - WINDOW_HALF_MINUTES)),
-  )
+  // The board's minutes run 06:00 → 06:00 the next morning (and further, for
+  // something that runs past it), so the ruler may cross midnight; it never
+  // starts before 06:00 unless the activity itself does (carried over from
+  // the evening before).
+  const [windowStart] = useState(() => Math.max(Math.min(DAY_START, startMinutes), startMinutes - WINDOW_HALF_MINUTES))
   const windowEnd = windowStart + WINDOW_HALF_MINUTES * 2
+  // The same placement bounds the reducer applies to this staged entry.
+  const bounds = stagingBounds(startMinutes)
   const windowMinutes = windowEnd - windowStart
 
   function pctFor(minute: number): number {
@@ -116,10 +121,19 @@ export function DurationDragBlock({
   function onMoveKeyDown(event: KeyboardEvent) {
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
-      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes - DURATION_STEP_MINUTES, editingId))
+      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes - DURATION_STEP_MINUTES, editingId, bounds))
     } else if (event.key === 'ArrowRight') {
       event.preventDefault()
-      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes + DURATION_STEP_MINUTES, editingId))
+      onMove(
+        clampMove(
+          activities,
+          startMinutes,
+          durationMinutes,
+          Math.min(startMinutes + DURATION_STEP_MINUTES, LATEST_STAGED_START),
+          editingId,
+          bounds,
+        ),
+      )
     }
   }
 
@@ -127,10 +141,10 @@ export function DurationDragBlock({
     const currentEnd = startMinutes + durationMinutes
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
-      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes - DURATION_STEP_MINUTES, editingId))
+      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes - DURATION_STEP_MINUTES, editingId, bounds))
     } else if (event.key === 'ArrowRight') {
       event.preventDefault()
-      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes + DURATION_STEP_MINUTES, editingId))
+      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes + DURATION_STEP_MINUTES, editingId, bounds))
     }
   }
 
@@ -151,8 +165,10 @@ export function DurationDragBlock({
   // silently apply it" pattern `DurationStepperFallback`'s ceiling message
   // uses, now covering all three controls (move/resize-start/resize-end)
   // instead of only duration growth.
-  const { min: moveMin, max: moveMax } = moveBounds(activities, startMinutes, durationMinutes, editingId)
-  const endCeiling = maxContiguousDuration(activities, startMinutes, editingId)
+  const moveRange = moveBounds(activities, startMinutes, durationMinutes, editingId, bounds)
+  const moveMin = moveRange.min
+  const moveMax = Math.min(moveRange.max, LATEST_STAGED_START)
+  const endCeiling = maxContiguousDuration(activities, startMinutes, editingId, bounds)
   const pinned = startMinutes <= moveMin || startMinutes >= moveMax || durationMinutes >= endCeiling
 
   const neighbors = activities.filter(
@@ -214,8 +230,8 @@ export function DurationDragBlock({
             tabIndex={0}
             aria-labelledby="duration-drag-label"
             aria-orientation="horizontal"
-            aria-valuemin={0}
-            aria-valuemax={MINUTES_PER_DAY}
+            aria-valuemin={moveMin}
+            aria-valuemax={moveMax}
             aria-valuenow={startMinutes}
             aria-valuetext={moveBoundsDesc}
             aria-describedby={pinned ? DURATION_DRAG_MESSAGE_ID : undefined}
@@ -234,8 +250,8 @@ export function DurationDragBlock({
             tabIndex={0}
             aria-label={`Resize ${cardName}'s start time`}
             aria-orientation="horizontal"
-            aria-valuemin={0}
-            aria-valuemax={MINUTES_PER_DAY}
+            aria-valuemin={moveMin}
+            aria-valuemax={moveMax}
             aria-valuenow={startMinutes}
             aria-valuetext={formatMinutes(startMinutes)}
             aria-describedby={pinned ? DURATION_DRAG_MESSAGE_ID : undefined}

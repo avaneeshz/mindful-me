@@ -28,6 +28,7 @@ import {
   slotIndexFromDate,
   slotIndexFromMinutes,
   slotMinuteRange,
+  slotOfDayMinute,
   startsInSlot,
 } from './slots'
 import type { ActivityList, ScheduledActivity } from './types'
@@ -215,10 +216,12 @@ describe('flagMarkerAt', () => {
 
 describe('countMarkedSlots', () => {
   it('counts only grid cells touched by a real activity, not flag-only ones', () => {
+    // Cells before 06:00 are the next date's early hours on the day's axis
+    // (1440 + clock minutes) — see `slotMinuteRange`.
     const acts: ActivityList = [
-      activity(90, 30), // slot 3
-      marker(120, ['Triggered']), // slot 4, flagged but unmarked
-      activity(150, 60), // slots 5 and 6
+      activity(1440 + 90, 30), // slot 3
+      marker(1440 + 120, ['Triggered']), // slot 4, flagged but unmarked
+      activity(1440 + 150, 60), // slots 5 and 6
     ]
     expect(countMarkedSlots(acts)).toBe(3)
     expect(countMarkedSlots([])).toBe(0)
@@ -250,12 +253,26 @@ describe('activityRowSegments', () => {
     expect(segment.minutes).toBe(20)
   })
 
-  it('clips an activity that would otherwise run past the visible 24-hour board', () => {
-    // 23:45 (1425) for 60 minutes: only 15 minutes remain before the board's
-    // end (midnight) — which sits at the Night row's own midpoint (position 12).
+  it('draws an activity that crosses midnight as one continuous span across the Night row', () => {
+    // 23:45 (1425) for 60 minutes runs on into the next date's early hours,
+    // which this day's Night row shows right after midnight (position 12).
     const segments = activityRowSegments(1425, 60, 'night')
-    expect(segments).toEqual([{ startPosition: 11.5, minutes: 15 }])
-    expect(segments[0].startPosition + segments[0].minutes / SLOT_MINUTES).toBe(SLOTS_PER_ROW / 2)
+    expect(segments).toEqual([{ startPosition: 11.5, minutes: 60 }])
+    expect(segments[0].startPosition).toBeLessThan(SLOTS_PER_ROW / 2)
+  })
+
+  it('clips an activity that would otherwise run past 06:00 the next morning — the end of the day', () => {
+    // 05:30 the next date (1440 + 330) for 60 minutes: only 30 minutes are
+    // inside this day; the rest belongs to the next day's Day row.
+    const segments = activityRowSegments(1440 + 330, 60, 'night')
+    expect(segments).toEqual([{ startPosition: 23, minutes: 30 }])
+    expect(segments[0].startPosition + segments[0].minutes / SLOT_MINUTES).toBe(SLOTS_PER_ROW)
+  })
+
+  it('draws the morning part of a sleep carried over from the evening before on the Day row', () => {
+    // 22:00 the previous date (-120) for 9 hours ends at 07:00 on this date.
+    expect(activityRowSegments(-120, 9 * 60, 'day')).toEqual([{ startPosition: 0, minutes: 60 }])
+    expect(activityRowSegments(-120, 9 * 60, 'night')).toEqual([])
   })
 
   it('returns nothing for an activity entirely outside the requested row', () => {
@@ -461,5 +478,23 @@ describe('focusStopsEqual', () => {
 
   it('never matches a slot stop against an activity stop', () => {
     expect(focusStopsEqual({ kind: 'slot', slot: 5 }, { kind: 'activity', activityId: '5' })).toBe(false)
+  })
+})
+
+describe('the 06:00 → 06:00 day', () => {
+  it('maps the Night row’s 12 AM – 6 AM cells to the NEXT date’s early hours', () => {
+    expect(slotMinuteRange(0)).toEqual({ start: 1440, end: 1470 })
+    expect(slotMinuteRange(11)).toEqual({ start: 1440 + 330, end: 1800 })
+  })
+
+  it('keeps 06:00 onwards on the viewed date', () => {
+    expect(slotMinuteRange(12)).toEqual({ start: 360, end: 390 })
+    expect(slotMinuteRange(47)).toEqual({ start: 1410, end: 1440 })
+  })
+
+  it('anchors a minute to the cell it is drawn in, clamped into the day', () => {
+    expect(slotOfDayMinute(1440 + 90)).toBe(3)
+    expect(slotOfDayMinute(-120)).toBe(12) // carried over from the evening before → the Day row's first cell
+    expect(slotOfDayMinute(2000)).toBe(11)
   })
 })

@@ -231,12 +231,12 @@ function AuthedApp({ now }: { now?: Date }) {
  * prop list. Must render inside `BoardProvider` (it does — see above).
  */
 function AppHeaderBar({ editMode, onToggleEditMode }: { editMode: boolean; onToggleEditMode: () => void }) {
-  const { state, dispatch, now, viewedDate, setViewedDate, syncQueue, retrySyncNow } = useBoard()
+  const { state, dispatch, today, viewedDate, setViewedDate, syncQueue, retrySyncNow } = useBoard()
   const { user, signOut } = useAuth()
 
   return (
     <HeaderBar
-      now={now}
+      now={today}
       viewedDate={viewedDate}
       onSelectDate={setViewedDate}
       user={user}

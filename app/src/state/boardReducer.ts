@@ -1,4 +1,5 @@
 import { findCard } from '@/data/activities'
+import { AXIS_BOUNDS, DAY_END, DAY_START } from '@/domain/dayAxis'
 import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
@@ -8,8 +9,10 @@ import {
   commitSchedule,
   computeCandidateSchedule,
   maxContiguousDuration,
+  MIN_DURATION_MINUTES,
   validateSchedule,
   type CandidateSchedule,
+  type ScheduleBounds,
 } from '@/domain/scheduling'
 import type { ActivityCard, ActivityQuality, FieldSelections, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
 
@@ -55,6 +58,14 @@ export interface RemovalRecord {
 }
 
 export interface BoardState {
+  /**
+   * The viewed day's three calendar dates (D-1, D, D+1) on ONE continuous
+   * axis — `startMinutes` counted from D's midnight, so the Night row's
+   * 12 AM – 6 AM (the next date) is 1440–1800 and the evening before is
+   * negative. Translated back to per-date storage by `state/boardDays.ts`.
+   * What draws or counts for the day itself is filtered at the edge
+   * (`slots.ts` geometry, `startingInDay`).
+   */
   activities: ScheduledActivity[]
   selectedSlot: number
   staging: StagingState
@@ -234,6 +245,25 @@ export function stagingOptions(staging: StagingState): { options: string[]; leve
   return { options: node.children.map((child) => child.name), level: staging.path.length }
 }
 
+/**
+ * Where a staged placement may go on the board's 06:00 → 06:00 axis
+ * (`domain/dayAxis.ts`; `state.activities` holds the viewed day's three
+ * calendar dates on that one axis, see `state/boardDays.ts`). New and moved
+ * entries stay inside the day — never before 06:00 — but may run on past
+ * 06:00 the next morning (a night's sleep). The one exception is an
+ * activity carried over from the evening before (it starts before 06:00):
+ * editing it must not force it to move, so its floor is the whole axis.
+ */
+export function stagingBounds(startMinutes: number): ScheduleBounds {
+  return startMinutes < DAY_START ? AXIS_BOUNDS : NEW_ENTRY_BOUNDS
+}
+
+/** Where a brand-new entry may go: starting no earlier than 06:00, free to run on past 06:00 the next morning. */
+export const NEW_ENTRY_BOUNDS: ScheduleBounds = { floor: DAY_START, horizon: AXIS_BOUNDS.horizon }
+
+/** The latest a staged start may move to: from 06:00 the next morning on, it would belong to the next day's page. */
+export const LATEST_STAGED_START = DAY_END - MIN_DURATION_MINUTES
+
 export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {
   const selectedSlot = slotIndexFromDate(now)
   return {
@@ -284,7 +314,9 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       const card = findCard(action.cardName)
       if (!card) return state
       const { start, end } = slotMinuteRange(state.selectedSlot)
-      const candidate = computeCandidateSchedule({ name: card.name, path: [] }, start, state.activities)
+      const candidate = computeCandidateSchedule({ name: card.name, path: [] }, start, state.activities, {
+        bounds: NEW_ENTRY_BOUNDS,
+      })
       // Refuse rather than silently anchoring somewhere past this grid cell's
       // own window — "add to THIS slot" must never land the activity in a
       // different, later cell just because the resolved free instant wandered
@@ -320,6 +352,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         state.activities,
         state.staging.startMinutes,
         state.staging.editingId,
+        stagingBounds(state.staging.startMinutes),
       )
       // The stepper's own floor (DURATION_STEP_MINUTES, 5) — never the
       // domain-wide MIN_DURATION_MINUTES (1) that free-form entry uses — so
@@ -342,6 +375,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         state.activities,
         state.staging.startMinutes,
         state.staging.editingId,
+        stagingBounds(state.staging.startMinutes),
       )
       const next = clampDuration(action.minutes, ceiling)
       if (next === state.staging.durationMinutes) return state
@@ -354,8 +388,9 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         state.activities,
         state.staging.startMinutes,
         state.staging.durationMinutes,
-        action.minutes,
+        Math.min(action.minutes, LATEST_STAGED_START),
         state.staging.editingId,
+        stagingBounds(state.staging.startMinutes),
       )
       if (next === state.staging.startMinutes) return state
       return { ...state, staging: { ...state.staging, startMinutes: next } }
@@ -370,6 +405,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         currentEnd,
         action.minutes,
         state.staging.editingId,
+        stagingBounds(state.staging.startMinutes),
       )
       if (next === state.staging.startMinutes) return state
       return {
@@ -436,7 +472,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: staging.startMinutes,
         durationMinutes: staging.durationMinutes,
       }
-      const validation = validateSchedule(candidate, state.activities)
+      const validation = validateSchedule(candidate, state.activities, stagingBounds(staging.startMinutes))
       if (!validation.ok) return state
 
       const prior = staging.editingId
@@ -531,7 +567,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: activity.startMinutes,
         durationMinutes: activity.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities).ok) {
+      if (!validateSchedule(candidate, state.activities, AXIS_BOUNDS).ok) {
         return { ...state, removal: null }
       }
 
@@ -652,7 +688,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: action.startMinutes,
         durationMinutes: action.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities).ok) return state
+      if (!validateSchedule(candidate, state.activities, NEW_ENTRY_BOUNDS).ok) return state
       const committed = commitSchedule(candidate, {
         notes: action.notes?.trim() ? action.notes : null,
         fieldSelections: action.fieldSelections ?? {},

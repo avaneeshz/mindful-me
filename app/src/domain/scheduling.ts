@@ -55,12 +55,11 @@ export const DEFAULT_DURATION_MINUTES = 30
 export const MINUTES_PER_DAY = 1440
 
 /**
- * The minute range a placement may occupy. Classic's board is one calendar
- * day, so its bounds are that day's [0, 1440) and every caller that omits
- * this gets exactly that. Lumen's day runs 06:00 → 06:00 over three loaded
- * calendar dates on one continuous minute axis (see
- * `lumen/domain/lumenDay.ts`), so it passes wider bounds — the placement
- * rules themselves (no overlap, no split, the continuous-block ceiling) are
+ * The minute range a placement may occupy. A caller that omits this gets one
+ * calendar day's [0, 1440). Both interfaces' days run 06:00 → 06:00 over
+ * three loaded calendar dates on one continuous minute axis (see
+ * `domain/dayAxis.ts`), so they pass wider bounds — the placement rules
+ * themselves (no overlap, no split, the continuous-block ceiling) are
  * identical either way; only the edges move.
  */
 export interface ScheduleBounds {

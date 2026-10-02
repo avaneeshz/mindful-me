@@ -52,7 +52,11 @@ function formatDatePill(date: Date): string {
 }
 
 export interface HeaderBarProps {
-  /** Real device time — the date picker's own "today" reference, never fixed. */
+  /**
+   * The current day — the date picker's own "today" reference, never fixed.
+   * A day runs 06:00 → 06:00, so before 06:00 this is still yesterday's date
+   * (`BoardContext`'s `today`).
+   */
   now: Date
   /** The calendar day the board is currently showing (BL-2). */
   viewedDate: Date

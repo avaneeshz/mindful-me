@@ -4,12 +4,13 @@ import {
   flagMarkerAt,
   formatSlotRange,
   minutesInSlot,
-  slotIndexFromMinutes,
   slotMinuteRange,
+  slotOfDayMinute,
   SLOT_MINUTES,
 } from '@/domain/slots'
 import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
-import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
+import { startingInDay } from '@/domain/dayAxis'
+import { isStagingComplete, stagingBounds, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
 import { useCatalogActivityId } from '@/state/useCatalogActivityId'
@@ -96,7 +97,7 @@ export function SlotEditor({
     .map((a) => ({ id: a.id, minutes: minutesInSlot(a, selectedSlot) }))
 
   const maxDuration = staging.cardName
-    ? maxContiguousDuration(activities, staging.startMinutes, staging.editingId)
+    ? maxContiguousDuration(activities, staging.startMinutes, staging.editingId, stagingBounds(staging.startMinutes))
     : 0
   // A slot reads as "full" once nothing new could start anywhere within it —
   // never while merely configuring something already staged for it.
@@ -170,7 +171,7 @@ export function SlotEditor({
             // Drop back into slot mode ON the removed activity's own slot
             // first, so the 4-second undo affordance actually renders in the
             // "In this slot" list (it only shows for the selected slot).
-            dispatch({ type: 'selectSlot', slot: slotIndexFromMinutes(selectedActivity.startMinutes) })
+            dispatch({ type: 'selectSlot', slot: slotOfDayMinute(selectedActivity.startMinutes) })
             dispatch({ type: 'removeActivity', id: selectedActivity.id })
           }}
           onClose={() => dispatch({ type: 'selectScheduledActivity', id: null })}
@@ -227,7 +228,10 @@ export function SlotEditor({
               atCapacity={atCapacity}
               activityCount={touching.length}
               usedMinutes={usedMinutes}
-              activities={activities}
+              // Only what started in this day counts towards "done today"
+              // — the board also holds its neighbouring dates (see
+              // `state/boardDays.ts`).
+              activities={startingInDay(activities)}
               dismissed={dismissed}
               onPickCard={(cardName) => dispatch({ type: 'pickCard', cardName })}
               onToggleDismiss={toggleDismissed}

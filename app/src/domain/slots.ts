@@ -1,3 +1,4 @@
+import { DAY_END, DAY_START } from './dayAxis'
 import { isWindowFull } from './scheduling'
 import type { ActivityList, Period, ScheduledActivity } from './types'
 
@@ -25,6 +26,12 @@ export const SLOT_MINUTES = 30
  * The Night row (6p -> 6a) is NOT contiguous: it is 36..47 (6pm..midnight)
  * followed by 0..11 (midnight..6am), stitched so the row reads
  * chronologically left to right.
+ *
+ * The board shows the 06:00 → 06:00 day (`domain/dayAxis.ts`): cells 0..11
+ * (midnight..6am) are the early hours of the NEXT calendar date — on the
+ * Oct 2 page they are Oct 3, 00:00–06:00 — so in real minutes on the day's
+ * axis they cover 1440..1800, not 0..360. `slotMinuteRange` is the one
+ * place that mapping lives.
  * ------------------------------------------------------------------ */
 
 export const SLOTS_PER_ROW = 24
@@ -130,10 +137,24 @@ export function slotIndexFromDate(date: Date): number {
   return slotIndexFromMinutes(minutesSinceMidnight(date))
 }
 
-/** The grid cell's own [start, end) real-minute range. */
+/**
+ * The grid cell's own [start, end) range on the day's axis (minutes from
+ * the viewed date's midnight). Cells before 06:00 belong to the night after,
+ * so they land on the next calendar date (1440+).
+ */
 export function slotMinuteRange(slot: number): { start: number; end: number } {
-  const start = normalizeSlot(slot) * SLOT_MINUTES
+  const s = normalizeSlot(slot)
+  const start = s * SLOT_MINUTES + (s < DAY_ROW_START_SLOT ? 1440 : 0)
   return { start, end: start + SLOT_MINUTES }
+}
+
+/**
+ * The grid cell an axis minute is drawn in, clamped into the visible day —
+ * e.g. a sleep carried over from the evening before (a negative start) is
+ * drawn from the Day row's first cell, so that is the cell it anchors to.
+ */
+export function slotOfDayMinute(minute: number): number {
+  return slotIndexFromMinutes(Math.min(Math.max(minute, DAY_START), DAY_END - 1))
 }
 
 /**
@@ -259,16 +280,14 @@ function rowPieces(period: Period): RowPiece[] {
   if (period === 'day') {
     return [{ absStart: DAY_ROW_START_SLOT * SLOT_MINUTES, absEnd: NIGHT_ROW_START_SLOT * SLOT_MINUTES, rowStart: 0 }]
   }
-  const eveningLength = 1440 - NIGHT_ROW_START_SLOT * SLOT_MINUTES // 18:00 -> midnight
-  return [
-    { absStart: NIGHT_ROW_START_SLOT * SLOT_MINUTES, absEnd: 1440, rowStart: 0 },
-    { absStart: 0, absEnd: DAY_ROW_START_SLOT * SLOT_MINUTES, rowStart: eveningLength },
-  ]
+  // 18:00 -> 06:00 the next morning is one continuous run on the day's
+  // axis (1080..1800), so the Night row is a single piece too.
+  return [{ absStart: NIGHT_ROW_START_SLOT * SLOT_MINUTES, absEnd: DAY_END, rowStart: 0 }]
 }
 
 /**
  * Visible piece(s) of one activity's real [start, start+duration) span within
- * a Day or Night row, clipped to the visible 24-hour board. `startPosition`
+ * a Day or Night row, clipped to the visible 06:00 → 06:00 day. `startPosition`
  * is in grid-cell units (may be fractional, since durations are no longer
  * stepped) and `minutes` is the real span this piece covers.
  */
@@ -278,7 +297,7 @@ export function activityRowSegments(
   period: Period,
 ): Array<{ startPosition: number; minutes: number }> {
   const activityStart = startMinutes
-  const activityEnd = Math.min(startMinutes + durationMinutes, 1440)
+  const activityEnd = startMinutes + durationMinutes
   if (activityEnd <= activityStart) return []
 
   const segments: Array<{ startPosition: number; minutes: number }> = []
