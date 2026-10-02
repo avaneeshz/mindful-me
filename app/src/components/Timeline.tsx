@@ -13,8 +13,8 @@ import {
   rowFocusStops,
   rowHourTickLabels,
   rowSlotIndices,
-  slotIndexFromMinutes,
   slotMinuteRange,
+  slotOfDayMinute,
   tickLabelPositions,
   type RowFocusStop,
 } from '@/domain/slots'
@@ -464,7 +464,7 @@ function TimelineRow({
             activity card dropped from the tile-row popup onto a point that
             sits under one of these buttons — wiring the identical
             onDragOver/onDragLeave/onDrop handlers here, anchored at the
-            covering activity's own start slot (`slotIndexFromMinutes`), is
+            covering activity's own start slot (`slotOfDayMinute`), is
             sufficient — `computeCandidateSchedule` already snaps a placement
             forward past busy time (rule 5), so the actual placement resolves
             correctly even though the drop's pixel position is not what
@@ -482,7 +482,7 @@ function TimelineRow({
           */}
           <div className="pointer-events-none absolute inset-0 z-[1]">
             {rowActivitySegments(activities, period).map((segment) => {
-              const anchorSlot = slotIndexFromMinutes(segment.activity.startMinutes)
+              const anchorSlot = slotOfDayMinute(segment.activity.startMinutes)
               const isFocusableActivity =
                 rovingStop?.kind === 'activity' && rovingStop.activityId === segment.activity.id
               const isDragOverActivity = dragOverSlot === anchorSlot

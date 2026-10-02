@@ -1,4 +1,5 @@
-import { MINUTES_PER_DAY, type ScheduleBounds } from '@/domain/scheduling'
+import { DAY_END, DAY_START, NIGHT_START, daysBetweenISO, dayDates, storageToAxis } from '@/domain/dayAxis'
+import { MINUTES_PER_DAY } from '@/domain/scheduling'
 import type { ScheduledActivity } from '@/domain/types'
 import { localDateISO, localMinutesOf } from '@/lib/localTime'
 
@@ -27,53 +28,28 @@ import { localDateISO, localMinutesOf } from '@/lib/localTime'
  * `LUMEN_AXIS_BOUNDS` instead of one calendar day's [0, 1440).
  * ------------------------------------------------------------------ */
 
-/** 06:00 on D — the Lumen day and its Day strip start here. */
-export const LUMEN_DAY_START = 6 * 60
-/** 18:00 on D — the Night strip starts here. */
-export const LUMEN_NIGHT_START = 18 * 60
-/** 06:00 on D+1 — the Lumen day ends here. */
-export const LUMEN_DAY_END = MINUTES_PER_DAY + LUMEN_DAY_START
-
-/** The three loaded calendar dates, end to end. */
-export const LUMEN_AXIS_BOUNDS: ScheduleBounds = { floor: -MINUTES_PER_DAY, horizon: 2 * MINUTES_PER_DAY }
+// The day model itself (06:00 → 06:00, the three-date axis, date math) is
+// shared with Classic and lives in `domain/dayAxis.ts`; re-exported here
+// under Lumen's original names so every Lumen import keeps working.
+export {
+  DAY_START as LUMEN_DAY_START,
+  NIGHT_START as LUMEN_NIGHT_START,
+  DAY_END as LUMEN_DAY_END,
+  AXIS_BOUNDS as LUMEN_AXIS_BOUNDS,
+  addDaysISO,
+  daysBetweenISO,
+  dayOf as lumenDayOf,
+  dayDates as lumenDayDates,
+  axisToStorage,
+  storageToAxis,
+  axisFromClock,
+} from '@/domain/dayAxis'
 
 export type StripPeriod = 'day' | 'night'
 
 export const STRIP_RANGE: Record<StripPeriod, { start: number; end: number }> = {
-  day: { start: LUMEN_DAY_START, end: LUMEN_NIGHT_START },
-  night: { start: LUMEN_NIGHT_START, end: LUMEN_DAY_END },
-}
-
-/* ---------------------------- dates ---------------------------- */
-
-function isoParts(iso: string): [number, number, number] {
-  const [y, m, d] = iso.split('-').map(Number)
-  return [y, m, d]
-}
-
-/** `YYYY-MM-DD` shifted by whole calendar days. Pure date arithmetic — immune to DST. */
-export function addDaysISO(iso: string, delta: number): string {
-  const [y, m, d] = isoParts(iso)
-  const shifted = new Date(Date.UTC(y, m - 1, d + delta))
-  return shifted.toISOString().slice(0, 10)
-}
-
-/** Whole calendar days from `a` to `b` (`b - a`). */
-export function daysBetweenISO(a: string, b: string): number {
-  const [ay, am, ad] = isoParts(a)
-  const [by, bm, bd] = isoParts(b)
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
-}
-
-/** The Lumen day an instant falls in: before 06:00 still belongs to the day before. */
-export function lumenDayOf(now: Date): string {
-  const today = localDateISO(now)
-  return localMinutesOf(now) < LUMEN_DAY_START ? addDaysISO(today, -1) : today
-}
-
-/** The calendar dates a Lumen day needs loaded, in axis order. */
-export function lumenDayDates(dayISO: string): { prev: string; day: string; next: string } {
-  return { prev: addDaysISO(dayISO, -1), day: dayISO, next: addDaysISO(dayISO, 1) }
+  day: { start: DAY_START, end: NIGHT_START },
+  night: { start: NIGHT_START, end: DAY_END },
 }
 
 /* ----------------------------- axis ---------------------------- */
@@ -95,7 +71,7 @@ export interface AxisActivity {
  */
 export function toAxis(dayISO: string, byDate: Readonly<Record<string, readonly ScheduledActivity[] | undefined>>): AxisActivity[] {
   const placed: AxisActivity[] = []
-  const dates = lumenDayDates(dayISO)
+  const dates = dayDates(dayISO)
   for (const date of [dates.prev, dates.day, dates.next]) {
     const offset = daysBetweenISO(dayISO, date) * MINUTES_PER_DAY
     for (const activity of byDate[date] ?? []) {
@@ -115,20 +91,6 @@ export function schedulingList(axis: readonly AxisActivity[]): ScheduledActivity
   return axis.map(({ activity, start }) => ({ ...activity, startMinutes: start }))
 }
 
-/** Where an axis minute is stored: its calendar date and minutes since that date's midnight. */
-export function axisToStorage(dayISO: string, axisMinute: number): { date: string; startMinutes: number } {
-  const dayOffset = Math.floor(axisMinute / MINUTES_PER_DAY)
-  return {
-    date: addDaysISO(dayISO, dayOffset),
-    startMinutes: axisMinute - dayOffset * MINUTES_PER_DAY,
-  }
-}
-
-/** A stored (date, startMinutes) pair on `dayISO`'s axis. */
-export function storageToAxis(dayISO: string, date: string, startMinutes: number): number {
-  return daysBetweenISO(dayISO, date) * MINUTES_PER_DAY + startMinutes
-}
-
 /** "Now" on `dayISO`'s axis — may fall outside the Lumen day when viewing another day. */
 export function nowOnAxis(dayISO: string, now: Date): number {
   return storageToAxis(dayISO, localDateISO(now), localMinutesOf(now))
@@ -136,7 +98,7 @@ export function nowOnAxis(dayISO: string, now: Date): number {
 
 /** True when `minute` falls inside the Lumen day's [06:00, 06:00) window. */
 export function isInLumenDay(minute: number): boolean {
-  return minute >= LUMEN_DAY_START && minute < LUMEN_DAY_END
+  return minute >= DAY_START && minute < DAY_END
 }
 
 /* --------------------------- drawing --------------------------- */
@@ -196,8 +158,8 @@ export function activitiesWithin(axis: readonly AxisActivity[], from: number, to
 export function minutesByKey(
   axis: readonly AxisActivity[],
   keyOf: (activity: ScheduledActivity) => string,
-  from: number = LUMEN_DAY_START,
-  to: number = LUMEN_DAY_END,
+  from: number = DAY_START,
+  to: number = DAY_END,
 ): Map<string, number> {
   const totals = new Map<string, number>()
   for (const item of axis) {
@@ -211,7 +173,7 @@ export function minutesByKey(
 
 /** Total minutes logged inside the Lumen day. Activities never overlap (rule 1), so a plain sum is exact. */
 export function loggedMinutes(axis: readonly AxisActivity[]): number {
-  return axis.reduce((sum, item) => sum + minutesWithin(item, LUMEN_DAY_START, LUMEN_DAY_END), 0)
+  return axis.reduce((sum, item) => sum + minutesWithin(item, DAY_START, DAY_END), 0)
 }
 
 /* ----------------------------- text ---------------------------- */
@@ -222,15 +184,6 @@ const pad = (n: number) => String(n).padStart(2, '0')
 export function axisClock(minute: number): string {
   const m = ((minute % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`
-}
-
-/**
- * A typed wall-clock time (minutes since midnight, 0–1439) → the minute on
- * the Lumen day's axis it means. 00:00–05:59 belongs to the night after, so
- * it lands on the next calendar date (1440+).
- */
-export function axisFromClock(clockMinutes: number): number {
-  return clockMinutes < LUMEN_DAY_START ? clockMinutes + MINUTES_PER_DAY : clockMinutes
 }
 
 /**

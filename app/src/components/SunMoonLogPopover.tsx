@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatClock, formatDuration, nowClock } from '@/domain/quickLog'
+import { axisFromClock, startingInDay } from '@/domain/dayAxis'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import type { ActivityList } from '@/domain/types'
 import { TimeRangeField } from '@/components/ui/TimeRangeField'
+import { NEW_ENTRY_BOUNDS } from '@/state/boardReducer'
 
 export type SunMoonKind = 'sun' | 'moon'
 
@@ -65,7 +67,9 @@ export function SunMoonLogPopover({
 
   const cardName = SUN_MOON_HEADING[kind]
   const heading = cardName
-  const dayEntries = activities
+  // The board also holds its neighbouring dates — only what started in
+  // this day (06:00 → 06:00) is this day's.
+  const dayEntries = startingInDay(activities)
     .filter((a) => a.name === cardName)
     .slice()
     .sort((a, b) => b.startMinutes - a.startMinutes)
@@ -110,8 +114,11 @@ export function SunMoonLogPopover({
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const durationMinutes = durationBetween(start, end)
-    const startMinutes = clockToMinutes(start)
-    if (!canSubmit || durationMinutes === null || startMinutes === null) return
+    const clockStart = clockToMinutes(start)
+    if (!canSubmit || durationMinutes === null || clockStart === null) return
+    // A typed time before 06:00 is the early hours of the NEXT date — this
+    // day runs 06:00 → 06:00 (`domain/dayAxis.ts`).
+    const startMinutes = axisFromClock(clockStart)
 
     const candidate: CandidateSchedule = {
       id: null,
@@ -119,7 +126,7 @@ export function SunMoonLogPopover({
       startMinutes,
       durationMinutes,
     }
-    const validation = validateSchedule(candidate, activities)
+    const validation = validateSchedule(candidate, activities, NEW_ENTRY_BOUNDS)
     if (!validation.ok) {
       setError(
         validation.reason === 'occupied'

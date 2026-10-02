@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
+import { startingInDay } from '@/domain/dayAxis'
 import { assembleDayExport } from '@/domain/dayExport'
 import type { ActivityList } from '@/domain/types'
 import { apiListNoteEntriesForDate } from '@/api/notes'
@@ -101,7 +102,9 @@ export function DownloadDayButton({
 
       const data = assembleDayExport({
         viewedDate,
-        activities,
+        // The day's own entries (06:00 → 06:00) — the board also holds its
+        // neighbouring dates.
+        activities: startingInDay(activities),
         noteEntries,
         localDisplayValues: {
           steps: loadDisplayValue('steps', dateKey),

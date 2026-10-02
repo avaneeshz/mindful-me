@@ -99,7 +99,10 @@ describe('DisplayValueButton', () => {
         id: 'a1',
         name: 'Sleep',
         path: ['Night sleep'],
-        startMinutes: 0,
+        // 23:00 — the day runs 06:00 → 06:00, so a night's sleep that starts
+        // before midnight is this day's (one starting at 00:00 would be the
+        // day before's).
+        startMinutes: 23 * 60,
         durationMinutes: 6 * 60,
         flags: [],
         quality: [],

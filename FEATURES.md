@@ -5,6 +5,7 @@ What's actually built and merged to `main` — not aspirational. See [`BACKLOG.m
 ## The timeline
 
 - ✅ **Day/Night 30-minute visual grid** spanning the full 24 hours. No illustrated scenery any more (a later, confirmed simplification — see `UI-DESIGN.md`): the Day row is a plain flat surface, the Night row a fixed grey independent of the light/dark theme toggle. The currently-active period's sun/moon icon still glows.
+- ✅ **A day runs 6 AM → 6 AM**, in both Classic and Lumen. The Night row's 12 AM – 6 AM belongs to the night after the day you're looking at (on the Oct 2 page it's the early hours of Oct 3), and the day rolls over to the next one at 6 AM, not midnight. Entries are still stored under the calendar date they start on — only which page shows them changed.
 - ✅ **Hourly tick labels**, one per hour across each row (13 per row, not just start/midpoint/end), in their own row below the strip — never overlaid on it — with an AM/PM suffix only on the first and last label.
 - ✅ **A full light/dark theme**, monochrome (no per-category or per-item colour anywhere), toggled instantly by the Sun/Moon icons beside the two timeline rows — not a separate settings screen — and persisted per-device.
 - ✅ **Arbitrary-duration activities.** Storage is activity-centric (a real start time + duration in minutes) — the 30-minute grid is a rendering concern only, computed fresh from real activity data, never the unit anything is stored in.

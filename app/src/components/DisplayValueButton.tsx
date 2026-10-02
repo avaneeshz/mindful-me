@@ -25,9 +25,11 @@ import {
   type DisplayButtonKey,
 } from '@/domain/displayButtons'
 import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration, nowClock } from '@/domain/quickLog'
+import { axisFromClock, startingInDay } from '@/domain/dayAxis'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import { formatActivityRange } from '@/domain/slots'
 import type { ActivityList, FieldSelections, ScheduledActivity } from '@/domain/types'
+import { NEW_ENTRY_BOUNDS } from '@/state/boardReducer'
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory, type UseDisplayValueHistoryResult } from '@/state/useDisplayValueHistory'
 import { useSessionHistory } from '@/state/useSessionHistory'
@@ -211,7 +213,9 @@ export function DisplayValueButton({
   // itself — no separate load effect needed, unlike the local-counter path.
   const value = quickLogName
     ? (() => {
-        const total = activities
+        // Only what started in this day (06:00 → 06:00) — the board also
+        // holds its neighbouring dates.
+        const total = startingInDay(activities)
           .filter((a) => a.name === quickLogName)
           .reduce((sum, a) => sum + a.durationMinutes, 0)
         return total > 0 ? total : null
@@ -324,8 +328,11 @@ export function DisplayValueButton({
 
     if (quickLogName) {
       const durationMinutes = mode === 'songCount' ? songCountDuration : durationBetween(start, end)
-      const startMinutes = clockToMinutes(start)
-      if (durationMinutes === null || startMinutes === null || !canSave) return
+      const clockStart = clockToMinutes(start)
+      if (durationMinutes === null || clockStart === null || !canSave) return
+      // A typed time before 06:00 is the early hours of the NEXT date — this
+      // day runs 06:00 → 06:00 (`domain/dayAxis.ts`).
+      const startMinutes = axisFromClock(clockStart)
 
       // Validated here (not just inside the reducer) so a real conflict can
       // show an inline message rather than the request silently no-oping —
@@ -336,7 +343,7 @@ export function DisplayValueButton({
         startMinutes,
         durationMinutes,
       }
-      const validation = validateSchedule(candidate, activities)
+      const validation = validateSchedule(candidate, activities, NEW_ENTRY_BOUNDS)
       if (!validation.ok) {
         setError(
           validation.reason === 'occupied'
@@ -714,7 +721,7 @@ function SessionHistory({
   quickLogName: string
   onSelect: (id: string) => void
 }) {
-  const sessions = activities
+  const sessions = startingInDay(activities)
     .filter((activity): activity is ScheduledActivity => activity.name === quickLogName)
     .slice()
     .sort((a, b) => b.startMinutes - a.startMinutes)

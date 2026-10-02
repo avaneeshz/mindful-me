@@ -226,7 +226,7 @@ describe('editing an existing activity', () => {
     expect(real(state)[0].path).toEqual(['Zinc (post-breakfast)'])
   })
 
-  it('lets an edit reclaim its own time range and grow past the old ceiling', () => {
+  it('lets an edit reclaim its own time range and grow past the old ceiling — on past midnight into the night', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
@@ -236,8 +236,10 @@ describe('editing an existing activity', () => {
     const id = real(state)[0].id
     state = boardReducer(state, { type: 'editActivity', id })
     state = boardReducer(state, { type: 'stepDuration', delta: 500 })
-    // Nothing else exists today, so it can grow all the way to day's end.
-    expect(state.staging.durationMinutes).toBe(1440 - 16 * 60)
+    // Nothing else exists, so it grows by the whole step — on past midnight
+    // into the next date's early hours, which are still this day (06:00 →
+    // 06:00, see `domain/dayAxis.ts`).
+    expect(state.staging.durationMinutes).toBe(15 + 500)
   })
 
   it('rule 4 — editing time/duration never silently clears completion', () => {
@@ -541,7 +543,9 @@ describe('a slot partially covered by an earlier, longer activity', () => {
 
     state = run(state, { type: 'pickCard', cardName: 'Errand time' }, { type: 'commit' })
     const errand = real(state).find((a) => a.name === 'Errand time')!
-    expect(errand.startMinutes).toBe(5 * 60 + 45) // the real free instant, not the raw slot boundary
+    // The real free instant, not the raw slot boundary — and on the day's
+    // axis: cells before 06:00 are the next date's early hours (1440+).
+    expect(errand.startMinutes).toBe(1440 + 5 * 60 + 45)
     // Unlike the old 30-minutes-per-cell cap, nothing else caps the default
     // duration here — it is free to run past this grid cell's own boundary,
     // since no other activity blocks it.
@@ -1300,12 +1304,23 @@ describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quic
     expect(real(state)[0].durationMinutes).toBe(30)
   })
 
-  it('rejects a requested span that would cross local midnight — no partial placement (rule 13, and the shared scheduling module’s own day-boundary ceiling — see domain/scheduling.ts)', () => {
+  it('accepts a span that crosses midnight — the night continues on the same day (06:00 → 06:00)', () => {
     const state = boardReducer(start(), {
       type: 'quickLogActivity',
       cardName: 'Moon Exposure',
       startMinutes: 23 * 60 + 30,
-      durationMinutes: 45, // would need to reach 00:15 the next day
+      durationMinutes: 45, // runs to 00:15 on the next date
+    })
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0]).toMatchObject({ startMinutes: 23 * 60 + 30, durationMinutes: 45 })
+  })
+
+  it('rejects a start before 06:00 on the viewed date — those hours belong to the day before', () => {
+    const state = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Moon Exposure',
+      startMinutes: 5 * 60,
+      durationMinutes: 30,
     })
     expect(real(state)).toHaveLength(0)
   })
@@ -1359,7 +1374,9 @@ describe('quickLogActivity — Exercise/Sleep (path/type), and notes/fieldSelect
     const state = boardReducer(start(), {
       type: 'quickLogActivity',
       cardName: 'Sleep',
-      startMinutes: 0,
+      // 00:00 typed on this day's page is the NEXT date's midnight — still
+      // this night (the day runs 06:00 → 06:00; `axisFromClock`).
+      startMinutes: 24 * 60,
       durationMinutes: 7 * 60,
       path: ['Night sleep'],
       fieldSelections: { 'sleep-quality': ['Deep Restorative'] },
@@ -1376,7 +1393,9 @@ describe('quickLogActivity — Exercise/Sleep (path/type), and notes/fieldSelect
     let state = boardReducer(start(), {
       type: 'quickLogActivity',
       cardName: 'Sleep',
-      startMinutes: 0,
+      // 00:00 typed on this day's page is the NEXT date's midnight — still
+      // this night (the day runs 06:00 → 06:00; `axisFromClock`).
+      startMinutes: 24 * 60,
       durationMinutes: 6 * 60,
       path: ['Night sleep'],
     })

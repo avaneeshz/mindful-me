@@ -16,19 +16,16 @@ import {
   type BoardState,
 } from './boardReducer'
 import { createSeedActivities } from './seed'
+import { addDaysISO, dayOf, rolloverDay } from '@/domain/dayAxis'
 import { slotIndexFromDate } from '@/domain/slots'
 import { deriveSyncIntents } from './sync'
+import { boardActivitiesFromDates, boardActivitiesToDates, boardDates, storedSyncBatches } from './boardDays'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
-import { reconcileServerActivities } from './reconcileServerActivities'
+import { reconcileDays } from './reconcileDays'
 import { pendingActivityIds, pendingDeleteActivityIds, type SyncQueue } from './syncQueue'
 import { useSyncQueue } from './useSyncQueue'
-import {
-  isSameLocalDay,
-  localDateISO,
-  localDayRange,
-  shouldRolloverViewedDate,
-} from '@/lib/localTime'
-import { apiListScheduledActivities } from '@/api/scheduledActivities'
+import { dateFromLocalDateISO, localDateISO, localDayRange } from '@/lib/localTime'
+import { apiListScheduledActivitiesWithDates } from '@/api/scheduledActivities'
 import type { ScheduledActivity } from '@/domain/types'
 import { useLiveActivityCatalogSync } from './useLiveActivityCatalogSync'
 
@@ -40,16 +37,19 @@ interface BoardContextValue {
   /** Slot index containing the real current time. */
   nowSlot: number
   /**
-   * The calendar day the board is currently showing — "today" until the
-   * user picks a different date from the header's date picker (BL-2).
-   * Always a local-midnight instant (see `localDayRange`). While the board
-   * is following "today" this ALSO advances on its own the instant the
-   * device clock crosses local midnight, even with no reload — see the
-   * rollover effect below and `shouldRolloverViewedDate`.
+   * The day the board is currently showing — "today" until the user picks a
+   * different date from the header's date picker (BL-2). A day runs 06:00 →
+   * 06:00 (`domain/dayAxis.ts`): the Oct 2 page shows Oct 2 06:00 through
+   * Oct 3 06:00, so its Night row's 12 AM – 6 AM is Oct 3. Always the
+   * local-midnight instant of the date the day is named by. While the board
+   * is following "today" this ALSO advances on its own at 06:00, even with
+   * no reload — see the rollover effect below.
    */
   viewedDate: Date
-  /** True exactly when `viewedDate` is the real current day. */
+  /** True exactly when `viewedDate` is the current day (before 06:00, that is still yesterday's date). */
   isViewingToday: boolean
+  /** The current day (`dayOf(now)`) at local midnight — what the date picker calls "today". */
+  today: Date
   /** Switch the whole board (timeline + editor) to a different day's schedule. */
   setViewedDate: (date: Date) => void
   /**
@@ -86,16 +86,25 @@ function useDeviceClock(fixed?: Date): Date {
 }
 
 /**
- * The activities to show for `date` — local-first (rule 6), never the
- * network. Demo seed content is a first-ever-run "today" concept only: any
- * OTHER date with nothing in local storage (past, future, or "today" again
- * after storage was cleared on some other day) starts genuinely empty, never
- * silently reseeded with the demo schedule.
+ * One calendar date's activities — local-first (rule 6), never the network.
+ * Demo seed content is a first-ever-run "today" concept only: any OTHER date
+ * with nothing in local storage starts genuinely empty, never silently
+ * reseeded with the demo schedule.
  */
-function loadActivitiesForDate(date: Date, now: Date): ScheduledActivity[] {
-  const local = loadLocalActivities(date)
+function loadActivitiesForDate(dateISO: string, now: Date): ScheduledActivity[] {
+  const local = loadLocalActivities(dateFromLocalDateISO(dateISO))
   if (local) return local
-  return isSameLocalDay(date, now) ? createSeedActivities() : []
+  return dateISO === localDateISO(now) ? createSeedActivities() : []
+}
+
+/**
+ * The board for the day named `dayISO`: its three calendar dates (D-1, D,
+ * D+1), loaded from this device and laid on the day's one continuous axis
+ * — see `state/boardDays.ts`.
+ */
+function loadBoardForDay(dayISO: string, now: Date): ScheduledActivity[] {
+  const byDate = Object.fromEntries(boardDates(dayISO).map((date) => [date, loadActivitiesForDate(date, now)]))
+  return boardActivitiesFromDates(dayISO, byDate)
 }
 
 export interface BoardProviderProps {
@@ -126,11 +135,11 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   useLiveActivityCatalogSync()
 
   // BL-2: the day being VIEWED, independent of the real current instant
-  // above. Defaults to today, exactly as the board always has — see
-  // `isViewingToday`/`setViewedDate` below for how navigating away from it
-  // works. Always normalized to local midnight so it can be compared and
-  // used as a local-storage/fetch-range key the same way everywhere.
-  const [viewedDate, setViewedDateState] = useState<Date>(() => localDayRange(now).start)
+  // above. Defaults to the current day — which before 06:00 is still
+  // yesterday's date (`dayOf`). Always normalized to local midnight so it
+  // can be compared and used as a key the same way everywhere.
+  const [viewedDate, setViewedDateState] = useState<Date>(() => dateFromLocalDateISO(dayOf(now)))
+  const dayISO = localDateISO(viewedDate)
 
   // Phase 1 -> Phase 2 persistence boundary: an in-memory-only board used to
   // be seeded fresh on every load. Now the FIRST render prefers whatever was
@@ -139,7 +148,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // reconciles against the server. Only a genuinely first-ever run (nothing
   // in local storage yet, viewing today) falls back to the demo seed content.
   const [state, dispatch] = useReducer(boardReducer, undefined, () => {
-    const activities = isTest ? createSeedActivities() : loadActivitiesForDate(viewedDate, now)
+    const activities = isTest ? createSeedActivities() : loadBoardForDay(dayISO, now)
     return createInitialState(activities, now)
   })
 
@@ -191,16 +200,26 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     lastActionRef.current = null
     if (state === prev) return
 
-    if (!isTest) saveLocalActivities(viewedDate, state.activities)
-    if (!isTest && action) {
-      enqueue(deriveSyncIntents(action, prev, state), localDateISO(viewedDate))
+    if (isTest) return
+    // The board holds three calendar dates on one axis; each is saved back
+    // under its own date, exactly as stored before (rule 2).
+    for (const [date, list] of Object.entries(boardActivitiesToDates(dayISO, state.activities))) {
+      saveLocalActivities(dateFromLocalDateISO(date), list)
+    }
+    if (action) {
+      // Each write is queued against the date its activity is stored under —
+      // an entry logged at 01:30 on the Oct 2 page is an Oct 3 entry.
+      const intents = deriveSyncIntents(action, prev, state)
+      for (const batch of storedSyncBatches(dayISO, intents, prev.activities, state.activities)) {
+        enqueue(batch.intents, batch.date)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, viewedDate, isTest])
 
   // Cold-load / date-switch reconciliation: MERGE the server's view of
   // whichever day is being viewed into the local one (rule 8 — bounded to
-  // that one day's window, never the full history). `BoardProvider` only ever
+  // that day's three calendar dates, never the full history). `BoardProvider` only ever
   // mounts once the app-level auth gate (`App.tsx`) has already resolved to a
   // real signed-in session (or Supabase isn't configured at all, in which
   // case `apiListScheduledActivities` itself is a no-op) — so there is no
@@ -222,44 +241,45 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     if (isTest) return
     let cancelled = false
     ;(async () => {
-      const { start, end } = localDayRange(viewedDate)
-      const server = await apiListScheduledActivities(start, end)
+      const dates = boardDates(dayISO)
+      const server = await apiListScheduledActivitiesWithDates(
+        dateFromLocalDateISO(dates[0]),
+        dateFromLocalDateISO(addDaysISO(dates[dates.length - 1], 1)),
+      )
       if (cancelled || server === null) return
-      const merged = reconcileServerActivities(
-        latestStateRef.current.activities,
+      // One pass over all three dates (`reconcileDays`), so an edit that
+      // moved an activity across midnight is never duplicated by the
+      // server's not-yet-updated copy.
+      const merged = reconcileDays(
+        dates,
+        boardActivitiesToDates(dayISO, latestStateRef.current.activities),
         server,
         pendingActivityIds(queueRef.current),
         pendingDeleteActivityIds(queueRef.current),
       )
-      dispatch({ type: 'hydrate', activities: merged })
+      dispatch({ type: 'hydrate', activities: boardActivitiesFromDates(dayISO, merged) })
     })()
     return () => {
       cancelled = true
     }
   }, [isTest, viewedDate])
 
-  // Midnight rollover: `viewedDate` is otherwise only ever changed by an
-  // explicit `setViewedDate` call (the date picker) — nothing previously
-  // watched the live clock, so a tab left open (backgrounded, not reloaded)
-  // across local midnight kept showing/writing yesterday's board forever
-  // (`state.activities`, the local-storage key, and the server hydrate range
-  // are all scoped to `viewedDate`). This re-checks on every clock tick
-  // (`now` changes every `CLOCK_TICK_MS`) and, the instant the device's
-  // calendar day changes while the board was following "today" a tick ago,
-  // switches to the new day through the exact same path `setViewedDate`
-  // already uses for a manual date change (local-first load + the server
-  // reconciliation effect above firing for the new date) — never a second,
-  // parallel way of loading a day. `shouldRolloverViewedDate` is what keeps
-  // this from disturbing a `viewedDate` the user deliberately pinned to some
-  // other day (rule 12): see its own doc comment for exactly how.
+  // Day rollover: `viewedDate` is otherwise only ever changed by an
+  // explicit `setViewedDate` call (the date picker), so a tab left open
+  // (backgrounded, not reloaded) across the day boundary would keep
+  // showing/writing yesterday's board. The day changes at 06:00, not at
+  // midnight (`dayOf`). This re-checks on every clock tick and, the instant
+  // the day changes while the board was following "today" a tick ago,
+  // switches through the exact same path a manual date change uses
+  // (local-first load + the server reconciliation effect above). A day the
+  // user deliberately picked is never disturbed (rule 12).
   const prevNowRef = useRef(now)
   useEffect(() => {
     if (isTest) return
     const prevNow = prevNowRef.current
     prevNowRef.current = now
-    if (shouldRolloverViewedDate(viewedDate, prevNow, now)) {
-      setViewedDate(now)
-    }
+    const nextDay = rolloverDay(dayISO, prevNow, now)
+    if (nextDay) setViewedDate(dateFromLocalDateISO(nextDay))
     // `viewedDate`/`setViewedDate` are read for their CURRENT render value
     // only at the moment `now` actually changes (see the doc comment above)
     // — depending on them here would re-run this on every date-picker change
@@ -269,7 +289,9 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   }, [now, isTest])
 
   const nowSlot = useMemo(() => slotIndexFromDate(now), [now])
-  const isViewingToday = useMemo(() => isSameLocalDay(viewedDate, now), [viewedDate, now])
+  const todayISO = dayOf(now)
+  const isViewingToday = dayISO === todayISO
+  const today = useMemo(() => dateFromLocalDateISO(todayISO), [todayISO])
 
   /**
    * Switches the whole board (timeline + editor) to a different calendar
@@ -284,7 +306,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     if (isTest) return
     const normalized = localDayRange(date).start
     setViewedDateState(normalized)
-    trackedDispatch({ type: 'hydrate', activities: loadActivitiesForDate(normalized, now) })
+    trackedDispatch({ type: 'hydrate', activities: loadBoardForDay(localDateISO(normalized), now) })
   }
 
   const value = useMemo(
@@ -295,12 +317,13 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       nowSlot,
       viewedDate,
       isViewingToday,
+      today,
       setViewedDate,
       syncQueue: queue,
       retrySyncNow: retryNow,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state, now, nowSlot, viewedDate, isViewingToday, queue],
+    [state, now, nowSlot, viewedDate, isViewingToday, today, queue],
   )
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
