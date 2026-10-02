@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Council header prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#fafaf8; --surface:#fff; --ink:#17171a; --ink-dim:#75757a; --line:rgba(10,10,11,.14); --gold:#c9993f; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0a0a0b; --surface:#17171a; --ink:#f2f1ec; --ink-dim:#8c8c90; --line:rgba(255,255,255,.14); --gold:#d8aa55; } }
+  :root[data-theme="dark"] { --bg:#0a0a0b; --surface:#17171a; --ink:#f2f1ec; --ink-dim:#8c8c90; --line:rgba(255,255,255,.14); --gold:#d8aa55; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Inter,system-ui,sans-serif; padding:24px 16px 48px; }
+  .wrap { max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .top h2 { font-size:15px; font-weight:500; margin:0; }
+  .top p { margin:4px 0 0; font-size:13px; color:var(--ink-dim); }
+  button.t { font:inherit; font-size:13px; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 12px; cursor:pointer; }
+  button.t:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+  .label { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:8px; }
+  .frame { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:16px 20px; }
+  .frame.mobile { max-width:390px; }
+  .hdr { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; }
+  .brand { display:flex; align-items:center; gap:8px; }
+  .dot-o { position:relative; display:inline-block; }
+  .dot-o::after { content:""; position:absolute; left:50%; top:58%; width:.2em; height:.2em; margin:-.1em 0 0 -.1em; border-radius:50%; background:var(--gold); }
+  .brand h1 { font-family:Fraunces,Georgia,serif; font-weight:600; font-size:28px; line-height:1.15; margin:0; }
+  .mobile .brand h1 { font-size:22px; }
+  .mobile .brand { padding-left:52px; } /* existing mobile hamburger offset */
+  .mark { width:18px; height:18px; flex:none; color:var(--ink); }
+  .mobile .mark { width:16px; height:16px; }
+  .right { display:flex; gap:8px; align-items:center; }
+  .pill { font-size:13px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; color:var(--ink-dim); background:var(--surface); }
+  .avatar { width:32px; height:32px; border-radius:50%; background:var(--ink); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .note { font-size:13px; color:var(--ink-dim); line-height:1.5; margin:8px 0 0; }
+  .zoom { display:flex; gap:20px; align-items:center; margin-top:12px; }
+  .zoom svg { color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h2>Header: “Consort” → “Council” + compact mark</h2>
+      <p>Prototype only — nothing in the app has changed yet.</p>
+    </div>
+    <button class="t" id="theme" type="button">Toggle light / dark</button>
+  </div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <!-- A: the wordmark's dotted "O" — ring + gold centre dot -->
+      <symbol id="markA" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="3.5"/>
+        <circle cx="16" cy="16" r="3.6" fill="var(--gold)"/>
+      </symbol>
+      <!-- B: seated figure inside the council arc -->
+      <symbol id="markB" viewBox="0 0 32 32">
+        <ellipse cx="16" cy="19" rx="13" ry="6" fill="none" stroke="var(--gold)" stroke-width="1.5" transform="rotate(-8 16 19)"/>
+        <circle cx="16" cy="10.5" r="4.2" fill="currentColor"/>
+        <path d="M7.5 27c.4-5.2 3.6-8.4 8.5-8.4s8.100 3.200 8.500 8.400z" fill="currentColor"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <section>
+    <div class="label">Revised — tiny figure mark + “Council” with the dotted o</div>
+    <div class="grid">
+      <div>
+        <div class="frame"><div class="hdr">
+          <div class="brand"><svg class="mark" aria-hidden="true"><use href="#markB"/></svg><h1>C<span class="dot-o">o</span>uncil</h1></div>
+          <div class="right"><span class="pill">Fri, 2 Oct</span><span class="avatar"></span></div>
+        </div></div>
+        <p class="note">Desktop. Mark is 18px; the “o” carries the gold dot from your wordmark.</p>
+      </div>
+      <div>
+        <div class="frame mobile"><div class="hdr">
+          <div class="brand"><svg class="mark" aria-hidden="true"><use href="#markB"/></svg><h1>C<span class="dot-o">o</span>uncil</h1></div>
+          <div class="right"><span class="avatar"></span></div>
+        </div></div>
+        <p class="note">Mobile (390px). Mark 16px, existing 52px menu-button offset kept.</p>
+      </div>
+    </div>
+    <p class="note">The heading text stays plain “Council” for screen readers; the dot is a CSS pseudo-element. The mark is decorative (<code>aria-hidden</code>). I use the figure mark here rather than the ring, since the ring would duplicate the dotted o.</p>
+  </section>
+
+  <section>
+    <div class="label">Mark at actual sizes</div>
+    <div class="zoom">
+      <svg width="20" height="20"><use href="#markA"/></svg>
+      <svg width="28" height="28"><use href="#markA"/></svg>
+      <svg width="64" height="64"><use href="#markA"/></svg>
+      <svg width="20" height="20"><use href="#markB"/></svg>
+      <svg width="28" height="28"><use href="#markB"/></svg>
+      <svg width="64" height="64"><use href="#markB"/></svg>
+    </div>
+    <p class="note">The mark follows the theme ink (monochrome) with a single gold accent, per the existing monochrome system. Decorative: <code>aria-hidden</code>, the “Council” heading carries the name.</p>
+  </section>
+</div>
+<script>
+  document.getElementById('theme').addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = getComputedStyle(r).getPropertyValue('--bg').trim() === '#0a0a0b';
+    r.setAttribute('data-theme', dark ? 'light' : 'dark');
+  });
+</script>
+</body>
+</html>
