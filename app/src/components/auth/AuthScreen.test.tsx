@@ -69,6 +69,6 @@ describe('AuthScreen (initial render)', () => {
   })
 
   it('never renders the timeline/editor screen behind the gate', () => {
-    expect(html).not.toContain('Consort')
+    expect(html).not.toContain('Council')
   })
 })

@@ -29,6 +29,8 @@
     --line-soft: rgba(255, 255, 255, 0.08);
     --inv-bg: #f2f1ec;
     --inv-ink: #0a0a0b;
+    /* Council wordmark dot — the one brand accent; used only by CouncilBrand. */
+    --brand-dot: #d8aa55;
 
     /* The Night timeline strip's one deliberate exception (approved this
        round): a fixed grey, independent of the light/dark theme toggle —
@@ -82,6 +84,7 @@
     --line-soft: rgba(10, 10, 11, 0.08);
     --inv-bg: #17171a;
     --inv-ink: #fafaf8;
+    --brand-dot: #c9993f;
     --status-success: #15803d;
     --status-syncing: #b45309;
     --status-error: #dc2626;

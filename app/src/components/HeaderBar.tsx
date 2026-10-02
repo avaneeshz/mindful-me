@@ -7,6 +7,7 @@ import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
+import { CouncilMark, CouncilTitle } from '@/components/CouncilBrand'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import {
@@ -161,14 +162,17 @@ export function HeaderBar({
 
   return (
     <header className="flex flex-col gap-md">
-      {/* Row 1 — identity + day context. "Consort" (Section E greeting, renamed
-          from "30-Minute Slotting"; not the sidebar/sign-in brand mark "Ritual
+      {/* Row 1 — identity + day context. "Council" (Section E greeting, renamed
+          from "30-Minute Slotting" and then "Consort"; not the sidebar/sign-in brand mark "Ritual
           Board") sits left; the viewed-date navigator, weather, and account
           control sit right. Nothing else shares this line. */}
       <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
-        <h1 className="pl-0 font-display text-h1 font-semibold text-ink mobile:pl-[52px] mobile:text-h1-sm">
-          Consort
-        </h1>
+        <div className="flex items-center gap-sm mobile:pl-[52px]">
+          <CouncilMark />
+          <h1 className="font-display text-h1 font-semibold text-ink mobile:text-h1-sm">
+            <CouncilTitle />
+          </h1>
+        </div>
 
         <div className="flex flex-wrap items-center justify-end gap-sm">
           {/*
