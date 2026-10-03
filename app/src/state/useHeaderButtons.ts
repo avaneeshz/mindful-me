@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   apiCreateHeaderButton,
   apiListHeaderButtons,
@@ -7,17 +7,22 @@ import {
   apiSetHeaderButtonHidden,
   apiUpdateHeaderButton,
   type CreateHeaderButtonInput,
+  type HeaderButtonNoteFieldInput,
   type UpdateHeaderButtonInput,
 } from '@/api/headerButtons'
 import {
   DEFAULT_HEADER_BUTTONS,
+  noteLabelsFromFields,
   partitionHeaderButtons,
+  withActivityNotes,
   type HeaderButtonConfig,
   type HeaderButtonNoteField,
 } from '@/domain/headerButtons'
+import { rowForLoggedActivity } from '@/domain/colors'
 import { generateId } from '@/domain/scheduling'
 import { loadLocalHeaderButtons, saveLocalHeaderButtons } from '@/lib/headerButtonsLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
+import { useOptionalPickerData } from './PickerDataContext'
 
 export type HeaderButtonsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -225,7 +230,54 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [all],
   )
 
-  const { visible, hidden } = partitionHeaderButtons(all)
+  const { visible: rawVisible, hidden: rawHidden } = partitionHeaderButtons(all)
 
-  return { visible, hidden, status, error, addButton, updateButton, hideButton, unhideButton, reorder }
+  // An activity-category button is a view of its activity's own note titles
+  // (the single source of truth — see `withActivityNotes`), so what the
+  // quick-log popover offers always matches the tile route.
+  const picker = useOptionalPickerData()
+  const rows = picker?.activities.activities
+  const setActivityNoteLabels = picker?.activities.setActivityNoteLabels
+  const rowFor = useCallback(
+    (button: Pick<HeaderButtonConfig, 'activityId' | 'activityName'>) =>
+      !rows
+        ? null
+        : ((button.activityId ? rows.find((r) => r.id === button.activityId) : null) ??
+          (button.activityName ? rowForLoggedActivity(rows, button.activityName, []) : null)),
+    [rows],
+  )
+  const visible = useMemo(() => rawVisible.map((b) => withActivityNotes(b, rowFor(b))), [rawVisible, rowFor])
+  const hidden = useMemo(() => rawHidden.map((b) => withActivityNotes(b, rowFor(b))), [rawHidden, rowFor])
+
+  // Editing a button's note fields edits the ACTIVITY's, so the two can never drift.
+  const syncNotesToActivity = useCallback(
+    (button: HeaderButtonConfig | undefined, fields: HeaderButtonNoteFieldInput[] | null | undefined) => {
+      if (!button || button.category !== 'activity' || !fields || !setActivityNoteLabels) return
+      const row = rowFor(button)
+      if (!row) return
+      const next = noteLabelsFromFields(fields)
+      const current = withActivityNotes(button, row).noteFields
+      const currentLabels = noteLabelsFromFields(current)
+      if (next.first === currentLabels.first && next.second === currentLabels.second) return
+      setActivityNoteLabels(row.id, next.first, next.second)
+    },
+    [rowFor, setActivityNoteLabels],
+  )
+  const addButtonSynced = useCallback(
+    (input: Omit<CreateHeaderButtonInput, 'id'>): HeaderButtonConfig => {
+      const created = addButton(input)
+      if (input.noteFields?.some((f) => f.fieldKind === 'text')) syncNotesToActivity(created, input.noteFields)
+      return created
+    },
+    [addButton, syncNotesToActivity],
+  )
+  const updateButtonSynced = useCallback(
+    (input: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }): void => {
+      updateButton(input)
+      syncNotesToActivity(all.find((b) => b.id === input.id), input.noteFields)
+    },
+    [updateButton, syncNotesToActivity, all],
+  )
+
+  return { visible, hidden, status, error, addButton: addButtonSynced, updateButton: updateButtonSynced, hideButton, unhideButton, reorder }
 }

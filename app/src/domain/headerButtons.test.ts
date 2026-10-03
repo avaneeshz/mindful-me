@@ -5,7 +5,9 @@ import {
   headerButtonConfigFromDto,
   partitionHeaderButtons,
   slugifyChecklistItemKey,
+  noteLabelsFromFields,
   toDisplayButtonLike,
+  withActivityNotes,
   type HeaderButtonConfig,
   type HeaderButtonDto,
 } from './headerButtons'
@@ -203,5 +205,31 @@ describe('toDisplayButtonLike', () => {
   it("Worship's songCount entry mode carries through", () => {
     const button = DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'worship')!
     expect(toDisplayButtonLike(button).input).toBe('songCount')
+  })
+})
+
+describe('withActivityNotes — the activity is the source of truth for text notes', () => {
+  const sleep = DEFAULT_HEADER_BUTTONS.find((b) => b.noteFields.some((f) => f.key === 'secondary'))!
+
+  it('shows exactly the activity’s notes, keeping the button’s multiselect fields', () => {
+    const out = withActivityNotes(sleep, { noteLabel: 'Note', secondNoteLabel: null })
+    expect(out.noteFields.filter((f) => f.fieldKind === 'text').map((f) => f.label)).toEqual(['Note'])
+    expect(out.noteFields.some((f) => f.fieldKind === 'multiselect')).toBe(true)
+  })
+
+  it('always offers a first note, and a second only when the activity has one', () => {
+    const plain = makeButton({ category: 'activity', noteFields: [] })
+    expect(withActivityNotes(plain, { noteLabel: null, secondNoteLabel: null }).noteFields.map((f) => f.key)).toEqual(['primary'])
+    expect(withActivityNotes(plain, { noteLabel: null, secondNoteLabel: 'Gratitude' }).noteFields.map((f) => f.key)).toEqual(['primary', 'secondary'])
+  })
+
+  it('leaves non-activity buttons alone', () => {
+    const notes = makeButton({ category: 'notes' })
+    expect(withActivityNotes(notes, { noteLabel: 'x' })).toBe(notes)
+  })
+
+  it('reads text titles back out of a form’s fields', () => {
+    expect(noteLabelsFromFields([{ fieldKind: 'text', key: 'primary', label: 'Note' }, { fieldKind: 'text', key: 'secondary', label: 'Dreams' }])).toEqual({ first: 'Note', second: 'Dreams' })
+    expect(noteLabelsFromFields([])).toEqual({ first: null, second: null })
   })
 })
