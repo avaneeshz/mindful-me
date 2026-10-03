@@ -355,3 +355,19 @@ describe('feature-flag-gated duration fallback', () => {
     vi.resetModules()
   })
 })
+
+describe('per-activity note fields', () => {
+  const staged = { ...EMPTY_STAGING, cardName: 'Night Sleep' }
+
+  it('shows a titled first note and a second note when the activity defines them', () => {
+    const html = renderModal({ staging: staged, noteFields: { primaryLabel: 'Reflection', secondaryLabel: 'Gratitude' } })
+    expect(html).toContain('placeholder="Reflection"')
+    expect(html).toContain('placeholder="Gratitude"')
+  })
+
+  it('shows one default note and no second note when the activity defines none', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Reading' }, noteFields: { primaryLabel: null, secondaryLabel: null } })
+    expect(html).toContain('placeholder="Add notes"')
+    expect(html).not.toContain('id="secondary-note"')
+  })
+})

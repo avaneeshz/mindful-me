@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronLeft, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { NoteFieldsPanel } from '@/components/activityLibrary/NoteFieldsPanel'
 import { ParameterOptionsPanel } from '@/components/activityLibrary/ParameterOptionsPanel'
 import { AddNameRow, EditableActivityList, HiddenActivityList, RowIconButton } from '@/components/editor/ActivityRows'
 import { InlineNameForm } from '@/components/editor/InlineNameForm'
@@ -147,6 +148,13 @@ export function ActivityEditView({
         />
         <HiddenActivityList rows={hidden} allRows={rows} onRestore={activities.unhideActivity} onDelete={activities.deleteActivity} />
       </section>
+
+      <NoteFieldsPanel
+        activityName={activity.name}
+        first={activity.noteLabel ?? null}
+        second={activity.secondNoteLabel ?? null}
+        onChange={(first, second) => activities.setActivityNoteLabels(activity.id, first, second)}
+      />
 
       <ParameterOptionsPanel activityName={activity.name} data={selections} onManageVocabulary={onManageOptions} />
     </>

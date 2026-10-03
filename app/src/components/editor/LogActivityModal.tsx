@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { findCard } from '@/data/activities'
 import { displayButtonForActivityName } from '@/domain/displayButtons'
+import { resolveNoteFields, type NoteFields } from '@/domain/activityNoteFields'
 import { SHOW_DURATION_STEPPER_FALLBACK } from '@/lib/featureFlags'
 import { stagingOptions, type StagingState } from '@/state/boardReducer'
 import type { ActivityList, ActivityQuality, FlagId, Symptom } from '@/domain/types'
@@ -48,6 +49,7 @@ export function LogActivityModal({
   qualityOptions,
   symptomOptions,
   flagOptions,
+  noteFields,
 }: {
   staging: StagingState
   activities: ActivityList
@@ -81,6 +83,8 @@ export function LogActivityModal({
   qualityOptions?: readonly string[]
   symptomOptions?: readonly string[]
   flagOptions?: readonly string[]
+  /** This activity's note titles (its own, else its header button's). Omitted → derived from the header button alone. */
+  noteFields?: NoteFields
 }) {
   const isOpen = staging.cardName !== null
   const card = staging.cardName ? findCard(staging.cardName) : undefined
@@ -90,12 +94,9 @@ export function LogActivityModal({
   // entry paths (this modal via the tile row, or the header button) render
   // the identical set of configured note fields for the same activity.
   const configuredButton = staging.cardName ? displayButtonForActivityName(staging.cardName) : undefined
-  const hasSecondaryNote = (configuredButton?.noteFields ?? []).some(
-    (field) => field.fieldKind === 'text' && field.key === 'secondary',
-  )
-  const secondaryNoteLabel = (configuredButton?.noteFields ?? []).find(
-    (field) => field.fieldKind === 'text' && field.key === 'secondary',
-  )?.label
+  const resolvedNotes = noteFields ?? resolveNoteFields(null, configuredButton?.noteFields)
+  const primaryNoteLabel = resolvedNotes.primaryLabel ?? 'Add notes'
+  const secondaryNoteLabel = resolvedNotes.secondaryLabel
   const multiselectFields = (configuredButton?.noteFields ?? []).filter((field) => field.fieldKind === 'multiselect')
 
   return (
@@ -223,20 +224,21 @@ export function LogActivityModal({
             <textarea
               value={staging.notes}
               onChange={(event) => onSetNotes(event.target.value)}
-              placeholder="Add notes"
+              aria-label={primaryNoteLabel}
+              placeholder={primaryNoteLabel}
               rows={3}
               className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             />
 
-            {/* Extra fields configured on this activity's header button (if
-                any) — generic now, never hardcoded to Sleep: a second text
-                note (e.g. Sleep's "Dreams") from the plain notes textarea
+            {/* Extra fields — generic, never hardcoded to Sleep: a second text
+                note, titled on the activity itself or on its header button
+                (e.g. Sleep's "Dreams"), from the plain notes textarea
                 above, plus any multiselect-kind fields (e.g. Sleep's "How
                 was your sleep?"), each rendered with its own configured
                 label/options. Gated on `configuredButton`, not a card-name
                 check, exactly like the sub/third drill-down chips above are
                 gated on `options`. */}
-            {hasSecondaryNote && (
+            {secondaryNoteLabel && (
               <div>
                 <label htmlFor="secondary-note" className="sr-only">
                   {secondaryNoteLabel}
