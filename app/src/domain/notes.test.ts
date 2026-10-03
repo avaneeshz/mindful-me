@@ -10,6 +10,7 @@ import {
   noteEntryWasEdited,
   partitionNoteEntriesByToday,
   requiresEntryType,
+  setNoteButtonTypesRegistry,
   type NoteButtonKey,
   type NoteEntry,
 } from './notes'
@@ -70,6 +71,17 @@ describe('noteButtonTypes / requiresEntryType', () => {
   it('requiresEntryType is true for the two typed buttons', () => {
     for (const key of ['gifts', 'learnings'] as NoteButtonKey[]) {
       expect(requiresEntryType(key)).toBe(true)
+    }
+  })
+
+  it('treats a dynamic button with an empty type list as untyped, so Store only needs a note', () => {
+    setNoteButtonTypesRegistry({ custom: [] })
+    try {
+      expect(noteButtonTypes('custom')).toBeNull()
+      expect(requiresEntryType('custom')).toBe(false)
+      expect(canSubmitNote('custom', 'hello', null)).toBe(true)
+    } finally {
+      setNoteButtonTypesRegistry(null)
     }
   })
 })
