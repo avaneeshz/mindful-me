@@ -7,6 +7,13 @@ import { cn } from '@/lib/utils'
 
 type Mode = 'signIn' | 'signUp'
 
+/**
+ * "Continue with Google" is parked, not removed: the Google provider isn't
+ * enabled on the Supabase project yet. Flip this to `true` once it is — the
+ * handler, the Google mark and `signInWithGoogle` are all still wired up.
+ */
+const GOOGLE_SIGN_IN_ENABLED = false
+
 const inputClass =
   'h-control w-full rounded-md border bg-surface px-md text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
@@ -134,16 +141,20 @@ export function AuthScreen() {
         <ModeToggleButton label="Create account" active={mode === 'signUp'} onSelect={() => switchMode('signUp')} />
       </div>
 
-      <Button type="button" variant="outline" block onClick={handleGoogle} disabled={busy}>
-        <GoogleMark />
-        {googlePending ? 'Opening Google…' : 'Continue with Google'}
-      </Button>
+      {GOOGLE_SIGN_IN_ENABLED && (
+        <>
+          <Button type="button" variant="outline" block onClick={handleGoogle} disabled={busy}>
+            <GoogleMark />
+            {googlePending ? 'Opening Google…' : 'Continue with Google'}
+          </Button>
 
-      <div className="my-xl flex items-center gap-md" aria-hidden="true">
-        <span className="h-px flex-1 bg-line" />
-        <span className="text-caption text-ink-dim">or</span>
-        <span className="h-px flex-1 bg-line" />
-      </div>
+          <div className="my-xl flex items-center gap-md" aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            <span className="text-caption text-ink-dim">or</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="flex flex-col gap-lg">
