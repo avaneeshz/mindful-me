@@ -47,8 +47,8 @@ export interface ExportActivity {
   durationLabel: string
   quality: string[]
   symptoms: string[]
-  /** At most one (rule: "Protective response" is single-select) — `null` when none was recorded. */
-  flag: string | null
+  /** Every protective response recorded — empty when none. */
+  flags: string[]
   notes: string | null
   reflections: ExportReflectionEntry[]
 }
@@ -125,7 +125,7 @@ export function assembleDayExport(input: DayExportInput): DayExportData {
     durationLabel: formatDuration(a.durationMinutes),
     quality: [...a.quality],
     symptoms: [...a.symptoms],
-    flag: a.flags[0] ?? null,
+    flags: [...a.flags],
     notes: a.notes,
     reflections: a.reflections.map((r) => ({
       card: r.card,

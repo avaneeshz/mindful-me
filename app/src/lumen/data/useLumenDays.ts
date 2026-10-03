@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiListScheduledActivitiesWithDates } from '@/api/scheduledActivities'
-import type { ActivityRef, CommitContext } from '@/domain/scheduling'
+import { sameFlags, type ActivityRef, type CommitContext } from '@/domain/scheduling'
 import type { ScheduledActivity } from '@/domain/types'
 import { dateFromLocalDateISO } from '@/lib/localTime'
 import { loadLocalActivities, saveLocalActivities } from '@/state/localPersistence'
@@ -145,7 +145,7 @@ export function useLumenDays(dayISO: string, disabled = false): LumenDays {
     // notes and field selections ride inside `reschedule`; flags and
     // completion have their own calls.
     const intents: SyncIntent[] = [{ kind: 'reschedule', activity: plan.activity }]
-    if ((plan.before.flags[0] ?? null) !== (plan.activity.flags[0] ?? null)) intents.push({ kind: 'flags', activity: plan.activity })
+    if (!sameFlags(plan.before.flags, plan.activity.flags)) intents.push({ kind: 'flags', activity: plan.activity })
     if (plan.before.status !== plan.activity.status) intents.push({ kind: 'status', activity: plan.activity })
     enqueue(intents, plan.toDate)
     return plan

@@ -19,7 +19,7 @@ function renderModal(overrides: Partial<ComponentProps<typeof LogActivityModal>>
       onSetDuration={() => {}}
       onMove={() => {}}
       onResizeStart={() => {}}
-      onSetFlag={() => {}}
+      onToggleFlag={() => {}}
       onToggleQuality={() => {}}
       onToggleSymptom={() => {}}
       onSetNotes={() => {}}
@@ -230,9 +230,17 @@ describe('Protective response (formerly "Flag") — relabeled, reordered', () =>
   })
 
   it('renders no dedicated "None" chip — clearing a selection is done by re-clicking the active chip', () => {
-    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep', flag: 'Anger' } })
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep', flags: ['Anger'] } })
     const section = html.slice(html.indexOf('Protective response'))
     expect(section).not.toContain('>None<')
+  })
+
+  it('renders Protective response as a multi-select checkbox group, with every staged flag checked', () => {
+    const html = renderModal({ staging: { ...EMPTY_STAGING, cardName: 'Night Sleep', flags: ['Anger', 'Attack'] } })
+    const section = html.slice(html.indexOf('Protective response'))
+    expect(section).toContain('role="group"')
+    expect(section).not.toContain('role="radio"')
+    expect(section.match(/aria-checked="true"/g)?.length).toBeGreaterThanOrEqual(2)
   })
 
   it('renders no icon inside a Protective response chip — text-only', () => {
@@ -338,7 +346,7 @@ describe('feature-flag-gated duration fallback', () => {
         onSetDuration={() => {}}
         onMove={() => {}}
         onResizeStart={() => {}}
-        onSetFlag={() => {}}
+        onToggleFlag={() => {}}
         onToggleQuality={() => {}}
         onToggleSymptom={() => {}}
         onSetNotes={() => {}}

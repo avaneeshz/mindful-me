@@ -5,45 +5,31 @@ import { Chip } from '@/components/ui/chip'
 const DEFAULT_FLAG_OPTIONS: readonly string[] = FLAGS.map((f) => f.id)
 
 /**
- * Single-select "Protective response" row (formerly "Flag") inside the
- * log-activity modal (Modal Redesign §E). Flags attach to the specific
- * activity being logged, not a whole 30-minute slot — replaces the old
- * always-multi-select `FlagsRow` in `SlotEditor`'s header, which is deleted
- * (nothing creates a flag-only marker any more; legacy marker rows still
- * read/render exactly as before, untouched, via `domain/slots.ts`
- * `flagMarkerAt`).
+ * "Protective response" — a multi-select, optional row inside the
+ * log-activity modal, behaving exactly like `SymptomsPicker` /
+ * `QualityPicker`: a checkbox group where clicking a chip only ever toggles
+ * itself. There is no "None" chip — nothing selected is none. Flags attach
+ * to the specific activity being logged, not a whole 30-minute slot.
  *
- * SCRUM-15 replaced the original 4-value option set with a 14-value one
- * (`FlagId` in domain/types.ts) and dropped icons from every chip in this
- * section — text-only, since the option list is long enough now that icons
- * and full-size text cost too much space.
- *
- * There is no dedicated "None" chip — clearing the selection is done by
- * re-clicking the currently active flag chip, which already toggles it off
- * (`onSelect(isSelected ? null : option)` below).
- *
- * PICKER-CUSTOM-1: the option list is now user-editable — a shared,
- * growable vocabulary (`public.parameter_options`) each activity selects
- * from, with inheritance (see `internal.effective_parameter_options`'s own
- * doc comment) — so it's a prop now, never a hardcoded import — `options`
- * defaults to the original static 14-value set so every existing call site
- * (and every test) that doesn't pass one keeps behaving exactly as before.
+ * The option list is user-editable (PICKER-CUSTOM-1), so it is a prop;
+ * `options` defaults to the original static set so call sites and tests that
+ * don't pass one keep working.
  */
 export function FlagPicker({
   selected,
-  onSelect,
+  onToggle,
   options = DEFAULT_FLAG_OPTIONS,
 }: {
-  selected: FlagId | null
-  onSelect: (flag: FlagId | null) => void
+  selected: FlagId[]
+  onToggle: (flag: FlagId) => void
   options?: readonly string[]
 }) {
   return (
     <fieldset className="flex flex-col gap-sm">
       <legend className="text-entry-name font-semibold text-ink">Protective response</legend>
-      <div role="radiogroup" aria-label="Protective response" className="flex flex-wrap gap-sm">
+      <div role="group" aria-label="Protective response" className="flex flex-wrap gap-sm">
         {options.map((option) => {
-          const isSelected = selected === option
+          const isSelected = selected.includes(option)
           return (
             <Chip
               key={option}
@@ -51,9 +37,9 @@ export function FlagPicker({
               size="xs"
               tone={isSelected ? 'active' : 'surface'}
               interactive
-              role="radio"
+              role="checkbox"
               aria-checked={isSelected}
-              onClick={() => onSelect(isSelected ? null : option)}
+              onClick={() => onToggle(option)}
             >
               {option}
             </Chip>

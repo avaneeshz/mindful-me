@@ -97,7 +97,7 @@ function renderActivities(cursor: Cursor, data: DayExportData): void {
     const signalRows: [string, string][] = [
       ['Activity quality', activity.quality.length > 0 ? activity.quality.join(', ') : '—'],
       ['Chronic symptoms', activity.symptoms.length > 0 ? activity.symptoms.join(', ') : '—'],
-      ['Protective response', activity.flag ?? '—'],
+      ['Protective response', activity.flags.length > 0 ? activity.flags.join(', ') : '—'],
     ]
     for (const [label, value] of signalRows) {
       bodyLine(cursor, `${label}:  ${value}`, { size: 9.5, color: INK_DIM })

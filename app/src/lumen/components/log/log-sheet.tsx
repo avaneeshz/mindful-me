@@ -44,13 +44,13 @@ type Draft = {
   duration: number
   quality: string[]
   symptoms: string[]
-  flag: string | null
+  flags: string[]
   notes: string
   dreamsNote: string
   fieldSelections: FieldSelections
 }
 
-const emptyDetails = { quality: [], symptoms: [], flag: null, notes: '', dreamsNote: '', fieldSelections: {} }
+const emptyDetails = { quality: [], symptoms: [], flags: [], notes: '', dreamsNote: '', fieldSelections: {} }
 
 /** The node a drill-down path leads to inside a card (the card itself for an empty path). */
 function nodeAt(card: ActivityCard | undefined, path: readonly string[]): ActivityCard | undefined {
@@ -118,7 +118,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
       duration: a.durationMinutes,
       quality: a.quality,
       symptoms: a.symptoms,
-      flag: a.flags[0] ?? null,
+      flags: a.flags,
       notes: a.notes ?? '',
       dreamsNote: a.dreamsNote ?? '',
       fieldSelections: a.fieldSelections,
@@ -204,7 +204,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
     const context = {
       quality: draft.quality,
       symptoms: draft.symptoms,
-      flags: draft.flag ? [draft.flag] : [],
+      flags: draft.flags,
       notes: draft.notes.trim() ? draft.notes.trim() : null,
       dreamsNote: draft.dreamsNote.trim() ? draft.dreamsNote.trim() : null,
       fieldSelections: draft.fieldSelections,
@@ -464,10 +464,9 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
                 />
                 <ChoiceChips
                   label="Protective response"
-                  mode="single"
                   options={flagOptions}
-                  selected={draft.flag ? [draft.flag] : []}
-                  onToggle={(f) => set({ flag: f === draft.flag ? null : f })}
+                  selected={draft.flags}
+                  onToggle={(f) => f && set({ flags: toggle(draft.flags, f) })}
                 />
                 {multiselectFields.map((field) => (
                   <ChoiceChips

@@ -9,7 +9,7 @@ import type { UseActivityParameterSelectionsResult } from '@/state/useActivityPa
 const SECTIONS: { type: ParameterType; label: string; helper: string }[] = [
   { type: 'quality', label: 'Activity quality', helper: 'Which of your quality options apply to this activity.' },
   { type: 'symptom', label: 'Chronic symptoms', helper: 'Which of your symptom options apply to this activity.' },
-  { type: 'flag', label: 'Protective response', helper: 'Which of your protective-response options apply — a single tag per log.' },
+  { type: 'flag', label: 'Protective response', helper: 'Which of your protective-response options apply — any number can apply to a log.' },
 ]
 
 /**

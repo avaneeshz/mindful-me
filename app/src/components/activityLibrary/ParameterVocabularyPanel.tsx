@@ -9,7 +9,7 @@ import type { UseParameterVocabularyResult } from '@/state/useParameterVocabular
 const SECTIONS: { type: ParameterType; label: string; helper: string }[] = [
   { type: 'quality', label: 'Activity quality', helper: 'The shared list every activity can pick from when logged.' },
   { type: 'symptom', label: 'Chronic symptoms', helper: 'The shared list every activity can pick from.' },
-  { type: 'flag', label: 'Protective response', helper: 'The shared list every activity can pick from — one tag per log.' },
+  { type: 'flag', label: 'Protective response', helper: 'The shared list every activity can pick from — any number can be picked per log.' },
 ]
 
 /**

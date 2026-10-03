@@ -225,14 +225,9 @@ export interface ScheduledActivity {
    */
   durationMinutes: number
   /**
-   * At most ONE element (Modal Redesign §E — single-select, "None" is the
-   * explicit default). The wire shape stays `text[]`/`FlagId[]` deliberately
-   * (an approved decision not to churn `flags_encrypted`'s array column or
-   * its encrypt/decrypt functions) — enforcing "at most one" is entirely a
-   * client-layer contract, never a DB constraint. A pre-existing legacy
-   * marker row could in principle carry more than one (nothing in the old
-   * model prevented it); the new single-select modal simply keeps only the
-   * first if it ever encounters that.
+   * "Protective response" — optional, multi-select. Any number, including
+   * none. Stored as `text[]` (`flags_encrypted`); the DB validates every
+   * element against the activity's effective option list.
    */
   flags: FlagId[]
   /** "Activity quality" — optional, multi-select. Any number, including none. */

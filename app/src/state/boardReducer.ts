@@ -24,11 +24,8 @@ export interface StagingState {
   /** The real wall-clock anchor this placement would commit at. */
   startMinutes: number
   durationMinutes: number
-  /**
-   * Modal Redesign §E — single-select, "None" (null) the explicit default.
-   * At most one, enforced entirely client-side (see `ScheduledActivity.flags`).
-   */
-  flag: FlagId | null
+  /** "Protective response" — optional multi-select, any number at once (empty = none). */
+  flags: FlagId[]
   /** "Activity quality" — optional multi-select (SCRUM-10). */
   quality: ActivityQuality[]
   /** "Chronic Symptoms" — optional multi-select, any number at once. */
@@ -84,7 +81,7 @@ export const EMPTY_STAGING: StagingState = {
   path: [],
   startMinutes: 0,
   durationMinutes: 0,
-  flag: null,
+  flags: [],
   quality: [],
   symptoms: [],
   notes: '',
@@ -122,7 +119,7 @@ export type BoardAction =
    * `setDuration`/`stepDuration` (start fixed, duration changes), reused.
    */
   | { type: 'resizeStagingStart'; minutes: number }
-  | { type: 'setStagingFlag'; flag: FlagId | null }
+  | { type: 'toggleStagingFlag'; flag: FlagId }
   /** Multi-select toggle — adds the quality if absent, removes it if present. */
   | { type: 'toggleStagingQuality'; quality: ActivityQuality }
   /** Multi-select toggle — adds the symptom if absent, removes it if present. */
@@ -255,7 +252,7 @@ function stageFrom(
     path,
     startMinutes: candidate.startMinutes,
     durationMinutes: candidate.durationMinutes,
-    flag: null,
+    flags: [],
     quality: [],
     symptoms: [],
     notes: '',
@@ -378,10 +375,11 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       }
     }
 
-    case 'setStagingFlag': {
+    case 'toggleStagingFlag': {
       if (!state.staging.cardName) return state
-      if (state.staging.flag === action.flag) return state
-      return { ...state, staging: { ...state.staging, flag: action.flag } }
+      const { flags } = state.staging
+      const next = flags.includes(action.flag) ? flags.filter((f) => f !== action.flag) : [...flags, action.flag]
+      return { ...state, staging: { ...state.staging, flags: next } }
     }
 
     case 'toggleStagingQuality': {
@@ -458,7 +456,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       // guarantee status/timezone already have.
       const committed = commitSchedule(candidate, {
         id: prior?.id,
-        flags: staging.flag ? [staging.flag] : [],
+        flags: staging.flags,
         quality: staging.quality,
         symptoms: staging.symptoms,
         notes: staging.notes.trim() ? staging.notes : null,
@@ -486,11 +484,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           path: [...activity.path],
           startMinutes: activity.startMinutes,
           durationMinutes: activity.durationMinutes,
-          // At most one flag is ever staged (single-select) even if a
-          // pre-existing row somehow carries more (see the ScheduledActivity
-          // `flags` doc comment) — the first is kept, the rest are dropped
-          // only if the user goes on to Save; Cancel leaves the row untouched.
-          flag: activity.flags[0] ?? null,
+          flags: [...activity.flags],
           quality: [...activity.quality],
           symptoms: [...activity.symptoms],
           notes: activity.notes ?? '',

@@ -313,6 +313,11 @@ export function validateSchedule(
   return { ok: true }
 }
 
+/** Order-insensitive equality of two protective-response lists — used to decide whether an edit needs its own `flags` sync call. */
+export function sameFlags(a: readonly FlagId[], b: readonly FlagId[]): boolean {
+  return a.length === b.length && a.every((flag) => b.includes(flag))
+}
+
 export interface CommitContext {
   flags?: FlagId[]
   /** "Activity quality" — optional, multi-select (see domain/types.ts). */

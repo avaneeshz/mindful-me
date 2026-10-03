@@ -55,4 +55,9 @@ describe('ActivitySummary — notes', () => {
     expect(html).toContain('aria-expanded="false"')
     expect(html).toContain('>…<')
   })
+
+  it('lists every protective response when several were selected', () => {
+    const html = render(activity({ flags: ['Anger', 'Attack'] }))
+    expect(html).toContain('Anger, Attack')
+  })
 })

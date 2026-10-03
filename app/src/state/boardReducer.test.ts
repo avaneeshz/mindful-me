@@ -388,61 +388,59 @@ describe('toggleComplete — Phase 3 planned vs. actual', () => {
   })
 })
 
-describe('flags attach to the activity being logged, single-select', () => {
-  it('a freshly picked card stages no flag', () => {
+describe('flags attach to the activity being logged, multi-select', () => {
+  it('a freshly picked card stages no flags', () => {
     const state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    expect(state.staging.flag).toBeNull()
+    expect(state.staging.flags).toEqual([])
   })
 
-  it('setStagingFlag replaces rather than accumulates — never more than one', () => {
+  it('toggleStagingFlag accumulates several flags and toggles one off again', () => {
     let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Triggered' })
-    expect(state.staging.flag).toBe('Triggered')
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
-    expect(state.staging.flag).toBe('Attack') // replaced, not added
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Triggered' })
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Attack' })
+    expect(state.staging.flags).toEqual(['Triggered', 'Attack'])
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Triggered' })
+    expect(state.staging.flags).toEqual(['Attack'])
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Attack' })
+    expect(state.staging.flags).toEqual([])
   })
 
-  it('"None" (null) clears the staged flag', () => {
-    let state = boardReducer(start(), { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: null })
-    expect(state.staging.flag).toBeNull()
-  })
-
-  it('commit attaches the staged flag to the real activity as a 0-or-1 element array', () => {
+  it('commit attaches every staged flag to the real activity', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingFlag', flag: 'Trauma Activation' },
+      { type: 'toggleStagingFlag', flag: 'Trauma Activation' },
+      { type: 'toggleStagingFlag', flag: 'Attack' },
       { type: 'commit' },
     )
-    expect(real(state)[0].flags).toEqual(['Trauma Activation'])
+    expect(real(state)[0].flags).toEqual(['Trauma Activation', 'Attack'])
 
     state = run(start(), { type: 'pickCard', cardName: 'Homework' }, { type: 'commit' })
     expect(real(state)[0].flags).toEqual([])
   })
 
-  it('editing an activity re-stages its own existing flag, and Save can change or clear it', () => {
+  it('editing an activity re-stages all its existing flags, and Save can change or clear them', () => {
     let state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingFlag', flag: 'Triggered' },
+      { type: 'toggleStagingFlag', flag: 'Triggered' },
+      { type: 'toggleStagingFlag', flag: 'Attack' },
       { type: 'commit' },
     )
     const id = real(state)[0].id
 
     state = boardReducer(state, { type: 'editActivity', id })
-    expect(state.staging.flag).toBe('Triggered')
+    expect(state.staging.flags).toEqual(['Triggered', 'Attack'])
 
-    state = run(state, { type: 'setStagingFlag', flag: null }, { type: 'commit' })
-    expect(real(state)[0].flags).toEqual([])
+    state = run(state, { type: 'toggleStagingFlag', flag: 'Triggered' }, { type: 'commit' })
+    expect(real(state)[0].flags).toEqual(['Attack'])
   })
 
   it('flags never consume schedule room or block placement — untouched by rule 1', () => {
     const state = run(
       start(),
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'setStagingFlag', flag: 'Attack' },
+      { type: 'toggleStagingFlag', flag: 'Attack' },
       { type: 'commit' },
     )
     expect(real(state)[0].durationMinutes).toBe(30) // unaffected by the flag

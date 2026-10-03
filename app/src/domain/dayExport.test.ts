@@ -87,7 +87,7 @@ describe('assembleDayExport', () => {
     expect(result.activities[0].pathLabel).toBe('Silent')
     expect(result.activities[1].quality).toEqual(['Flow'])
     expect(result.activities[1].symptoms).toEqual(['Dryness'])
-    expect(result.activities[1].flag).toBe('Anger')
+    expect(result.activities[1].flags).toEqual(['Anger'])
     expect(result.activities[1].notes).toBe('Felt good.')
     expect(result.activities[1].reflections).toEqual([{ card: 3, title: 'Card 3', note: 'System check-in.' }])
     expect(result.noteEntries).toHaveLength(1)

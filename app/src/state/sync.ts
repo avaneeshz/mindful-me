@@ -1,4 +1,5 @@
 import type { ScheduledActivity } from '@/domain/types'
+import { sameFlags } from '@/domain/scheduling'
 import type { BoardAction, BoardState } from './boardReducer'
 import {
   apiAddScheduledActivityReflection,
@@ -60,7 +61,7 @@ export function deriveSyncIntents(
         // means an edit that leaves flags untouched never fires a redundant
         // extra call.
         const prior = prevState.activities.find((a) => a.id === editingId)
-        const flagsChanged = (prior?.flags[0] ?? null) !== (activity.flags[0] ?? null)
+        const flagsChanged = !sameFlags(prior?.flags ?? [], activity.flags)
         return flagsChanged
           ? [{ kind: 'reschedule', activity }, { kind: 'flags', activity }]
           : [{ kind: 'reschedule', activity }]

@@ -23,7 +23,7 @@ const FULL_DATA: DayExportData = {
       durationLabel: '20m',
       quality: ['Flow'],
       symptoms: ['Dryness'],
-      flag: 'Anger',
+      flags: ['Anger'],
       notes: 'Felt centred.',
       reflections: [{ card: 3, title: 'Internal Systems', note: 'Check-in.' }],
     },

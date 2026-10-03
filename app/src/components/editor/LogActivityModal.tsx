@@ -37,7 +37,7 @@ export function LogActivityModal({
   onSetDuration,
   onMove,
   onResizeStart,
-  onSetFlag,
+  onToggleFlag,
   onToggleQuality,
   onToggleSymptom,
   onSetNotes,
@@ -58,7 +58,7 @@ export function LogActivityModal({
   onSetDuration: (minutes: number) => void
   onMove: (minutes: number) => void
   onResizeStart: (minutes: number) => void
-  onSetFlag: (flag: FlagId | null) => void
+  onToggleFlag: (flag: FlagId) => void
   onToggleQuality: (quality: ActivityQuality) => void
   onToggleSymptom: (symptom: Symptom) => void
   onSetNotes: (notes: string) => void
@@ -214,7 +214,7 @@ export function LogActivityModal({
 
             <QualityPicker selected={staging.quality} onToggle={onToggleQuality} options={qualityOptions} />
             <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} options={symptomOptions} />
-            <FlagPicker selected={staging.flag} onSelect={onSetFlag} options={flagOptions} />
+            <FlagPicker selected={staging.flags} onToggle={onToggleFlag} options={flagOptions} />
 
             {/* Notes — a real, always-visible field now (was the inert
                 "Deep log" stub). No expand/collapse, no separate heading —

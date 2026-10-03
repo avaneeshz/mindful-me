@@ -247,7 +247,7 @@ export function SlotEditor({
         onSetDuration={(minutes) => dispatch({ type: 'setDuration', minutes })}
         onMove={(minutes) => dispatch({ type: 'setStagingStart', minutes })}
         onResizeStart={(minutes) => dispatch({ type: 'resizeStagingStart', minutes })}
-        onSetFlag={(flag) => dispatch({ type: 'setStagingFlag', flag })}
+        onToggleFlag={(flag) => dispatch({ type: 'toggleStagingFlag', flag })}
         onToggleQuality={(quality) => dispatch({ type: 'toggleStagingQuality', quality })}
         onToggleSymptom={(symptom) => dispatch({ type: 'toggleStagingSymptom', symptom })}
         onSetNotes={(notes) => dispatch({ type: 'setStagingNotes', notes })}

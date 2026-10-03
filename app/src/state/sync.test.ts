@@ -71,7 +71,7 @@ describe('deriveSyncIntents', () => {
   it('a brand-new activity with a staged flag needs only ONE intent — flags ride along inside create', () => {
     let state = start()
     state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Attack' })
     const { next, intents } = step(state, { type: 'commit' })
 
     expect(intents).toHaveLength(1)
@@ -82,12 +82,13 @@ describe('deriveSyncIntents', () => {
   it('editing an activity to CHANGE its flag produces reschedule + flags, not reschedule alone', () => {
     let state = start()
     state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Attack' })
     state = boardReducer(state, { type: 'commit' })
     const id = state.activities[0].id
 
     state = boardReducer(state, { type: 'editActivity', id })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Triggered' })
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Attack' })
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Triggered' })
     const { intents, next } = step(state, { type: 'commit' })
 
     expect(intents).toEqual([
@@ -100,7 +101,7 @@ describe('deriveSyncIntents', () => {
   it('editing an activity WITHOUT touching its flag produces only reschedule — no redundant flags call', () => {
     let state = start()
     state = boardReducer(state, { type: 'pickCard', cardName: 'Homework' })
-    state = boardReducer(state, { type: 'setStagingFlag', flag: 'Attack' })
+    state = boardReducer(state, { type: 'toggleStagingFlag', flag: 'Attack' })
     state = boardReducer(state, { type: 'commit' })
     const id = state.activities[0].id
 
