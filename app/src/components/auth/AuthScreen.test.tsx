@@ -60,8 +60,8 @@ describe('AuthScreen (initial render)', () => {
     expect(html).not.toContain('role="alert"')
   })
 
-  it('offers Continue with Google as a real button', () => {
-    expect(html).toMatch(/<button[^>]*type="button"[^>]*>.*Continue with Google<\/button>/)
+  it('does not offer Continue with Google while the provider is parked', () => {
+    expect(html).not.toContain('Continue with Google')
   })
 
   it('offers the toggle to create an account instead', () => {
