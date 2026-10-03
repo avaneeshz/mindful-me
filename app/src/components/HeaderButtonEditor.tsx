@@ -12,9 +12,7 @@ import {
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
 import {
   addNoteField,
-  defaultNewFieldKind,
-  MAX_TEXT_FIELDS,
-  textFieldCount as countTextFields,
+  ACTIVITY_NOTES_HINT,
   toCreateInput,
   toUpdateInput,
   validateHeaderButtonDraft,
@@ -191,8 +189,6 @@ export function HeaderButtonFormDialog({
 
   const typeOptions = category === 'activity' && activityName ? firstLevelOptionNames(findCard(activityName)) : []
 
-  const textFieldCount = countTextFields(fields)
-
   // The form's rules live in `domain/headerButtonForm.ts`, shared with Lumen's editor.
   const draft: HeaderButtonDraft = {
     category,
@@ -208,7 +204,7 @@ export function HeaderButtonFormDialog({
   }
 
   function openAddField(): void {
-    setDraftKind(defaultNewFieldKind(fields))
+    setDraftKind('multiselect')
     setDraftLabel('')
     setDraftOptions([''])
     setFieldError(null)
@@ -389,6 +385,7 @@ export function HeaderButtonFormDialog({
                     generic, uncapped-for-multiselect list). */}
                 <div className="flex flex-col gap-sm">
                   <span className={labelClass}>Fields</span>
+                  <p className="text-caption text-ink-dim">{ACTIVITY_NOTES_HINT}</p>
 
                   {fields.length > 0 && (
                     <div className="flex flex-col gap-xs">
@@ -405,17 +402,19 @@ export function HeaderButtonFormDialog({
                           <div className="flex min-w-0 flex-1 flex-col">
                             <span className="truncate text-body font-medium text-ink">{field.label}</span>
                             <span className="text-caption text-ink-dim">
-                              {field.fieldKind === 'multiselect' ? 'Multiple choice' : 'Text note'}
+                              {field.fieldKind === 'multiselect' ? 'Multiple choice' : 'Text note · from the activity'}
                             </span>
                           </div>
-                          <button
-                            type="button"
-                            aria-label={`Remove ${field.label}`}
-                            onClick={() => removeField(index)}
-                            className="flex size-[24px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
-                          >
-                            <X aria-hidden="true" className="size-[12px]" />
-                          </button>
+                          {field.fieldKind === 'multiselect' && (
+                            <button
+                              type="button"
+                              aria-label={`Remove ${field.label}`}
+                              onClick={() => removeField(index)}
+                              className="flex size-[24px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
+                            >
+                              <X aria-hidden="true" className="size-[12px]" />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -428,46 +427,11 @@ export function HeaderButtonFormDialog({
                       className="flex items-center justify-center gap-xs rounded-md border border-dashed border-line px-md py-sm text-caption font-semibold text-ink-dim transition-colors hover:border-ink hover:text-ink"
                     >
                       <Plus aria-hidden="true" className="size-[14px]" />
-                      Add field
+                      Add multiple-choice field
                     </button>
                   ) : (
                     <div className="flex flex-col gap-sm rounded-md border border-line bg-bg p-md">
-                      <div role="radiogroup" aria-label="Field type" className="flex gap-sm">
-                        <Chip
-                          as="button"
-                          size="segment"
-                          tone={draftKind === 'text' ? 'active' : 'surface'}
-                          interactive={textFieldCount < MAX_TEXT_FIELDS}
-                          aria-disabled={textFieldCount >= MAX_TEXT_FIELDS}
-                          role="radio"
-                          aria-checked={draftKind === 'text'}
-                          onClick={() => textFieldCount < MAX_TEXT_FIELDS && setDraftKind('text')}
-                          className={cn(
-                            'flex-1 justify-center',
-                            textFieldCount >= MAX_TEXT_FIELDS && 'pointer-events-none opacity-40',
-                          )}
-                        >
-                          Text note
-                        </Chip>
-                        <Chip
-                          as="button"
-                          size="segment"
-                          tone={draftKind === 'multiselect' ? 'active' : 'surface'}
-                          interactive
-                          role="radio"
-                          aria-checked={draftKind === 'multiselect'}
-                          onClick={() => setDraftKind('multiselect')}
-                          className="flex-1 justify-center"
-                        >
-                          Multiple choice
-                        </Chip>
-                      </div>
-                      {textFieldCount >= MAX_TEXT_FIELDS && draftKind !== 'text' && (
-                        <p className="text-caption text-ink-dim">
-                          Text notes are limited to {MAX_TEXT_FIELDS} per button.
-                        </p>
-                      )}
-
+                      <span className="text-body font-semibold text-ink">New multiple-choice field</span>
                       <div className="flex flex-col gap-xs">
                         <label htmlFor="field-title" className={labelClass}>
                           Title

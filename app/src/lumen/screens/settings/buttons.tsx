@@ -3,10 +3,8 @@ import { useState } from 'react'
 import { catalogIdForName } from '@/api/catalog'
 import {
   addNoteField,
-  defaultNewFieldKind,
+  ACTIVITY_NOTES_HINT,
   draftFromButton,
-  MAX_TEXT_FIELDS,
-  textFieldCount,
   toCreateInput,
   toUpdateInput,
   validateHeaderButtonDraft,
@@ -164,7 +162,6 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
   }
 
   const category = draft.category
-  const atTextMax = textFieldCount(draft.fields) >= MAX_TEXT_FIELDS
 
   return (
     <Sheet
@@ -247,7 +244,8 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
             )}
 
             <div>
-              <p className="mb-2 text-xs font-medium text-ink-muted">Note fields</p>
+              <p className="mb-1 text-xs font-medium text-ink-muted">Note fields</p>
+              <p className="mb-2 text-xs text-ink-faint">{ACTIVITY_NOTES_HINT}</p>
               <ul className="flex flex-col gap-1.5">
                 {draft.fields.length === 0 && <li className="text-sm text-ink-faint">None.</li>}
                 {draft.fields.map((f, i) => (
@@ -255,27 +253,19 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
                     {f.fieldKind === 'text' ? <AlignLeft className="h-4 w-4 text-ink-muted" /> : <ListChecks className="h-4 w-4 text-ink-muted" />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-ink">{f.label}</span>
-                      <span className="block truncate text-xs text-ink-faint">{f.fieldKind === 'text' ? 'Text' : f.options.join(', ')}</span>
+                      <span className="block truncate text-xs text-ink-faint">{f.fieldKind === 'text' ? 'Text · from the activity' : f.options.join(', ')}</span>
                     </span>
-                    <Button variant="ghost" size="icon" aria-label={`Remove ${f.label}`} onClick={() => set({ fields: draft.fields.filter((_, j) => j !== i) })}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {f.fieldKind === 'multiselect' && (
+                      <Button variant="ghost" size="icon" aria-label={`Remove ${f.label}`} onClick={() => set({ fields: draft.fields.filter((_, j) => j !== i) })}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>
 
               {fieldForm ? (
                 <div className="mt-2 flex flex-col gap-3 rounded-tile border border-line/[0.09] bg-surface-2/40 p-3">
-                  <Segmented<'text' | 'multiselect'>
-                    label="Field kind"
-                    layoutId="field-kind"
-                    value={fieldForm.kind}
-                    onChange={(kind) => setFieldForm({ ...fieldForm, kind })}
-                    options={[
-                      { value: 'text', label: 'Text', disabled: atTextMax },
-                      { value: 'multiselect', label: 'Choices' },
-                    ]}
-                  />
                   <input
                     className={inputClass}
                     placeholder="Field title"
@@ -327,10 +317,10 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
                 <Button
                   variant="ghost"
                   className="mt-1 h-10 px-2 text-accent-ink"
-                  onClick={() => setFieldForm({ kind: defaultNewFieldKind(draft.fields), label: '', options: [''], error: null })}
+                  onClick={() => setFieldForm({ kind: 'multiselect', label: '', options: [''], error: null })}
                 >
                   <Plus className="h-4 w-4" />
-                  Add a note field
+                  Add a multiple-choice field
                 </Button>
               )}
             </div>

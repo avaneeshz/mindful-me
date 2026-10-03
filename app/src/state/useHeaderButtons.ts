@@ -252,7 +252,9 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   // Editing a button's note fields edits the ACTIVITY's, so the two can never drift.
   const syncNotesToActivity = useCallback(
     (button: HeaderButtonConfig | undefined, fields: HeaderButtonNoteFieldInput[] | null | undefined) => {
-      if (!button || button.category !== 'activity' || !fields || !setActivityNoteLabels) return
+      if (!button || button.category !== 'activity' || !setActivityNoteLabels) return
+      // Only a form that carries the text notes may rewrite the activity's titles.
+      if (!fields?.some((f) => f.fieldKind === 'text')) return
       const row = rowFor(button)
       if (!row) return
       const next = noteLabelsFromFields(fields)

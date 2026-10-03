@@ -165,3 +165,7 @@ export function toCreateInput(draft: HeaderButtonDraft, activityId: string | nul
     checklistItems: category === 'checklist' ? lines(draft.checklistItemsText).map((label) => ({ label })) : [],
   }
 }
+
+/** Shown wherever a button form lists fields: text notes live on the activity, not the button. */
+export const ACTIVITY_NOTES_HINT =
+  'Written notes come from the activity itself, so the tile and this button always match. Rename them or add a second one in the activity’s editor.'
