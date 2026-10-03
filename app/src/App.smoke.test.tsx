@@ -26,12 +26,17 @@ function render(now: Date = AT_10_15AM): string {
   )
 }
 
+/** Visible text of the page's <h1> (the dotted "o" is split across spans). */
+function headingText(markup: string): string {
+  const h1 = markup.match(/<h1[^>]*>(.*?)<\/h1>/)?.[1] ?? ''
+  return h1.replace(/<[^>]+>/g, '')
+}
+
 describe('Today screen', () => {
   const html = render()
 
-  it('uses "Consort" as the primary heading (renamed from "30-Minute Slotting")', () => {
-    expect(html).toContain('Consort')
-    expect(html).toMatch(/<h1[^>]*>Consort<\/h1>/)
+  it('uses "Council" as the primary heading (renamed from "30-Minute Slotting")', () => {
+    expect(headingText(html)).toBe('Council')
     expect(html).not.toContain('30-Minute Slotting')
   })
 
@@ -193,7 +198,7 @@ describe('rendering is independent of the wall clock', () => {
   it('renders the same structure at every slot of the day', () => {
     for (const now of everyHalfHour) {
       const at = render(now)
-      expect(at).toMatch(/<h1[^>]*>Consort<\/h1>/)
+      expect(headingText(at)).toBe('Council')
       expect(at.match(/>NOW</g) ?? []).toHaveLength(1)
       expect(at.match(/data-slot="\d+"/g) ?? []).toHaveLength(48)
     }

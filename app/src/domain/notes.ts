@@ -115,7 +115,10 @@ export function noteButtonLabel(key: NoteButtonKey): string {
 
 /** The type values this button offers, or `null` if it has no type selector. */
 export function noteButtonTypes(buttonKey: NoteButtonKey): readonly string[] | null {
-  return (typeRegistry ?? NOTE_BUTTON_TYPES)[buttonKey] ?? null
+  const types = (typeRegistry ?? NOTE_BUTTON_TYPES)[buttonKey]
+  // A dynamic button with no configured types comes through as `[]` — that
+  // means "no selector", exactly like an absent key, never "type required".
+  return types && types.length > 0 ? types : null
 }
 
 /** Whether this button requires a type to be chosen before Store is allowed. */
