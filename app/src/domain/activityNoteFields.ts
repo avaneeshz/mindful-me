@@ -30,8 +30,15 @@ export function resolveNoteFields(
   own: OwnLabels | null | undefined,
   buttonFields: readonly ButtonField[] = [],
 ): NoteFields {
+  // An activity row that carries note titles at all (even both null) is the
+  // single source of truth: its header button is only ever a view of it, so
+  // "no second note" must stay "no second note" and never fall back to
+  // whatever the button used to hold. Only a row that has never been told
+  // about note titles (local-only preview data, `undefined`) borrows them
+  // from the button's own configured text fields.
+  const authoritative = own != null && (own.noteLabel !== undefined || own.secondNoteLabel !== undefined)
   const fromButton = (key: 'primary' | 'secondary') =>
-    buttonFields.find((f) => f.fieldKind === 'text' && f.key === key)?.label ?? null
+    authoritative ? null : (buttonFields.find((f) => f.fieldKind === 'text' && f.key === key)?.label ?? null)
   return {
     primaryLabel: own?.noteLabel?.trim() || fromButton('primary'),
     secondaryLabel: own?.secondNoteLabel?.trim() || fromButton('secondary'),

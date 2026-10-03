@@ -36,16 +36,15 @@ describe('HeaderButtonFormDialog — add mode', () => {
     expect(html).toContain('role="dialog"')
     expect(html).toContain('Kind of button')
     expect(html).toContain('Fields')
-    expect(html).toContain('Add field')
+    expect(html).toContain('Add multiple-choice field')
   })
 
   it('shows the dashed "+ Add field" affordance, not the inline expand panel, by default', () => {
     const html = renderAdd()
     expect(html).toContain('border-dashed')
-    expect(html).toContain('Add field')
-    // The inline panel's own controls are absent until "Add field" is clicked.
-    expect(html).not.toContain('Field type')
-    expect(html).not.toContain('Multiple choice')
+    expect(html).toContain('Add multiple-choice field')
+    // The inline panel's own controls are absent until "Add multiple-choice field" is clicked.
+    expect(html).not.toContain('New multiple-choice field')
     expect(html).not.toContain('id="field-title"')
   })
 
@@ -72,17 +71,22 @@ describe('HeaderButtonFormDialog — edit mode, Sleep (2 text fields + 1 multise
     expect(html.match(/Multiple choice/g)?.length).toBe(1)
   })
 
-  it('gives every field row a labeled remove affordance', () => {
+  it('lets the button remove only its own multiple-choice field — text notes belong to the activity', () => {
     const html = renderEdit()
-    expect(html).toContain('aria-label="Remove Note"')
-    expect(html).toContain('aria-label="Remove Dreams"')
+    expect(html).not.toContain('aria-label="Remove Note"')
+    expect(html).not.toContain('aria-label="Remove Dreams"')
     expect(html).toContain('aria-label="Remove How was your sleep?"')
+    expect(html).toContain('Text note · from the activity')
+  })
+
+  it('explains that written notes are managed on the activity', () => {
+    expect(renderEdit()).toContain('Written notes come from the activity itself')
   })
 
   it('still shows the dashed "+ Add field" row below the configured list', () => {
     const html = renderEdit()
     expect(html).toContain('border-dashed')
-    expect(html).toContain('Add field')
+    expect(html).toContain('Add multiple-choice field')
   })
 })
 
@@ -92,7 +96,7 @@ describe('HeaderButtonFormDialog — edit mode, Vipassana (no configured fields)
     expect(html).toContain('Fields')
     expect(html).not.toContain('Text note')
     expect(html).not.toContain('Multiple choice')
-    expect(html).toContain('Add field')
+    expect(html).toContain('Add multiple-choice field')
   })
 })
 

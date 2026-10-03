@@ -25,6 +25,7 @@
  * a provisioned button is identical to doing the same to one the user
  * added by hand — no special-casing by origin, anywhere.
  */
+import { resolveNoteFields } from '@/domain/activityNoteFields'
 import { GIFT_TYPES, LEARNING_TYPES } from '@/domain/notes'
 import { SUPPLEMENT_ITEMS } from '@/domain/supplements'
 
@@ -429,4 +430,38 @@ export function toDisplayButtonLike(config: HeaderButtonConfig): {
     synced: isDayValue,
     target: config.dayValueTarget ?? undefined,
   }
+}
+
+/**
+ * The activity row is the single source of truth for an activity's note
+ * titles (`domain/activityNoteFields.ts`); an activity-category header
+ * button is only a view of it. This returns the button with its text note
+ * fields replaced by the activity's — so the quick-log popover shows exactly
+ * the notes the tile route shows — while multiselect fields stay the
+ * button's own.
+ */
+export function withActivityNotes(
+  button: HeaderButtonConfig,
+  own: { noteLabel?: string | null; secondNoteLabel?: string | null } | null | undefined,
+): HeaderButtonConfig {
+  if (button.category !== 'activity') return button
+  const resolved = resolveNoteFields(own, button.noteFields)
+  const existing = (key: 'primary' | 'secondary') =>
+    button.noteFields.find((f) => f.fieldKind === 'text' && f.key === key)
+  const texts: HeaderButtonNoteField[] = [
+    { id: existing('primary')?.id ?? `${button.id}:note-primary`, fieldKind: 'text', key: 'primary', label: resolved.primaryLabel ?? 'Note', options: [] },
+  ]
+  if (resolved.secondaryLabel) {
+    texts.push({ id: existing('secondary')?.id ?? `${button.id}:note-secondary`, fieldKind: 'text', key: 'secondary', label: resolved.secondaryLabel, options: [] })
+  }
+  return { ...button, noteFields: [...texts, ...button.noteFields.filter((f) => f.fieldKind !== 'text')] }
+}
+
+/** The activity-level note titles a header-button form's text fields describe. */
+export function noteLabelsFromFields(fields: readonly { fieldKind: string; key?: string | null; label: string }[]): {
+  first: string | null
+  second: string | null
+} {
+  const label = (key: 'primary' | 'secondary') => fields.find((f) => f.fieldKind === 'text' && f.key === key)?.label.trim() || null
+  return { first: label('primary'), second: label('secondary') }
 }

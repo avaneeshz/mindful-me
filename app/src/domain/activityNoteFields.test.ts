@@ -19,10 +19,15 @@ describe('resolveNoteFields', () => {
     })
   })
 
-  it('falls back to the header button’s text fields', () => {
+  it('borrows the header button’s text fields only for a row that has no note titles at all', () => {
+    expect(resolveNoteFields({}, sleepFields)).toEqual({ primaryLabel: 'Note', secondaryLabel: 'Dreams' })
+    expect(resolveNoteFields(null, sleepFields)).toEqual({ primaryLabel: 'Note', secondaryLabel: 'Dreams' })
+  })
+
+  it('treats a saved row as authoritative: no second note stays none, whatever the button holds', () => {
     expect(resolveNoteFields({ noteLabel: null, secondNoteLabel: null }, sleepFields)).toEqual({
-      primaryLabel: 'Note',
-      secondaryLabel: 'Dreams',
+      primaryLabel: null,
+      secondaryLabel: null,
     })
   })
 
