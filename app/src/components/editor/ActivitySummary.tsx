@@ -1,7 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
+import { useState } from 'react'
 import { Activity, AlertTriangle, CloudUpload, HeartPulse, Pencil, Shield, X } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
+import { displayButtonForActivityName } from '@/domain/displayButtons'
 import { formatActivityRange } from '@/domain/slots'
 import type { ScheduledActivity } from '@/domain/types'
 import { Button } from '@/components/ui/button'
@@ -50,6 +52,13 @@ export function ActivitySummary({
   const card = activity.name ? findCard(activity.name) : undefined
   const category = activity.name ? categoryOf(activity.name) : undefined
   const isCompleted = activity.status === 'completed'
+  // The second freeform note's label comes from the same configured button
+  // `LogActivityModal` reads it from, so the field is named identically when
+  // written and when read back (Sleep's "Dreams" by default).
+  const secondaryNoteLabel =
+    (activity.name ? displayButtonForActivityName(activity.name)?.noteFields ?? [] : []).find(
+      (field) => field.fieldKind === 'text' && field.key === 'secondary',
+    )?.label ?? 'Dreams'
 
   return (
     <div>
@@ -121,12 +130,8 @@ export function ActivitySummary({
             <SignalGroup icon={Shield} label="Protective Response" values={activity.flags} />
           </div>
 
-          {activity.notes && (
-            <div>
-              <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">Notes</p>
-              <p className="mt-xs whitespace-pre-wrap text-note text-ink">{activity.notes}</p>
-            </div>
-          )}
+          {activity.notes && <NoteBlock label="Notes" text={activity.notes} />}
+          {activity.dreamsNote && <NoteBlock label={secondaryNoteLabel} text={activity.dreamsNote} />}
         </div>
 
         <div className="md:border-l md:border-line md:pl-2xl">
@@ -180,6 +185,45 @@ function SignalGroup({
       <p className={cn('mt-xs text-note', values.length > 0 ? 'text-ink' : 'text-ink-dim')}>
         {values.length > 0 ? values.join(', ') : '—'}
       </p>
+    </div>
+  )
+}
+
+/** Longer than this (or more than this many lines) and a note collapses to a clamped preview. */
+const NOTE_PREVIEW_CHARS = 140
+const NOTE_PREVIEW_LINES = 3
+
+/**
+ * One freeform note — shown in full when short, otherwise clamped to a few
+ * lines with a trailing "…" control that expands it in place (and "Show less"
+ * to collapse again). Tap-driven, so it works the same on touch as on desktop.
+ */
+function NoteBlock({ label, text }: { label: string; text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = text.length > NOTE_PREVIEW_CHARS || text.split('\n').length > NOTE_PREVIEW_LINES
+
+  return (
+    <div className="min-w-0">
+      <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">{label}</p>
+      <p
+        className={cn(
+          'mt-xs whitespace-pre-wrap break-words text-note text-ink',
+          isLong && !expanded && 'line-clamp-3',
+        )}
+      >
+        {text}
+      </p>
+      {isLong && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={expanded ? `Show less of ${label}` : `Show full ${label}`}
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-xs rounded-sm text-note font-medium text-ink-dim transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        >
+          {expanded ? 'Show less' : '…'}
+        </button>
+      )}
     </div>
   )
 }
