@@ -13,6 +13,7 @@ import { isStagingComplete, type BoardAction, type BoardState } from '@/state/bo
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
 import { useCatalogActivityId } from '@/state/useCatalogActivityId'
+import { useActivityNoteFields } from '@/state/useActivityNoteFields'
 import { useEffectiveParameterOptions } from '@/state/useEffectiveParameterOptions'
 import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
@@ -145,6 +146,7 @@ export function SlotEditor({
   // multi-key cache, which felt like more machinery than that round's scope
   // justified.
   const stagedActivityId = useCatalogActivityId(staging.cardName)
+  const noteFields = useActivityNoteFields(staging.cardName)
   const parameterOptions = useEffectiveParameterOptions(stagedActivityId)
   const qualityOptions =
     parameterOptions.status === 'ready' ? parameterOptions.effective.quality.map((o) => o.label) : undefined
@@ -258,6 +260,7 @@ export function SlotEditor({
         qualityOptions={qualityOptions}
         symptomOptions={symptomOptions}
         flagOptions={flagOptions}
+        noteFields={noteFields}
       />
     </section>
 

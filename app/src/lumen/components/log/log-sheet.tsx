@@ -6,6 +6,7 @@ import { displayButtonForActivityName, songCountToMinutes, WORSHIP_MINUTES_PER_S
 import { maxContiguousDuration } from '@/domain/scheduling'
 import type { ActivityCard, FieldSelections } from '@/domain/types'
 import { useCatalogActivityId } from '@/state/useCatalogActivityId'
+import { useActivityNoteFields } from '@/state/useActivityNoteFields'
 import { useEffectiveParameterOptions } from '@/state/useEffectiveParameterOptions'
 import { Button } from '@/lumen/components/ui/button'
 import { ChoiceChips, IconBubble } from '@/lumen/components/ui/primitives'
@@ -157,7 +158,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
 
   // Configured note fields for this activity (e.g. Sleep's "Dreams"), from its header button.
   const configured = draft?.cardName ? displayButtonForActivityName(draft.cardName) : undefined
-  const secondaryNoteLabel = configured?.noteFields?.find((f) => f.fieldKind === 'text' && f.key === 'secondary')?.label
+  const { primaryLabel, secondaryLabel: secondaryNoteLabel } = useActivityNoteFields(draft?.cardName ?? null)
   const multiselectFields = (configured?.noteFields ?? []).filter((f) => f.fieldKind === 'multiselect')
   // Counted in songs (Worship): the duration is songs × minutes-per-song.
   const bySongs = configured?.input === 'songCount'
@@ -480,7 +481,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
                     }
                   />
                 ))}
-                <TextArea label="Notes" value={draft.notes} onChange={(notes) => set({ notes })} />
+                <TextArea label={primaryLabel ?? 'Notes'} value={draft.notes} onChange={(notes) => set({ notes })} />
                 {secondaryNoteLabel && (
                   <TextArea label={secondaryNoteLabel} value={draft.dreamsNote} onChange={(dreamsNote) => set({ dreamsNote })} />
                 )}

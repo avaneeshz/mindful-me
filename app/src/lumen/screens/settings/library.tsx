@@ -1,5 +1,6 @@
-import { ArrowDown, ArrowUp, ChevronDown, EyeOff, Palette, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, EyeOff, Palette, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { MAX_NOTE_LABEL_LENGTH } from '@/domain/activityNoteFields'
 import { buildActivityTree, type ActivityNode, type ActivityRow } from '@/domain/pickerHierarchy'
 import { resolveIcon } from '@/lib/iconRegistry'
 import { supabaseConfigured } from '@/lib/supabaseClient'
@@ -283,6 +284,12 @@ function NodeLevel({
         />
       )}
 
+      {level.kind === 'activity' && self && (
+        <ActivityNotes
+          activity={self}
+          onChange={(first, second) => activitiesResult.setActivityNoteLabels(self.id, first, second)}
+        />
+      )}
       {level.kind === 'activity' && self && <ActivityOptions activity={self} />}
 
       <NameSheet
@@ -306,6 +313,60 @@ function NodeLevel({
         onClose={() => setDeleting(null)}
       />
     </SettingsPage>
+  )
+}
+
+/** The activity's own note fields: title the first note, add or remove a second. Mirrors Classic's `NoteFieldsPanel`. */
+function ActivityNotes({
+  activity,
+  onChange,
+}: {
+  activity: ActivityRow
+  onChange: (first: string | null, second: string | null) => void
+}) {
+  const first = activity.noteLabel ?? null
+  const second = activity.secondNoteLabel ?? null
+  const [naming, setNaming] = useState<'first' | 'second' | null>(null)
+  return (
+    <Group title="Notes">
+      <EditRow
+        label={first ?? 'Notes'}
+        hint={first === null ? 'Default title' : undefined}
+        menu={(close) => (
+          <>
+            <MenuItem icon={Pencil} onSelect={() => { close(); setNaming('first') }}>Rename</MenuItem>
+            {first !== null && (
+              <MenuItem icon={RotateCcw} onSelect={() => { close(); onChange(null, second) }}>Use default title</MenuItem>
+            )}
+          </>
+        )}
+      />
+      {second !== null ? (
+        <EditRow
+          label={second}
+          menu={(close) => (
+            <>
+              <MenuItem icon={Pencil} onSelect={() => { close(); setNaming('second') }}>Rename</MenuItem>
+              <MenuItem icon={Trash2} tone="danger" onSelect={() => { close(); onChange(first, null) }}>Remove</MenuItem>
+            </>
+          )}
+        />
+      ) : (
+        <AddRow label="Add a second note" onClick={() => setNaming('second')} />
+      )}
+      <NameSheet
+        open={naming !== null}
+        title={naming === 'first' ? 'Title this note' : second === null ? 'Add a second note' : 'Rename note'}
+        initialName={(naming === 'first' ? first : second) ?? ''}
+        saveLabel={naming === 'second' && second === null ? 'Add' : 'Save'}
+        onSave={(name) => {
+          const title = name.slice(0, MAX_NOTE_LABEL_LENGTH)
+          if (naming === 'first') onChange(title, second)
+          else onChange(first, title)
+        }}
+        onClose={() => setNaming(null)}
+      />
+    </Group>
   )
 }
 

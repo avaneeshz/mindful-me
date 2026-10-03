@@ -6,6 +6,7 @@ import {
   apiProvisionDefaultActivities,
   apiReorderActivities,
   apiSetActivityColor,
+  apiSetActivityNoteLabels,
   apiSetActivityHidden,
   apiUpdateActivity,
 } from '@/api/activityHierarchy'
@@ -24,6 +25,8 @@ export interface UseActivityHierarchyResult {
   renameActivity: (id: string, name: string) => void
   /** `null` clears the activity's own colour so it inherits again. */
   setActivityColor: (id: string, color: string | null) => void
+  /** Titles this activity's own notes; `second` null removes the second note. */
+  setActivityNoteLabels: (id: string, first: string | null, second: string | null) => void
   hideActivity: (id: string) => void
   unhideActivity: (id: string) => void
   reorder: (orderedIds: string[]) => void
@@ -258,6 +261,15 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     }
   }, [])
 
+  const setActivityNoteLabels = useCallback((id: string, first: string | null, second: string | null): void => {
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, noteLabel: first, secondNoteLabel: second } : a)))
+    if (supabaseConfigured) {
+      void apiSetActivityNoteLabels(id, first, second).then((ok) => {
+        if (!ok) setError('Saved on this device — will sync once you’re back online.')
+      })
+    }
+  }, [])
+
   const setHidden = useCallback((id: string, hidden: boolean): void => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, hidden } : a)))
     if (supabaseConfigured) {
@@ -300,5 +312,5 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     [removeSubtreeLocally],
   )
 
-  return { activities, status, error, addActivity, renameActivity, setActivityColor, hideActivity, unhideActivity, reorder, deleteActivity }
+  return { activities, status, error, addActivity, renameActivity, setActivityColor, setActivityNoteLabels, hideActivity, unhideActivity, reorder, deleteActivity }
 }
