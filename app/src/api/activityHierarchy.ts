@@ -12,6 +12,8 @@ interface ActivityRowDb {
   disappear_mode: 'manual' | 'auto'
   disappear_limit: number | null
   color?: string | null
+  note_label?: string | null
+  second_note_label?: string | null
 }
 
 function fromRow(row: ActivityRowDb): ActivityRow {
@@ -26,6 +28,8 @@ function fromRow(row: ActivityRowDb): ActivityRow {
     disappearMode: row.disappear_mode,
     disappearLimit: row.disappear_limit,
     color: row.color ?? null,
+    noteLabel: row.note_label ?? null,
+    secondNoteLabel: row.second_note_label ?? null,
   }
 }
 
@@ -173,4 +177,20 @@ export async function apiDeleteActivity(
     return { ok: false, reason: 'unreachable' }
   }
   return { ok: true }
+}
+
+/** Titles the activity's own notes; `second` null means no second note. */
+export async function apiSetActivityNoteLabels(id: string, first: string | null, second: string | null): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('set_activity_note_labels', {
+    p_id: id,
+    p_note_label: first,
+    p_second_note_label: second,
+  })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[activityHierarchy] set_activity_note_labels failed — kept locally, will retry on next load', error.message)
+    return false
+  }
+  return true
 }

@@ -3,11 +3,11 @@ import { useState } from 'react'
 import { Activity, AlertTriangle, CloudUpload, HeartPulse, Pencil, Shield, X } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
-import { displayButtonForActivityName } from '@/domain/displayButtons'
 import { formatActivityRange } from '@/domain/slots'
 import type { ScheduledActivity } from '@/domain/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useActivityNoteFields } from '@/state/useActivityNoteFields'
 import { CategoryIconChip } from './CategoryIconChip'
 
 /**
@@ -52,13 +52,13 @@ export function ActivitySummary({
   const card = activity.name ? findCard(activity.name) : undefined
   const category = activity.name ? categoryOf(activity.name) : undefined
   const isCompleted = activity.status === 'completed'
-  // The second freeform note's label comes from the same configured button
-  // `LogActivityModal` reads it from, so the field is named identically when
-  // written and when read back (Sleep's "Dreams" by default).
-  const secondaryNoteLabel =
-    (activity.name ? displayButtonForActivityName(activity.name)?.noteFields ?? [] : []).find(
-      (field) => field.fieldKind === 'text' && field.key === 'secondary',
-    )?.label ?? 'Dreams'
+  // The notes are titled by the same source `LogActivityModal` reads (the
+  // activity's own titles, else its header button), so a field is named
+  // identically when written and when read back. A second note whose field
+  // was later removed keeps its text, under the old default "Dreams".
+  const noteFields = useActivityNoteFields(activity.name ?? null)
+  const primaryNoteLabel = noteFields.primaryLabel ?? 'Notes'
+  const secondaryNoteLabel = noteFields.secondaryLabel ?? 'Dreams'
 
   return (
     <div>
@@ -130,7 +130,7 @@ export function ActivitySummary({
             <SignalGroup icon={Shield} label="Protective Response" values={activity.flags} />
           </div>
 
-          {activity.notes && <NoteBlock label="Notes" text={activity.notes} />}
+          {activity.notes && <NoteBlock label={primaryNoteLabel} text={activity.notes} />}
           {activity.dreamsNote && <NoteBlock label={secondaryNoteLabel} text={activity.dreamsNote} />}
         </div>
 

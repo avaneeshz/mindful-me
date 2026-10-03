@@ -34,6 +34,9 @@ export interface ActivityRow {
   disappearLimit: number | null
   /** User-chosen `#rrggbb`, or null/absent to inherit (see `domain/colors.ts`). */
   color?: string | null
+  /** This activity's own note titles (see `domain/activityNoteFields.ts`); null/absent = not customized. */
+  noteLabel?: string | null
+  secondNoteLabel?: string | null
 }
 
 export interface ActivityNode extends ActivityRow {
