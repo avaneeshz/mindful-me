@@ -1393,3 +1393,24 @@ describe('quickLogActivity — Exercise/Sleep (path/type), and notes/fieldSelect
     assertNoOverlaps(state, 'Night sleep + Nap')
   })
 })
+
+describe('notes persistence parity — quick-log button vs tile + modal', () => {
+  it('stores notes and the secondary (Dreams) note identically on both paths', () => {
+    const quick = boardReducer(start(), {
+      type: 'quickLogActivity',
+      cardName: 'Homework',
+      startMinutes: 0,
+      durationMinutes: 60,
+      notes: 'Slept well',
+      dreamsNote: 'A dream',
+    })
+    const viaTile = [
+      { type: 'pickCard', cardName: 'Homework' } as const,
+      { type: 'setStagingNotes', notes: 'Slept well' } as const,
+      { type: 'setStagingDreamsNote', note: 'A dream' } as const,
+      { type: 'commit' } as const,
+    ].reduce(boardReducer, start())
+    expect(real(quick)[0]).toMatchObject({ notes: 'Slept well', dreamsNote: 'A dream' })
+    expect(real(viaTile)[0]).toMatchObject({ notes: 'Slept well', dreamsNote: 'A dream' })
+  })
+})
