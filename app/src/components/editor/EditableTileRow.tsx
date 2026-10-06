@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Loader2, Pencil, Plus, X } from 'lucide-react'
 import { EditOverlay } from '@/components/editor/EditOverlay'
 import { TileEditPanel } from '@/components/editor/TileEditPanel'
 import { TileForm } from '@/components/editor/TileForm'
 import { resolveIcon } from '@/lib/iconRegistry'
 import { colorTintStyle } from '@/components/ui/colorStyles'
 import { usePickerData } from '@/state/PickerDataContext'
+import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import type { TileDto } from '@/api/tiles'
 import { cn } from '@/lib/utils'
 
@@ -17,31 +17,17 @@ const NEW_TILE = 'new'
  * everyday row, but each tile carries a pencil and a cross, and opening one
  * shows its editor as a popover (sheet on a phone) instead of the old
  * full-screen dialog. Nothing about logging happens here: tapping a tile
- * edits it. The cross hides a tile; hidden tiles wait below with Restore.
+ * edits it. The cross hides a tile; hidden tiles are restored from
+ * Settings → Hidden items.
  * Works entirely through `usePickerData` (the hooks), never the API.
  */
 export function EditableTileRow() {
   const { tiles: tilesResult, activities } = usePickerData()
   const [openId, setOpenId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const ordered = [...tilesResult.tiles].sort((a, b) => a.sortOrder - b.sortOrder)
   const visible = ordered.filter((t) => !t.hidden)
   const hidden = ordered.filter((t) => t.hidden)
-
-  async function deleteTile(tile: TileDto) {
-    setDeleteError(null)
-    const result = await tilesResult.deleteTile(tile.id)
-    setConfirmDeleteId(null)
-    if (!result.ok) {
-      setDeleteError(
-        result.reason === 'has_history'
-          ? `“${tile.label}” has logged history, so it stays hidden instead of being deleted.`
-          : 'Could not delete right now. Try again once you’re back online.',
-      )
-    }
-  }
 
   return (
     <div className="flex flex-col gap-lg">
@@ -101,52 +87,7 @@ export function EditableTileRow() {
         <p className="text-caption text-ink-dim">No tiles yet. Add your first one.</p>
       )}
 
-      {hidden.length > 0 && (
-        <section aria-label="Hidden tiles" className="flex flex-col gap-sm rounded-md border border-dashed border-line p-md">
-          <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Hidden tiles</h4>
-          <ul className="flex flex-col gap-xs">
-            {hidden.map((tile) => {
-              const Icon = resolveIcon(tile.iconKey)
-              return (
-                <li key={tile.id} className="flex items-center gap-sm">
-                  <Icon aria-hidden="true" className="size-[16px] shrink-0 text-ink-dim" />
-                  <span className="min-w-0 flex-1 truncate text-body text-ink-dim">{tile.label}</span>
-                  {confirmDeleteId === tile.id ? (
-                    <>
-                      <span className="text-caption text-ink-dim">Delete for good?</span>
-                      <Button variant="destructive" size="inline" onClick={() => void deleteTile(tile)}>
-                        Delete
-                      </Button>
-                      <Button variant="accent" size="inline" onClick={() => setConfirmDeleteId(null)}>
-                        Keep
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="accent" size="inline" onClick={() => tilesResult.unhideTile(tile.id)}>
-                        Restore
-                      </Button>
-                      <button
-                        type="button"
-                        aria-label={`Delete ${tile.label} permanently`}
-                        onClick={() => setConfirmDeleteId(tile.id)}
-                        className="flex size-[32px] items-center justify-center rounded-md text-ink-dim hover:bg-surface-2 hover:text-ink"
-                      >
-                        <Trash2 aria-hidden="true" className="size-[14px]" />
-                      </button>
-                    </>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-          {deleteError && (
-            <p role="alert" className="text-caption text-ink-dim">
-              {deleteError}
-            </p>
-          )}
-        </section>
-      )}
+      <HiddenInSettingsLink count={hidden.length} noun="tile" />
     </div>
   )
 }

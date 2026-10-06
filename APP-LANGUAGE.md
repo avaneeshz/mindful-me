@@ -23,6 +23,7 @@ The words product, engineering and users all use for the parts of mindful-me (Cl
 | **Calendar** | Month view for jumping to any day. Each date shows Indian festivals and holidays, and your Important days, by name. The panel under the grid lists the focused date's names in full. | `components/DatePicker.tsx`, `CalendarDayDetails.tsx`, `state/useCalendarMarkers.ts` |
 | **Festival / holiday** | An Indian national holiday or a festival of any major faith. Observance days (e.g. Teachers' Day) are not shown. | Edge function `india-holidays` (Google "Holidays in India" calendar) |
 | **Important day** | A date you add yourself (birthday, anniversary). Repeats every year and syncs to your account. | Table `important_days` |
+| **Day off** | Marks the viewed day as a day off, with an optional reason. Shown as a small dot on that date in the Calendar. Locked in Edit mode. | `DayOffControl.tsx`, `state/useDayOffs.ts` |
 | **Download day** | Exports the viewed day as a PDF. | `DownloadDayButton.tsx` |
 | **Sync status** | Shows whether everything has reached the server, with Retry. | `SyncStatusPill.tsx` |
 | **Edit / Done** | Turns Edit mode on and off. | `EditModeToggle` in `HeaderButtonEditor.tsx` |
@@ -84,7 +85,7 @@ They come in three groups, always in this order. A button can only be moved with
 
 | Name | What it means |
 |---|---|
-| **Edit mode** | Turned on with **Edit** in the Header. Each section shows its name and a one-line description. You can edit Non-Negotiable Buttons and Tile/Activities. Nothing can be logged: the Timeline, Sun/Moon, State Tiles, Slot Details actions and Non-Negotiable Buttons are locked, and a tap shows "Finish editing to log". |
+| **Edit mode** | Turned on with **Edit** in the Header. Each section shows its name and a one-line description. You can edit Non-Negotiable Buttons and Tile/Activities. Nothing can be logged: the Timeline, Sun/Moon, State Tiles, Slot Details actions, Non-Negotiable Buttons and Day off are locked, and a tap shows "Finish editing to log". |
 | **Viewed day** | The date the screen is showing. Usually today; change it with the Calendar. |
 | **Local-only mode** | No account or server configured. Everything stays on this device. Uploaded icons and Important days need an account. |
 | **Classic / Lumen** | The two interfaces. Everything in this file describes Classic. |

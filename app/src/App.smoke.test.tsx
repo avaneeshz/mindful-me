@@ -35,8 +35,8 @@ function headingText(markup: string): string {
 describe('Today screen', () => {
   const html = render()
 
-  it('uses "Council" as the primary heading (renamed from "30-Minute Slotting")', () => {
-    expect(headingText(html)).toBe('Council')
+  it('uses "COUNCL" as the primary heading (renamed from "30-Minute Slotting", then "Council")', () => {
+    expect(headingText(html)).toBe('COUNCL')
     expect(html).not.toContain('30-Minute Slotting')
   })
 
@@ -198,7 +198,7 @@ describe('rendering is independent of the wall clock', () => {
   it('renders the same structure at every slot of the day', () => {
     for (const now of everyHalfHour) {
       const at = render(now)
-      expect(headingText(at)).toBe('Council')
+      expect(headingText(at)).toBe('COUNCL')
       expect(at.match(/>NOW</g) ?? []).toHaveLength(1)
       expect(at.match(/data-slot="\d+"/g) ?? []).toHaveLength(48)
     }

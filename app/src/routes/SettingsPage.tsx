@@ -4,6 +4,7 @@ import { ChevronRight, HeartPulse, Loader2, Plus, Watch, type LucideIcon } from 
 import { apiGetHealthConnectionStatus, type HealthConnectionStatus } from '@/api/healthSync'
 import { availableDeviceProviders, type DeviceProvider } from '@/domain/deviceProviders'
 import { ParameterVocabularyPanel } from '@/components/activityLibrary/ParameterVocabularyPanel'
+import { HIDDEN_ITEMS_ANCHOR, HiddenItemsPanel } from '@/components/settings/HiddenItemsPanel'
 import { buttonVariants } from '@/components/ui/button'
 import { useAuth } from '@/state/AuthContext'
 import { useParameterVocabulary } from '@/state/useParameterVocabulary'
@@ -32,7 +33,8 @@ function statusLabel(status: HealthConnectionStatus): string {
 /**
  * Settings hub: "Your options" (the per-user quality / chronic symptom /
  * protective response lists every activity picks from — the only place they
- * are added or renamed) and "Devices & apps" (what's connected, and the entry
+ * are added or renamed), "Hidden items" (everything hidden from Today, with
+ * Restore) and "Devices & apps" (what's connected, and the entry
  * point to add another, `/settings/devices/add`).
  */
 export function SettingsPage() {
@@ -42,9 +44,12 @@ export function SettingsPage() {
   const vocabulary = useParameterVocabulary()
   const { hash } = useLocation()
 
-  // Arriving from an activity's "Add or rename options in Settings" link.
+  // Arriving from an activity's "Add or rename options in Settings" link, or
+  // from a "N hidden · restore in Settings" pointer.
   useEffect(() => {
-    if (hash === '#options') document.getElementById('options')?.scrollIntoView({ block: 'start' })
+    if (hash === '#options' || hash === `#${HIDDEN_ITEMS_ANCHOR}`) {
+      document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' })
+    }
   }, [hash])
 
   useEffect(() => {
@@ -71,6 +76,10 @@ export function SettingsPage() {
 
       <section id="options" aria-label="Your options" className="mt-2xl scroll-mt-lg">
         <ParameterVocabularyPanel data={vocabulary} />
+      </section>
+
+      <section id={HIDDEN_ITEMS_ANCHOR} aria-labelledby="hidden-heading" className="mt-3xl scroll-mt-lg">
+        <HiddenItemsPanel />
       </section>
 
       <section aria-labelledby="devices-heading" className="mt-3xl">

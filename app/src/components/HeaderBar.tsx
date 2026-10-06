@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { CalendarDays, User } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CalendarDays, Moon, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
+import { DayOffControl } from '@/components/DayOffControl'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
-import { CouncilMark, CouncilTitle } from '@/components/CouncilBrand'
+import { CounclMark, CounclTitle } from '@/components/CounclBrand'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import {
@@ -15,7 +16,6 @@ import {
   EditModeControls,
   EditModeToggle,
   HeaderButtonFormDialog,
-  HiddenButtonsPanel,
 } from '@/components/HeaderButtonEditor'
 import { setNoteButtonsRegistry, setNoteButtonTypesRegistry } from '@/domain/notes'
 import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
@@ -28,12 +28,16 @@ import {
 import { useEditMode } from '@/state/EditModeContext'
 import { usePointerReorder } from '@/components/ui/usePointerReorder'
 import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
+import { EditLock } from '@/components/ui/EditLock'
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
-import { useHeaderButtons } from '@/state/useHeaderButtons'
+import { useSharedHeaderButtons } from '@/state/HeaderButtonsContext'
+import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import type { ActivityList, FieldSelections } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
+import { useDayOffs } from '@/state/useDayOffs'
+import { isSameLocalDay, localDateISO } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
 import { useInterfaceMode } from '@/state/InterfaceContext'
 
@@ -132,7 +136,7 @@ export function HeaderBar({
   // `state/useHeaderButtons.ts`). Row 2 below renders straight off
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
-  const { visible, hidden, addButton, updateButton, hideButton, unhideButton, reorder } = useHeaderButtons()
+  const { visible, hidden, addButton, updateButton, hideButton, reorder } = useSharedHeaderButtons()
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -170,15 +174,15 @@ export function HeaderBar({
 
   return (
     <header className="flex flex-col gap-md">
-      {/* Row 1 — identity + day context. "Council" (Section E greeting, renamed
-          from "30-Minute Slotting" and then "Consort"; not the sidebar/sign-in brand mark "Ritual
+      {/* Row 1 — identity + day context. "COUNCL" (Section E greeting, renamed
+          from "30-Minute Slotting", then "Consort", then "Council"; not the sidebar/sign-in brand mark "Ritual
           Board") sits left; the viewed-date navigator, weather, and account
           control sit right. Nothing else shares this line. */}
       <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
         <div className="flex items-center gap-sm mobile:pl-[52px]">
-          <CouncilMark />
+          <CounclMark />
           <h1 className="font-display text-h1 font-semibold text-ink mobile:text-h1-sm">
-            <CouncilTitle />
+            <CounclTitle />
           </h1>
         </div>
 
@@ -268,7 +272,7 @@ export function HeaderBar({
         {editMode && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add' })} />}
       </div>
 
-      {editMode && <HiddenButtonsPanel hidden={hidden} onUnhide={unhideButton} />}
+      {editMode && <HiddenInSettingsLink count={hidden.length} noun="button" />}
 
       {formMode && (
         <HeaderButtonFormDialog
@@ -361,6 +365,12 @@ function DatePill({
   onSelectDate: (date: Date) => void
 }) {
   const [open, setOpen] = useState(false)
+  // The month the picker shows — the only window of day-off marks loaded (rule 8).
+  const [pickerMonth, setPickerMonth] = useState(viewedDate)
+  const { dayOffs, setDayOff, clearDayOff, pendingDate, error: dayOffError } = useDayOffs(open ? pickerMonth : viewedDate)
+  const viewedIso = localDateISO(viewedDate)
+  const viewedDayOff = dayOffs[viewedIso] ?? null
+  const dayOffDates = useMemo(() => new Set(Object.keys(dayOffs)), [dayOffs])
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -404,15 +414,44 @@ function DatePill({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Change viewed date — currently ${formatDatePill(viewedDate)}`}
+        aria-label={`Change viewed date — currently ${formatDatePill(viewedDate)}${viewedDayOff ? ', day off' : ''}`}
         onClick={() => setOpen((value) => !value)}
         className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
       >
         <CalendarDays aria-hidden="true" className="size-[14px] text-ink-dim" />
         <time dateTime={machineDate(viewedDate)}>{formatDatePill(viewedDate)}</time>
+        {viewedDayOff && (
+          <span className="flex items-center gap-xs border-l border-line pl-sm text-ink-dim">
+            <Moon aria-hidden="true" className="size-[12px]" />
+            Day off
+          </span>
+        )}
       </button>
 
-      {open && <DatePicker viewedDate={viewedDate} today={now} onSelect={selectDate} onClose={close} />}
+      {open && (
+        <DatePicker
+          viewedDate={viewedDate}
+          today={now}
+          onSelect={selectDate}
+          onClose={close}
+          dayOffDates={dayOffDates}
+          onVisibleMonthChange={setPickerMonth}
+          footer={
+            // Marking a day off is an entry, so it's locked in Edit mode (#17).
+            <EditLock>
+            <DayOffControl
+              dayLabel={isSameLocalDay(viewedDate, now) ? 'today' : formatDatePill(viewedDate)}
+              dayOff={viewedDayOff}
+              pending={pendingDate === viewedIso}
+              error={dayOffError}
+              onMark={() => void setDayOff(viewedIso, null)}
+              onClear={() => void clearDayOff(viewedIso)}
+              onSaveReason={(reason) => void setDayOff(viewedIso, reason)}
+            />
+            </EditLock>
+          }
+        />
+      )}
     </div>
   )
 }

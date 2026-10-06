@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, buildMonthGrid, daysInMonth, startOfMonth } from '@/domain/calendar'
 import { localDateISO } from '@/lib/localTime'
@@ -26,6 +26,12 @@ export interface DatePickerProps {
   today: Date
   onSelect: (date: Date) => void
   onClose: () => void
+  /** Days marked as a day off (`YYYY-MM-DD`) — shown as a small dot under the date. */
+  dayOffDates?: ReadonlySet<string>
+  /** Called whenever the visible month changes, so a caller can load that month's data. */
+  onVisibleMonthChange?: (month: Date) => void
+  /** Extra content under the grid — the header uses it for the day-off control. */
+  footer?: ReactNode
 }
 
 /**
@@ -37,7 +43,15 @@ export interface DatePickerProps {
  * `AccountMenu`), roving-tabindex arrow-key grid navigation (mirrors
  * `Timeline`'s slot grid).
  */
-export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerProps) {
+export function DatePicker({
+  viewedDate,
+  today,
+  onSelect,
+  onClose,
+  dayOffDates,
+  onVisibleMonthChange,
+  footer,
+}: DatePickerProps) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(viewedDate))
   const [focusedDate, setFocusedDate] = useState(viewedDate)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -48,6 +62,12 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
   const todayIso = localDateISO(today)
   const selectedIso = localDateISO(viewedDate)
   const focusedIso = localDateISO(focusedDate)
+
+  useEffect(() => {
+    onVisibleMonthChange?.(visibleMonth)
+    // Only when the month itself changes — not when a caller passes a new callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMonth.getFullYear(), visibleMonth.getMonth()])
 
   useEffect(() => {
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focusedIso}"]`)?.focus()
@@ -187,6 +207,14 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
           const markers = calendar.markers.get(iso) ?? []
           const shown = markers.slice(0, NAMES_PER_CELL)
           const more = markers.length - shown.length
+          const isDayOff = dayOffDates?.has(iso) ?? false
+          const label = [
+            formatDayLabel(date),
+            isDayOff ? 'day off' : null,
+            markers.length > 0 ? markers.map((m) => m.name).join(', ') : null,
+          ]
+            .filter(Boolean)
+            .join(', ')
           return (
             <button
               key={iso}
@@ -195,15 +223,11 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
               tabIndex={iso === focusedIso ? 0 : -1}
               aria-current={isToday ? 'date' : undefined}
               aria-pressed={isSelected}
-              aria-label={
-                markers.length > 0
-                  ? `${formatDayLabel(date)}: ${markers.map((m) => m.name).join(', ')}`
-                  : formatDayLabel(date)
-              }
+              aria-label={label}
               onFocus={() => setFocusedDate(date)}
               onClick={() => onSelect(date)}
               className={cn(
-                'flex min-h-[64px] min-w-0 flex-col items-stretch gap-[2px] rounded-sm px-[3px] py-xs text-left transition-colors mobile:min-h-[52px]',
+                'relative flex min-h-[64px] min-w-0 flex-col items-stretch gap-[2px] rounded-sm px-[3px] py-xs text-left transition-colors mobile:min-h-[52px]',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 !inMonth && 'text-ink-dim/50 hover:bg-bg',
                 inMonth && !isSelected && 'text-ink hover:bg-bg',
@@ -212,6 +236,15 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
               )}
             >
               <span className="text-center text-caption font-semibold tabular-nums">{date.getDate()}</span>
+              {isDayOff && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'absolute right-[4px] top-[4px] size-[4px] rounded-full',
+                    isSelected ? 'bg-inv-ink' : 'bg-ink-dim',
+                  )}
+                />
+              )}
               {shown.map((marker, index) => (
                 <span
                   key={`${marker.kind}-${marker.name}-${index}`}
@@ -247,6 +280,8 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
           Jump to today
         </button>
       )}
+
+      {footer}
     </div>
   )
 }

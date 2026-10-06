@@ -37,6 +37,8 @@ Eleven files call `localStorage`/`sessionStorage` directly:
 
 **Fix:** add one `lib/storage.ts` adapter (get/set/remove JSON with the existing fail-closed contract) and route all eleven files through it. On native, only that one file changes (to MMKV or SQLite).
 
+**Progress:** `lib/storage.ts` now exists (`readStoredJSON`/`writeStoredJSON`, synchronous and fail-closed) and the day-off cache (`state/useDayOffs.ts`) uses it. The eleven files above still need moving over.
+
 **Design note:** React Native's AsyncStorage is async, while MMKV is sync like `localStorage`. Keep the adapter synchronous and plan on MMKV, so the fail-closed callers don't all have to become async.
 
 ### MR-2 · P1 · UI components that call the API directly

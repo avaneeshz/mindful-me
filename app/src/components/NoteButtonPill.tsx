@@ -4,10 +4,12 @@ import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
   canSubmitNote,
+  formatEntryTypes,
   formatNoteTimestamp,
   noteButtonTypes,
   noteEntryWasEdited,
   partitionNoteEntriesByToday,
+  toggleEntryType,
   type NoteButtonKey,
   type NoteEntry,
 } from '@/domain/notes'
@@ -17,12 +19,29 @@ import { cn } from '@/lib/utils'
 const fieldClass =
   'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
-const PANEL_WIDTH = 340
+const PANEL_WIDTH = 560
+/** Minimum gap the panel keeps from either viewport edge. */
+const VIEWPORT_GUTTER = 16
+
+/**
+ * Horizontal offset (px, relative to the trigger's left edge) that places a
+ * `PANEL_WIDTH`-wide panel as close to left-aligned with its trigger as
+ * possible while keeping it fully on screen. The panel itself shrinks to
+ * `100vw − 2 × gutter` on a viewport narrower than `PANEL_WIDTH`, so the
+ * same math covers phones.
+ */
+function panelOffset(triggerLeft: number, viewportWidth: number): number {
+  const width = Math.min(PANEL_WIDTH, viewportWidth - VIEWPORT_GUTTER * 2)
+  const maxLeft = viewportWidth - VIEWPORT_GUTTER - width
+  const left = Math.min(Math.max(triggerLeft, VIEWPORT_GUTTER), maxLeft)
+  return left - triggerLeft
+}
 
 /**
  * One header pill's whole note-entry surface: the trigger button, a Store
- * form (textarea, plus a single-select type chip radiogroup for the buttons
- * that define one — see `NOTE_BUTTON_TYPES`: Extra Senses, Prayer, Learnings),
+ * form (textarea, plus a multi-select type chip group for the buttons that
+ * define one — see `NOTE_BUTTON_TYPES`: Extra Senses, Learnings — at least one
+ * type required),
  * and the full history of previously stored notes for this one button.
  *
  * Deliberately follows `HeaderBar`'s OWN existing popover pattern
@@ -35,11 +54,11 @@ const PANEL_WIDTH = 340
  */
 export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey; label: string }) {
   const [open, setOpen] = useState(false)
-  // Which edge the popover anchors to, chosen on open so it never runs off
-  // screen — the left-hand pills in the row have no room to expand leftward.
-  const [align, setAlign] = useState<'left' | 'right'>('left')
+  // Horizontal shift (px from the trigger's left edge) that keeps the panel
+  // inside the viewport — recomputed on open and on resize while open.
+  const [offset, setOffset] = useState(0)
   const [noteText, setNoteText] = useState('')
-  const [entryType, setEntryType] = useState<string>('')
+  const [entryTypes, setEntryTypes] = useState<string[]>([])
   const [justSaved, setJustSaved] = useState(false)
   // History is collapsed by default (SCRUM-13 follow-up) — the popover opens
   // straight to the Store form; the log of past notes is a click away
@@ -51,7 +70,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   // timeline's own `LogActivityModal` follows.
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editNoteText, setEditNoteText] = useState('')
-  const [editEntryType, setEditEntryType] = useState('')
+  const [editEntryTypes, setEditEntryTypes] = useState<string[]>([])
 
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -69,8 +88,8 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     open,
   )
   const types = noteButtonTypes(buttonKey)
-  const canSubmit = canSubmitNote(buttonKey, noteText, entryType === '' ? null : entryType)
-  const canSubmitEdit = canSubmitNote(buttonKey, editNoteText, editEntryType === '' ? null : editEntryType)
+  const canSubmit = canSubmitNote(buttonKey, noteText, entryTypes)
+  const canSubmitEdit = canSubmitNote(buttonKey, editNoteText, editEntryTypes)
   // "Today" here is the real device-current calendar day — notes aren't
   // day-scoped like a `ScheduledActivity` (no `viewedDate` concept exists in
   // this component at all), so this is deliberately NOT the header's viewed
@@ -92,11 +111,18 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
       triggerRef.current?.focus()
     }
 
+    function handleResize() {
+      const rect = triggerRef.current?.getBoundingClientRect()
+      if (rect) setOffset(panelOffset(rect.left, window.innerWidth))
+    }
+
     document.addEventListener('mousedown', handlePointerDown)
     document.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('resize', handleResize)
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('resize', handleResize)
     }
   }, [open])
 
@@ -123,30 +149,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     setOpen((wasOpen) => {
       if (!wasOpen) {
         const rect = triggerRef.current?.getBoundingClientRect()
-        if (rect) {
-          // Prefer whichever edge actually keeps the panel on screen — a
-          // trigger near the RIGHT edge that also fails the 'right' check
-          // (a narrow viewport, or a trigger sitting close to both edges at
-          // once) used to fall through to 'right' unconditionally, which
-          // could push the panel off the LEFT edge instead (confirmed on a
-          // 390px mobile viewport). `effectiveWidth` matches the panel's own
-          // `calc(100vw-32px)` shrink so this check stays accurate on a
-          // viewport narrower than `PANEL_WIDTH` itself; when a trigger
-          // sits far enough into the middle of a narrow row that NEITHER
-          // side fits cleanly, picking whichever spills less keeps the
-          // visible clipping to a minimum rather than always favouring one
-          // edge.
-          const effectiveWidth = Math.min(PANEL_WIDTH, window.innerWidth - 32)
-          const fitsLeft = rect.left + effectiveWidth <= window.innerWidth - 16
-          const fitsRight = rect.right - effectiveWidth >= 16
-          if (fitsLeft) setAlign('left')
-          else if (fitsRight) setAlign('right')
-          else {
-            const leftOverflow = rect.left + effectiveWidth - (window.innerWidth - 16)
-            const rightOverflow = 16 - (rect.right - effectiveWidth)
-            setAlign(leftOverflow <= rightOverflow ? 'left' : 'right')
-          }
-        }
+        if (rect) setOffset(panelOffset(rect.left, window.innerWidth))
       }
       return !wasOpen
     })
@@ -156,11 +159,11 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     event.preventDefault()
     if (submitting || !canSubmit) return // Rule 9's double-submit guard, applied to Store.
 
-    const ok = await addNote(noteText, entryType === '' ? null : entryType)
+    const ok = await addNote(noteText, entryTypes)
     if (!ok) return
 
     setNoteText('')
-    setEntryType('')
+    setEntryTypes([])
     setJustSaved(true)
     window.clearTimeout(savedFlashTimeoutRef.current)
     savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 2500)
@@ -169,7 +172,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   function startEdit(entry: NoteEntry) {
     setEditingEntryId(entry.id)
     setEditNoteText(entry.note)
-    setEditEntryType(entry.entryType ?? '')
+    setEditEntryTypes([...entry.entryTypes])
   }
 
   function cancelEdit() {
@@ -179,7 +182,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   async function saveEdit(event: FormEvent) {
     event.preventDefault()
     if (editingEntryId === null || pendingEntryId !== null || !canSubmitEdit) return
-    const ok = await updateNote(editingEntryId, editNoteText, editEntryType === '' ? null : editEntryType)
+    const ok = await updateNote(editingEntryId, editNoteText, editEntryTypes)
     if (ok) setEditingEntryId(null)
   }
 
@@ -195,10 +198,10 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
           <form onSubmit={saveEdit} className="flex flex-col gap-sm">
             {types && (
               <fieldset className="flex flex-col gap-sm">
-                <legend className="sr-only">Type</legend>
-                <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-xs">
+                <legend className="sr-only">Type (choose one or more)</legend>
+                <div role="group" aria-label="Type" className="flex flex-wrap gap-xs">
                   {types.map((type) => {
-                    const isSelected = editEntryType === type
+                    const isSelected = editEntryTypes.includes(type)
                     return (
                       <Chip
                         key={type}
@@ -206,9 +209,8 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                         size="xs"
                         tone={isSelected ? 'active' : 'surface'}
                         interactive
-                        role="radio"
-                        aria-checked={isSelected}
-                        onClick={() => setEditEntryType(isSelected ? '' : type)}
+                        aria-pressed={isSelected}
+                        onClick={() => setEditEntryTypes((selected) => toggleEntryType(selected, type))}
                       >
                         {type}
                       </Chip>
@@ -230,7 +232,12 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
               className={cn(fieldClass, 'resize-none text-caption disabled:opacity-60')}
             />
             <div className="flex items-center gap-md">
-              <Button type="submit" variant="accent" size="inline" disabled={pendingEntryId === entry.id || !canSubmitEdit}>
+              <Button
+                type="submit"
+                variant="accent"
+                size="inline"
+                disabled={pendingEntryId === entry.id || !canSubmitEdit}
+              >
                 {pendingEntryId === entry.id ? (
                   <>
                     <Loader2 aria-hidden="true" className="size-[13px] animate-spin" />
@@ -240,7 +247,13 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                   'Save'
                 )}
               </Button>
-              <Button type="button" variant="ghost" size="inline" onClick={cancelEdit} disabled={pendingEntryId === entry.id}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="inline"
+                onClick={cancelEdit}
+                disabled={pendingEntryId === entry.id}
+              >
                 Cancel
               </Button>
             </div>
@@ -256,7 +269,11 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
             {formatNoteTimestamp(new Date(entry.createdAt))}
             {noteEntryWasEdited(entry) && ' · edited'}
           </time>
-          {entry.entryType && <span className="text-nano font-semibold text-ink-dim">{entry.entryType}</span>}
+          {entry.entryTypes.length > 0 && (
+            <span className="text-right text-nano font-semibold text-ink-dim">
+              {formatEntryTypes(entry.entryTypes)}
+            </span>
+          )}
         </div>
         <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
         <div className="mt-xs flex items-center gap-lg">
@@ -307,9 +324,9 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
           role="dialog"
           aria-label={`${label} notes`}
           className={cn(
-            'absolute top-[calc(100%+8px)] z-30 w-[min(340px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2',
-            align === 'left' ? 'left-0' : 'right-0',
+            'absolute left-0 top-[calc(100%+8px)] z-30 w-[min(560px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2',
           )}
+          style={{ transform: `translateX(${offset}px)` }}
         >
           <div className="mb-md flex items-center justify-between">
             <h2 className="text-body font-semibold text-ink">{label}</h2>
@@ -326,10 +343,12 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
             {types && (
               <fieldset className="flex flex-col gap-sm">
-                <legend className="text-caption font-semibold text-ink-dim">Type</legend>
-                <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-sm">
+                <legend className="text-caption font-semibold text-ink-dim">
+                  Type <span className="font-normal">· choose one or more</span>
+                </legend>
+                <div role="group" aria-label="Type" className="flex flex-wrap gap-sm">
                   {types.map((type) => {
-                    const isSelected = entryType === type
+                    const isSelected = entryTypes.includes(type)
                     return (
                       <Chip
                         key={type}
@@ -337,9 +356,8 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
                         size="xs"
                         tone={isSelected ? 'active' : 'surface'}
                         interactive
-                        role="radio"
-                        aria-checked={isSelected}
-                        onClick={() => setEntryType(isSelected ? '' : type)}
+                        aria-pressed={isSelected}
+                        onClick={() => setEntryTypes((selected) => toggleEntryType(selected, type))}
                       >
                         {type}
                       </Chip>
