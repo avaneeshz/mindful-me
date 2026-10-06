@@ -101,8 +101,8 @@ describe('HeaderBar checklist control', () => {
 describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
   it('starts with edit mode off — no per-button remove/edit affordance, no "Add button" chip', () => {
     const html = render()
-    expect(html).not.toContain('aria-label="Add a header button"')
+    expect(html).not.toContain('aria-label="Add a Non-Negotiable Button"')
     expect(html).not.toMatch(/aria-label="Remove /)
-    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit header buttons"/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit"/)
   })
 })

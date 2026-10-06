@@ -3,6 +3,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, buildMonthGrid, daysInMonth, startOfMonth } from '@/domain/calendar'
 import { localDateISO } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
+import { useCalendarMarkers } from '@/state/useCalendarMarkers'
+import { CalendarDayDetails } from '@/components/CalendarDayDetails'
+
+/** How many names fit inside a cell before it shows "+n". */
+const NAMES_PER_CELL = 2
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
@@ -52,6 +57,8 @@ export function DatePicker({
   const gridRef = useRef<HTMLDivElement>(null)
 
   const grid = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth])
+  const gridYears = useMemo(() => [...new Set(grid.map((d) => d.getFullYear()))], [grid])
+  const calendar = useCalendarMarkers(gridYears)
   const todayIso = localDateISO(today)
   const selectedIso = localDateISO(viewedDate)
   const focusedIso = localDateISO(focusedDate)
@@ -153,7 +160,7 @@ export function DatePicker({
       // left edge entirely. Below the `mobile` breakpoint it anchors from
       // the trigger's left edge instead, which comfortably fits open toward
       // the page's own centre.
-      className="absolute right-0 top-[calc(100%+8px)] z-30 w-[min(288px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
+      className="absolute right-0 top-[calc(100%+8px)] z-30 max-h-[calc(100vh-96px)] w-[min(600px,calc(100vw-32px))] overflow-y-auto rounded-md border border-line bg-surface p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
     >
       <div className="mb-sm flex items-center justify-between">
         <button
@@ -197,7 +204,17 @@ export function DatePicker({
           const inMonth = date.getMonth() === visibleMonth.getMonth()
           const isSelected = iso === selectedIso
           const isToday = iso === todayIso
+          const markers = calendar.markers.get(iso) ?? []
+          const shown = markers.slice(0, NAMES_PER_CELL)
+          const more = markers.length - shown.length
           const isDayOff = dayOffDates?.has(iso) ?? false
+          const label = [
+            formatDayLabel(date),
+            isDayOff ? 'day off' : null,
+            markers.length > 0 ? markers.map((m) => m.name).join(', ') : null,
+          ]
+            .filter(Boolean)
+            .join(', ')
           return (
             <button
               key={iso}
@@ -206,11 +223,11 @@ export function DatePicker({
               tabIndex={iso === focusedIso ? 0 : -1}
               aria-current={isToday ? 'date' : undefined}
               aria-pressed={isSelected}
-              aria-label={isDayOff ? `${formatDayLabel(date)}, day off` : formatDayLabel(date)}
+              aria-label={label}
               onFocus={() => setFocusedDate(date)}
               onClick={() => onSelect(date)}
               className={cn(
-                'relative flex aspect-square items-center justify-center rounded-full text-caption font-semibold transition-colors',
+                'relative flex min-h-[64px] min-w-0 flex-col items-stretch gap-[2px] rounded-sm px-[3px] py-xs text-left transition-colors mobile:min-h-[52px]',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 !inMonth && 'text-ink-dim/50 hover:bg-bg',
                 inMonth && !isSelected && 'text-ink hover:bg-bg',
@@ -218,20 +235,41 @@ export function DatePicker({
                 !isSelected && isToday && 'ring-1 ring-inset ring-ink',
               )}
             >
-              {date.getDate()}
+              <span className="text-center text-caption font-semibold tabular-nums">{date.getDate()}</span>
               {isDayOff && (
                 <span
                   aria-hidden="true"
                   className={cn(
-                    'absolute bottom-[3px] left-1/2 size-[4px] -translate-x-1/2 rounded-full',
+                    'absolute right-[4px] top-[4px] size-[4px] rounded-full',
                     isSelected ? 'bg-inv-ink' : 'bg-ink-dim',
                   )}
                 />
+              )}
+              {shown.map((marker, index) => (
+                <span
+                  key={`${marker.kind}-${marker.name}-${index}`}
+                  aria-hidden="true"
+                  className={cn(
+                    'truncate text-[9px] leading-tight mobile:text-[8px]',
+                    marker.kind === 'personal' ? 'font-bold' : 'font-medium',
+                    !isSelected && marker.kind === 'holiday' && 'text-ink-dim',
+                    !inMonth && 'opacity-60',
+                  )}
+                >
+                  {marker.name}
+                </span>
+              ))}
+              {more > 0 && (
+                <span aria-hidden="true" className={cn('text-[9px] leading-tight', !isSelected && 'text-ink-dim')}>
+                  +{more} more
+                </span>
               )}
             </button>
           )
         })}
       </div>
+
+      <CalendarDayDetails date={focusedDate} calendar={calendar} />
 
       {selectedIso !== todayIso && (
         <button

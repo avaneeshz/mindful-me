@@ -23,6 +23,8 @@ export interface UseActivityHierarchyResult {
   error: string | null
   addActivity: (input: { name: string; tileId?: string | null; parentId?: string | null }) => ActivityRow
   renameActivity: (id: string, name: string) => void
+  /** A built-in icon key or an uploaded icon (`custom:<id>`). */
+  setActivityIcon: (id: string, iconKey: string) => void
   /** `null` clears the activity's own colour so it inherits again. */
   setActivityColor: (id: string, color: string | null) => void
   /** Titles this activity's own notes; `second` null removes the second note. */
@@ -261,6 +263,20 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     }
   }, [])
 
+  const setActivityIcon = useCallback(
+    (id: string, iconKey: string): void => {
+      const row = activities.find((a) => a.id === id)
+      if (!row) return
+      setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, iconKey } : a)))
+      if (supabaseConfigured) {
+        void apiUpdateActivity(id, row.name, iconKey).then((result) => {
+          if (!result.ok) setError('Saved on this device — will sync once you’re back online.')
+        })
+      }
+    },
+    [activities],
+  )
+
   const setActivityNoteLabels = useCallback((id: string, first: string | null, second: string | null): void => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, noteLabel: first, secondNoteLabel: second } : a)))
     if (supabaseConfigured) {
@@ -312,5 +328,5 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     [removeSubtreeLocally],
   )
 
-  return { activities, status, error, addActivity, renameActivity, setActivityColor, setActivityNoteLabels, hideActivity, unhideActivity, reorder, deleteActivity }
+  return { activities, status, error, addActivity, renameActivity, setActivityIcon, setActivityColor, setActivityNoteLabels, hideActivity, unhideActivity, reorder, deleteActivity }
 }

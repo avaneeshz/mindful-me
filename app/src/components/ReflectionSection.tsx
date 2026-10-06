@@ -3,6 +3,7 @@ import { Check } from 'lucide-react'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import type { ActivityList } from '@/domain/types'
 import { cn } from '@/lib/utils'
+import { sectionName } from '@/domain/appLanguage'
 
 /**
  * The home-screen reflection section (Frame 2) — a static-positioned section
@@ -52,7 +53,7 @@ export function ReflectionSection({
       className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
       <h2 id="reflection-heading" className="font-display text-slot-time font-semibold text-ink">
-        Reflection
+        {sectionName('stateTiles')}
       </h2>
 
       {/* The ONLY text under the heading: the warning shown after a card is
@@ -65,7 +66,7 @@ export function ReflectionSection({
 
       <div
         role="group"
-        aria-label="Reflection cards"
+        aria-label={sectionName('stateTiles')}
         className="mt-xl grid grid-cols-9 gap-md mobile:mt-lg mobile:grid-cols-3 mobile:gap-sm"
       >
         {REFLECTION_CARDS.map((card) => {
