@@ -55,6 +55,7 @@ export async function apiUpdateImportantDay(day: ImportantDay): Promise<boolean>
 
 export async function apiDeleteImportantDay(id: string): Promise<boolean> {
   if (!supabase) return false
-  const { error } = await supabase.rpc('delete_important_day', { p_id: id })
+  // RLS limits this to the caller's own rows.
+  const { error } = await supabase.from('important_days').delete().eq('id', id)
   return !error
 }
