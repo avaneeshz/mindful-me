@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Moon } from 'lucide-react'
 import { addMonths, buildMonthGrid, daysInMonth, startOfMonth } from '@/domain/calendar'
 import { localDateISO } from '@/lib/localTime'
@@ -8,6 +8,9 @@ import { CalendarDayDetails } from '@/components/CalendarDayDetails'
 
 /** How many names a tile writes out before it shows "+n" — the rest are listed under the grid. */
 const NAMES_PER_CELL = 1
+
+/** Space kept between the popover and the viewport edge (matches the 16px page gutter). */
+const VIEWPORT_GUTTER = 16
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
@@ -55,6 +58,30 @@ export function DatePicker({
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(viewedDate))
   const [focusedDate, setFocusedDate] = useState(viewedDate)
   const gridRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // The popover hangs off the date pill, which moves when the header row
+  // reflows (e.g. the pill gains "· Day off"). Nudge it sideways so it
+  // never runs past either edge of a narrow viewport.
+  function fitToViewport() {
+    const panel = panelRef.current
+    if (!panel) return
+    panel.style.translate = '0px'
+    const rect = panel.getBoundingClientRect()
+    const viewportWidth = document.documentElement.clientWidth
+    const overRight = rect.right - (viewportWidth - VIEWPORT_GUTTER)
+    const overLeft = VIEWPORT_GUTTER - rect.left
+    const shift = overRight > 0 ? -Math.min(overRight, Math.max(0, rect.left - VIEWPORT_GUTTER)) : Math.max(0, overLeft)
+    panel.style.translate = shift ? `${shift}px 0` : ''
+  }
+  // Every render: the header can reflow in the same commit that re-renders this.
+  useLayoutEffect(fitToViewport)
+  useEffect(() => {
+    const observer = new ResizeObserver(() => fitToViewport())
+    observer.observe(document.documentElement)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const grid = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth])
   const gridYears = useMemo(() => [...new Set(grid.map((d) => d.getFullYear()))], [grid])
@@ -150,6 +177,7 @@ export function DatePicker({
 
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-label="Choose a date"
       // Anchored to the trigger's RIGHT edge everywhere the trigger itself

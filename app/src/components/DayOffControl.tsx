@@ -1,16 +1,15 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { Check, Moon } from 'lucide-react'
+import { Moon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Chip, chipVariants } from '@/components/ui/chip'
 import { fieldClass } from '@/components/ui/formField'
-import { DAY_OFF_REASON_MAX, DAY_OFF_REASON_SUGGESTIONS, normalizeDayOffReason, type DayOff } from '@/domain/dayOffs'
+import { DAY_OFF_REASON_MAX, normalizeDayOffReason, type DayOff } from '@/domain/dayOffs'
 import { cn } from '@/lib/utils'
 
 /**
- * The day-off section at the foot of the header's date picker: one toggle
- * that marks the viewed day as a non-working day, then an optional reason —
- * typed and saved, or one tap on a suggestion (which saves straight away). Presentational only; the
- * header owns the data through `useDayOffs`.
+ * The day-off section at the foot of the header's date picker: one switch
+ * that marks the viewed day as a non-working day, then an optional typed
+ * note for the reason. Presentational only; the header owns the data
+ * through `useDayOffs`.
  */
 export function DayOffControl({
   dayLabel,
@@ -51,56 +50,51 @@ export function DayOffControl({
   }
 
   return (
-    <div className="mt-md border-t border-line pt-md">
+    <div className="mt-sm border-t border-line-soft pt-sm">
       <button
         type="button"
         role="switch"
         aria-checked={isOff}
         disabled={pending}
         onClick={isOff ? onClear : onMark}
-        className={cn(
-          chipVariants({ tone: isOff ? 'active' : 'surface', size: 'sm', interactive: true }),
-          'w-full justify-between disabled:opacity-60',
-        )}
+        className="flex min-h-control w-full items-center gap-sm rounded-sm px-xs text-left text-ink transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-60"
       >
-        <span className="flex items-center gap-sm">
-          <Moon aria-hidden="true" className="size-[14px]" />
-          {isOff ? 'Day off' : `Mark ${dayLabel} as a day off`}
+        <span aria-hidden="true" className="grid size-[28px] shrink-0 place-items-center text-ink-dim">
+          <Moon className="size-[15px]" strokeWidth={1.8} />
         </span>
-        {isOff && <Check aria-hidden="true" className="size-[14px]" />}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-body font-medium">Day off</span>
+          <span className="truncate text-caption-sm text-ink-dim">
+            {isOff ? (dayOff?.reason ?? 'Add a note below (optional)') : `Mark ${dayLabel} as a non-working day`}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            'relative h-[20px] w-[34px] shrink-0 rounded-full transition-colors',
+            isOff ? 'bg-inv-bg' : 'bg-line',
+          )}
+        >
+          <span
+            className={cn(
+              'absolute left-[2px] top-[2px] size-[16px] rounded-full transition-transform motion-reduce:transition-none',
+              isOff ? 'translate-x-[14px] bg-inv-ink' : 'bg-surface',
+            )}
+          />
+        </span>
       </button>
 
       {isOff && (
-        <form onSubmit={saveReason} className="mt-sm flex flex-col gap-sm">
+        <form onSubmit={saveReason} className="mt-xs flex flex-col gap-sm px-xs pb-xs">
           <label htmlFor={reasonId} className="text-caption font-semibold text-ink-dim">
-            Why? <span className="font-normal">(optional)</span>
+            Note <span className="font-normal">(optional)</span>
           </label>
-          <div className="flex flex-wrap gap-xs">
-            {DAY_OFF_REASON_SUGGESTIONS.map((suggestion) => (
-              <Chip
-                key={suggestion}
-                as="button"
-                size="xs"
-                tone={reason.trim() === suggestion ? 'active' : 'surface'}
-                interactive
-                aria-pressed={reason.trim() === suggestion}
-                onClick={() => {
-                  setReason(suggestion)
-                  if (pending || normalizeDayOffReason(suggestion) === (dayOff?.reason ?? null)) return
-                  onSaveReason(suggestion)
-                  setJustSaved(true)
-                }}
-              >
-                {suggestion}
-              </Chip>
-            ))}
-          </div>
           <input
             id={reasonId}
             type="text"
             value={reason}
             maxLength={DAY_OFF_REASON_MAX}
-            placeholder="e.g. Diwali, doctor’s visit…"
+            placeholder="e.g. Travel, doctor’s visit…"
             onChange={(event) => {
               setReason(event.target.value)
               setJustSaved(false)
@@ -114,7 +108,7 @@ export function DayOffControl({
               className="h-[36px] px-md text-caption"
               disabled={pending || !reasonChanged}
             >
-              Save reason
+              Save note
             </Button>
             {justSaved && !reasonChanged && (
               <span role="status" className="text-caption font-semibold text-ink-dim">
