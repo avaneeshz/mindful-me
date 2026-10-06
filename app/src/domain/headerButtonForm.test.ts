@@ -52,6 +52,37 @@ describe('validation', () => {
     )
     expect(validateHeaderButtonDraft({ ...blank, label: 'Ideas', category: 'notes' }, false)).toBeNull()
   })
+
+  it('refuses a note type listed twice, ignoring case and spaces', () => {
+    const notes = { ...draftFromButton(null), label: 'Relational Nutrients', category: 'notes' as const }
+    expect(validateHeaderButtonDraft({ ...notes, noteTypesText: 'Calm\nHope\n calm ' }, true)).toBe(
+      '“calm” is listed more than once. Each type can only appear once.',
+    )
+    expect(validateHeaderButtonDraft({ ...notes, noteTypesText: 'Calm\nHope\n\nJoy' }, true)).toBeNull()
+  })
+
+  it('refuses a checklist item listed twice', () => {
+    const checklist = { ...draftFromButton(null), label: 'Vitamins', category: 'checklist' as const }
+    expect(validateHeaderButtonDraft({ ...checklist, checklistItemsText: 'D3\nZinc\nD3' }, false)).toBe(
+      '“D3” is listed more than once. Each item can only appear once.',
+    )
+  })
+
+  it('refuses a repeated option in a multiselect field', () => {
+    const activity = {
+      ...draftFromButton(null),
+      label: 'Run',
+      activityName: 'Running',
+      fields: [{ fieldKind: 'multiselect' as const, key: null, label: 'Terrain', options: ['Road', 'road'] }],
+    }
+    expect(validateHeaderButtonDraft(activity, false)).toBe(
+      '“road” is listed more than once. Each option can only appear once. (in “Terrain”)',
+    )
+    expect(addNoteField([], { kind: 'multiselect', label: 'Terrain', options: ['Trail', ' trail '] })).toEqual({
+      ok: false,
+      error: '“trail” is listed more than once. Each option can only appear once.',
+    })
+  })
 })
 
 describe('saving', () => {
