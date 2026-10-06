@@ -71,3 +71,13 @@ export function canSubmitQuickLog(start: string, end: string): boolean {
   const mins = durationBetween(start, end)
   return mins !== null && mins > 0 && mins <= 24 * 60
 }
+
+/** Total minutes logged under `name` on one day's board. */
+export function totalMinutesFor(activities: readonly { name: string | null; durationMinutes: number }[], name: string): number {
+  return activities.reduce((sum, a) => (a.name === name ? sum + a.durationMinutes : sum), 0)
+}
+
+/** Plain minutes, never hours — `80` → `"80m"`. Empty for zero, so nothing shows when nothing is logged. */
+export function formatMinutesLabel(totalMinutes: number): string {
+  return totalMinutes > 0 ? `${Math.round(totalMinutes)}m` : ''
+}

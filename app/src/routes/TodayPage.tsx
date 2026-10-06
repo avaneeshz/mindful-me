@@ -6,20 +6,11 @@ import { Timeline } from '@/components/Timeline'
 import { SlotEditor } from '@/components/editor/SlotEditor'
 import { useBoard } from '@/state/BoardContext'
 import { useActivityColors } from '@/state/useActivityColors'
+import { useEditMode } from '@/state/EditModeContext'
+import { EditLock } from '@/components/ui/EditLock'
 
-export interface TodayPageProps {
-  /**
-   * The ONE edit-mode toggle for this whole screen — owned by `AuthedApp`
-   * now, not this page: `HeaderBar`'s top-bar "Edit" button lives in the
-   * hoisted app-wide shell (see `App.tsx`'s own comment), a sibling of this
-   * page rather than an ancestor, so the flag has to be lifted to where
-   * both of them descend from and passed down. `SlotEditor` reads the same
-   * flag to turn the tile row into the inline tile/activity editor.
-   */
-  editMode: boolean
-}
-
-export function TodayPage({ editMode }: TodayPageProps) {
+export function TodayPage() {
+  const { editMode } = useEditMode()
   const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
   const colors = useActivityColors()
 
@@ -42,6 +33,11 @@ export function TodayPage({ editMode }: TodayPageProps) {
     }
   }, [state.activities, pendingMapping])
 
+  // Entering Edit mode closes a half-written reflection note.
+  useEffect(() => {
+    if (editMode) setPendingMapping(null)
+  }, [editMode])
+
   // Opens the note-entry popup for a (selected activity, card) pairing.
   // Shared by both entry points — tapping a card in the Reflection grid, and
   // tapping a mapped thumbnail in the activity summary. Only ever fires with
@@ -58,6 +54,7 @@ export function TodayPage({ editMode }: TodayPageProps) {
       <ThemeFromSlot />
 
       <div className="mt-xl ipad-land:mt-md">
+        <EditLock>
         <Timeline
           activities={state.activities}
           selectedSlot={state.selectedSlot}
@@ -73,6 +70,7 @@ export function TodayPage({ editMode }: TodayPageProps) {
           }
           colorFor={(activity) => colors.loggedColor(activity.name, activity.path)}
         />
+        </EditLock>
       </div>
 
       {/*
@@ -96,11 +94,13 @@ export function TodayPage({ editMode }: TodayPageProps) {
       </div>
 
       <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
-        <ReflectionSection
-          activities={state.activities}
-          selectedActivityId={state.selectedActivityId}
-          onRequestMapping={openMapping}
-        />
+        <EditLock>
+          <ReflectionSection
+            activities={state.activities}
+            selectedActivityId={state.selectedActivityId}
+            onRequestMapping={openMapping}
+          />
+        </EditLock>
       </div>
 
       <ReflectionMappingPopover

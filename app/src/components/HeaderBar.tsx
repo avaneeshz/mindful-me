@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CalendarDays, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
@@ -19,7 +19,14 @@ import {
 } from '@/components/HeaderButtonEditor'
 import { setNoteButtonsRegistry, setNoteButtonTypesRegistry } from '@/domain/notes'
 import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
-import { toDisplayButtonLike, type HeaderButtonCategory, type HeaderButtonConfig } from '@/domain/headerButtons'
+import {
+  orderAfterGroupReorder,
+  toDisplayButtonLike,
+  type HeaderButtonCategory,
+  type HeaderButtonConfig,
+} from '@/domain/headerButtons'
+import { useEditMode } from '@/state/EditModeContext'
+import { usePointerReorder } from '@/components/ui/usePointerReorder'
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
 import { useHeaderButtons } from '@/state/useHeaderButtons'
 import type { ActivityList, FieldSelections } from '@/domain/types'
@@ -124,7 +131,7 @@ export function HeaderBar({
   // `state/useHeaderButtons.ts`). Row 2 below renders straight off
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
-  const { visible, hidden, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
+  const { visible, hidden, addButton, updateButton, hideButton, unhideButton, reorder } = useHeaderButtons()
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -224,37 +231,36 @@ export function HeaderBar({
           Sermons and Worship moved here from the note-pill row — see
           `domain/notes.ts`'s own doc comment. */}
       <div className="flex flex-wrap items-center gap-sm">
-        {visibleNoteButtons.map((button) => (
-          <span key={button.id} className="relative">
-            <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
-            {editMode && (
-              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
-            )}
-          </span>
-        ))}
-
-        {visibleQuickLogButtons.map((button) => (
-          <span key={button.id} className="relative">
-            <DisplayValueButton
-              buttonKey={button.id}
-              viewedDate={viewedDate}
-              activities={activities}
-              onQuickLog={onQuickLog}
-              onEditActivity={onEditActivity}
-            />
-            {editMode && (
-              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
-            )}
-          </span>
-        ))}
-
-        {visibleChecklistButtons.map((button) => (
-          <span key={button.id} className="relative">
-            <ChecklistButton button={button} viewedDate={viewedDate} />
-            {editMode && (
-              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
-            )}
-          </span>
+        {(
+          [
+            ['notes', visibleNoteButtons],
+            ['quickLog', visibleQuickLogButtons],
+            ['checklist', visibleChecklistButtons],
+          ] as const
+        ).map(([group, buttons]) => (
+          <HeaderButtonGroupItems
+            key={group}
+            buttons={buttons}
+            editMode={editMode}
+            onReorder={(groupOrder) => reorder(orderAfterGroupReorder(visible, group, groupOrder))}
+            onEdit={openEditForm}
+            onHide={(button) => hideButton(button.id)}
+            renderButton={(button) =>
+              button.category === 'notes' ? (
+                <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
+              ) : button.category === 'checklist' ? (
+                <ChecklistButton button={button} viewedDate={viewedDate} />
+              ) : (
+                <DisplayValueButton
+                  buttonKey={button.id}
+                  viewedDate={viewedDate}
+                  activities={activities}
+                  onQuickLog={onQuickLog}
+                  onEditActivity={onEditActivity}
+                />
+              )
+            }
+          />
         ))}
 
         {editMode && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add' })} />}
@@ -271,6 +277,75 @@ export function HeaderBar({
         />
       )}
     </header>
+  )
+}
+
+/**
+ * One group of header buttons (notes, quick-log or checklist). Outside Edit
+ * mode it just renders the buttons. In Edit mode each button is locked (a
+ * tap shows "Finish editing to log" instead of logging) and can be dragged
+ * — mouse on PC, finger on iPad — to a new spot within its own group.
+ */
+function HeaderButtonGroupItems({
+  buttons,
+  editMode,
+  onReorder,
+  onEdit,
+  onHide,
+  renderButton,
+}: {
+  buttons: HeaderButtonConfig[]
+  editMode: boolean
+  onReorder: (groupOrder: string[]) => void
+  onEdit: (button: HeaderButtonConfig) => void
+  onHide: (button: HeaderButtonConfig) => void
+  renderButton: (button: HeaderButtonConfig) => ReactNode
+}) {
+  const { notifyLocked } = useEditMode()
+  const byId = new Map(buttons.map((b) => [b.id, b]))
+  const { order, draggingId, itemProps } = usePointerReorder({
+    ids: buttons.map((b) => b.id),
+    enabled: editMode,
+    onCommit: onReorder,
+    onTap: notifyLocked,
+  })
+
+  return (
+    <>
+      {order.map((id) => {
+        const button = byId.get(id)
+        if (!button) return null
+        if (!editMode) {
+          return (
+            <span key={id} className="relative">
+              {renderButton(button)}
+            </span>
+          )
+        }
+        const props = itemProps(id)
+        return (
+          <span
+            key={id}
+            ref={props.ref}
+            onPointerDown={props.onPointerDown}
+            style={props.style}
+            data-dragging={props['data-dragging']}
+            aria-roledescription="draggable button"
+            className={cn(
+              'relative select-none rounded-full',
+              draggingId === id && 'shadow-elevation-2',
+            )}
+          >
+            <span inert className="pointer-events-none block">
+              {renderButton(button)}
+            </span>
+            <span data-reorder-ignore="">
+              <EditModeControls button={button} onEdit={() => onEdit(button)} onHide={() => onHide(button)} />
+            </span>
+          </span>
+        )
+      })}
+    </>
   )
 }
 

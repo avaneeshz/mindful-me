@@ -20,6 +20,7 @@ import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
 import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
 import { TileRow } from './TileRow'
+import { EditLock } from '@/components/ui/EditLock'
 
 /** How long the undo affordance stays available after a removal. */
 const UNDO_WINDOW_MS = 4000
@@ -165,6 +166,7 @@ export function SlotEditor({
       className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
       {selectedActivity ? (
+        <EditLock>
         <ActivitySummary
           activity={selectedActivity}
           onEdit={() => dispatch({ type: 'editActivity', id: selectedActivity.id })}
@@ -179,6 +181,7 @@ export function SlotEditor({
           onOpenNote={onOpenReflectionNote}
           syncState={activitySyncState(syncQueue, selectedActivity.id)}
         />
+        </EditLock>
       ) : (
         <>
           <header className="flex flex-wrap items-start justify-between gap-lg">
@@ -213,6 +216,7 @@ export function SlotEditor({
             </div>
           </header>
 
+          <EditLock>
           <SlotActivityList
             touching={touching}
             selectedSlot={selectedSlot}
@@ -223,6 +227,7 @@ export function SlotEditor({
             onToggleComplete={(id) => dispatch({ type: 'toggleComplete', id })}
             onUndo={() => dispatch({ type: 'undoRemoval' })}
           />
+          </EditLock>
 
           <div className="mt-2xl ipad-land:mt-md">
             <TileRow
