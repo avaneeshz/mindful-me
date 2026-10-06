@@ -266,7 +266,7 @@ describe('activity mode — a selected activity replaces the whole slot body', (
       note: 'Grounded.',
     })
     const cardHtml = renderEditor(withCard)
-    expect(cardHtml).toContain('>Reflection<')
+    expect(cardHtml).toContain('>State Tiles<')
     expect(cardHtml).toContain('Somatic')
     expect(cardHtml).toContain('aria-label="Somatic — edit reflection note"')
     // The note text itself only appears in the popup, never inline here.

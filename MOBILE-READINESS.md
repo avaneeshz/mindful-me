@@ -114,6 +114,8 @@ Each of these needs a thin adapter before a native build. Nothing needs changing
 
 A native app would rebuild these gestures (Reanimated + Gesture Handler) on top of the same `domain/scheduling.ts` functions.
 
+**Approved exception (2026-10-06):** reordering header buttons in Edit mode (`components/ui/usePointerReorder.ts`, used by `HeaderBar.tsx`) is drag-only — mouse on PC, finger on iPad. The product owner explicitly declined a tap alternative (no move arrows). It uses Pointer Events rather than HTML5 drag-and-drop, so it already works on touch; the order logic itself is pure (`domain/headerButtons.ts`: `moveId`, `orderAfterGroupReorder`). Revisit if keyboard or switch-access reordering is ever needed.
+
 ### MR-10 · P1 · In-app account deletion
 
 No account-deletion flow exists (no UI, RPC or edge function). **Both the App Store and Google Play require in-app account deletion** for any app with account creation, and GDPR requires it too.

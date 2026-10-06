@@ -16,6 +16,8 @@ import { PickerDataProvider } from '@/state/PickerDataContext'
 import { HeaderButtonsProvider } from '@/state/HeaderButtonsContext'
 import { InterfaceProvider, useInterfaceMode } from '@/state/InterfaceContext'
 import { ThemeProvider } from '@/state/ThemeContext'
+import { EditModeProvider, useEditMode } from '@/state/EditModeContext'
+import { EditLockHint } from '@/components/ui/EditLock'
 import { useHealthAutoSync } from '@/state/useHealthAutoSync'
 import { cn } from '@/lib/utils'
 
@@ -132,17 +134,6 @@ function AuthedApp({ now }: { now?: Date }) {
   const mainRef = useRef<HTMLElement>(null)
   const hasContentBelow = useHasContentBelow(mainRef)
 
-  // The ONE edit-mode toggle for the whole app — `HeaderBar`'s top-bar
-  // "Edit" button used to own this locally (Today-only, before HeaderBar
-  // was hoisted here); now that HeaderBar is app-wide chrome (see the shell
-  // comment below) and `SlotEditor`'s inline tile editor (a
-  // TodayPage descendant, not a HeaderBar descendant) needs the exact same
-  // flag, it has to live at the one ancestor both share. Passed down to
-  // `TodayPage` as a prop rather than lifted into `BoardContext` — it's
-  // page-level UI state, not board data, same reasoning `ThemeContext`
-  // already documents for staying its own thing.
-  const [editMode, setEditMode] = useState(false)
-
   return (
     // `PickerDataProvider` wraps `BoardProvider` (not the other way around)
     // because `BoardProvider` itself calls `useLiveActivityCatalogSync`,
@@ -154,6 +145,14 @@ function AuthedApp({ now }: { now?: Date }) {
     <PickerDataProvider>
       <HeaderButtonsProvider>
         <BoardProvider now={now}>
+          {/*
+            Edit mode (header + Today) lives in its own small context — see
+            `state/EditModeContext.tsx`. Inside BoardProvider so entering it
+            can drop any half-finished log (`CancelLoggingOnEdit`).
+          */}
+          <EditModeProvider>
+          <CancelLoggingOnEdit />
+          <EditLockHint />
           <div className="flex h-full mobile:h-auto mobile:flex-col">
             <Sidebar />
 
@@ -178,11 +177,11 @@ function AuthedApp({ now }: { now?: Date }) {
                   Sync renders beside it, not a second copy of it.
                 */}
                 <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
-                  <AppHeaderBar editMode={editMode} onToggleEditMode={() => setEditMode((value) => !value)} />
+                  <AppHeaderBar />
                   <Routes>
                     <Route
                       path="/"
-                      element={<TodayPage editMode={editMode} />}
+                      element={<TodayPage />}
                     />
                     <Route path="/health-sync" element={<HealthSyncPage />} />
                     <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
@@ -221,6 +220,7 @@ function AuthedApp({ now }: { now?: Date }) {
               />
             </div>
           </div>
+          </EditModeProvider>
         </BoardProvider>
       </HeaderButtonsProvider>
     </PickerDataProvider>
@@ -233,7 +233,8 @@ function AuthedApp({ now }: { now?: Date }) {
  * `AuthedApp`) purely so `AuthedApp` itself doesn't need to know HeaderBar's
  * prop list. Must render inside `BoardProvider` (it does — see above).
  */
-function AppHeaderBar({ editMode, onToggleEditMode }: { editMode: boolean; onToggleEditMode: () => void }) {
+function AppHeaderBar() {
+  const { editMode, toggleEditMode } = useEditMode()
   const { state, dispatch, now, viewedDate, setViewedDate, syncQueue, retrySyncNow } = useBoard()
   const { user, signOut } = useAuth()
 
@@ -252,7 +253,23 @@ function AppHeaderBar({ editMode, onToggleEditMode }: { editMode: boolean; onTog
       onRetrySyncNow={retrySyncNow}
       onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
       editMode={editMode}
-      onToggleEditMode={onToggleEditMode}
+      onToggleEditMode={toggleEditMode}
     />
   )
+}
+
+/**
+ * Entering Edit mode drops anything half-logged: a staged pick (and its
+ * open Log modal) is cancelled and a selected activity is deselected, so
+ * Slot Details shows the tile editor rather than logging controls.
+ */
+function CancelLoggingOnEdit() {
+  const { editMode } = useEditMode()
+  const { dispatch } = useBoard()
+  useEffect(() => {
+    if (!editMode) return
+    dispatch({ type: 'cancelStaging' })
+    dispatch({ type: 'selectScheduledActivity', id: null })
+  }, [editMode, dispatch])
+  return null
 }
