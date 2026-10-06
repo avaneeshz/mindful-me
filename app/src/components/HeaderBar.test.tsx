@@ -1,25 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { HeaderBar } from './HeaderBar'
+import { HeaderButtonsProvider } from '@/state/HeaderButtonsContext'
 
 const FIXED_NOW = new Date(2026, 8, 5, 10, 0)
 
 function render(editMode = false): string {
   return renderToStaticMarkup(
-    <HeaderBar
-      now={FIXED_NOW}
-      viewedDate={FIXED_NOW}
-      onSelectDate={() => {}}
-      user={null}
-      onSignOut={() => {}}
-      activities={[]}
-      onQuickLog={() => {}}
-      syncQueue={[]}
-      onRetrySyncNow={() => {}}
-      onEditActivity={() => {}}
-      editMode={editMode}
-      onToggleEditMode={() => {}}
-    />,
+    <HeaderButtonsProvider>
+      <HeaderBar
+        now={FIXED_NOW}
+        viewedDate={FIXED_NOW}
+        onSelectDate={() => {}}
+        user={null}
+        onSignOut={() => {}}
+        activities={[]}
+        onQuickLog={() => {}}
+        syncQueue={[]}
+        onRetrySyncNow={() => {}}
+        onEditActivity={() => {}}
+        editMode={editMode}
+        onToggleEditMode={() => {}}
+      />
+    </HeaderButtonsProvider>,
   )
 }
 

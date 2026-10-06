@@ -3,7 +3,8 @@ import { ChevronLeft, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NoteFieldsPanel } from '@/components/activityLibrary/NoteFieldsPanel'
 import { ParameterOptionsPanel } from '@/components/activityLibrary/ParameterOptionsPanel'
-import { AddNameRow, EditableActivityList, HiddenActivityList, RowIconButton } from '@/components/editor/ActivityRows'
+import { AddNameRow, EditableActivityList, RowIconButton } from '@/components/editor/ActivityRows'
+import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { InlineNameForm } from '@/components/editor/InlineNameForm'
 import { ColorPicker } from '@/components/ui/ColorPicker'
 import { effectiveActivityColor } from '@/domain/colors'
@@ -146,7 +147,7 @@ export function ActivityEditView({
           }
           onAdd={(name) => activities.addActivity({ name, parentId: activity.id })}
         />
-        <HiddenActivityList rows={hidden} allRows={rows} onRestore={activities.unhideActivity} onDelete={activities.deleteActivity} />
+        <HiddenInSettingsLink count={hidden.length} noun="option" />
       </section>
 
       <NoteFieldsPanel

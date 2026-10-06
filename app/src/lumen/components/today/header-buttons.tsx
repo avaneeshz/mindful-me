@@ -2,7 +2,16 @@ import { Beef, Check, ChevronDown, Footprints, Hash, ListChecks, NotebookPen, Ti
 import { useEffect, useMemo, useState } from 'react'
 import { formatDisplayValue, parseDisplayValue } from '@/domain/displayButtons'
 import type { HeaderButtonConfig } from '@/domain/headerButtons'
-import { canSubmitNote, formatNoteTimestamp, noteButtonTypes, noteEntryWasEdited, partitionNoteEntriesByToday, type NoteEntry } from '@/domain/notes'
+import {
+  canSubmitNote,
+  formatEntryTypes,
+  formatNoteTimestamp,
+  noteButtonTypes,
+  noteEntryWasEdited,
+  partitionNoteEntriesByToday,
+  toggleEntryType,
+  type NoteEntry,
+} from '@/domain/notes'
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory } from '@/state/useDisplayValueHistory'
 import { useNoteEntries } from '@/state/useNoteEntries'
@@ -427,26 +436,26 @@ function NotesSheet({
   const key = button.key ?? button.id
   const types = noteButtonTypes(key)
   const [text, setText] = useState('')
-  const [type, setType] = useState<string | null>(null)
-  const [editing, setEditing] = useState<{ id: string; text: string; type: string | null } | null>(null)
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+  const [editing, setEditing] = useState<{ id: string; text: string; types: string[] } | null>(null)
   const [showEarlier, setShowEarlier] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setText('')
-    setType(null)
+    setSelectedTypes([])
     setEditing(null)
     setShowEarlier(false)
   }, [open])
 
   const { recent, earlier } = partitionNoteEntriesByToday(notes.entries, now)
-  const canStore = canSubmitNote(key, text, type)
+  const canStore = canSubmitNote(key, text, selectedTypes)
 
   const row = (entry: NoteEntry) =>
     editing?.id === entry.id ? (
       <li key={entry.id} className="flex flex-col gap-2 rounded-tile border border-line/[0.09] bg-surface-2/40 p-3">
         {types && (
-          <ChoiceChips label="Type" mode="single" options={types} selected={editing.type ? [editing.type] : []} onToggle={(t) => setEditing({ ...editing, type: t })} />
+          <ChoiceChips label="Type" options={types} selected={editing.types} onToggle={(t) => t && setEditing({ ...editing, types: toggleEntryType(editing.types, t) })} />
         )}
         <textarea
           rows={3}
@@ -471,8 +480,8 @@ function NotesSheet({
           <Button
             variant="primary"
             className="h-10"
-            disabled={!canSubmitNote(key, editing.text, editing.type) || notes.pendingEntryId === entry.id}
-            onClick={() => void notes.updateNote(entry.id, editing.text.trim(), editing.type).then((ok) => ok && setEditing(null))}
+            disabled={!canSubmitNote(key, editing.text, editing.types) || notes.pendingEntryId === entry.id}
+            onClick={() => void notes.updateNote(entry.id, editing.text.trim(), editing.types).then((ok) => ok && setEditing(null))}
           >
             Save
           </Button>
@@ -482,13 +491,15 @@ function NotesSheet({
       <li key={entry.id}>
         <button
           type="button"
-          onClick={() => setEditing({ id: entry.id, text: entry.note, type: entry.entryType })}
+          onClick={() => setEditing({ id: entry.id, text: entry.note, types: [...entry.entryTypes] })}
           className="flex w-full flex-col gap-1 rounded-control px-2 py-2.5 text-left transition-colors hover:bg-white/[0.03]"
         >
           <span className="flex items-center gap-2 text-xs text-ink-faint">
             {formatNoteTimestamp(new Date(entry.createdAt))}
             {noteEntryWasEdited(entry) && <span>· edited</span>}
-            {entry.entryType && <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-ink-muted">{entry.entryType}</span>}
+            {entry.entryTypes.length > 0 && (
+              <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-ink-muted">{formatEntryTypes(entry.entryTypes)}</span>
+            )}
           </span>
           <span className="whitespace-pre-wrap text-sm text-ink">{entry.note}</span>
         </button>
@@ -504,7 +515,9 @@ function NotesSheet({
       leading={<IconBubble icon={NotebookPen} hue="accent" />}
     >
       <div className="flex flex-col gap-3">
-        {types && <ChoiceChips label="Type" mode="single" options={types} selected={type ? [type] : []} onToggle={setType} />}
+        {types && (
+          <ChoiceChips label="Type" options={types} selected={selectedTypes} onToggle={(t) => t && setSelectedTypes((s) => toggleEntryType(s, t))} />
+        )}
         <textarea
           rows={3}
           value={text}
@@ -518,10 +531,10 @@ function NotesSheet({
           className="self-end"
           disabled={!canStore || notes.submitting}
           onClick={() =>
-            void notes.addNote(text.trim(), type).then((ok) => {
+            void notes.addNote(text.trim(), selectedTypes).then((ok) => {
               if (ok) {
                 setText('')
-                setType(null)
+                setSelectedTypes([])
               }
             })
           }

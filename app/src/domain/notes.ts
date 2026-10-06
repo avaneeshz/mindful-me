@@ -70,10 +70,10 @@ export const LEARNING_TYPES = ['Given', 'Realized', 'Revealed'] as const
 // lost, just relocated to their new single source of truth.
 
 /**
- * Which buttons carry a single-select "type" chip radiogroup above the note
+ * Which buttons carry a multi-select "type" chip group above the note
  * field, and the values each offers. A button absent here has no type
- * selector at all. The stored value is a plain string — see
- * `NoteEntry.entryType`.
+ * selector at all. The stored values are plain strings — see
+ * `NoteEntry.entryTypes`.
  */
 export const NOTE_BUTTON_TYPES: Partial<Record<string, readonly string[]>> = {
   gifts: GIFT_TYPES,
@@ -96,8 +96,12 @@ export interface NoteEntry {
   id: string
   buttonKey: NoteButtonKey
   note: string
-  /** The chosen type for buttons that have a selector (`gifts`/`prayer`/`learnings`); `null` otherwise. */
-  entryType: string | null
+  /**
+   * The chosen types, in the order picked, for buttons that have a selector;
+   * `[]` otherwise. More than one may be chosen (see
+   * `20261005060000_note_entries_multi_type.sql`).
+   */
+  entryTypes: readonly string[]
   createdAt: string
   /**
    * Bumped by the DB on every `update_note_entry` (see
@@ -128,15 +132,25 @@ export function requiresEntryType(buttonKey: NoteButtonKey): boolean {
 
 /**
  * Whether the Store button should be enabled: a real, non-blank note, and —
- * for a button with a type selector — a type actually chosen. Shared by the
+ * for a button with a type selector — at least one type actually chosen. Shared by the
  * component and any API caller so "what counts as submittable" lives in one
  * place, the same reasoning `domain/scheduling.ts`'s `validateSchedule`
  * follows.
  */
-export function canSubmitNote(buttonKey: NoteButtonKey, note: string, entryType: string | null): boolean {
+export function canSubmitNote(buttonKey: NoteButtonKey, note: string, entryTypes: readonly string[]): boolean {
   if (note.trim() === '') return false
-  if (requiresEntryType(buttonKey) && (entryType === null || entryType === '')) return false
+  if (requiresEntryType(buttonKey) && entryTypes.length === 0) return false
   return true
+}
+
+/** Adds `type` to a multi-type selection, or removes it if already picked — keeps pick order. */
+export function toggleEntryType(selected: readonly string[], type: string): string[] {
+  return selected.includes(type) ? selected.filter((value) => value !== type) : [...selected, type]
+}
+
+/** How a note's types read inline (history rows, the day export): "Dreamer, The Voice". */
+export function formatEntryTypes(entryTypes: readonly string[]): string {
+  return entryTypes.join(', ')
 }
 
 /** `Tue, 5 Sep · 3:45 PM`-shaped, device-local — no timezone library needed (mirrors `HeaderBar`'s own date formatting). */
