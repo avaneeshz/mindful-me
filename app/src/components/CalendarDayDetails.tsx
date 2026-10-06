@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Sparkles, Star, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import type { ImportantDay } from '@/domain/importantDays'
@@ -38,9 +38,9 @@ export function CalendarDayDetails({ date, calendar }: { date: Date; calendar: U
   const heading = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
-    <div className="mt-md flex flex-col gap-sm border-t border-line pt-md">
+    <div className="mt-sm flex flex-col gap-sm border-t border-line-soft pt-md">
       <div className="flex items-center justify-between gap-sm">
-        <p className="text-caption font-semibold text-ink">{heading}</p>
+        <p className="text-body font-semibold text-ink">{heading}</p>
         {calendar.holidaysStatus === 'loading' && (
           <span className="flex items-center gap-xs text-nano text-ink-dim" role="status">
             <Loader2 aria-hidden="true" className="size-[12px] animate-spin" />
@@ -64,11 +64,29 @@ export function CalendarDayDetails({ date, calendar }: { date: Date; calendar: U
               ? calendar.importantDays.find((d) => d.id === marker.importantDayId)
               : undefined
             return (
-              <li key={`${marker.kind}-${marker.name}-${index}`} className="flex items-center justify-between gap-sm">
-                <span className="min-w-0 text-caption text-ink">
-                  <span className={cn(marker.kind === 'personal' && 'font-bold')}>{marker.name}</span>
-                  <span className="ml-xs text-nano uppercase tracking-tag text-ink-dim">
-                    {marker.kind === 'personal' ? 'Yours' : 'Festival / holiday'}
+              <li
+                key={`${marker.kind}-${marker.name}-${index}`}
+                className="flex min-h-[44px] items-center gap-sm rounded-sm bg-surface-2 py-xs pl-sm pr-xs"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'grid size-[28px] shrink-0 place-items-center rounded-full border border-line-soft bg-surface',
+                    marker.kind === 'personal' ? 'text-ink' : 'text-ink-dim',
+                  )}
+                >
+                  {marker.kind === 'personal' ? (
+                    <Star className="size-[13px]" strokeWidth={1.8} />
+                  ) : (
+                    <Sparkles className="size-[13px]" strokeWidth={1.8} />
+                  )}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-px">
+                  <span className={cn('break-words text-body text-ink', marker.kind === 'personal' ? 'font-semibold' : 'font-medium')}>
+                    {marker.name}
+                  </span>
+                  <span className="text-caption-sm text-ink-dim">
+                    {marker.kind === 'personal' ? 'Your day · repeats every year' : 'Festival / holiday'}
                   </span>
                 </span>
                 {own && calendar.canEditImportantDays && (
@@ -77,7 +95,7 @@ export function CalendarDayDetails({ date, calendar }: { date: Date; calendar: U
                       type="button"
                       aria-label={`Edit ${own.name}`}
                       onClick={() => setEditing({ kind: 'edit', day: own })}
-                      className="flex size-stepper items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
+                      className="flex size-stepper items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-surface hover:text-ink"
                     >
                       <Pencil aria-hidden="true" className="size-[13px]" />
                     </button>
@@ -86,7 +104,7 @@ export function CalendarDayDetails({ date, calendar }: { date: Date; calendar: U
                       aria-label={`Delete ${own.name}`}
                       disabled={busyId === own.id}
                       onClick={() => void remove(own.id)}
-                      className="flex size-stepper items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink disabled:opacity-50"
+                      className="flex size-stepper items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-surface hover:text-ink disabled:opacity-50"
                     >
                       {busyId === own.id ? (
                         <Loader2 aria-hidden="true" className="size-[13px] animate-spin" />
