@@ -20,9 +20,6 @@ export interface DayOff {
 /** Matches the server's `reason_too_long` check. */
 export const DAY_OFF_REASON_MAX = 280
 
-/** One-tap reasons offered under the reason field — they only fill it in; any text is allowed. */
-export const DAY_OFF_REASON_SUGGESTIONS = ['Holiday', 'Weekend', 'Sick', 'Travel', 'Rest'] as const
-
 /** Trims, collapses blank to `null`, and caps at `DAY_OFF_REASON_MAX` characters. */
 export function normalizeDayOffReason(reason: string | null | undefined): string | null {
   const trimmed = (reason ?? '').trim()
