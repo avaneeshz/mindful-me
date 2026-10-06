@@ -3,7 +3,8 @@ import { Pencil, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { TileDto } from '@/api/tiles'
 import { ActivityEditView } from '@/components/editor/ActivityEditView'
-import { AddNameRow, EditableActivityList, HiddenActivityList, RowIconButton } from '@/components/editor/ActivityRows'
+import { AddNameRow, EditableActivityList, RowIconButton } from '@/components/editor/ActivityRows'
+import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { TileForm } from '@/components/editor/TileForm'
 import { ColorPicker } from '@/components/ui/ColorPicker'
 import { childrenOf, isTopLevelNameTaken, moveInOrder } from '@/domain/pickerHierarchy'
@@ -133,7 +134,7 @@ export function TileEditPanel({
           }
           onAdd={(name) => activities.addActivity({ name, tileId: tile.id })}
         />
-        <HiddenActivityList rows={hidden} allRows={rows} onRestore={activities.unhideActivity} onDelete={activities.deleteActivity} />
+        <HiddenInSettingsLink count={hidden.length} noun="activity" />
       </section>
     </>
   )

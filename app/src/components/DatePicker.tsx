@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, buildMonthGrid, daysInMonth, startOfMonth } from '@/domain/calendar'
 import { localDateISO } from '@/lib/localTime'
@@ -21,6 +21,12 @@ export interface DatePickerProps {
   today: Date
   onSelect: (date: Date) => void
   onClose: () => void
+  /** Days marked as a day off (`YYYY-MM-DD`) — shown as a small dot under the date. */
+  dayOffDates?: ReadonlySet<string>
+  /** Called whenever the visible month changes, so a caller can load that month's data. */
+  onVisibleMonthChange?: (month: Date) => void
+  /** Extra content under the grid — the header uses it for the day-off control. */
+  footer?: ReactNode
 }
 
 /**
@@ -32,7 +38,15 @@ export interface DatePickerProps {
  * `AccountMenu`), roving-tabindex arrow-key grid navigation (mirrors
  * `Timeline`'s slot grid).
  */
-export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerProps) {
+export function DatePicker({
+  viewedDate,
+  today,
+  onSelect,
+  onClose,
+  dayOffDates,
+  onVisibleMonthChange,
+  footer,
+}: DatePickerProps) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(viewedDate))
   const [focusedDate, setFocusedDate] = useState(viewedDate)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -41,6 +55,12 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
   const todayIso = localDateISO(today)
   const selectedIso = localDateISO(viewedDate)
   const focusedIso = localDateISO(focusedDate)
+
+  useEffect(() => {
+    onVisibleMonthChange?.(visibleMonth)
+    // Only when the month itself changes — not when a caller passes a new callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMonth.getFullYear(), visibleMonth.getMonth()])
 
   useEffect(() => {
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focusedIso}"]`)?.focus()
@@ -177,6 +197,7 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
           const inMonth = date.getMonth() === visibleMonth.getMonth()
           const isSelected = iso === selectedIso
           const isToday = iso === todayIso
+          const isDayOff = dayOffDates?.has(iso) ?? false
           return (
             <button
               key={iso}
@@ -185,11 +206,11 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
               tabIndex={iso === focusedIso ? 0 : -1}
               aria-current={isToday ? 'date' : undefined}
               aria-pressed={isSelected}
-              aria-label={formatDayLabel(date)}
+              aria-label={isDayOff ? `${formatDayLabel(date)}, day off` : formatDayLabel(date)}
               onFocus={() => setFocusedDate(date)}
               onClick={() => onSelect(date)}
               className={cn(
-                'flex aspect-square items-center justify-center rounded-full text-caption font-semibold transition-colors',
+                'relative flex aspect-square items-center justify-center rounded-full text-caption font-semibold transition-colors',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 !inMonth && 'text-ink-dim/50 hover:bg-bg',
                 inMonth && !isSelected && 'text-ink hover:bg-bg',
@@ -198,6 +219,15 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
               )}
             >
               {date.getDate()}
+              {isDayOff && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'absolute bottom-[3px] left-1/2 size-[4px] -translate-x-1/2 rounded-full',
+                    isSelected ? 'bg-inv-ink' : 'bg-ink-dim',
+                  )}
+                />
+              )}
             </button>
           )
         })}
@@ -212,6 +242,8 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
           Jump to today
         </button>
       )}
+
+      {footer}
     </div>
   )
 }
