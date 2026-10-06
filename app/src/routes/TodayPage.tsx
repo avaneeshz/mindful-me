@@ -8,6 +8,7 @@ import { useBoard } from '@/state/BoardContext'
 import { useActivityColors } from '@/state/useActivityColors'
 import { useEditMode } from '@/state/EditModeContext'
 import { EditLock } from '@/components/ui/EditLock'
+import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 
 export function TodayPage() {
   const { editMode } = useEditMode()
@@ -54,6 +55,7 @@ export function TodayPage() {
       <ThemeFromSlot />
 
       <div className="mt-xl ipad-land:mt-md">
+        <EditSectionLabel section="timeline" className="mb-sm" />
         <EditLock>
         <Timeline
           activities={state.activities}
@@ -80,6 +82,7 @@ export function TodayPage() {
         there, so it halves alongside the top-zone gaps.
       */}
       <div className="mt-2xl ipad-land:mt-md">
+        <EditSectionLabel section="slotDetails" className="mb-sm" />
         <SlotEditor
           state={state}
           dispatch={dispatch}
@@ -94,6 +97,7 @@ export function TodayPage() {
       </div>
 
       <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
+        <EditSectionLabel section="stateTiles" className="mb-sm" />
         <EditLock>
           <ReflectionSection
             activities={state.activities}

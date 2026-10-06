@@ -6,6 +6,8 @@ import { ParameterOptionsPanel } from '@/components/activityLibrary/ParameterOpt
 import { AddNameRow, EditableActivityList, HiddenActivityList, RowIconButton } from '@/components/editor/ActivityRows'
 import { InlineNameForm } from '@/components/editor/InlineNameForm'
 import { ColorPicker } from '@/components/ui/ColorPicker'
+import { IconPicker } from '@/components/editor/IconPicker'
+import { resolveIcon } from '@/lib/iconRegistry'
 import { effectiveActivityColor } from '@/domain/colors'
 import {
   childrenOf,
@@ -20,6 +22,7 @@ import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 
 /**
  * One activity's own editor, reached from the pencil on its row: rename it,
+ * change its icon (built-in or uploaded),
  * manage its subtypes (children — each with its own pencil, so the same
  * screen serves every depth), and choose which of the user's option lists
  * apply to it. Options are chosen from the per-user lists only; adding or
@@ -52,6 +55,8 @@ export function ActivityEditView({
 }) {
   const [renaming, setRenaming] = useState(false)
   const [renameError, setRenameError] = useState<string | null>(null)
+  const [choosingIcon, setChoosingIcon] = useState(false)
+  const ActivityIcon = resolveIcon(activity.iconKey)
   const selections = useActivityParameterSelections(activity.id)
   const rows = activities.activities
   const { visible, hidden } = childrenOf(rows, activity.id, tileId)
@@ -106,6 +111,29 @@ export function ActivityEditView({
           </RowIconButton>
         </div>
       )}
+
+      <section aria-label="Icon" className="flex flex-col gap-sm">
+        <div className="flex items-center justify-between gap-sm">
+          <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Icon</h4>
+          <div className="flex items-center gap-sm">
+            <span className="flex size-chip items-center justify-center rounded-sm bg-surface-2 text-ink">
+              <ActivityIcon aria-hidden="true" className="size-[16px]" />
+            </span>
+            <Button
+              variant="outline"
+              size="inline"
+              className="px-sm py-xs text-caption"
+              aria-expanded={choosingIcon}
+              onClick={() => setChoosingIcon((v) => !v)}
+            >
+              {choosingIcon ? 'Done' : 'Change'}
+            </Button>
+          </div>
+        </div>
+        {choosingIcon && (
+          <IconPicker value={activity.iconKey} onChange={(iconKey) => activities.setActivityIcon(activity.id, iconKey)} />
+        )}
+      </section>
 
       <section aria-label="Colour" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>

@@ -27,6 +27,7 @@ import {
 } from '@/domain/headerButtons'
 import { useEditMode } from '@/state/EditModeContext'
 import { usePointerReorder } from '@/components/ui/usePointerReorder'
+import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
 import { useHeaderButtons } from '@/state/useHeaderButtons'
 import type { ActivityList, FieldSelections } from '@/domain/types'
@@ -230,6 +231,7 @@ export function HeaderBar({
           (computed, for the quick-log ones) and log/set it on click. Prayer,
           Sermons and Worship moved here from the note-pill row — see
           `domain/notes.ts`'s own doc comment. */}
+      <EditSectionLabel section="nonNegotiableButtons" editMode={editMode} />
       <div className="flex flex-wrap items-center gap-sm">
         {(
           [

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useActivityNoteFields } from '@/state/useActivityNoteFields'
 import { CategoryIconChip } from './CategoryIconChip'
+import { sectionName } from '@/domain/appLanguage'
 
 /**
  * The read-only detail view for an activity selected on the timeline — the
@@ -135,7 +136,7 @@ export function ActivitySummary({
         </div>
 
         <div className="md:border-l md:border-line md:pl-2xl">
-          <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">Reflection</p>
+          <p className="text-nano font-semibold uppercase tracking-tag text-ink-dim">{sectionName('stateTiles')}</p>
           {activity.reflections.length > 0 ? (
             <ul className="mt-sm flex flex-wrap gap-md">
               {activity.reflections.map((r) => {

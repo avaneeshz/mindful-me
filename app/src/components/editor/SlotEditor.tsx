@@ -21,6 +21,7 @@ import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
 import { TileRow } from './TileRow'
 import { EditLock } from '@/components/ui/EditLock'
+import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 
 /** How long the undo affordance stays available after a removal. */
 const UNDO_WINDOW_MS = 4000
@@ -230,6 +231,7 @@ export function SlotEditor({
           </EditLock>
 
           <div className="mt-2xl ipad-land:mt-md">
+            <EditSectionLabel section="tileActivities" editMode={editMode} className="mb-md" />
             <TileRow
               atCapacity={atCapacity}
               activityCount={touching.length}

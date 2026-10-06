@@ -44,7 +44,7 @@ export function EditModeToggle({ active, onToggle }: { active: boolean; onToggle
     <button
       type="button"
       aria-pressed={active}
-      aria-label={active ? 'Done editing header buttons' : 'Edit header buttons'}
+      aria-label={active ? 'Done editing' : 'Edit'}
       onClick={onToggle}
       className={cn(
         chipVariants({ tone: active ? 'active' : 'surface', size: 'sm', interactive: true }),
@@ -93,7 +93,7 @@ export function AddHeaderButtonChip({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      aria-label="Add a header button"
+      aria-label="Add a Non-Negotiable Button"
       onClick={onClick}
       className={cn(
         chipVariants({ tone: 'surface', size: 'sm', interactive: true }),
@@ -286,7 +286,7 @@ export function HeaderButtonFormDialog({
           </Dialog.Close>
         </div>
         <Dialog.Description className="sr-only">
-          {isEdit ? 'Edit this header button.' : 'Choose what kind of header button to add, then configure it.'}
+          {isEdit ? 'Edit this Non-Negotiable Button.' : 'Choose what kind of Non-Negotiable Button to add, then configure it.'}
         </Dialog.Description>
 
         <form
