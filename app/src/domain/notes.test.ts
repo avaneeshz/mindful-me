@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canSubmitNote,
+  formatEntryTypes,
   formatNoteTimestamp,
   GIFT_TYPES,
   LEARNING_TYPES,
@@ -11,6 +12,7 @@ import {
   partitionNoteEntriesByToday,
   requiresEntryType,
   setNoteButtonTypesRegistry,
+  toggleEntryType,
   type NoteButtonKey,
   type NoteEntry,
 } from './notes'
@@ -79,7 +81,7 @@ describe('noteButtonTypes / requiresEntryType', () => {
     try {
       expect(noteButtonTypes('custom')).toBeNull()
       expect(requiresEntryType('custom')).toBe(false)
-      expect(canSubmitNote('custom', 'hello', null)).toBe(true)
+      expect(canSubmitNote('custom', 'hello', [])).toBe(true)
     } finally {
       setNoteButtonTypesRegistry(null)
     }
@@ -88,24 +90,51 @@ describe('noteButtonTypes / requiresEntryType', () => {
 
 describe('canSubmitNote', () => {
   it('rejects an empty or whitespace-only note for every button', () => {
-    expect(canSubmitNote('mirror', '', null)).toBe(false)
-    expect(canSubmitNote('mirror', '   ', null)).toBe(false)
-    expect(canSubmitNote('mirror', '\n\t', null)).toBe(false)
+    expect(canSubmitNote('mirror', '', [])).toBe(false)
+    expect(canSubmitNote('mirror', '   ', [])).toBe(false)
+    expect(canSubmitNote('mirror', '\n\t', [])).toBe(false)
   })
 
   it('accepts a non-blank note for an untyped button, entry type irrelevant', () => {
-    expect(canSubmitNote('mirror', 'A conversation', null)).toBe(true)
-    expect(canSubmitNote('scriptures', 'A verse', null)).toBe(true)
+    expect(canSubmitNote('mirror', 'A conversation', [])).toBe(true)
+    expect(canSubmitNote('scriptures', 'A verse', [])).toBe(true)
   })
 
   it('rejects a typed button with a note but no type chosen', () => {
-    expect(canSubmitNote('gifts', 'A gift I noticed', null)).toBe(false)
-    expect(canSubmitNote('learnings', 'Something new', null)).toBe(false)
+    expect(canSubmitNote('gifts', 'A gift I noticed', [])).toBe(false)
+    expect(canSubmitNote('learnings', 'Something new', [])).toBe(false)
   })
 
   it('accepts a typed button once both a note and a type are present', () => {
-    expect(canSubmitNote('gifts', 'A gift I noticed', 'The Voice')).toBe(true)
-    expect(canSubmitNote('learnings', 'Something new', 'Realized')).toBe(true)
+    expect(canSubmitNote('gifts', 'A gift I noticed', ['The Voice'])).toBe(true)
+    expect(canSubmitNote('learnings', 'Something new', ['Realized'])).toBe(true)
+  })
+
+  it('accepts several types at once on a typed button', () => {
+    expect(canSubmitNote('gifts', 'A gift I noticed', ['Dreamer', 'The Voice'])).toBe(true)
+  })
+})
+
+describe('toggleEntryType', () => {
+  it('adds an unpicked type at the end, keeping pick order', () => {
+    expect(toggleEntryType(['The Voice'], 'Dreamer')).toEqual(['The Voice', 'Dreamer'])
+  })
+
+  it('removes an already-picked type', () => {
+    expect(toggleEntryType(['The Voice', 'Dreamer'], 'The Voice')).toEqual(['Dreamer'])
+  })
+
+  it('does not mutate the input', () => {
+    const selected = ['Dreamer']
+    toggleEntryType(selected, 'Amplifier')
+    expect(selected).toEqual(['Dreamer'])
+  })
+})
+
+describe('formatEntryTypes', () => {
+  it('joins types in pick order', () => {
+    expect(formatEntryTypes(['Dreamer', 'The Voice'])).toBe('Dreamer, The Voice')
+    expect(formatEntryTypes([])).toBe('')
   })
 })
 
@@ -127,7 +156,7 @@ describe('partitionNoteEntriesByToday', () => {
   const TODAY = new Date(2026, 8, 14, 12, 0) // Mon, 14 Sep 2026, noon local
 
   function entry(id: string, createdAt: string): NoteEntry {
-    return { id, buttonKey: 'mirror', note: `note ${id}`, entryType: null, createdAt, updatedAt: createdAt }
+    return { id, buttonKey: 'mirror', note: `note ${id}`, entryTypes: [], createdAt, updatedAt: createdAt }
   }
 
   it('returns both halves empty for an empty list', () => {

@@ -13,6 +13,8 @@ interface NoteEntryDto {
   gift_type: string | null
   created_at: string
   updated_at: string
+  /** Every picked type, in pick order — added by `20261005060000_note_entries_multi_type.sql`. */
+  entry_types?: string[] | null
 }
 
 function dtoToClient(dto: NoteEntryDto): NoteEntry {
@@ -20,9 +22,9 @@ function dtoToClient(dto: NoteEntryDto): NoteEntry {
     id: dto.id,
     buttonKey: dto.button_key as NoteButtonKey,
     note: dto.note,
-    // The server column is still `gift_type` (unchanged contract); the client
-    // field is the generic `entryType` now that Prayer/Learnings feed it too.
-    entryType: dto.gift_type ?? null,
+    // `entry_types` carries the full multi-type selection; `gift_type` (its
+    // first element) is the fallback for a server that predates it.
+    entryTypes: dto.entry_types ?? (dto.gift_type ? [dto.gift_type] : []),
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   }
@@ -58,17 +60,17 @@ export async function apiListNoteEntries(buttonKey: NoteButtonKey): Promise<Note
 export async function apiCreateNoteEntry(
   buttonKey: NoteButtonKey,
   note: string,
-  entryType: string | null,
+  entryTypes: readonly string[],
 ): Promise<NoteEntry | null> {
   if (!supabase) return null
-  const { data, error } = await supabase.rpc('create_note_entry', {
+  const { data, error } = await supabase.rpc('create_note_entry_v2', {
     p_button_key: buttonKey,
     p_note: note,
-    p_gift_type: entryType,
+    p_entry_types: entryTypes.length > 0 ? entryTypes : null,
   })
   if (error) {
     // eslint-disable-next-line no-console
-    console.warn('[notes] create_note_entry failed — kept locally, will retry on next load', error.message)
+    console.warn('[notes] create_note_entry_v2 failed — kept locally, will retry on next load', error.message)
     return null
   }
   return dtoToClient(data as NoteEntryDto)
@@ -76,7 +78,7 @@ export async function apiCreateNoteEntry(
 
 /**
  * Edits an existing note's text (and, for a typed button, its type) in
- * place — `20260913070000_note_entries_edit_delete.sql`'s `update_note_entry`.
+ * place — `update_note_entry_v2` (`20261005060000_note_entries_multi_type.sql`).
  * Returns `null` on failure to reach/read the server (no backend configured,
  * or the write didn't land), same fail-open contract as `apiCreateNoteEntry`
  * — the caller keeps its own local-first optimistic edit either way.
@@ -84,17 +86,17 @@ export async function apiCreateNoteEntry(
 export async function apiUpdateNoteEntry(
   id: string,
   note: string,
-  entryType: string | null,
+  entryTypes: readonly string[],
 ): Promise<NoteEntry | null> {
   if (!supabase) return null
-  const { data, error } = await supabase.rpc('update_note_entry', {
+  const { data, error } = await supabase.rpc('update_note_entry_v2', {
     p_id: id,
     p_note: note,
-    p_gift_type: entryType,
+    p_entry_types: entryTypes.length > 0 ? entryTypes : null,
   })
   if (error) {
     // eslint-disable-next-line no-console
-    console.warn('[notes] update_note_entry failed — kept locally, will retry on next load', error.message)
+    console.warn('[notes] update_note_entry_v2 failed — kept locally, will retry on next load', error.message)
     return null
   }
   return dtoToClient(data as NoteEntryDto)
