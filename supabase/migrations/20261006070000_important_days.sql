@@ -1,7 +1,8 @@
 -- Personal important days for the Classic calendar (#10): birthdays,
 -- anniversaries and the like. Always yearly, so only month + day are stored
 -- (no year). Feb 29 is allowed; in a non-leap year the app shows it on
--- Feb 28. Synced across devices, owned per user, written only via RPCs.
+-- Feb 28. Synced across devices, owned per user. Created via an RPC (to cap the
+-- count); updated via an RPC; deleted directly under RLS.
 
 create table public.important_days (
   id uuid primary key default gen_random_uuid(),
@@ -92,17 +93,5 @@ $$;
 revoke all on function public.update_important_day(uuid, text, smallint, smallint) from public, anon;
 grant execute on function public.update_important_day(uuid, text, smallint, smallint) to authenticated;
 
-create or replace function public.delete_important_day(p_id uuid) returns void
-language plpgsql
-set search_path = public, pg_temp
-as $$
-begin
-  if auth.uid() is null then
-    raise exception 'not authenticated' using errcode = '28000';
-  end if;
-  delete from public.important_days where id = p_id and created_by = auth.uid();
-end;
-$$;
-
-revoke all on function public.delete_important_day(uuid) from public, anon;
-grant execute on function public.delete_important_day(uuid) to authenticated;
+-- Deletes need no RPC: "delete own important days" lets a user remove only
+-- their own rows, straight from the table.

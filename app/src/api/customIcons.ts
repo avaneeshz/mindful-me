@@ -37,7 +37,8 @@ export type DeleteCustomIconResult = { ok: true } | { ok: false; reason: 'in_use
 
 export async function apiDeleteCustomIcon(id: string): Promise<DeleteCustomIconResult> {
   if (!supabase) return { ok: false, reason: 'unreachable' }
-  const { error } = await supabase.rpc('delete_custom_icon', { p_id: id })
+  // RLS limits this to the caller's own icons; a trigger refuses one still in use.
+  const { error } = await supabase.from('custom_icons').delete().eq('id', id)
   if (!error) return { ok: true }
   if (error.message.includes('icon_in_use')) return { ok: false, reason: 'in_use' }
   return { ok: false, reason: 'unreachable' }

@@ -14,8 +14,8 @@
 --
 -- A tile or activity points at an uploaded icon with icon_key
 -- 'custom:<custom_icons.id>'. The trigger below makes sure that id exists
--- and belongs to the same user, and `delete_custom_icon` refuses to delete
--- an icon that is still in use.
+-- and belongs to the same user, and a delete trigger refuses to remove an
+-- icon that is still in use.
 
 create table public.custom_icons (
   id uuid primary key default gen_random_uuid(),
@@ -76,37 +76,39 @@ $$;
 revoke all on function public.create_custom_icon(uuid, text) from public, anon;
 grant execute on function public.create_custom_icon(uuid, text) to authenticated;
 
--- Lets `delete_custom_icon` (security invoker) remove the caller's own row.
+-- Clients delete their own icons straight from the table (this policy keeps
+-- it to their own rows). `custom_icons_prevent_removing_used` below refuses
+-- to remove one a tile or activity still uses.
 create policy "delete own unused custom icons via rpc"
   on public.custom_icons for delete
   to authenticated
   using (created_by = (select auth.uid()));
 
-create or replace function public.delete_custom_icon(p_id uuid) returns void
+create or replace function internal.prevent_removing_used_custom_icon()
+returns trigger
 language plpgsql
+security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_key text := 'custom:' || p_id::text;
+  v_key text := 'custom:' || old.id::text;
 begin
-  if auth.uid() is null then
-    raise exception 'not authenticated' using errcode = '28000';
-  end if;
-
-  if exists (select 1 from public.tiles where created_by = auth.uid() and icon_key = v_key)
-     or exists (select 1 from public.activities where created_by = auth.uid() and icon_key = v_key) then
+  if exists (select 1 from public.tiles where created_by = old.created_by and icon_key = v_key)
+     or exists (select 1 from public.activities where created_by = old.created_by and icon_key = v_key) then
     raise exception 'icon_in_use' using errcode = '23503';
   end if;
-
-  delete from public.custom_icons where id = p_id and created_by = auth.uid();
-  if not found then
-    raise exception 'icon_not_found_or_not_owned' using errcode = 'P0002';
-  end if;
+  return old;
 end;
 $$;
 
-revoke all on function public.delete_custom_icon(uuid) from public, anon;
-grant execute on function public.delete_custom_icon(uuid) to authenticated;
+revoke all on function internal.prevent_removing_used_custom_icon() from public, anon, authenticated;
+
+create trigger custom_icons_prevent_removing_used
+  before delete on public.custom_icons
+  for each row execute function internal.prevent_removing_used_custom_icon();
+
+comment on policy "delete own unused custom icons via rpc" on public.custom_icons is
+  'Clients delete their own icons directly; custom_icons_prevent_removing_used refuses one still used by a tile or activity.';
 
 -- A 'custom:<uuid>' icon_key must name one of the row owner's own icons.
 create or replace function internal.assert_custom_icon_owned()
