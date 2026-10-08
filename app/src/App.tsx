@@ -11,6 +11,7 @@ import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
 import { SettingsPage } from '@/routes/SettingsPage'
 import { AddDevicePage } from '@/routes/AddDevicePage'
 import { ActivityLogPage } from '@/routes/ActivityLogPage'
+import { NeedsAttentionPage } from '@/routes/NeedsAttentionPage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { PickerDataProvider } from '@/state/PickerDataContext'
@@ -189,6 +190,7 @@ function AuthedApp({ now }: { now?: Date }) {
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/settings/devices/add" element={<AddDevicePage />} />
                     <Route path="/settings/activity-log" element={<ActivityLogPage />} />
+                    <Route path="/settings/not-synced" element={<NeedsAttentionPage />} />
                     {/*
                       "Today", "Health Sync" and "Settings" (with its Add device
                       picker) are the only routed screens.

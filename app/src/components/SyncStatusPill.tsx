@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { CloudAlert, CloudCheck, CloudUpload } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
 import { retryPendingWritesNow } from '@/state/pendingWrites'
 import { describeSyncIndicator, type SyncQueue } from '@/state/syncQueue'
@@ -185,6 +186,15 @@ export function SyncStatusPill({
             >
               Retry now
             </button>
+          )}
+          {!isSynced && (
+            <Link
+              to="/settings/not-synced"
+              onClick={() => setOpen(false)}
+              className="mt-sm block text-center text-caption font-medium text-ink underline underline-offset-2"
+            >
+              See what’s waiting
+            </Link>
           )}
         </div>
       )}
