@@ -1,7 +1,7 @@
 import { apiCreateActivity, apiReorderActivities, apiSetActivityColor, apiSetActivityHidden, apiSetActivityNoteLabels, apiUpdateActivity } from '@/api/activityHierarchy'
 import { apiCreateHeaderButton, apiReorderHeaderButtons, apiSetHeaderButtonHidden, apiUpdateHeaderButton } from '@/api/headerButtons'
 import { apiCreateNoteEntry, apiDeleteNoteEntry, apiUpdateNoteEntry } from '@/api/notes'
-import { apiCreateParameterOption } from '@/api/parameterOptions'
+import { apiCreateParameterOption, apiSetActivityParameterSelection } from '@/api/parameterOptions'
 import { apiSetDailyValue } from '@/api/dailyValues'
 import { apiSetSupplementCompletion } from '@/api/supplements'
 import { apiCreateTile, apiReorderTiles, apiSetTileColor, apiSetTileHidden, apiUpdateTile } from '@/api/tiles'
@@ -84,6 +84,8 @@ const executors: Record<string, (...args: any[]) => Promise<Executed>> = {
   'note.update': async (id, note, types) => nullable(await apiUpdateNoteEntry(serverId(id), note, types)),
   'note.delete': async (id) => bool(await apiDeleteNoteEntry(serverId(id))),
   'parameterOption.create': async (type, label, iconKey, id) => nullable(await apiCreateParameterOption(type, label, iconKey, id)),
+  'parameterSelection.set': async (activityId, type, optionId, selected) =>
+    bool(await apiSetActivityParameterSelection(activityId, type, optionId, selected)),
   'supplement.set': async (buttonId, itemKey, localDate, done, note) =>
     nullable(await apiSetSupplementCompletion(buttonId, itemKey, localDate, done, note)),
   'dailyValue.set': async (metricKey, localDate, value) => nullable(await apiSetDailyValue(metricKey, localDate, value)),

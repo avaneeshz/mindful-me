@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { setActivityLogUser } from '@/lib/activityLogger'
+import { requestPersistentStorage } from '@/lib/storageHealth'
 import { setPendingWritesUser } from './pendingWrites'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 import {
@@ -146,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActivityLogUser(owner)
     // Unsynced changes are kept across sign-out and replayed only into the account that made them.
     setPendingWritesUser(owner)
+    // Ask the browser to protect this device's saved data from automatic clean-up.
+    if (owner) void requestPersistentStorage()
   }, [user])
 
   const signIn = useCallback(signInWithPassword, [])

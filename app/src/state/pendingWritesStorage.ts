@@ -1,4 +1,5 @@
-import { readStoredJSON, writeStoredJSON } from '@/lib/storage'
+import { readStoredJSON, tryWriteStoredJSON, writeStoredJSON } from '@/lib/storage'
+import { setLedgerSaveFailed } from '@/lib/storageHealth'
 import type { PendingWrites } from './pendingWritesQueue'
 
 /**
@@ -17,7 +18,9 @@ export function loadPendingWrites(): PendingWrites {
 }
 
 export function savePendingWrites(queue: PendingWrites): void {
-  writeStoredJSON(KEY, queue)
+  // If the device can't hold the list (storage full or blocked), those changes
+  // exist only in memory — record that so the app can warn instead of staying silent.
+  setLedgerSaveFailed(!tryWriteStoredJSON(KEY, queue))
 }
 
 /**

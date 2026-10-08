@@ -23,3 +23,17 @@ export function writeStoredJSON(key: string, value: unknown): void {
     // In-memory state is still correct; only cross-reload durability is lost.
   }
 }
+
+/**
+ * Like `writeStoredJSON`, but tells the caller whether the write actually
+ * landed — for data where "silently not saved" is itself something the user
+ * must be warned about (the unsynced-changes ledger).
+ */
+export function tryWriteStoredJSON(key: string, value: unknown): boolean {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+    return true
+  } catch {
+    return false
+  }
+}

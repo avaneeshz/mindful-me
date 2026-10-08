@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   apiListActivityParameterChecklist,
   apiResetActivityParameterSelectionToInherited,
-  apiSetActivityParameterSelection,
   type ParameterType,
 } from '@/api/parameterOptions'
 import { generateId } from '@/domain/scheduling'
@@ -13,6 +12,8 @@ import {
   useParameterVocabularyInvalidationVersion,
 } from './parameterOptionsInvalidation'
 import { emptyByParameterType, localOnlyVocabulary } from './parameterOptionsLocalOnly'
+import { overlayParameterSelections } from './pendingOverlay'
+import { getPendingWritesSnapshot, writeThrough } from './pendingWrites'
 
 export type ActivityParameterSelectionsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -146,11 +147,17 @@ export function useActivityParameterSelections(activityId: string | null): UseAc
       iconKey: r.iconKey,
       selected: r.selected,
     })
-    setByType({ quality: quality.map(toOption), symptom: symptom.map(toOption), flag: flag.map(toOption) })
+    // A tick the server hasn't confirmed yet must survive this reload.
+    const overlaid = overlayParameterSelections(
+      { quality: quality.map(toOption), symptom: symptom.map(toOption), flag: flag.map(toOption) },
+      currentActivityId,
+      getPendingWritesSnapshot(),
+    )
+    setByType(overlaid.byType)
     setIsOwn({
-      quality: quality[0]?.isOwn ?? false,
-      symptom: symptom[0]?.isOwn ?? false,
-      flag: flag[0]?.isOwn ?? false,
+      quality: (quality[0]?.isOwn ?? false) || overlaid.ownTypes.has('quality'),
+      symptom: (symptom[0]?.isOwn ?? false) || overlaid.ownTypes.has('symptom'),
+      flag: (flag[0]?.isOwn ?? false) || overlaid.ownTypes.has('flag'),
     })
     setStatus('ready')
   }, [])
@@ -192,10 +199,21 @@ export function useActivityParameterSelections(activityId: string | null): UseAc
         return { ok: true }
       }
 
-      const ok = await apiSetActivityParameterSelection(currentActivityId, type, optionId, selected)
-      if (!ok) {
-        setError('Saved on this device — will sync once you’re back online.')
-        return { ok: false }
+      const out = await writeThrough({
+        action: 'parameterSelection.set',
+        entity: 'parameterSelection',
+        recordId: `${currentActivityId}:${type}:${optionId}`,
+        op: 'save',
+        args: [currentActivityId, type, optionId, selected],
+        label: `${selected ? 'Tick' : 'Untick'} a ${type} option for an activity`,
+        coalesce: true,
+      })
+      if (out.status !== 'ok') {
+        // The tick stays on screen and is kept on this device; it is retried on
+        // its own and listed under Settings -> Not synced until the server has it.
+        setError('Saved on this device — it will keep trying until it syncs (see Settings → Not synced).')
+        setIsOwn((prev) => ({ ...prev, [type]: true }))
+        return { ok: true }
       }
       setIsOwn((prev) => ({ ...prev, [type]: true }))
       notifyParameterOptionsChanged(currentActivityId, instanceId)

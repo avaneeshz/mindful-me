@@ -12,6 +12,7 @@ import { SettingsPage } from '@/routes/SettingsPage'
 import { AddDevicePage } from '@/routes/AddDevicePage'
 import { ActivityLogPage } from '@/routes/ActivityLogPage'
 import { NeedsAttentionPage } from '@/routes/NeedsAttentionPage'
+import { StorageNotice } from '@/components/StorageNotice'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { PickerDataProvider } from '@/state/PickerDataContext'
@@ -180,6 +181,7 @@ function AuthedApp({ now }: { now?: Date }) {
                 */}
                 <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
                   <AppHeaderBar />
+                  <StorageNotice className="mt-lg" />
                   <Routes>
                     <Route
                       path="/"
