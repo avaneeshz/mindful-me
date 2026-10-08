@@ -124,7 +124,7 @@ export function HeaderBar({
   // `state/useHeaderButtons.ts`). Row 2 below renders straight off
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
-  const { visible, hidden, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
+  const { visible, hidden, notice, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -259,6 +259,12 @@ export function HeaderBar({
 
         {editMode && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add' })} />}
       </div>
+
+      {notice && (
+        <p role="status" className="text-caption font-semibold text-ink-dim">
+          {notice}
+        </p>
+      )}
 
       {editMode && <HiddenButtonsPanel hidden={hidden} onUnhide={unhideButton} />}
 

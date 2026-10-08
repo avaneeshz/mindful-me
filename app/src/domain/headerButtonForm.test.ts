@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_HEADER_BUTTONS } from './headerButtons'
 import {
   addNoteField,
+  dedupeHeaderButtonInput,
+  duplicatesRemovedNotice,
   defaultNewFieldKind,
   draftFromButton,
   toCreateInput,
@@ -105,5 +107,35 @@ describe('saving', () => {
     const input = toUpdateInput(edited, supplements)
     expect(input.checklistItems?.[0]).toEqual({ key: supplements.checklistItems[0].key, label: 'Renamed' })
     expect(input.noteFields).toBeNull()
+  })
+})
+
+describe('removing duplicates before a save', () => {
+  it('keeps the first copy of each type, ignoring case and spaces', () => {
+    const { input, removed } = dedupeHeaderButtonInput({ label: 'RN', noteTypes: ['Calm', 'Hope', ' calm ', 'Joy', 'HOPE'] })
+    expect(input.noteTypes).toEqual(['Calm', 'Hope', 'Joy'])
+    expect(removed).toEqual(['calm', 'HOPE'])
+  })
+
+  it('dedupes checklist items (keeping keys) and multiselect options', () => {
+    const { input, removed } = dedupeHeaderButtonInput({
+      checklistItems: [{ key: 'a', label: 'D3' }, { label: 'Zinc' }, { key: 'c', label: 'd3' }],
+      noteFields: [
+        { fieldKind: 'multiselect', key: null, label: 'Terrain', options: ['Road', 'road', 'Trail'] },
+        { fieldKind: 'text', key: 'primary', label: 'Note' },
+      ],
+    })
+    expect(input.checklistItems).toEqual([{ key: 'a', label: 'D3' }, { label: 'Zinc' }])
+    expect(input.noteFields?.[0].options).toEqual(['Road', 'Trail'])
+    expect(removed).toEqual(['d3', 'road'])
+  })
+
+  it('leaves clean input alone and words the warning', () => {
+    const clean = { noteTypes: ['A', 'B'] }
+    expect(dedupeHeaderButtonInput(clean)).toEqual({ input: clean, removed: [] })
+    expect(duplicatesRemovedNotice('RN', [])).toBeNull()
+    expect(duplicatesRemovedNotice('RN', ['calm', 'Calm', 'Hope'])).toBe(
+      '“RN”: saved with 2 duplicates removed (calm, Hope). Each value can only appear once.',
+    )
   })
 })
