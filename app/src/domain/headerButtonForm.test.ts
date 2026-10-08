@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_HEADER_BUTTONS } from './headerButtons'
 import {
   addNoteField,
+  dedupeHeaderButtonInput,
+  duplicatesRemovedNotice,
   defaultNewFieldKind,
   draftFromButton,
   toCreateInput,
@@ -52,6 +54,37 @@ describe('validation', () => {
     )
     expect(validateHeaderButtonDraft({ ...blank, label: 'Ideas', category: 'notes' }, false)).toBeNull()
   })
+
+  it('refuses a note type listed twice, ignoring case and spaces', () => {
+    const notes = { ...draftFromButton(null), label: 'Relational Nutrients', category: 'notes' as const }
+    expect(validateHeaderButtonDraft({ ...notes, noteTypesText: 'Calm\nHope\n calm ' }, true)).toBe(
+      '“calm” is listed more than once. Each type can only appear once.',
+    )
+    expect(validateHeaderButtonDraft({ ...notes, noteTypesText: 'Calm\nHope\n\nJoy' }, true)).toBeNull()
+  })
+
+  it('refuses a checklist item listed twice', () => {
+    const checklist = { ...draftFromButton(null), label: 'Vitamins', category: 'checklist' as const }
+    expect(validateHeaderButtonDraft({ ...checklist, checklistItemsText: 'D3\nZinc\nD3' }, false)).toBe(
+      '“D3” is listed more than once. Each item can only appear once.',
+    )
+  })
+
+  it('refuses a repeated option in a multiselect field', () => {
+    const activity = {
+      ...draftFromButton(null),
+      label: 'Run',
+      activityName: 'Running',
+      fields: [{ fieldKind: 'multiselect' as const, key: null, label: 'Terrain', options: ['Road', 'road'] }],
+    }
+    expect(validateHeaderButtonDraft(activity, false)).toBe(
+      '“road” is listed more than once. Each option can only appear once. (in “Terrain”)',
+    )
+    expect(addNoteField([], { kind: 'multiselect', label: 'Terrain', options: ['Trail', ' trail '] })).toEqual({
+      ok: false,
+      error: '“trail” is listed more than once. Each option can only appear once.',
+    })
+  })
 })
 
 describe('saving', () => {
@@ -74,5 +107,35 @@ describe('saving', () => {
     const input = toUpdateInput(edited, supplements)
     expect(input.checklistItems?.[0]).toEqual({ key: supplements.checklistItems[0].key, label: 'Renamed' })
     expect(input.noteFields).toBeNull()
+  })
+})
+
+describe('removing duplicates before a save', () => {
+  it('keeps the first copy of each type, ignoring case and spaces', () => {
+    const { input, removed } = dedupeHeaderButtonInput({ label: 'RN', noteTypes: ['Calm', 'Hope', ' calm ', 'Joy', 'HOPE'] })
+    expect(input.noteTypes).toEqual(['Calm', 'Hope', 'Joy'])
+    expect(removed).toEqual(['calm', 'HOPE'])
+  })
+
+  it('dedupes checklist items (keeping keys) and multiselect options', () => {
+    const { input, removed } = dedupeHeaderButtonInput({
+      checklistItems: [{ key: 'a', label: 'D3' }, { label: 'Zinc' }, { key: 'c', label: 'd3' }],
+      noteFields: [
+        { fieldKind: 'multiselect', key: null, label: 'Terrain', options: ['Road', 'road', 'Trail'] },
+        { fieldKind: 'text', key: 'primary', label: 'Note' },
+      ],
+    })
+    expect(input.checklistItems).toEqual([{ key: 'a', label: 'D3' }, { label: 'Zinc' }])
+    expect(input.noteFields?.[0].options).toEqual(['Road', 'Trail'])
+    expect(removed).toEqual(['d3', 'road'])
+  })
+
+  it('leaves clean input alone and words the warning', () => {
+    const clean = { noteTypes: ['A', 'B'] }
+    expect(dedupeHeaderButtonInput(clean)).toEqual({ input: clean, removed: [] })
+    expect(duplicatesRemovedNotice('RN', [])).toBeNull()
+    expect(duplicatesRemovedNotice('RN', ['calm', 'Calm', 'Hope'])).toBe(
+      '“RN”: saved with 2 duplicates removed (calm, Hope). Each value can only appear once.',
+    )
   })
 })

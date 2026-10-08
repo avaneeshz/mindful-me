@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient'
+import { dedupeHeaderButtonInput } from '@/domain/headerButtonForm'
 import { headerButtonConfigFromDto, type HeaderButtonConfig, type HeaderButtonDto } from '@/domain/headerButtons'
 
 /**
@@ -80,8 +81,9 @@ export interface CreateHeaderButtonInput {
  * failure to reach/read the server — the caller already holds the
  * local-first copy (rule 6).
  */
-export async function apiCreateHeaderButton(input: CreateHeaderButtonInput): Promise<string | null> {
+export async function apiCreateHeaderButton(rawInput: CreateHeaderButtonInput): Promise<string | null> {
   if (!supabase) return null
+  const { input } = dedupeHeaderButtonInput(rawInput)
   const { data, error } = await supabase.rpc('create_header_button', {
     p_category: input.category,
     p_label: input.label,
@@ -115,8 +117,9 @@ export interface UpdateHeaderButtonInput {
   checklistItems?: { key?: string; label: string }[] | null
 }
 
-export async function apiUpdateHeaderButton(input: UpdateHeaderButtonInput): Promise<boolean> {
+export async function apiUpdateHeaderButton(rawInput: UpdateHeaderButtonInput): Promise<boolean> {
   if (!supabase) return false
+  const { input } = dedupeHeaderButtonInput(rawInput)
   const { error } = await supabase.rpc('update_header_button', {
     p_id: input.id,
     p_label: input.label,
