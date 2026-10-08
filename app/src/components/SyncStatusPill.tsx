@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { CloudAlert, CloudCheck, CloudUpload } from 'lucide-react'
 import { chipVariants } from '@/components/ui/chip'
+import { retryPendingWritesNow } from '@/state/pendingWrites'
 import { describeSyncIndicator, type SyncQueue } from '@/state/syncQueue'
+import { usePendingWrites } from '@/state/usePendingWrites'
 import { cn } from '@/lib/utils'
 
 /**
@@ -74,7 +76,10 @@ export function SyncStatusPill({
   onRetryNow: () => void
   className?: string
 }) {
-  const indicator = describeSyncIndicator(queue)
+  // Notes, tiles, activities, header buttons, supplements and daily values keep
+  // their own durable ledger; the pill reports both together.
+  const pendingWrites = usePendingWrites()
+  const indicator = describeSyncIndicator([...queue, ...pendingWrites])
   const isFailed = indicator.kind === 'failed'
   const isSynced = indicator.kind === 'synced'
 
@@ -116,6 +121,7 @@ export function SyncStatusPill({
 
   function retryNow() {
     onRetryNow()
+    retryPendingWritesNow()
     close()
   }
 

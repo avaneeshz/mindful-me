@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  apiCreateActivity,
   apiDeleteActivity,
   apiListActivities,
   apiProvisionDefaultActivities,
-  apiReorderActivities,
-  apiSetActivityColor,
-  apiSetActivityNoteLabels,
-  apiSetActivityHidden,
-  apiUpdateActivity,
+  type CreateActivityResult,
+  type UpdateActivityResult,
 } from '@/api/activityHierarchy'
 import { ACTIVITY_CARDS, CATEGORY_ORDER } from '@/data/activities'
+import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
 import { collectSubtreeIds, type ActivityRow } from '@/domain/pickerHierarchy'
 import { supabaseConfigured } from '@/lib/supabaseClient'
+import { overlayActivities } from './pendingOverlay'
+import { getPendingIds, getPendingWritesSnapshot, writeThrough } from './pendingWrites'
 
 export type ActivityHierarchyStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -137,7 +136,12 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
         setError('Could not load your activities right now.')
         return
       }
-      setActivities(server)
+      // Never let the server's list erase a change it hasn't confirmed yet.
+      const pending = getPendingIds('activity')
+      const unconfirmed = getPendingWritesSnapshot()
+      setActivities((prev) =>
+        reconcileList(prev, overlayActivities(server, unconfirmed), pending.save, pending.delete, (a) => a.id),
+      )
       setStatus('ready')
     }
 
@@ -188,29 +192,26 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
       }
       setActivities((prev) => [...prev, created])
       if (supabaseConfigured) {
-        void apiCreateActivity({ id, name: input.name, tileId: input.tileId, parentId: input.parentId }).then(
-          (result) => {
-            if (result.ok) return
-            if (result.reason === 'duplicate_name') {
-              // A PERMANENT rejection, not a transient one (found in code
-              // review: the client-side `isTopLevelNameTaken` pre-check in
-              // `ActivityTree.tsx` closes the common case, but a stale
-              // multi-tab/multi-device local list can still race past it) —
-              // "will sync once you're back online" would be a lie here,
-              // since retrying the exact same name can never succeed. Roll
-              // the optimistic insert back instead of leaving a phantom
-              // activity behind forever — via `removeSubtreeLocally`, not a
-              // plain filter, since the user may already have added a
-              // sub-activity under this since-rejected parent while the
-              // request was in flight (found in code review: a plain filter
-              // left that child behind as an invisible orphan).
-              removeSubtreeLocally(id)
-              setError(`"${input.name}" is already the name of one of your other activities — try a different name.`)
-              return
-            }
-            setError('Saved on this device — will sync once you’re back online.')
-          },
-        )
+        void writeThrough<CreateActivityResult>({
+          action: 'activity.create',
+          entity: 'activity',
+          recordId: id,
+          op: 'save',
+          args: [{ id, name: input.name, tileId: input.tileId, parentId: input.parentId }],
+          label: `Add activity “${input.name}”`,
+        }).then((out) => {
+          if (out.status === 'ok') return
+          if (out.status === 'rejected') {
+            // A PERMANENT rejection, not a transient one — a retry of the same
+            // name can never succeed, so roll the optimistic insert back (and
+            // any sub-activity already added under it) instead of leaving a
+            // phantom behind. The attempt is already out of the retry ledger.
+            removeSubtreeLocally(id)
+            setError(`"${input.name}" is already the name of one of your other activities — try a different name.`)
+            return
+          }
+          setError('Saved on this device — will sync once you’re back online.')
+        })
       }
       return created
     },
@@ -231,16 +232,19 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
       }),
     )
     if (supabaseConfigured) {
-      void apiUpdateActivity(id, name).then((result) => {
-        if (result.ok) return
-        if (result.reason === 'duplicate_name') {
-          // Found in code review: a stale in-flight rejection must never
-          // clobber a NEWER rename the user already made while this request
-          // was still in flight (e.g. "Walk" -> "Jog" [rejected, slow] ->
-          // "Run" [accepted] before the "Jog" rejection comes back) — only
-          // revert if the row's name is still exactly what THIS attempt set
-          // it to; if a later rename has since changed it again, leave that
-          // newer value alone.
+      void writeThrough<UpdateActivityResult>({
+        action: 'activity.update',
+        entity: 'activity',
+        recordId: id,
+        op: 'save',
+        args: [id, name],
+        label: `Rename activity to “${name}”`,
+      }).then((out) => {
+        if (out.status === 'ok') return
+        if (out.status === 'rejected') {
+          // A stale in-flight rejection must never clobber a NEWER rename the
+          // user already made — only revert if the row's name is still exactly
+          // what THIS attempt set it to.
           if (previousName !== undefined) {
             setActivities((prev) =>
               prev.map((a) => (a.id === id && a.name === name ? { ...a, name: previousName! } : a)),
@@ -257,9 +261,11 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
   const setActivityColor = useCallback((id: string, color: string | null): void => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, color } : a)))
     if (supabaseConfigured) {
-      void apiSetActivityColor(id, color).then((ok) => {
-        if (!ok) setError('Saved on this device — will sync once you’re back online.')
-      })
+      void writeThrough({ action: 'activity.setColor', entity: 'activity', recordId: id, op: 'save', args: [id, color], label: `Set activity colour${color ? ` ${color}` : ' to default'}`, coalesce: true }).then(
+        (out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        },
+      )
     }
   }, [])
 
@@ -269,9 +275,11 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
       if (!row) return
       setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, iconKey } : a)))
       if (supabaseConfigured) {
-        void apiUpdateActivity(id, row.name, iconKey).then((result) => {
-          if (!result.ok) setError('Saved on this device — will sync once you’re back online.')
-        })
+        void writeThrough({ action: 'activity.update', entity: 'activity', recordId: id, op: 'save', args: [id, row.name, iconKey], label: `Change icon of “${row.name}”` }).then(
+          (out) => {
+            if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+          },
+        )
       }
     },
     [activities],
@@ -280,18 +288,22 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
   const setActivityNoteLabels = useCallback((id: string, first: string | null, second: string | null): void => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, noteLabel: first, secondNoteLabel: second } : a)))
     if (supabaseConfigured) {
-      void apiSetActivityNoteLabels(id, first, second).then((ok) => {
-        if (!ok) setError('Saved on this device — will sync once you’re back online.')
-      })
+      void writeThrough({ action: 'activity.setNoteLabels', entity: 'activity', recordId: id, op: 'save', args: [id, first, second], label: `Set note titles: ${[first, second].filter(Boolean).join(', ') || '(none)'}`, coalesce: true }).then(
+        (out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        },
+      )
     }
   }, [])
 
   const setHidden = useCallback((id: string, hidden: boolean): void => {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, hidden } : a)))
     if (supabaseConfigured) {
-      void apiSetActivityHidden(id, hidden).then((ok) => {
-        if (!ok) setError('Saved on this device — will sync once you’re back online.')
-      })
+      void writeThrough({ action: 'activity.setHidden', entity: 'activity', recordId: id, op: 'save', args: [id, hidden], label: `${hidden ? 'Hide' : 'Restore'} an activity`, coalesce: true }).then(
+        (out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        },
+      )
     }
   }, [])
 
@@ -302,9 +314,11 @@ export function useActivityHierarchy(): UseActivityHierarchyResult {
     const orderIndex = new Map(orderedIds.map((id, index) => [id, index]))
     setActivities((prev) => prev.map((a) => (orderIndex.has(a.id) ? { ...a, sortOrder: orderIndex.get(a.id)! } : a)))
     if (supabaseConfigured) {
-      void apiReorderActivities(orderedIds).then((ok) => {
-        if (!ok) setError('Saved on this device — will sync once you’re back online.')
-      })
+      void writeThrough({ action: 'activity.reorder', entity: 'activity', recordId: 'order', op: 'save', args: [orderedIds], label: 'Reorder activities', coalesce: true }).then(
+        (out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        },
+      )
     }
   }, [])
 

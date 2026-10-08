@@ -1,7 +1,8 @@
-import { ChevronRight, Eye, HeartPulse, LayoutGrid, LogOut, Rows3, Shapes, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, Eye, HeartPulse, LayoutGrid, LogOut, Rows3, ScrollText, Shapes, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Segmented } from '@/lumen/components/ui/primitives'
 import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
+import { ActivityLogScreen } from './settings/activity-log'
 import { ButtonsScreen } from './settings/buttons'
 import { AddDeviceScreen, DevicesScreen } from './settings/devices'
 import { HealthDataScreen } from './settings/health-data'
@@ -19,6 +20,7 @@ export function MoreScreen() {
 
   if (settingsView === 'library') return <LibraryScreen onBack={() => openSettings('root')} />
   if (settingsView === 'buttons') return <ButtonsScreen onBack={() => openSettings('root')} />
+  if (settingsView === 'activity-log') return <ActivityLogScreen onBack={() => openSettings('root')} />
   if (settingsView === 'devices') return <DevicesScreen onBack={() => openSettings('root')} />
   if (settingsView === 'devices-add') return <AddDeviceScreen onBack={() => openSettings('devices')} />
   if (settingsView === 'health-data') return <HealthDataScreen onBack={() => openSettings('devices')} />
@@ -97,6 +99,14 @@ export function MoreScreen() {
           hint="Tidy this screen without changing the tiles themselves"
           value={`${allTiles.length - hiddenTiles.filter((id) => allTiles.some((t) => t.id === id)).length} of ${allTiles.length}`}
           onClick={() => setCustomizeOpen(true)}
+        />
+      </Group>
+      <Group title="Support">
+        <Row
+          icon={ScrollText}
+          label="Activity log"
+          hint="Last 3 days: every tap, save and server request"
+          onClick={() => openSettings('activity-log')}
         />
       </Group>
       <CustomizeSheet open={customizeOpen} onOpenChange={setCustomizeOpen} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ChevronRight, HeartPulse, Loader2, Plus, Watch, type LucideIcon } from 'lucide-react'
+import { ChevronRight, HeartPulse, Loader2, Plus, ScrollText, Watch, type LucideIcon } from 'lucide-react'
 import { apiGetHealthConnectionStatus, type HealthConnectionStatus } from '@/api/healthSync'
 import { availableDeviceProviders, type DeviceProvider } from '@/domain/deviceProviders'
 import { ParameterVocabularyPanel } from '@/components/activityLibrary/ParameterVocabularyPanel'
@@ -80,6 +80,27 @@ export function SettingsPage() {
 
       <section id={HIDDEN_ITEMS_ANCHOR} aria-labelledby="hidden-heading" className="mt-3xl scroll-mt-lg">
         <HiddenItemsPanel />
+      </section>
+
+      <section aria-labelledby="activity-log-heading" className="mt-3xl">
+        <h2 id="activity-log-heading" className="text-body font-semibold text-ink">
+          Activity log
+        </h2>
+        <Link
+          to="/settings/activity-log"
+          className="mt-md flex items-center gap-md rounded-md border border-line-soft bg-surface p-lg transition-colors hover:border-ink"
+        >
+          <span className="flex size-brand shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-ink">
+            <ScrollText aria-hidden="true" className="size-[18px]" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body font-semibold text-ink">Last 3 days</span>
+            <span className="block text-caption text-ink-dim">
+              Every tap, save and server request — see exactly what was stored and what reached the server
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-[18px] shrink-0 text-ink-dim" />
+        </Link>
       </section>
 
       <section aria-labelledby="devices-heading" className="mt-3xl">
