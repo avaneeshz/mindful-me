@@ -102,7 +102,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
           entity: 'note',
           recordId: local.id,
           op: 'save',
-          args: [buttonKey, trimmed, [...entryTypes]],
+          args: [buttonKey, trimmed, [...entryTypes], local.id],
           label: `Add note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
         })
         if (out.status !== 'ok' || !out.result) {
@@ -146,7 +146,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         const label = `Edit note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`
         // The note's first save never reached the server yet: just correct the
         // unsent save, rather than editing a note the server has no id for.
-        if (amendPendingWrite('note', id, 'note.create', { args: [buttonKey, trimmed, [...entryTypes]], label })) {
+        if (amendPendingWrite('note', id, 'note.create', { args: [buttonKey, trimmed, [...entryTypes], id], label })) {
           setPendingEntryId(null)
           return true
         }

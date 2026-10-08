@@ -14,7 +14,7 @@ import { cn } from '@/lumen/lib/utils'
  * warning with "Retry now" when a write keeps failing.
  */
 export function SyncStatus({ compact = false }: { compact?: boolean }) {
-  const { data } = useStore()
+  const { data, openSettings } = useStore()
   const pendingWrites = usePendingWrites()
   const state = describeSyncIndicator([...data.syncQueue, ...pendingWrites])
   if (state.kind === 'synced') return null
@@ -61,6 +61,16 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
               Retry now
             </Button>
           )}
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              openSettings('needs-attention')
+              close()
+            }}
+          >
+            See what’s waiting
+          </Button>
         </div>
       )}
     </Popover>

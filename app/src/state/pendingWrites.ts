@@ -11,6 +11,7 @@ import {
   amendWrite,
   findWrite,
   makeAllDue,
+  makeOneDue,
   markWriteFailed,
   markWritePermanent,
   nextDueWrite,
@@ -78,7 +79,8 @@ const executors: Record<string, (...args: any[]) => Promise<Executed>> = {
   'headerButton.update': async (input) => bool(await apiUpdateHeaderButton(input)),
   'headerButton.setHidden': async (id, hidden) => bool(await apiSetHeaderButtonHidden(id, hidden)),
   'headerButton.reorder': async (ids) => bool(await apiReorderHeaderButtons(ids)),
-  'note.create': async (buttonKey, note, types) => nullable(await apiCreateNoteEntry(buttonKey, note, types)),
+  // `id` is absent on a change queued by an older build: that one falls back to the old create.
+  'note.create': async (buttonKey, note, types, id) => nullable(await apiCreateNoteEntry(buttonKey, note, types, id)),
   'note.update': async (id, note, types) => nullable(await apiUpdateNoteEntry(serverId(id), note, types)),
   'note.delete': async (id) => bool(await apiDeleteNoteEntry(serverId(id))),
   'parameterOption.create': async (type, label, iconKey, id) => nullable(await apiCreateParameterOption(type, label, iconKey, id)),
@@ -296,6 +298,27 @@ export function cancelPendingWrite(entity: string, recordId: string, action: str
   if (!write || inFlight.has(write.id)) return false
   commit(removeWrite(queue, write.id))
   logActivity({ kind: 'save', summary: `Saved on device: ${label}`, detail: { cancelledUnsent: write.args } })
+  return true
+}
+
+/** "Retry" on one entry in the Needs attention list. */
+export function retryPendingWrite(id: string): void {
+  if (!currentUserId || !queue.some((w) => w.id === id && w.userId === currentUserId)) return
+  commit(makeOneDue(queue, id, Date.now()))
+  void drain()
+}
+
+/**
+ * "Discard": the user gives up on this change. Retrying stops and the entry
+ * leaves the ledger, so the next refresh shows the server's version again. The
+ * full content stays readable in the activity log for its 3 days. False if it
+ * is gone or being sent right now.
+ */
+export function discardPendingWrite(id: string): boolean {
+  const write = queue.find((w) => w.id === id && w.userId === currentUserId)
+  if (!write || inFlight.has(id)) return false
+  commit(removeWrite(queue, id))
+  logActivity({ kind: 'sync', summary: `Discarded by you: ${write.label}`, detail: { args: write.args, lastError: write.lastError } })
   return true
 }
 
