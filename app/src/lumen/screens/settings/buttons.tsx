@@ -51,6 +51,7 @@ export function ButtonsScreen({ onBack }: { onBack: () => void }) {
     <SettingsPage eyebrow="Settings" title="Header buttons" onBack={onBack}>
       {!supabaseConfigured && <Notice>You’re not signed in to an account, so these changes stay on this device only.</Notice>}
       {headerButtons.error && <Notice>{headerButtons.error}</Notice>}
+      {headerButtons.notice && <Notice>{headerButtons.notice}</Notice>}
 
       <Group title="On Today">
         {visible.length === 0 && <p className="px-4 py-4 text-sm text-ink-faint">No buttons showing.</p>}
