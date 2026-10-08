@@ -20,6 +20,7 @@ import {
 } from '@/domain/headerButtons'
 import { rowForLoggedActivity } from '@/domain/colors'
 import { generateId } from '@/domain/scheduling'
+import { logActivity } from '@/lib/activityLogger'
 import { loadLocalHeaderButtons, saveLocalHeaderButtons } from '@/lib/headerButtonsLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useOptionalPickerData } from './PickerDataContext'
@@ -155,10 +156,12 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         })),
       }
       commit([...all, created])
+      logActivity({ kind: 'save', summary: `Saved on device: new header button “${created.label}”`, detail: created })
 
       if (supabaseConfigured) {
         void apiCreateHeaderButton({ ...input, id }).then((serverId) => {
           if (serverId === null) {
+            logActivity({ kind: 'sync', level: 'error', summary: `Not synced: new header button “${created.label}” — kept on this device`, detail: created })
             setError('Saved on this device — will sync once you’re back online.')
           }
         })
@@ -189,9 +192,14 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         }
       })
       commit(next)
+      const saved = next.find((button) => button.id === input.id)
+      logActivity({ kind: 'save', summary: `Saved on device: edited header button “${input.label}”`, detail: saved ?? input })
 
       if (supabaseConfigured) {
         void apiUpdateHeaderButton(input).then((ok) => {
+          if (!ok) {
+            logActivity({ kind: 'sync', level: 'error', summary: `Not synced: edited header button “${input.label}” — kept on this device`, detail: saved ?? input })
+          }
           if (!ok) setError('Saved on this device — will sync once you’re back online.')
         })
       }
@@ -202,8 +210,11 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   const setHidden = useCallback(
     (id: string, hidden: boolean): void => {
       commit(all.map((button) => (button.id === id ? { ...button, hidden } : button)))
+      const label = all.find((button) => button.id === id)?.label ?? 'a button'
+      logActivity({ kind: 'save', summary: `Saved on device: ${hidden ? 'hid' : 'restored'} header button “${label}”`, detail: { id, hidden } })
       if (supabaseConfigured) {
         void apiSetHeaderButtonHidden(id, hidden).then((ok) => {
+          if (!ok) logActivity({ kind: 'sync', level: 'error', summary: `Not synced: ${hidden ? 'hid' : 'restored'} header button “${label}”`, detail: { id, hidden } })
           if (!ok) setError('Saved on this device — will sync once you’re back online.')
         })
       }
@@ -221,8 +232,10 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         orderIndex.has(button.id) ? { ...button, sortOrder: orderIndex.get(button.id)! } : button,
       )
       commit(next)
+      logActivity({ kind: 'save', summary: 'Saved on device: reordered header buttons', detail: orderedIds.map((id) => all.find((button) => button.id === id)?.label ?? id) })
       if (supabaseConfigured) {
         void apiReorderHeaderButtons(orderedIds).then((ok) => {
+          if (!ok) logActivity({ kind: 'sync', level: 'error', summary: 'Not synced: reordered header buttons', detail: orderedIds })
           if (!ok) setError('Saved on this device — will sync once you’re back online.')
         })
       }

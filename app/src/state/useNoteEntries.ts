@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { logActivity } from '@/lib/activityLogger'
 import { apiCreateNoteEntry, apiDeleteNoteEntry, apiListNoteEntries, apiUpdateNoteEntry } from '@/api/notes'
 import { generateId } from '@/domain/scheduling'
-import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
+import { noteButtonLabel, type NoteButtonKey, type NoteEntry } from '@/domain/notes'
 import { loadLocalNoteEntries, saveLocalNoteEntries } from '@/lib/noteEntriesLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 
@@ -91,7 +91,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       saveLocalNoteEntries(buttonKey, withLocal)
       logActivity({
         kind: 'save',
-        summary: `Saved on device: note on “${buttonKey}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
+        summary: `Saved on device: note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
         detail: { button: buttonKey, types: entryTypes, note: trimmed },
       })
 
@@ -101,7 +101,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
           logActivity({
             kind: 'sync',
             level: 'error',
-            summary: `Not synced: note on “${buttonKey}” — kept on this device`,
+            summary: `Not synced: note on “${noteButtonLabel(buttonKey)}” — kept on this device`,
             detail: { button: buttonKey, types: entryTypes, note: trimmed },
           })
           setError('Saved on this device — will sync once you’re back online.')
@@ -142,7 +142,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       saveLocalNoteEntries(buttonKey, withLocal)
       logActivity({
         kind: 'save',
-        summary: `Saved on device: edited note on “${buttonKey}”`,
+        summary: `Saved on device: edited note on “${noteButtonLabel(buttonKey)}”`,
         detail: { button: buttonKey, id, types: entryTypes, note: trimmed },
       })
 
@@ -152,7 +152,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
           logActivity({
             kind: 'sync',
             level: 'error',
-            summary: `Not synced: edited note on “${buttonKey}” — kept on this device`,
+            summary: `Not synced: edited note on “${noteButtonLabel(buttonKey)}” — kept on this device`,
             detail: { button: buttonKey, id, types: entryTypes, note: trimmed },
           })
           setError('Saved on this device — will sync once you’re back online.')
@@ -184,7 +184,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       saveLocalNoteEntries(buttonKey, withoutEntry)
       logActivity({
         kind: 'save',
-        summary: `Saved on device: deleted note on “${buttonKey}”`,
+        summary: `Saved on device: deleted note on “${noteButtonLabel(buttonKey)}”`,
         detail: entries.find((entry) => entry.id === id) ?? { id },
       })
 
@@ -194,7 +194,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
           logActivity({
             kind: 'sync',
             level: 'error',
-            summary: `Not synced: deleted note on “${buttonKey}” — removed on this device only`,
+            summary: `Not synced: deleted note on “${noteButtonLabel(buttonKey)}” — removed on this device only`,
             detail: { id },
           })
           setError('Removed on this device — will sync once you’re back online.')
