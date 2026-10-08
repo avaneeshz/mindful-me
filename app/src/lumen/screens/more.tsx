@@ -1,8 +1,9 @@
-import { ChevronRight, Eye, HeartPulse, LayoutGrid, LogOut, Rows3, ScrollText, Shapes, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, CloudAlert, Eye, HeartPulse, LayoutGrid, LogOut, Rows3, ScrollText, Shapes, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Segmented } from '@/lumen/components/ui/primitives'
 import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
 import { ActivityLogScreen } from './settings/activity-log'
+import { NeedsAttentionScreen } from './settings/needs-attention'
 import { ButtonsScreen } from './settings/buttons'
 import { AddDeviceScreen, DevicesScreen } from './settings/devices'
 import { HealthDataScreen } from './settings/health-data'
@@ -11,15 +12,18 @@ import { useLumenAccount } from '@/lumen/lib/account'
 import { useInterfaceMode } from '@/state/InterfaceContext'
 import type { InterfaceMode } from '@/lib/interfaceMode'
 import { useStore } from '@/lumen/lib/store'
+import { usePendingWrites } from '@/state/usePendingWrites'
 
 export function MoreScreen() {
   const { allTiles, hiddenTiles, settingsView, openSettings, headerButtons } = useStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const { mode, setMode } = useInterfaceMode()
   const { signedIn, email, firstName, initials, signOut } = useLumenAccount()
+  const unsynced = usePendingWrites().length
 
   if (settingsView === 'library') return <LibraryScreen onBack={() => openSettings('root')} />
   if (settingsView === 'buttons') return <ButtonsScreen onBack={() => openSettings('root')} />
+  if (settingsView === 'needs-attention') return <NeedsAttentionScreen onBack={() => openSettings('root')} />
   if (settingsView === 'activity-log') return <ActivityLogScreen onBack={() => openSettings('root')} />
   if (settingsView === 'devices') return <DevicesScreen onBack={() => openSettings('root')} />
   if (settingsView === 'devices-add') return <AddDeviceScreen onBack={() => openSettings('devices')} />
@@ -102,6 +106,13 @@ export function MoreScreen() {
         />
       </Group>
       <Group title="Support">
+        <Row
+          icon={CloudAlert}
+          label="Not synced"
+          hint="Changes the server has not confirmed yet — retry or discard"
+          value={unsynced > 0 ? `${unsynced}` : undefined}
+          onClick={() => openSettings('needs-attention')}
+        />
         <Row
           icon={ScrollText}
           label="Activity log"

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ChevronRight, HeartPulse, Loader2, Plus, ScrollText, Watch, type LucideIcon } from 'lucide-react'
+import { ChevronRight, CloudAlert, HeartPulse, Loader2, Plus, ScrollText, Watch, type LucideIcon } from 'lucide-react'
 import { apiGetHealthConnectionStatus, type HealthConnectionStatus } from '@/api/healthSync'
 import { availableDeviceProviders, type DeviceProvider } from '@/domain/deviceProviders'
 import { ParameterVocabularyPanel } from '@/components/activityLibrary/ParameterVocabularyPanel'
 import { HIDDEN_ITEMS_ANCHOR, HiddenItemsPanel } from '@/components/settings/HiddenItemsPanel'
 import { buttonVariants } from '@/components/ui/button'
 import { useAuth } from '@/state/AuthContext'
+import { usePendingWrites } from '@/state/usePendingWrites'
 import { useParameterVocabulary } from '@/state/useParameterVocabulary'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +43,7 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(configured)
   const [devices, setDevices] = useState<ConnectedDevice[]>([])
   const vocabulary = useParameterVocabulary()
+  const unsynced = usePendingWrites().length
   const { hash } = useLocation()
 
   // Arriving from an activity's "Add or rename options in Settings" link, or
@@ -80,6 +82,29 @@ export function SettingsPage() {
 
       <section id={HIDDEN_ITEMS_ANCHOR} aria-labelledby="hidden-heading" className="mt-3xl scroll-mt-lg">
         <HiddenItemsPanel />
+      </section>
+
+      <section aria-labelledby="not-synced-heading" className="mt-3xl">
+        <h2 id="not-synced-heading" className="text-body font-semibold text-ink">
+          Not synced
+        </h2>
+        <Link
+          to="/settings/not-synced"
+          className="mt-md flex items-center gap-md rounded-md border border-line-soft bg-surface p-lg transition-colors hover:border-ink"
+        >
+          <span className="flex size-brand shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-ink">
+            <CloudAlert aria-hidden="true" className="size-[18px]" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body font-semibold text-ink">
+              {unsynced > 0 ? `${unsynced} ${unsynced === 1 ? 'change' : 'changes'} waiting` : 'Everything is synced'}
+            </span>
+            <span className="block text-caption text-ink-dim">
+              Changes the server has not confirmed yet — see them, retry them, or discard them
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-[18px] shrink-0 text-ink-dim" />
+        </Link>
       </section>
 
       <section aria-labelledby="activity-log-heading" className="mt-3xl">

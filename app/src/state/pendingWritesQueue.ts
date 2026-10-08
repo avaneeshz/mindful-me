@@ -109,3 +109,8 @@ export function nextDueWrite(queue: PendingWrites, userId: string, now: number, 
 export function pendingIds(queue: PendingWrites, userId: string | null, entity: string, op: PendingWrite['op']): Set<string> {
   return new Set(writesForUser(queue, userId).filter((w) => w.entity === entity && w.op === op).map((w) => w.recordId))
 }
+
+/** Retry just this one entry now (a permanently rejected one included). */
+export function makeOneDue(queue: PendingWrites, id: string, now: number): PendingWrites {
+  return queue.map((w) => (w.id === id ? { ...w, permanent: false, nextAttemptAt: now } : w))
+}

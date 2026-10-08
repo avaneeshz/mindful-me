@@ -17,6 +17,13 @@ interface NoteEntryDto {
   entry_types?: string[] | null
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** PostgREST's "no such function" — the database hasn't been migrated to this build yet. */
+function isMissingFunction(error: { code?: string; message?: string }): boolean {
+  return error.code === 'PGRST202' || error.code === '42883'
+}
+
 function dtoToClient(dto: NoteEntryDto): NoteEntry {
   return {
     id: dto.id,
@@ -61,12 +68,36 @@ export async function apiCreateNoteEntry(
   buttonKey: NoteButtonKey,
   note: string,
   entryTypes: readonly string[],
+  /**
+   * The note's own id, minted on the device. With it the save is idempotent:
+   * if a retry reaches the server after the first attempt already landed (the
+   * reply was lost), the server returns the existing note instead of adding a
+   * second one. Omit only for a change queued before this existed.
+   */
+  id?: string,
 ): Promise<NoteEntry | null> {
   if (!supabase) return null
+  const types = entryTypes.length > 0 ? entryTypes : null
+  if (id && UUID.test(id)) {
+    const { data, error } = await supabase.rpc('create_note_entry_v3', {
+      p_id: id,
+      p_button_key: buttonKey,
+      p_note: note,
+      p_entry_types: types,
+    })
+    if (!error) return dtoToClient(data as NoteEntryDto)
+    // During a deploy the app can be live before the database function: fall
+    // back to the older (non-idempotent) create rather than fail the save.
+    if (!isMissingFunction(error)) {
+      // eslint-disable-next-line no-console
+      console.warn('[notes] create_note_entry_v3 failed — kept locally, will retry on next load', error.message)
+      return null
+    }
+  }
   const { data, error } = await supabase.rpc('create_note_entry_v2', {
     p_button_key: buttonKey,
     p_note: note,
-    p_entry_types: entryTypes.length > 0 ? entryTypes : null,
+    p_entry_types: types,
   })
   if (error) {
     // eslint-disable-next-line no-console
