@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  apiCreateParameterOption,
   apiDeleteParameterOption,
   apiListParameterOptions,
   type ParameterOptionDto,
   type ParameterType,
 } from '@/api/parameterOptions'
+import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { notifyParameterVocabularyChanged } from './parameterOptionsInvalidation'
 import { emptyByParameterType, localOnlyVocabulary } from './parameterOptionsLocalOnly'
+import { overlayParameterOptions } from './pendingOverlay'
+import { getPendingIds, getPendingWritesSnapshot, writeThrough } from './pendingWrites'
 import { provisionDefaultParameterOptionsOnce } from './parameterOptionsProvisioning'
 
 export type ParameterVocabularyStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -132,7 +134,17 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
       setError('Could not load your options right now.')
       return
     }
-    setByType(groupByType(rows))
+    // Never let the server's list erase an option it hasn't confirmed yet.
+    const withUnconfirmed = overlayParameterOptions(rows, getPendingWritesSnapshot())
+    setByType((prev) => {
+      const pending = getPendingIds('parameterOption')
+      const grouped = groupByType(withUnconfirmed)
+      const merged = emptyByParameterType<ParameterOptionDto>()
+      for (const type of Object.keys(merged) as ParameterType[]) {
+        merged[type] = reconcileList(prev[type], grouped[type], pending.save, pending.delete, (o) => o.id)
+      }
+      return merged
+    })
     setStatus('ready')
   }, [])
 
@@ -203,16 +215,20 @@ export function useParameterVocabulary(): UseParameterVocabularyResult {
       })
       if (isDuplicate) return duplicateId
       if (!supabaseConfigured) return id
-      const serverId = await apiCreateParameterOption(type, trimmed, null, id)
+      const out = await writeThrough<string>({
+        action: 'parameterOption.create',
+        entity: 'parameterOption',
+        recordId: id,
+        op: 'save',
+        args: [type, trimmed, null, id],
+        label: `Add ${type} option “${trimmed}”`,
+      })
+      const serverId = out.status === 'ok' ? out.result : null
       if (serverId === null) {
         setError('Saved on this device — will sync once you’re back online.')
         // Still resolves with the optimistic id — the local chip already
-        // exists and this codebase's own convention (rule 6) is "kept
-        // locally, will retry," never rolled back for a plain unreachable
-        // failure. A caller awaiting this (e.g. to select it for an
-        // activity right after) can still act on it locally; that
-        // selection's own write will separately surface as unreachable too
-        // if the connection is really down.
+        // exists and is kept (rule 6) and retried in the background until the
+        // server confirms; a caller awaiting this can still act on it locally.
         return id
       }
       // A genuine cross-device/cross-tab race on the exact same NEW label

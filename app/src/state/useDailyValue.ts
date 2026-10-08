@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiListDailyValues, apiSetDailyValue } from '@/api/dailyValues'
+import { apiListDailyValues } from '@/api/dailyValues'
 import type { DisplayButtonKey } from '@/domain/displayButtons'
 import { loadDisplayValue, saveDisplayValue } from '@/lib/displayValuesLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
+import { getPendingIds, writeThrough } from './pendingWrites'
 
 /**
  * A `synced: true` display-value button's (Steps, Protein) per-day
@@ -50,6 +51,9 @@ export function useDailyValue(
       if (cancelled || entries === null) return
       const match = entries.find((entry) => entry.localDate === dayKey)
       if (match === undefined) return
+      // A value the user entered that the server hasn't confirmed yet must not
+      // be replaced by the server's older one.
+      if (getPendingIds('dailyValue').save.has(`${metricKey}:${dayKey}`)) return
       // Server wins once it answers — same reconciliation shape
       // `BoardContext`'s hydrate and `useNoteEntries` already follow.
       saveDisplayValue(buttonKey, dayKey, match.value)
@@ -71,7 +75,15 @@ export function useDailyValue(
     // real non-negative integer (clearing/blanking stays a local-only
     // affordance, same as Steps' own blank-clears-it behaviour).
     if (supabaseConfigured && next !== null) {
-      void apiSetDailyValue(metricKey, dayKey, next)
+      void writeThrough({
+        action: 'dailyValue.set',
+        entity: 'dailyValue',
+        recordId: `${metricKey}:${dayKey}`,
+        op: 'save',
+        args: [metricKey, dayKey, next],
+        label: `Set ${metricKey} for ${dayKey} to ${next}`,
+        coalesce: true,
+      })
     }
   }
 

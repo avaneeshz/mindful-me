@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiListSupplementCompletions, apiSetSupplementCompletion } from '@/api/supplements'
+import { apiListSupplementCompletions } from '@/api/supplements'
+import { reconcileList } from '@/domain/reconcileList'
 import { fullDayChecklist, type SupplementCompletion, type SupplementItemConfig, type SupplementItemKey } from '@/domain/supplements'
 import { loadLocalSupplementCompletions, saveLocalSupplementCompletions } from '@/lib/supplementsLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
+import { getPendingIds, writeThrough } from './pendingWrites'
 
 export type SupplementsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -63,8 +65,19 @@ export function useSupplementCompletions(
         setError('Could not load today’s checklist — showing what’s saved on this device.')
         return
       }
-      setEntries(server)
-      saveLocalSupplementCompletions(headerButtonId, localDate, server)
+      // The server answers for everything it has confirmed — but a tick the user
+      // made that the server hasn't confirmed yet is never erased by it.
+      const pending = getPendingIds('supplement')
+      const keyOf = (entry: SupplementCompletion) => `${headerButtonId}:${localDate}:${entry.itemKey}`
+      const merged = reconcileList(
+        loadLocalSupplementCompletions(headerButtonId, localDate) ?? [],
+        server,
+        pending.save,
+        pending.delete,
+        keyOf,
+      )
+      setEntries(merged)
+      saveLocalSupplementCompletions(headerButtonId, localDate, merged)
       setStatus('ready')
     })
     return () => {
@@ -91,11 +104,19 @@ export function useSupplementCompletions(
       saveLocalSupplementCompletions(headerButtonId, localDate, next)
 
       if (supabaseConfigured) {
-        const server = await apiSetSupplementCompletion(headerButtonId, itemKey, localDate, done, note)
-        if (server === null) {
+        const out = await writeThrough<SupplementCompletion>({
+          action: 'supplement.set',
+          entity: 'supplement',
+          recordId: `${headerButtonId}:${localDate}:${itemKey}`,
+          op: 'save',
+          args: [headerButtonId, itemKey, localDate, done, note],
+          label: `${done ? 'Tick' : 'Untick'} checklist item “${itemKey}” for ${localDate}${note ? ` — ${note}` : ''}`,
+          coalesce: true,
+        })
+        if (out.status !== 'ok' || !out.result) {
           setError('Saved on this device — will sync once you’re back online.')
         } else {
-          const reconciled = [...withoutItem, server]
+          const reconciled = [...withoutItem, out.result]
           setEntries(reconciled)
           saveLocalSupplementCompletions(headerButtonId, localDate, reconciled)
         }

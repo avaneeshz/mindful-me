@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { loggedFetch } from '@/lib/loggedFetch'
 
 /**
  * Local-first (rule 6): the app must work fully offline / with no backend
@@ -14,6 +15,8 @@ export const supabaseConfigured = Boolean(url && key)
 
 export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(url!, key!, {
+      // Every request is recorded to the user's activity log (Settings).
+      global: { fetch: loggedFetch },
       auth: {
         persistSession: true,
         autoRefreshToken: true,
