@@ -37,6 +37,8 @@ Eleven files call `localStorage`/`sessionStorage` directly:
 
 **Fix:** add one `lib/storage.ts` adapter (get/set/remove JSON with the existing fail-closed contract) and route all eleven files through it. On native, only that one file changes (to MMKV or SQLite).
 
+**Progress:** `lib/storage.ts` now exists (`readStoredJSON`/`writeStoredJSON`, synchronous and fail-closed) and the day-off cache (`state/useDayOffs.ts`) uses it. The eleven files above still need moving over.
+
 **Design note:** React Native's AsyncStorage is async, while MMKV is sync like `localStorage`. Keep the adapter synchronous and plan on MMKV, so the fail-closed callers don't all have to become async.
 
 ### MR-2 · P1 · UI components that call the API directly
@@ -111,6 +113,8 @@ Each of these needs a thin adapter before a native build. Nothing needs changing
 2. Keep those paths covered by tests so they can't be removed silently.
 
 A native app would rebuild these gestures (Reanimated + Gesture Handler) on top of the same `domain/scheduling.ts` functions.
+
+**Approved exception (2026-10-06):** reordering header buttons in Edit mode (`components/ui/usePointerReorder.ts`, used by `HeaderBar.tsx`) is drag-only — mouse on PC, finger on iPad. The product owner explicitly declined a tap alternative (no move arrows). It uses Pointer Events rather than HTML5 drag-and-drop, so it already works on touch; the order logic itself is pure (`domain/headerButtons.ts`: `moveId`, `orderAfterGroupReorder`). Revisit if keyboard or switch-access reordering is ever needed.
 
 ### MR-10 · P1 · In-app account deletion
 

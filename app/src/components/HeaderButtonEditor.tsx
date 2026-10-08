@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { AlignLeft, Eye, ListChecks, Pencil, Plus, X } from 'lucide-react'
+import { AlignLeft, Check, ListChecks, Pencil, Plus, X } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 /**
  * The header/home-screen "edit mode" toggle and everything it turns on —
  * per-button remove/edit affordances, the "add a button" chip, the add/edit
- * form itself, and the hidden-buttons panel. Deliberately NOT a separate
+ * form itself. Hidden buttons are restored from Settings → Hidden items. Deliberately NOT a separate
  * settings page (the product owner's explicit request) — every affordance
  * here lives directly in the header row it edits, a phone-home-screen-
  * widget-edit-mode shape rather than a menu buried elsewhere.
@@ -44,14 +44,14 @@ export function EditModeToggle({ active, onToggle }: { active: boolean; onToggle
     <button
       type="button"
       aria-pressed={active}
-      aria-label={active ? 'Done editing header buttons' : 'Edit header buttons'}
+      aria-label={active ? 'Done editing' : 'Edit'}
       onClick={onToggle}
       className={cn(
         chipVariants({ tone: active ? 'active' : 'surface', size: 'sm', interactive: true }),
         'font-semibold',
       )}
     >
-      {active ? <X aria-hidden="true" className="size-[14px]" /> : <Pencil aria-hidden="true" className="size-[14px]" />}
+      {active ? <Check aria-hidden="true" className="size-[14px]" /> : <Pencil aria-hidden="true" className="size-[14px]" />}
       <span>{active ? 'Done' : 'Edit'}</span>
     </button>
   )
@@ -93,7 +93,7 @@ export function AddHeaderButtonChip({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      aria-label="Add a header button"
+      aria-label="Add a Non-Negotiable Button"
       onClick={onClick}
       className={cn(
         chipVariants({ tone: 'surface', size: 'sm', interactive: true }),
@@ -103,33 +103,6 @@ export function AddHeaderButtonChip({ onClick }: { onClick: () => void }) {
       <Plus aria-hidden="true" className="size-[14px]" />
       <span>Add button</span>
     </button>
-  )
-}
-
-export function HiddenButtonsPanel({
-  hidden,
-  onUnhide,
-}: {
-  hidden: readonly HeaderButtonConfig[]
-  onUnhide: (id: string) => void
-}) {
-  if (hidden.length === 0) return null
-  return (
-    <div className="flex flex-wrap items-center gap-sm rounded-md border border-dashed border-line p-sm">
-      <span className="text-caption font-semibold text-ink-dim">Hidden:</span>
-      {hidden.map((button) => (
-        <button
-          key={button.id}
-          type="button"
-          aria-label={`Unhide ${button.label}`}
-          onClick={() => onUnhide(button.id)}
-          className={cn(chipVariants({ tone: 'bare', size: 'xs', interactive: true }), 'text-ink-dim hover:text-ink')}
-        >
-          <Eye aria-hidden="true" className="size-[12px]" />
-          <span>{button.label}</span>
-        </button>
-      ))}
-    </div>
   )
 }
 
@@ -286,7 +259,7 @@ export function HeaderButtonFormDialog({
           </Dialog.Close>
         </div>
         <Dialog.Description className="sr-only">
-          {isEdit ? 'Edit this header button.' : 'Choose what kind of header button to add, then configure it.'}
+          {isEdit ? 'Edit this Non-Negotiable Button.' : 'Choose what kind of Non-Negotiable Button to add, then configure it.'}
         </Dialog.Description>
 
         <form

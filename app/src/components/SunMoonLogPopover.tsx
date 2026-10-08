@@ -1,7 +1,16 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { canSubmitQuickLog, clockToMinutes, durationBetween, formatClock, formatDuration, nowClock } from '@/domain/quickLog'
+import {
+  canSubmitQuickLog,
+  clockToMinutes,
+  durationBetween,
+  formatClock,
+  formatDuration,
+  formatMinutesLabel,
+  nowClock,
+  totalMinutesFor,
+} from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import type { ActivityList } from '@/domain/types'
 import { TimeRangeField } from '@/components/ui/TimeRangeField'
@@ -69,7 +78,8 @@ export function SunMoonLogPopover({
     .filter((a) => a.name === cardName)
     .slice()
     .sort((a, b) => b.startMinutes - a.startMinutes)
-  const dayTotal = dayEntries.reduce((sum, a) => sum + a.durationMinutes, 0)
+  const dayTotal = totalMinutesFor(activities, cardName)
+  const totalLabel = formatMinutesLabel(dayTotal)
   const canSubmit = canSubmitQuickLog(start, end)
 
   useEffect(() => {
@@ -140,12 +150,22 @@ export function SunMoonLogPopover({
 
   return (
     <div ref={panelRef} className="relative">
+      {/* The viewed day's total in this light, sitting in the band just
+          above the cap. Always plain minutes ("80m"); nothing when zero. */}
+      {totalLabel && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-[-8px] bottom-full mb-[3px] text-center text-nano font-semibold tabular-nums text-ink-dim"
+        >
+          {totalLabel}
+        </span>
+      )}
       <button
         ref={triggerRef}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={kind === 'sun' ? 'Log sun exposure' : 'Log moon exposure'}
+        aria-label={`${kind === 'sun' ? 'Log sun exposure' : 'Log moon exposure'}${totalLabel ? ` — ${dayTotal} minutes logged on this day` : ''}`}
         onClick={() => {
           if (open) {
             setOpen(false)

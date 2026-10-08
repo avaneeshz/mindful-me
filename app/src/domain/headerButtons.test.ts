@@ -3,6 +3,8 @@ import {
   DEFAULT_HEADER_BUTTONS,
   dedupeChecklistItemKey,
   headerButtonConfigFromDto,
+  moveId,
+  orderAfterGroupReorder,
   partitionHeaderButtons,
   slugifyChecklistItemKey,
   noteLabelsFromFields,
@@ -231,5 +233,39 @@ describe('withActivityNotes — the activity is the source of truth for text not
   it('reads text titles back out of a form’s fields', () => {
     expect(noteLabelsFromFields([{ fieldKind: 'text', key: 'primary', label: 'Note' }, { fieldKind: 'text', key: 'secondary', label: 'Dreams' }])).toEqual({ first: 'Note', second: 'Dreams' })
     expect(noteLabelsFromFields([])).toEqual({ first: null, second: null })
+  })
+})
+
+describe('moveId', () => {
+  it('moves an id to a new index', () => {
+    expect(moveId(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a'])
+    expect(moveId(['a', 'b', 'c'], 'c', 0)).toEqual(['c', 'a', 'b'])
+  })
+  it('clamps the index and ignores unknown ids', () => {
+    expect(moveId(['a', 'b'], 'a', 99)).toEqual(['b', 'a'])
+    expect(moveId(['a', 'b'], 'z', 0)).toEqual(['a', 'b'])
+  })
+})
+
+describe('orderAfterGroupReorder', () => {
+  const visible = [
+    makeButton({ id: 'n1', category: 'notes' }),
+    makeButton({ id: 'n2', category: 'notes' }),
+    makeButton({ id: 'q1', category: 'activity' }),
+    makeButton({ id: 'q2', category: 'day_value' }),
+    makeButton({ id: 'c1', category: 'checklist' }),
+  ]
+
+  it('reorders one group and keeps the others in place', () => {
+    expect(orderAfterGroupReorder(visible, 'quickLog', ['q2', 'q1'])).toEqual(['n1', 'n2', 'q2', 'q1', 'c1'])
+    expect(orderAfterGroupReorder(visible, 'notes', ['n2', 'n1'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+  })
+
+  it('never moves a button into another group', () => {
+    expect(orderAfterGroupReorder(visible, 'notes', ['c1', 'n2', 'n1'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+  })
+
+  it('keeps group members the caller left out', () => {
+    expect(orderAfterGroupReorder(visible, 'notes', ['n2'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
   })
 })

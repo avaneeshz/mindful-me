@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, User } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CalendarDays, Moon, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
+import { DayOffControl } from '@/components/DayOffControl'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
-import { CouncilMark, CouncilTitle } from '@/components/CouncilBrand'
+import { CounclMark, CounclTitle } from '@/components/CounclBrand'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import {
@@ -15,17 +16,28 @@ import {
   EditModeControls,
   EditModeToggle,
   HeaderButtonFormDialog,
-  HiddenButtonsPanel,
 } from '@/components/HeaderButtonEditor'
 import { setNoteButtonsRegistry, setNoteButtonTypesRegistry } from '@/domain/notes'
 import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
-import { toDisplayButtonLike, type HeaderButtonCategory, type HeaderButtonConfig } from '@/domain/headerButtons'
+import {
+  orderAfterGroupReorder,
+  toDisplayButtonLike,
+  type HeaderButtonCategory,
+  type HeaderButtonConfig,
+} from '@/domain/headerButtons'
+import { useEditMode } from '@/state/EditModeContext'
+import { usePointerReorder } from '@/components/ui/usePointerReorder'
+import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
+import { EditLock } from '@/components/ui/EditLock'
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
-import { useHeaderButtons } from '@/state/useHeaderButtons'
+import { useSharedHeaderButtons } from '@/state/HeaderButtonsContext'
+import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import type { ActivityList, FieldSelections } from '@/domain/types'
 import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
+import { useDayOffs } from '@/state/useDayOffs'
+import { isSameLocalDay, localDateISO } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
 import { useInterfaceMode } from '@/state/InterfaceContext'
 
@@ -124,7 +136,7 @@ export function HeaderBar({
   // `state/useHeaderButtons.ts`). Row 2 below renders straight off
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
-  const { visible, hidden, notice, addButton, updateButton, hideButton, unhideButton } = useHeaderButtons()
+  const { visible, hidden, notice, addButton, updateButton, hideButton, reorder } = useSharedHeaderButtons()
   const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -162,15 +174,15 @@ export function HeaderBar({
 
   return (
     <header className="flex flex-col gap-md">
-      {/* Row 1 — identity + day context. "Council" (Section E greeting, renamed
-          from "30-Minute Slotting" and then "Consort"; not the sidebar/sign-in brand mark "Ritual
+      {/* Row 1 — identity + day context. "COUNCL" (Section E greeting, renamed
+          from "30-Minute Slotting", then "Consort", then "Council"; not the sidebar/sign-in brand mark "Ritual
           Board") sits left; the viewed-date navigator, weather, and account
           control sit right. Nothing else shares this line. */}
       <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
         <div className="flex items-center gap-sm mobile:pl-[52px]">
-          <CouncilMark />
+          <CounclMark />
           <h1 className="font-display text-h1 font-semibold text-ink mobile:text-h1-sm">
-            <CouncilTitle />
+            <CounclTitle />
           </h1>
         </div>
 
@@ -223,38 +235,38 @@ export function HeaderBar({
           (computed, for the quick-log ones) and log/set it on click. Prayer,
           Sermons and Worship moved here from the note-pill row — see
           `domain/notes.ts`'s own doc comment. */}
+      <EditSectionLabel section="nonNegotiableButtons" editMode={editMode} />
       <div className="flex flex-wrap items-center gap-sm">
-        {visibleNoteButtons.map((button) => (
-          <span key={button.id} className="relative">
-            <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
-            {editMode && (
-              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
-            )}
-          </span>
-        ))}
-
-        {visibleQuickLogButtons.map((button) => (
-          <span key={button.id} className="relative">
-            <DisplayValueButton
-              buttonKey={button.id}
-              viewedDate={viewedDate}
-              activities={activities}
-              onQuickLog={onQuickLog}
-              onEditActivity={onEditActivity}
-            />
-            {editMode && (
-              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
-            )}
-          </span>
-        ))}
-
-        {visibleChecklistButtons.map((button) => (
-          <span key={button.id} className="relative">
-            <ChecklistButton button={button} viewedDate={viewedDate} />
-            {editMode && (
-              <EditModeControls button={button} onEdit={() => openEditForm(button)} onHide={() => hideButton(button.id)} />
-            )}
-          </span>
+        {(
+          [
+            ['notes', visibleNoteButtons],
+            ['quickLog', visibleQuickLogButtons],
+            ['checklist', visibleChecklistButtons],
+          ] as const
+        ).map(([group, buttons]) => (
+          <HeaderButtonGroupItems
+            key={group}
+            buttons={buttons}
+            editMode={editMode}
+            onReorder={(groupOrder) => reorder(orderAfterGroupReorder(visible, group, groupOrder))}
+            onEdit={openEditForm}
+            onHide={(button) => hideButton(button.id)}
+            renderButton={(button) =>
+              button.category === 'notes' ? (
+                <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
+              ) : button.category === 'checklist' ? (
+                <ChecklistButton button={button} viewedDate={viewedDate} />
+              ) : (
+                <DisplayValueButton
+                  buttonKey={button.id}
+                  viewedDate={viewedDate}
+                  activities={activities}
+                  onQuickLog={onQuickLog}
+                  onEditActivity={onEditActivity}
+                />
+              )
+            }
+          />
         ))}
 
         {editMode && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add' })} />}
@@ -266,7 +278,7 @@ export function HeaderBar({
         </p>
       )}
 
-      {editMode && <HiddenButtonsPanel hidden={hidden} onUnhide={unhideButton} />}
+      {editMode && <HiddenInSettingsLink count={hidden.length} noun="button" />}
 
       {formMode && (
         <HeaderButtonFormDialog
@@ -280,6 +292,75 @@ export function HeaderBar({
   )
 }
 
+/**
+ * One group of header buttons (notes, quick-log or checklist). Outside Edit
+ * mode it just renders the buttons. In Edit mode each button is locked (a
+ * tap shows "Finish editing to log" instead of logging) and can be dragged
+ * — mouse on PC, finger on iPad — to a new spot within its own group.
+ */
+function HeaderButtonGroupItems({
+  buttons,
+  editMode,
+  onReorder,
+  onEdit,
+  onHide,
+  renderButton,
+}: {
+  buttons: HeaderButtonConfig[]
+  editMode: boolean
+  onReorder: (groupOrder: string[]) => void
+  onEdit: (button: HeaderButtonConfig) => void
+  onHide: (button: HeaderButtonConfig) => void
+  renderButton: (button: HeaderButtonConfig) => ReactNode
+}) {
+  const { notifyLocked } = useEditMode()
+  const byId = new Map(buttons.map((b) => [b.id, b]))
+  const { order, draggingId, itemProps } = usePointerReorder({
+    ids: buttons.map((b) => b.id),
+    enabled: editMode,
+    onCommit: onReorder,
+    onTap: notifyLocked,
+  })
+
+  return (
+    <>
+      {order.map((id) => {
+        const button = byId.get(id)
+        if (!button) return null
+        if (!editMode) {
+          return (
+            <span key={id} className="relative">
+              {renderButton(button)}
+            </span>
+          )
+        }
+        const props = itemProps(id)
+        return (
+          <span
+            key={id}
+            ref={props.ref}
+            onPointerDown={props.onPointerDown}
+            style={props.style}
+            data-dragging={props['data-dragging']}
+            aria-roledescription="draggable button"
+            className={cn(
+              'relative select-none rounded-full',
+              draggingId === id && 'shadow-elevation-2',
+            )}
+          >
+            <span inert className="pointer-events-none block">
+              {renderButton(button)}
+            </span>
+            <span data-reorder-ignore="">
+              <EditModeControls button={button} onEdit={() => onEdit(button)} onHide={() => onHide(button)} />
+            </span>
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
 function DatePill({
   now,
   viewedDate,
@@ -290,6 +371,12 @@ function DatePill({
   onSelectDate: (date: Date) => void
 }) {
   const [open, setOpen] = useState(false)
+  // The month the picker shows — the only window of day-off marks loaded (rule 8).
+  const [pickerMonth, setPickerMonth] = useState(viewedDate)
+  const { dayOffs, setDayOff, clearDayOff, pendingDate, error: dayOffError } = useDayOffs(open ? pickerMonth : viewedDate)
+  const viewedIso = localDateISO(viewedDate)
+  const viewedDayOff = dayOffs[viewedIso] ?? null
+  const dayOffDates = useMemo(() => new Set(Object.keys(dayOffs)), [dayOffs])
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -333,15 +420,44 @@ function DatePill({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Change viewed date — currently ${formatDatePill(viewedDate)}`}
+        aria-label={`Change viewed date — currently ${formatDatePill(viewedDate)}${viewedDayOff ? ', day off' : ''}`}
         onClick={() => setOpen((value) => !value)}
         className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
       >
         <CalendarDays aria-hidden="true" className="size-[14px] text-ink-dim" />
         <time dateTime={machineDate(viewedDate)}>{formatDatePill(viewedDate)}</time>
+        {viewedDayOff && (
+          <span className="flex items-center gap-xs border-l border-line pl-sm text-ink-dim">
+            <Moon aria-hidden="true" className="size-[12px]" />
+            Day off
+          </span>
+        )}
       </button>
 
-      {open && <DatePicker viewedDate={viewedDate} today={now} onSelect={selectDate} onClose={close} />}
+      {open && (
+        <DatePicker
+          viewedDate={viewedDate}
+          today={now}
+          onSelect={selectDate}
+          onClose={close}
+          dayOffDates={dayOffDates}
+          onVisibleMonthChange={setPickerMonth}
+          footer={
+            // Marking a day off is an entry, so it's locked in Edit mode (#17).
+            <EditLock>
+            <DayOffControl
+              dayLabel={isSameLocalDay(viewedDate, now) ? 'today' : formatDatePill(viewedDate)}
+              dayOff={viewedDayOff}
+              pending={pendingDate === viewedIso}
+              error={dayOffError}
+              onMark={() => void setDayOff(viewedIso, null)}
+              onClear={() => void clearDayOff(viewedIso)}
+              onSaveReason={(reason) => void setDayOff(viewedIso, reason)}
+            />
+            </EditLock>
+          }
+        />
+      )}
     </div>
   )
 }

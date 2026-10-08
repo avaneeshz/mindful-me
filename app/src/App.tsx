@@ -13,8 +13,11 @@ import { AddDevicePage } from '@/routes/AddDevicePage'
 import { AuthProvider, resolveGateView, useAuth } from '@/state/AuthContext'
 import { BoardProvider, useBoard } from '@/state/BoardContext'
 import { PickerDataProvider } from '@/state/PickerDataContext'
+import { HeaderButtonsProvider } from '@/state/HeaderButtonsContext'
 import { InterfaceProvider, useInterfaceMode } from '@/state/InterfaceContext'
 import { ThemeProvider } from '@/state/ThemeContext'
+import { EditModeProvider, useEditMode } from '@/state/EditModeContext'
+import { EditLockHint } from '@/components/ui/EditLock'
 import { useHealthAutoSync } from '@/state/useHealthAutoSync'
 import { cn } from '@/lib/utils'
 
@@ -131,17 +134,6 @@ function AuthedApp({ now }: { now?: Date }) {
   const mainRef = useRef<HTMLElement>(null)
   const hasContentBelow = useHasContentBelow(mainRef)
 
-  // The ONE edit-mode toggle for the whole app — `HeaderBar`'s top-bar
-  // "Edit" button used to own this locally (Today-only, before HeaderBar
-  // was hoisted here); now that HeaderBar is app-wide chrome (see the shell
-  // comment below) and `SlotEditor`'s inline tile editor (a
-  // TodayPage descendant, not a HeaderBar descendant) needs the exact same
-  // flag, it has to live at the one ancestor both share. Passed down to
-  // `TodayPage` as a prop rather than lifted into `BoardContext` — it's
-  // page-level UI state, not board data, same reasoning `ThemeContext`
-  // already documents for staying its own thing.
-  const [editMode, setEditMode] = useState(false)
-
   return (
     // `PickerDataProvider` wraps `BoardProvider` (not the other way around)
     // because `BoardProvider` itself calls `useLiveActivityCatalogSync`,
@@ -151,75 +143,86 @@ function AuthedApp({ now }: { now?: Date }) {
     // descendant of this provider) must share this one instance, not
     // each mint their own.
     <PickerDataProvider>
-      <BoardProvider now={now}>
-        <div className="flex h-full mobile:h-auto mobile:flex-col">
-          <Sidebar />
-
+      <HeaderButtonsProvider>
+        <BoardProvider now={now}>
           {/*
-            <main> — not the document — is the product's scroll container, which
-            is why a document-level overflow check reports "nothing to scroll"
-            even when it is overflowing. The wrapper exists purely to anchor the
-            bottom scroll cue over it.
+            Edit mode (header + Today) lives in its own small context — see
+            `state/EditModeContext.tsx`. Inside BoardProvider so entering it
+            can drop any half-finished log (`CancelLoggingOnEdit`).
           */}
-          <div className="relative flex min-w-0 flex-1 flex-col">
-            <main
-              ref={mainRef}
-              className="min-h-0 flex-1 overflow-y-auto mobile:overflow-visible"
-            >
-              {/*
-                The page shell: max-width, horizontal padding, and the app-wide
-                HeaderBar (date nav, sync status, edit-mode toggle, user menu)
-                — hoisted here from TodayPage so every route shares one shell
-                instead of each re-implementing its own (see git history for
-                the "SHELL NOTE" this replaced). HeaderBar is genuinely
-                app-wide chrome now, the same way Sidebar already is — Health
-                Sync renders beside it, not a second copy of it.
-              */}
-              <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
-                <AppHeaderBar editMode={editMode} onToggleEditMode={() => setEditMode((value) => !value)} />
-                <Routes>
-                  <Route
-                    path="/"
-                    element={<TodayPage editMode={editMode} />}
-                  />
-                  <Route path="/health-sync" element={<HealthSyncPage />} />
-                  <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/settings/devices/add" element={<AddDevicePage />} />
-                  {/*
-                    "Today", "Health Sync" and "Settings" (with its Add device
-                    picker) are the only routed screens.
-                    "Activity Library" (PICKER-CUSTOM-1) isn't a route at all
-                    — it is the inline tile editor on Today (`EditableTileRow`),
-                    on whenever the top-bar Edit toggle above is on. The
-                    per-user option lists live in Settings. Every
-                    other sidebar entry remains a placeholder with no
-                    destination.
-                  */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </div>
-            </main>
+          <EditModeProvider>
+          <CancelLoggingOnEdit />
+          <EditLockHint />
+          <div className="flex h-full mobile:h-auto mobile:flex-col">
+            <Sidebar />
 
             {/*
-              Acceptance Criterion 13 backstop: a soft depth fade at the fold
-              whenever content genuinely continues below it, so a control that
-              lands just past the edge on a short viewport is discoverable rather
-              than invisible. Touch devices show no resting scrollbar, so without
-              this there is no cue at all. Hidden on mobile, where the document —
-              not this container — scrolls.
+              <main> — not the document — is the product's scroll container, which
+              is why a document-level overflow check reports "nothing to scroll"
+              even when it is overflowing. The wrapper exists purely to anchor the
+              bottom scroll cue over it.
             */}
-            <span
-              aria-hidden="true"
-              className={cn(
-                'scroll-cue-bottom pointer-events-none absolute inset-x-0 bottom-0 h-2xl',
-                'transition-opacity duration-200 ease-out-soft mobile:hidden',
-                hasContentBelow ? 'opacity-100' : 'opacity-0',
-              )}
-            />
+            <div className="relative flex min-w-0 flex-1 flex-col">
+              <main
+                ref={mainRef}
+                className="min-h-0 flex-1 overflow-y-auto mobile:overflow-visible"
+              >
+                {/*
+                  The page shell: max-width, horizontal padding, and the app-wide
+                  HeaderBar (date nav, sync status, edit-mode toggle, user menu)
+                  — hoisted here from TodayPage so every route shares one shell
+                  instead of each re-implementing its own (see git history for
+                  the "SHELL NOTE" this replaced). HeaderBar is genuinely
+                  app-wide chrome now, the same way Sidebar already is — Health
+                  Sync renders beside it, not a second copy of it.
+                */}
+                <div className="mx-auto flex w-full max-w-[1680px] flex-col px-2xl pt-lg mobile:px-lg mobile:pb-[132px] ipad-land:pt-md">
+                  <AppHeaderBar />
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={<TodayPage />}
+                    />
+                    <Route path="/health-sync" element={<HealthSyncPage />} />
+                    <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/settings/devices/add" element={<AddDevicePage />} />
+                    {/*
+                      "Today", "Health Sync" and "Settings" (with its Add device
+                      picker) are the only routed screens.
+                      "Activity Library" (PICKER-CUSTOM-1) isn't a route at all
+                      — it is the inline tile editor on Today (`EditableTileRow`),
+                      on whenever the top-bar Edit toggle above is on. The
+                      per-user option lists live in Settings. Every
+                      other sidebar entry remains a placeholder with no
+                      destination.
+                    */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </div>
+              </main>
+
+              {/*
+                Acceptance Criterion 13 backstop: a soft depth fade at the fold
+                whenever content genuinely continues below it, so a control that
+                lands just past the edge on a short viewport is discoverable rather
+                than invisible. Touch devices show no resting scrollbar, so without
+                this there is no cue at all. Hidden on mobile, where the document —
+                not this container — scrolls.
+              */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'scroll-cue-bottom pointer-events-none absolute inset-x-0 bottom-0 h-2xl',
+                  'transition-opacity duration-200 ease-out-soft mobile:hidden',
+                  hasContentBelow ? 'opacity-100' : 'opacity-0',
+                )}
+              />
+            </div>
           </div>
-        </div>
-      </BoardProvider>
+          </EditModeProvider>
+        </BoardProvider>
+      </HeaderButtonsProvider>
     </PickerDataProvider>
   )
 }
@@ -230,7 +233,8 @@ function AuthedApp({ now }: { now?: Date }) {
  * `AuthedApp`) purely so `AuthedApp` itself doesn't need to know HeaderBar's
  * prop list. Must render inside `BoardProvider` (it does — see above).
  */
-function AppHeaderBar({ editMode, onToggleEditMode }: { editMode: boolean; onToggleEditMode: () => void }) {
+function AppHeaderBar() {
+  const { editMode, toggleEditMode } = useEditMode()
   const { state, dispatch, now, viewedDate, setViewedDate, syncQueue, retrySyncNow } = useBoard()
   const { user, signOut } = useAuth()
 
@@ -249,7 +253,23 @@ function AppHeaderBar({ editMode, onToggleEditMode }: { editMode: boolean; onTog
       onRetrySyncNow={retrySyncNow}
       onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
       editMode={editMode}
-      onToggleEditMode={onToggleEditMode}
+      onToggleEditMode={toggleEditMode}
     />
   )
+}
+
+/**
+ * Entering Edit mode drops anything half-logged: a staged pick (and its
+ * open Log modal) is cancelled and a selected activity is deselected, so
+ * Slot Details shows the tile editor rather than logging controls.
+ */
+function CancelLoggingOnEdit() {
+  const { editMode } = useEditMode()
+  const { dispatch } = useBoard()
+  useEffect(() => {
+    if (!editMode) return
+    dispatch({ type: 'cancelStaging' })
+    dispatch({ type: 'selectScheduledActivity', id: null })
+  }, [editMode, dispatch])
+  return null
 }

@@ -1,25 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { HeaderBar } from './HeaderBar'
+import { HeaderButtonsProvider } from '@/state/HeaderButtonsContext'
 
 const FIXED_NOW = new Date(2026, 8, 5, 10, 0)
 
 function render(editMode = false): string {
   return renderToStaticMarkup(
-    <HeaderBar
-      now={FIXED_NOW}
-      viewedDate={FIXED_NOW}
-      onSelectDate={() => {}}
-      user={null}
-      onSignOut={() => {}}
-      activities={[]}
-      onQuickLog={() => {}}
-      syncQueue={[]}
-      onRetrySyncNow={() => {}}
-      onEditActivity={() => {}}
-      editMode={editMode}
-      onToggleEditMode={() => {}}
-    />,
+    <HeaderButtonsProvider>
+      <HeaderBar
+        now={FIXED_NOW}
+        viewedDate={FIXED_NOW}
+        onSelectDate={() => {}}
+        user={null}
+        onSignOut={() => {}}
+        activities={[]}
+        onQuickLog={() => {}}
+        syncQueue={[]}
+        onRetrySyncNow={() => {}}
+        onEditActivity={() => {}}
+        editMode={editMode}
+        onToggleEditMode={() => {}}
+      />
+    </HeaderButtonsProvider>,
   )
 }
 
@@ -98,8 +101,8 @@ describe('HeaderBar checklist control', () => {
 describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
   it('starts with edit mode off — no per-button remove/edit affordance, no "Add button" chip', () => {
     const html = render()
-    expect(html).not.toContain('aria-label="Add a header button"')
+    expect(html).not.toContain('aria-label="Add a Non-Negotiable Button"')
     expect(html).not.toMatch(/aria-label="Remove /)
-    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit header buttons"/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit"/)
   })
 })

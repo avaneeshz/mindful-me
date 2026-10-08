@@ -15,10 +15,10 @@ export interface UseNoteEntriesResult {
   error: string | null
   /** True from the moment Store is pressed until the write settles — the Add-button double-submit guard (rule 9's spirit, applied to Store). */
   submitting: boolean
-  addNote: (note: string, entryType: string | null) => Promise<boolean>
+  addNote: (note: string, entryTypes: readonly string[]) => Promise<boolean>
   /** The id of the entry currently being saved (edit) or removed, if any — the same double-submit guard as `submitting`, scoped per-row since a history list has many independent rows. */
   pendingEntryId: string | null
-  updateNote: (id: string, note: string, entryType: string | null) => Promise<boolean>
+  updateNote: (id: string, note: string, entryTypes: readonly string[]) => Promise<boolean>
   deleteNote: (id: string) => Promise<boolean>
 }
 
@@ -67,7 +67,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
   }, [active, buttonKey])
 
   const addNote = useCallback(
-    async (note: string, entryType: string | null): Promise<boolean> => {
+    async (note: string, entryTypes: readonly string[]): Promise<boolean> => {
       const trimmed = note.trim()
       if (trimmed === '') return false
 
@@ -81,7 +81,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         id: generateId(),
         buttonKey,
         note: trimmed,
-        entryType,
+        entryTypes,
         createdAt: now,
         updatedAt: now,
       }
@@ -90,7 +90,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       saveLocalNoteEntries(buttonKey, withLocal)
 
       if (supabaseConfigured) {
-        const server = await apiCreateNoteEntry(buttonKey, trimmed, entryType)
+        const server = await apiCreateNoteEntry(buttonKey, trimmed, entryTypes)
         if (server === null) {
           setError('Saved on this device — will sync once you’re back online.')
         } else {
@@ -110,7 +110,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
   )
 
   const updateNote = useCallback(
-    async (id: string, note: string, entryType: string | null): Promise<boolean> => {
+    async (id: string, note: string, entryTypes: readonly string[]): Promise<boolean> => {
       const trimmed = note.trim()
       if (trimmed === '') return false
       if (pendingEntryId !== null) return false // Rule 9's guard, per-row.
@@ -124,13 +124,13 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       // waiting on the server's own timestamp.
       const now = new Date().toISOString()
       const withLocal = entries.map((entry) =>
-        entry.id === id ? { ...entry, note: trimmed, entryType, updatedAt: now } : entry,
+        entry.id === id ? { ...entry, note: trimmed, entryTypes, updatedAt: now } : entry,
       )
       setEntries(withLocal)
       saveLocalNoteEntries(buttonKey, withLocal)
 
       if (supabaseConfigured) {
-        const server = await apiUpdateNoteEntry(id, trimmed, entryType)
+        const server = await apiUpdateNoteEntry(id, trimmed, entryTypes)
         if (server === null) {
           setError('Saved on this device — will sync once you’re back online.')
         } else {

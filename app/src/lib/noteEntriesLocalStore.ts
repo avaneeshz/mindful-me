@@ -27,16 +27,21 @@ export function loadLocalNoteEntries(buttonKey: NoteButtonKey): NoteEntry[] | nu
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return null
     // `giftType` was renamed to the generic `entryType` when Prayer and
-    // Learnings gained their own type lists — carry pre-rename local rows over.
+    // Learnings gained their own type lists, then became the `entryTypes`
+    // array once several types could be picked — carry older local rows over.
     // `updatedAt` is newer still (edit/delete support) — a row cached before
     // that shipped has no edit history yet, so `createdAt` is the correct
     // fallback (equal timestamps read as "never edited" — see
     // `noteEntryWasEdited`).
-    return parsed.map((row: Record<string, unknown>) => ({
-      ...row,
-      entryType: row.entryType ?? row.giftType ?? null,
-      updatedAt: row.updatedAt ?? row.createdAt,
-    })) as NoteEntry[]
+    return parsed.map((row: Record<string, unknown>) => {
+      const { entryType, giftType, ...rest } = row
+      const single = (entryType ?? giftType ?? null) as string | null
+      return {
+        ...rest,
+        entryTypes: Array.isArray(row.entryTypes) ? row.entryTypes : single ? [single] : [],
+        updatedAt: row.updatedAt ?? row.createdAt,
+      }
+    }) as unknown as NoteEntry[]
   } catch {
     return null
   }

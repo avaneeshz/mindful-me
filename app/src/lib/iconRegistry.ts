@@ -52,7 +52,10 @@ import {
   Zap,
   type LucideIcon,
   Circle,
+  type LucideProps,
 } from 'lucide-react'
+import { createElement, forwardRef, useSyncExternalStore } from 'react'
+import { customIconIdFromKey } from '@/domain/customIcons'
 
 /**
  * Every icon a real `icon_key` (`public.tiles`/`public.activities`) can
@@ -151,6 +154,50 @@ export const ICON_CHOICES: { key: string; icon: LucideIcon }[] = Object.entries(
 /** Any `icon_key` string -> a renderable icon, defaulting to a plain circle for one genuinely outside this vocabulary (never a broken/missing icon). */
 export function resolveIcon(iconKey: string | null | undefined): LucideIcon {
   if (!iconKey) return Circle
+  const customId = customIconIdFromKey(iconKey)
+  if (customId) return customIconComponent(customId)
   const resolvedKey = LEGACY_ICON_ALIASES[iconKey] ?? iconKey
   return ICON_MAP[resolvedKey] ?? Circle
+}
+
+/* ——— Uploaded icons (#15) ———
+ * `icon_key` 'custom:<id>' resolves to a component that paints the stored
+ * silhouette as a CSS mask filled with `currentColor`, so it takes the same
+ * ink colour as every Lucide icon around it, in both themes. The images
+ * themselves arrive asynchronously (`state/useCustomIcons.ts` feeds them in
+ * via `setCustomIcons`), so each component subscribes to this small store
+ * and shows the plain circle until its image is known.
+ */
+let customIconImages: ReadonlyMap<string, string> = new Map()
+const customIconListeners = new Set<() => void>()
+
+export function setCustomIcons(icons: readonly { id: string; imageData: string }[]): void {
+  customIconImages = new Map(icons.map((icon) => [icon.id, icon.imageData]))
+  customIconListeners.forEach((listener) => listener())
+}
+
+function subscribeCustomIcons(listener: () => void): () => void {
+  customIconListeners.add(listener)
+  return () => customIconListeners.delete(listener)
+}
+
+const customIconComponents = new Map<string, LucideIcon>()
+
+function customIconComponent(id: string): LucideIcon {
+  const existing = customIconComponents.get(id)
+  if (existing) return existing
+  const Component = forwardRef<SVGSVGElement, LucideProps>(function CustomIcon({ className, style }, _ref) {
+    const src = useSyncExternalStore(subscribeCustomIcons, () => customIconImages.get(id) ?? null, () => null)
+    if (!src) return createElement(Circle, { className, style, 'aria-hidden': true })
+    const mask = `url("${src}") center / contain no-repeat`
+    return createElement('span', {
+      'aria-hidden': true,
+      'data-custom-icon': id,
+      className: ['inline-block shrink-0', className].filter(Boolean).join(' '),
+      style: { ...style, backgroundColor: 'currentColor', mask, WebkitMask: mask },
+    })
+  })
+  Component.displayName = `CustomIcon(${id})`
+  customIconComponents.set(id, Component as unknown as LucideIcon)
+  return Component as unknown as LucideIcon
 }

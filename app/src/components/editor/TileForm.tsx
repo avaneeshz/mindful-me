@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import { ICON_CHOICES } from '@/lib/iconRegistry'
-import { cn } from '@/lib/utils'
+import { IconPicker } from '@/components/editor/IconPicker'
 
 /**
  * Add/rename form shared by "add a tile" and "rename this tile" — same
- * fields either way (name + the curated icon picker). Used inside the
+ * fields either way (name + `IconPicker`: built-in or uploaded icons). Used inside the
  * tile-row edit popover (`TileEditPanel`) and the "Add tile" popover.
  */
 export function TileForm({
@@ -40,24 +40,7 @@ export function TileForm({
         onChange={(e) => setLabel(e.target.value)}
         aria-label="Tile name"
       />
-      <div className="flex flex-wrap gap-xs" role="radiogroup" aria-label="Icon">
-        {ICON_CHOICES.map(({ key, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            role="radio"
-            aria-checked={iconKey === key}
-            aria-label={key}
-            onClick={() => setIconKey(key)}
-            className={cn(
-              'flex size-[32px] items-center justify-center rounded-sm border transition-colors',
-              iconKey === key ? 'border-ink bg-ink/10' : 'border-line bg-bg hover:border-ink',
-            )}
-          >
-            <Icon aria-hidden="true" className="size-[16px] text-ink" />
-          </button>
-        ))}
-      </div>
+      <IconPicker value={iconKey} onChange={setIconKey} />
       <div className="flex justify-end gap-sm">
         <Button type="button" variant="ghost" size="inline" onClick={onCancel}>
           Cancel

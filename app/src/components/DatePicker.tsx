@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, Moon } from 'lucide-react'
 import { addMonths, buildMonthGrid, daysInMonth, startOfMonth } from '@/domain/calendar'
 import { localDateISO } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
+import { useCalendarMarkers } from '@/state/useCalendarMarkers'
+import { CalendarDayDetails } from '@/components/CalendarDayDetails'
+
+/** How many names a tile writes out before it shows "+n" — the rest are listed under the grid. */
+const NAMES_PER_CELL = 1
+
+/** Space kept between the popover and the viewport edge (matches the 16px page gutter). */
+const VIEWPORT_GUTTER = 16
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
@@ -21,6 +29,12 @@ export interface DatePickerProps {
   today: Date
   onSelect: (date: Date) => void
   onClose: () => void
+  /** Days marked as a day off (`YYYY-MM-DD`) — shown as a small moon in the tile's corner. */
+  dayOffDates?: ReadonlySet<string>
+  /** Called whenever the visible month changes, so a caller can load that month's data. */
+  onVisibleMonthChange?: (month: Date) => void
+  /** Extra content under the grid — the header uses it for the day-off control. */
+  footer?: ReactNode
 }
 
 /**
@@ -32,15 +46,55 @@ export interface DatePickerProps {
  * `AccountMenu`), roving-tabindex arrow-key grid navigation (mirrors
  * `Timeline`'s slot grid).
  */
-export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerProps) {
+export function DatePicker({
+  viewedDate,
+  today,
+  onSelect,
+  onClose,
+  dayOffDates,
+  onVisibleMonthChange,
+  footer,
+}: DatePickerProps) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(viewedDate))
   const [focusedDate, setFocusedDate] = useState(viewedDate)
   const gridRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // The popover hangs off the date pill, which moves when the header row
+  // reflows (e.g. the pill gains "· Day off"). Nudge it sideways so it
+  // never runs past either edge of a narrow viewport.
+  function fitToViewport() {
+    const panel = panelRef.current
+    if (!panel) return
+    panel.style.translate = '0px'
+    const rect = panel.getBoundingClientRect()
+    const viewportWidth = document.documentElement.clientWidth
+    const overRight = rect.right - (viewportWidth - VIEWPORT_GUTTER)
+    const overLeft = VIEWPORT_GUTTER - rect.left
+    const shift = overRight > 0 ? -Math.min(overRight, Math.max(0, rect.left - VIEWPORT_GUTTER)) : Math.max(0, overLeft)
+    panel.style.translate = shift ? `${shift}px 0` : ''
+  }
+  // Every render: the header can reflow in the same commit that re-renders this.
+  useLayoutEffect(fitToViewport)
+  useEffect(() => {
+    const observer = new ResizeObserver(() => fitToViewport())
+    observer.observe(document.documentElement)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const grid = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth])
+  const gridYears = useMemo(() => [...new Set(grid.map((d) => d.getFullYear()))], [grid])
+  const calendar = useCalendarMarkers(gridYears)
   const todayIso = localDateISO(today)
   const selectedIso = localDateISO(viewedDate)
   const focusedIso = localDateISO(focusedDate)
+
+  useEffect(() => {
+    onVisibleMonthChange?.(visibleMonth)
+    // Only when the month itself changes — not when a caller passes a new callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMonth.getFullYear(), visibleMonth.getMonth()])
 
   useEffect(() => {
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focusedIso}"]`)?.focus()
@@ -119,23 +173,36 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
   }
 
   const navButton =
-    'flex size-stepper items-center justify-center rounded-full text-ink transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
+    'flex size-stepper items-center justify-center rounded-full text-ink transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-label="Choose a date"
       // Anchored to the trigger's RIGHT edge everywhere the trigger itself
       // sits in the header's right-side cluster (tablet/desktop) — but on
       // mobile the date pill is the leading control in its row (the weather
       // pill beside it is hidden there), close to the LEFT edge of a narrow
-      // viewport, so a right-anchored 288px popover would overflow off the
-      // left edge entirely. Below the `mobile` breakpoint it anchors from
-      // the trigger's left edge instead, which comfortably fits open toward
-      // the page's own centre.
-      className="absolute right-0 top-[calc(100%+8px)] z-30 w-[min(288px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
+      // viewport, so a right-anchored popover would overflow off the left
+      // edge entirely. Below the `mobile` breakpoint it anchors from the
+      // trigger's left edge instead, which comfortably fits open toward the
+      // page's own centre.
+      className="absolute right-0 top-[calc(100%+8px)] z-30 max-h-[calc(100vh-96px)] w-[min(440px,calc(100vw-32px))] overflow-y-auto rounded-md border border-line bg-surface p-md shadow-elevation-2 mobile:left-0 mobile:right-auto"
     >
-      <div className="mb-sm flex items-center justify-between">
+      <div className="mb-xs flex items-center gap-xs">
+        <span className="flex-1 pl-xs text-body font-semibold text-ink" aria-live="polite">
+          {formatMonthLabel(visibleMonth)}
+        </span>
+        <button
+          type="button"
+          aria-label="Jump to today"
+          disabled={selectedIso === todayIso}
+          onClick={() => onSelect(today)}
+          className="mr-xs h-[28px] rounded-full border border-line px-[10px] text-caption font-semibold text-ink transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:pointer-events-none disabled:opacity-40"
+        >
+          Today
+        </button>
         <button
           type="button"
           aria-label="Previous month"
@@ -144,9 +211,6 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
         >
           <ChevronLeft aria-hidden="true" className="size-[16px]" />
         </button>
-        <span className="text-body font-semibold text-ink" aria-live="polite">
-          {formatMonthLabel(visibleMonth)}
-        </span>
         <button
           type="button"
           aria-label="Next month"
@@ -157,9 +221,9 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
         </button>
       </div>
 
-      <div className="mb-xs grid grid-cols-7 text-center text-nano font-semibold uppercase tracking-tag text-ink-dim">
+      <div className="grid grid-cols-7 text-center text-micro font-medium text-ink-dim">
         {WEEKDAY_LABELS.map((label, index) => (
-          <span key={`${label}-${index}`} className="py-xs">
+          <span key={`${label}-${index}`} className="pb-sm pt-xs">
             {label}
           </span>
         ))}
@@ -177,6 +241,17 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
           const inMonth = date.getMonth() === visibleMonth.getMonth()
           const isSelected = iso === selectedIso
           const isToday = iso === todayIso
+          const markers = calendar.markers.get(iso) ?? []
+          const shown = markers.slice(0, NAMES_PER_CELL)
+          const more = markers.length - shown.length
+          const isDayOff = dayOffDates?.has(iso) ?? false
+          const label = [
+            formatDayLabel(date),
+            isDayOff ? 'day off' : null,
+            markers.length > 0 ? markers.map((m) => m.name).join(', ') : null,
+          ]
+            .filter(Boolean)
+            .join(', ')
           return (
             <button
               key={iso}
@@ -185,33 +260,57 @@ export function DatePicker({ viewedDate, today, onSelect, onClose }: DatePickerP
               tabIndex={iso === focusedIso ? 0 : -1}
               aria-current={isToday ? 'date' : undefined}
               aria-pressed={isSelected}
-              aria-label={formatDayLabel(date)}
+              aria-label={label}
               onFocus={() => setFocusedDate(date)}
               onClick={() => onSelect(date)}
               className={cn(
-                'flex aspect-square items-center justify-center rounded-full text-caption font-semibold transition-colors',
+                'group relative flex min-h-[58px] min-w-0 flex-col items-center gap-[3px] rounded-sm px-[3px] pb-[5px] pt-xs transition-colors mobile:min-h-[50px] mobile:px-px',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-                !inMonth && 'text-ink-dim/50 hover:bg-bg',
-                inMonth && !isSelected && 'text-ink hover:bg-bg',
-                isSelected && 'bg-inv-bg text-inv-ink hover:bg-inv-bg',
-                !isSelected && isToday && 'ring-1 ring-inset ring-ink',
+                isSelected ? 'bg-surface-2' : 'hover:bg-surface-2',
+                !inMonth && 'opacity-40',
               )}
             >
-              {date.getDate()}
+              <span
+                className={cn(
+                  'grid size-[24px] shrink-0 place-items-center rounded-full text-meta font-semibold tabular-nums text-ink mobile:size-[22px]',
+                  isSelected && 'bg-inv-bg text-inv-ink',
+                  !isSelected && isToday && 'ring-[1.5px] ring-inset ring-ink',
+                )}
+              >
+                {date.getDate()}
+              </span>
+              {isDayOff && (
+                <Moon
+                  aria-hidden="true"
+                  className="absolute right-[5px] top-[5px] size-[10px] text-ink-dim mobile:right-[2px] mobile:top-[3px]"
+                  strokeWidth={2.2}
+                />
+              )}
+              {shown.map((marker, index) => (
+                <span
+                  key={`${marker.kind}-${marker.name}-${index}`}
+                  aria-hidden="true"
+                  className={cn(
+                    'line-clamp-2 w-full break-words text-center text-[9.5px] leading-[1.15] mobile:text-[8.5px]',
+                    marker.kind === 'personal' ? 'font-bold text-ink' : 'font-medium text-ink-dim',
+                  )}
+                >
+                  {marker.name}
+                </span>
+              ))}
+              {more > 0 && (
+                <span aria-hidden="true" className="text-[9px] leading-none text-ink-dim">
+                  +{more}
+                </span>
+              )}
             </button>
           )
         })}
       </div>
 
-      {selectedIso !== todayIso && (
-        <button
-          type="button"
-          onClick={() => onSelect(today)}
-          className="mt-sm w-full rounded-sm py-sm text-center text-caption font-semibold text-ink transition-colors hover:bg-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-        >
-          Jump to today
-        </button>
-      )}
+      <CalendarDayDetails date={focusedDate} calendar={calendar} />
+
+      {footer}
     </div>
   )
 }

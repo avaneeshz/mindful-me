@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronUp, Pencil, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
-import { activityPathNames, type ActivityRow } from '@/domain/pickerHierarchy'
+import { type ActivityRow } from '@/domain/pickerHierarchy'
 import { cn } from '@/lib/utils'
 
 export function RowIconButton({
@@ -81,78 +81,6 @@ export function EditableActivityList({
   )
 }
 
-/** Hidden rows, collapsed by default: restore any, or delete one for good (server refuses when it has logged history, and says so). */
-export function HiddenActivityList({
-  rows,
-  allRows,
-  onRestore,
-  onDelete,
-}: {
-  rows: ActivityRow[]
-  allRows: readonly ActivityRow[]
-  onRestore: (id: string) => void
-  onDelete: (id: string) => Promise<{ ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }>
-}) {
-  const [open, setOpen] = useState(false)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  if (rows.length === 0) return null
-
-  async function remove(row: ActivityRow) {
-    setError(null)
-    const result = await onDelete(row.id)
-    setConfirmId(null)
-    if (!result.ok) {
-      setError(
-        result.reason === 'has_history'
-          ? `“${row.name}” has logged history, so it stays hidden instead of being deleted.`
-          : 'Could not delete right now. Try again once you’re back online.',
-      )
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-sm">
-      <Button variant="ghost" size="inline" className="self-start" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {open ? 'Hide' : 'Show'} {rows.length} hidden
-      </Button>
-      {open && (
-        <ul className="flex flex-col gap-xs">
-          {rows.map((row) => (
-            <li key={row.id} className="flex items-center gap-xs rounded-md border border-dashed border-line py-xs pl-md pr-xs">
-              <span className="min-w-0 flex-1 truncate text-body text-ink-dim">{activityPathNames(allRows, row.id).join(' → ')}</span>
-              {confirmId === row.id ? (
-                <>
-                  <span className="text-caption text-ink-dim">Delete for good?</span>
-                  <Button variant="destructive" size="inline" onClick={() => void remove(row)}>
-                    Delete
-                  </Button>
-                  <Button variant="accent" size="inline" onClick={() => setConfirmId(null)}>
-                    Keep
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="accent" size="inline" onClick={() => onRestore(row.id)}>
-                    Restore
-                  </Button>
-                  <RowIconButton label={`Delete ${row.name} permanently`} onClick={() => setConfirmId(row.id)}>
-                    <Trash2 aria-hidden="true" className="size-[14px]" />
-                  </RowIconButton>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {error && (
-        <p role="alert" className="text-caption text-ink-dim">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
 
 /** One-line "add" field. `validate` returns an error message to keep the text in place, or null to accept. */
 export function AddNameRow({

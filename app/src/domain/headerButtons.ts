@@ -465,3 +465,43 @@ export function noteLabelsFromFields(fields: readonly { fieldKind: string; key?:
   const label = (key: 'primary' | 'secondary') => fields.find((f) => f.fieldKind === 'text' && f.key === key)?.label.trim() || null
   return { first: label('primary'), second: label('secondary') }
 }
+
+/** The three visual groups the header row renders, in order. Reordering never crosses a group. */
+export type HeaderButtonGroup = 'notes' | 'quickLog' | 'checklist'
+
+export function headerButtonGroup(category: HeaderButtonCategory): HeaderButtonGroup {
+  if (category === 'notes') return 'notes'
+  if (category === 'checklist') return 'checklist'
+  return 'quickLog'
+}
+
+/** `ids` with `movedId` moved to `toIndex` (clamped). Unknown ids return the list unchanged. */
+export function moveId(ids: readonly string[], movedId: string, toIndex: number): string[] {
+  const from = ids.indexOf(movedId)
+  if (from === -1) return [...ids]
+  const next = ids.filter((id) => id !== movedId)
+  const clamped = Math.max(0, Math.min(toIndex, next.length))
+  next.splice(clamped, 0, movedId)
+  return next
+}
+
+/**
+ * The full visible order to save after one group was reordered: groups stay
+ * in their fixed order (notes, quick-log, checklist) and only `group`'s own
+ * buttons take `groupOrder`. Ids in `groupOrder` that aren't in that group
+ * are ignored, so a drag can never move a button into another group.
+ */
+export function orderAfterGroupReorder(
+  visible: readonly HeaderButtonConfig[],
+  group: HeaderButtonGroup,
+  groupOrder: readonly string[],
+): string[] {
+  const inGroup = new Set(visible.filter((b) => headerButtonGroup(b.category) === group).map((b) => b.id))
+  const reordered = groupOrder.filter((id) => inGroup.has(id))
+  // Anything the caller dropped keeps its old relative position at the end.
+  for (const b of visible) if (inGroup.has(b.id) && !reordered.includes(b.id)) reordered.push(b.id)
+  const groups: HeaderButtonGroup[] = ['notes', 'quickLog', 'checklist']
+  return groups.flatMap((g) =>
+    g === group ? reordered : visible.filter((b) => headerButtonGroup(b.category) === g).map((b) => b.id),
+  )
+}

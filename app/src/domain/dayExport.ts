@@ -28,7 +28,7 @@ import {
   formatDisplayValue,
   type DisplayButtonKey,
 } from './displayButtons'
-import { formatNoteTimestamp, noteButtonLabel, type NoteEntry } from './notes'
+import { formatEntryTypes, formatNoteTimestamp, noteButtonLabel, type NoteEntry } from './notes'
 import { localDateISO } from '@/lib/localTime'
 import type { ActivityList } from './types'
 
@@ -56,6 +56,7 @@ export interface ExportActivity {
 export interface ExportNoteEntry {
   id: string
   buttonLabel: string
+  /** Every picked type, already joined for display ("Dreamer, The Voice"); `null` when none. */
   entryType: string | null
   note: string
   timestampLabel: string
@@ -140,7 +141,7 @@ export function assembleDayExport(input: DayExportInput): DayExportData {
     .map((entry) => ({
       id: entry.id,
       buttonLabel: noteButtonLabel(entry.buttonKey),
-      entryType: entry.entryType,
+      entryType: entry.entryTypes.length > 0 ? formatEntryTypes(entry.entryTypes) : null,
       note: entry.note,
       timestampLabel: formatNoteTimestamp(new Date(entry.createdAt)),
     }))
