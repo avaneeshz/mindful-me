@@ -13,6 +13,7 @@ import { HealthCallbackScreen } from '@/lumen/screens/settings/health-callback'
 import { HEALTH_SYNC_CALLBACK_PATH } from '@/lib/googleHealthOAuth'
 import { setLumenDocumentClass } from '@/lib/interfaceMode'
 import { scrollLumenViewToTop } from '@/lumen/lib/scroll'
+import { StorageNotice } from '@/lumen/components/storage-notice'
 import { PickerDataProvider } from '@/state/PickerDataContext'
 import './lumen.css'
 
@@ -74,6 +75,7 @@ function LumenScreens() {
 
   return (
     <AppShell>
+      <StorageNotice />
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={tab}

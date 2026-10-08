@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TileDto } from '@/api/tiles'
 import type { ActivityRow } from '@/domain/pickerHierarchy'
-import { overlayActivities, overlayParameterOptions, overlayTiles } from './pendingOverlay'
+import { overlayActivities, overlayParameterOptions, overlayParameterSelections, overlayTiles } from './pendingOverlay'
 import type { PendingWrite } from './pendingWritesQueue'
 
 let n = 0
@@ -44,5 +44,28 @@ describe('overlayParameterOptions', () => {
     )
     expect(rows.map((r) => r.label)).toEqual(['Good', 'Calm'])
     expect(rows[1].sortOrder).toBe(1)
+  })
+})
+
+describe('overlayParameterSelections', () => {
+  const server = {
+    quality: [{ optionId: 'calm', selected: false }, { optionId: 'tired', selected: true }],
+    symptom: [{ optionId: 's1', selected: false }],
+    flag: [],
+  }
+  it('keeps a tick the server never confirmed, and marks the list as the activity’s own', () => {
+    const out = overlayParameterSelections(server, 'walk', [w('parameterSelection.set', 'parameterSelection', ['walk', 'quality', 'calm', true])])
+    expect(out.byType.quality.find((o) => o.optionId === 'calm')?.selected).toBe(true)
+    expect(out.byType.quality.find((o) => o.optionId === 'tired')?.selected).toBe(true)
+    expect(out.ownTypes.has('quality')).toBe(true)
+    expect(out.ownTypes.has('symptom')).toBe(false)
+  })
+  it('applies an unconfirmed untick, and ignores other activities', () => {
+    const out = overlayParameterSelections(server, 'walk', [
+      w('parameterSelection.set', 'parameterSelection', ['walk', 'quality', 'tired', false]),
+      w('parameterSelection.set', 'parameterSelection', ['run', 'quality', 'calm', true]),
+    ])
+    expect(out.byType.quality.find((o) => o.optionId === 'tired')?.selected).toBe(false)
+    expect(out.byType.quality.find((o) => o.optionId === 'calm')?.selected).toBe(false)
   })
 })
