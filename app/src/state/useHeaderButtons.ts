@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  apiCreateHeaderButton,
   apiListHeaderButtons,
   apiProvisionDefaultHeaderButtons,
-  apiReorderHeaderButtons,
-  apiSetHeaderButtonHidden,
-  apiUpdateHeaderButton,
   type CreateHeaderButtonInput,
   type HeaderButtonNoteFieldInput,
   type UpdateHeaderButtonInput,
@@ -19,11 +15,12 @@ import {
   type HeaderButtonNoteField,
 } from '@/domain/headerButtons'
 import { rowForLoggedActivity } from '@/domain/colors'
+import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
-import { logActivity } from '@/lib/activityLogger'
 import { loadLocalHeaderButtons, saveLocalHeaderButtons } from '@/lib/headerButtonsLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useOptionalPickerData } from './PickerDataContext'
+import { getPendingIds, writeThrough } from './pendingWrites'
 
 export type HeaderButtonsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -94,10 +91,15 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         setError('Could not load your header buttons — showing what’s saved on this device.')
         return
       }
-      // Server wins once it answers — same reconciliation shape
-      // `useNoteEntries`/`useDailyValue` already follow.
-      setAll(server)
-      saveLocalHeaderButtons(server)
+      // The server answers for everything it has confirmed — but never erases
+      // a button, edit, hide or reorder it hasn't confirmed yet. The device's
+      // own copy (updated synchronously on every change) is the "local" side.
+      const local = loadLocalHeaderButtons() ?? []
+      const pending = getPendingIds('headerButton')
+      const protectedIds = pending.save.has('order') ? new Set([...pending.save, ...local.map((b) => b.id)]) : pending.save
+      const merged = reconcileList(local, server, protectedIds, pending.delete, (b) => b.id)
+      setAll(merged)
+      saveLocalHeaderButtons(merged)
       setStatus('ready')
     }
 
@@ -156,14 +158,17 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         })),
       }
       commit([...all, created])
-      logActivity({ kind: 'save', summary: `Saved on device: new header button “${created.label}”`, detail: created })
 
       if (supabaseConfigured) {
-        void apiCreateHeaderButton({ ...input, id }).then((serverId) => {
-          if (serverId === null) {
-            logActivity({ kind: 'sync', level: 'error', summary: `Not synced: new header button “${created.label}” — kept on this device`, detail: created })
-            setError('Saved on this device — will sync once you’re back online.')
-          }
+        void writeThrough({
+          action: 'headerButton.create',
+          entity: 'headerButton',
+          recordId: id,
+          op: 'save',
+          args: [{ ...input, id }],
+          label: `Add header button “${created.label}”`,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
         })
       }
 
@@ -192,15 +197,17 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         }
       })
       commit(next)
-      const saved = next.find((button) => button.id === input.id)
-      logActivity({ kind: 'save', summary: `Saved on device: edited header button “${input.label}”`, detail: saved ?? input })
 
       if (supabaseConfigured) {
-        void apiUpdateHeaderButton(input).then((ok) => {
-          if (!ok) {
-            logActivity({ kind: 'sync', level: 'error', summary: `Not synced: edited header button “${input.label}” — kept on this device`, detail: saved ?? input })
-          }
-          if (!ok) setError('Saved on this device — will sync once you’re back online.')
+        void writeThrough({
+          action: 'headerButton.update',
+          entity: 'headerButton',
+          recordId: input.id,
+          op: 'save',
+          args: [input],
+          label: `Edit header button “${input.label}”`,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
         })
       }
     },
@@ -211,11 +218,17 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     (id: string, hidden: boolean): void => {
       commit(all.map((button) => (button.id === id ? { ...button, hidden } : button)))
       const label = all.find((button) => button.id === id)?.label ?? 'a button'
-      logActivity({ kind: 'save', summary: `Saved on device: ${hidden ? 'hid' : 'restored'} header button “${label}”`, detail: { id, hidden } })
       if (supabaseConfigured) {
-        void apiSetHeaderButtonHidden(id, hidden).then((ok) => {
-          if (!ok) logActivity({ kind: 'sync', level: 'error', summary: `Not synced: ${hidden ? 'hid' : 'restored'} header button “${label}”`, detail: { id, hidden } })
-          if (!ok) setError('Saved on this device — will sync once you’re back online.')
+        void writeThrough({
+          action: 'headerButton.setHidden',
+          entity: 'headerButton',
+          recordId: id,
+          op: 'save',
+          args: [id, hidden],
+          label: `${hidden ? 'Hide' : 'Restore'} header button “${label}”`,
+          coalesce: true,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
         })
       }
     },
@@ -232,11 +245,17 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         orderIndex.has(button.id) ? { ...button, sortOrder: orderIndex.get(button.id)! } : button,
       )
       commit(next)
-      logActivity({ kind: 'save', summary: 'Saved on device: reordered header buttons', detail: orderedIds.map((id) => all.find((button) => button.id === id)?.label ?? id) })
       if (supabaseConfigured) {
-        void apiReorderHeaderButtons(orderedIds).then((ok) => {
-          if (!ok) logActivity({ kind: 'sync', level: 'error', summary: 'Not synced: reordered header buttons', detail: orderedIds })
-          if (!ok) setError('Saved on this device — will sync once you’re back online.')
+        void writeThrough({
+          action: 'headerButton.reorder',
+          entity: 'headerButton',
+          recordId: 'order',
+          op: 'save',
+          args: [orderedIds],
+          label: `Reorder header buttons: ${orderedIds.map((id) => all.find((button) => button.id === id)?.label ?? id).join(', ')}`,
+          coalesce: true,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
         })
       }
     },

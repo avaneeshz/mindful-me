@@ -205,7 +205,7 @@ export type SyncIndicatorState =
   | { kind: 'pending'; count: number }
   | { kind: 'failed'; count: number }
 
-export function describeSyncIndicator(queue: SyncQueue): SyncIndicatorState {
+export function describeSyncIndicator(queue: readonly { status: 'pending' | 'failed' }[]): SyncIndicatorState {
   if (queue.length === 0) return { kind: 'synced' }
   const failedCount = queue.filter((item) => item.status === 'failed').length
   if (failedCount > 0) return { kind: 'failed', count: failedCount }

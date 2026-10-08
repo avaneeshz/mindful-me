@@ -1,5 +1,7 @@
 import { CircleAlert, CloudUpload, RotateCw } from 'lucide-react'
+import { retryPendingWritesNow } from '@/state/pendingWrites'
 import { describeSyncIndicator } from '@/state/syncQueue'
+import { usePendingWrites } from '@/state/usePendingWrites'
 import { Button } from '@/lumen/components/ui/button'
 import { Popover } from '@/lumen/components/ui/primitives'
 import { useStore } from '@/lumen/lib/store'
@@ -13,7 +15,8 @@ import { cn } from '@/lumen/lib/utils'
  */
 export function SyncStatus({ compact = false }: { compact?: boolean }) {
   const { data } = useStore()
-  const state = describeSyncIndicator(data.syncQueue)
+  const pendingWrites = usePendingWrites()
+  const state = describeSyncIndicator([...data.syncQueue, ...pendingWrites])
   if (state.kind === 'synced') return null
 
   const failed = state.kind === 'failed'
@@ -50,6 +53,7 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
               className="w-full"
               onClick={() => {
                 data.retrySyncNow()
+                retryPendingWritesNow()
                 close()
               }}
             >

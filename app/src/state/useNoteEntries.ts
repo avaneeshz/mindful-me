@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { logActivity } from '@/lib/activityLogger'
-import { apiCreateNoteEntry, apiDeleteNoteEntry, apiListNoteEntries, apiUpdateNoteEntry } from '@/api/notes'
+import { apiListNoteEntries } from '@/api/notes'
+import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
 import { noteButtonLabel, type NoteButtonKey, type NoteEntry } from '@/domain/notes'
 import { loadLocalNoteEntries, saveLocalNoteEntries } from '@/lib/noteEntriesLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
+import { amendPendingWrite, cancelPendingWrite, getPendingIds, writeThrough } from './pendingWrites'
 
 export type NoteHistoryStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -58,8 +59,13 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         setError('Could not load your saved notes — showing what’s saved on this device.')
         return
       }
-      setEntries(server)
-      saveLocalNoteEntries(buttonKey, server)
+      // The server answers for everything it has confirmed — but a note the
+      // user wrote and the server hasn't confirmed yet (a failed or slow save)
+      // is never erased by it. The device's own copy is the "local" side.
+      const pending = getPendingIds('note')
+      const merged = reconcileList(loadLocalNoteEntries(buttonKey) ?? [], server, pending.save, pending.delete, (e) => e.id)
+      setEntries(merged)
+      saveLocalNoteEntries(buttonKey, merged)
       setStatus('ready')
     })
     return () => {
@@ -89,27 +95,22 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       const withLocal = [local, ...entries]
       setEntries(withLocal)
       saveLocalNoteEntries(buttonKey, withLocal)
-      logActivity({
-        kind: 'save',
-        summary: `Saved on device: note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
-        detail: { button: buttonKey, types: entryTypes, note: trimmed },
-      })
 
       if (supabaseConfigured) {
-        const server = await apiCreateNoteEntry(buttonKey, trimmed, entryTypes)
-        if (server === null) {
-          logActivity({
-            kind: 'sync',
-            level: 'error',
-            summary: `Not synced: note on “${noteButtonLabel(buttonKey)}” — kept on this device`,
-            detail: { button: buttonKey, types: entryTypes, note: trimmed },
-          })
+        const out = await writeThrough<NoteEntry>({
+          action: 'note.create',
+          entity: 'note',
+          recordId: local.id,
+          op: 'save',
+          args: [buttonKey, trimmed, [...entryTypes]],
+          label: `Add note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
+        })
+        if (out.status !== 'ok' || !out.result) {
           setError('Saved on this device — will sync once you’re back online.')
         } else {
           // Reconcile the locally-minted id/timestamp with the server's
-          // authoritative row (same "server wins once it answers" shape
-          // `BoardContext`'s hydrate reconciliation already follows).
-          const reconciled = [server, ...entries]
+          // authoritative row ("server wins once it answers").
+          const reconciled = [out.result, ...entries]
           setEntries(reconciled)
           saveLocalNoteEntries(buttonKey, reconciled)
         }
@@ -140,23 +141,27 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       )
       setEntries(withLocal)
       saveLocalNoteEntries(buttonKey, withLocal)
-      logActivity({
-        kind: 'save',
-        summary: `Saved on device: edited note on “${noteButtonLabel(buttonKey)}”`,
-        detail: { button: buttonKey, id, types: entryTypes, note: trimmed },
-      })
 
       if (supabaseConfigured) {
-        const server = await apiUpdateNoteEntry(id, trimmed, entryTypes)
-        if (server === null) {
-          logActivity({
-            kind: 'sync',
-            level: 'error',
-            summary: `Not synced: edited note on “${noteButtonLabel(buttonKey)}” — kept on this device`,
-            detail: { button: buttonKey, id, types: entryTypes, note: trimmed },
-          })
+        const label = `Edit note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`
+        // The note's first save never reached the server yet: just correct the
+        // unsent save, rather than editing a note the server has no id for.
+        if (amendPendingWrite('note', id, 'note.create', { args: [buttonKey, trimmed, [...entryTypes]], label })) {
+          setPendingEntryId(null)
+          return true
+        }
+        const out = await writeThrough<NoteEntry>({
+          action: 'note.update',
+          entity: 'note',
+          recordId: id,
+          op: 'save',
+          args: [id, trimmed, [...entryTypes]],
+          label,
+        })
+        if (out.status !== 'ok' || !out.result) {
           setError('Saved on this device — will sync once you’re back online.')
         } else {
+          const server = out.result
           const reconciled = withLocal.map((entry) => (entry.id === id ? server : entry))
           setEntries(reconciled)
           saveLocalNoteEntries(buttonKey, reconciled)
@@ -179,24 +184,24 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       // Rule 11 — immediate from the user's view. Local-first removal happens
       // before the network round-trip; the server side is a real soft
       // delete (recoverable for 30 days, then purged), not a hard delete.
+      const removed = entries.find((entry) => entry.id === id)
       const withoutEntry = entries.filter((entry) => entry.id !== id)
       setEntries(withoutEntry)
       saveLocalNoteEntries(buttonKey, withoutEntry)
-      logActivity({
-        kind: 'save',
-        summary: `Saved on device: deleted note on “${noteButtonLabel(buttonKey)}”`,
-        detail: entries.find((entry) => entry.id === id) ?? { id },
-      })
 
       if (supabaseConfigured) {
-        const ok = await apiDeleteNoteEntry(id)
-        if (!ok) {
-          logActivity({
-            kind: 'sync',
-            level: 'error',
-            summary: `Not synced: deleted note on “${noteButtonLabel(buttonKey)}” — removed on this device only`,
-            detail: { id },
-          })
+        const label = `Delete note on “${noteButtonLabel(buttonKey)}”${removed ? `: ${removed.note}` : ''}`
+        // Edits still waiting to be sent are moot once the note is gone.
+        while (cancelPendingWrite('note', id, 'note.update', 'Dropped an unsent edit of a deleted note')) {
+          // each pass removes one
+        }
+        // A note whose first save never reached the server: nothing to delete there.
+        if (cancelPendingWrite('note', id, 'note.create', label)) {
+          setPendingEntryId(null)
+          return true
+        }
+        const out = await writeThrough({ action: 'note.delete', entity: 'note', recordId: id, op: 'delete', args: [id], label })
+        if (out.status !== 'ok') {
           setError('Removed on this device — will sync once you’re back online.')
         }
       }
