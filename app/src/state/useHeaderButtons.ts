@@ -14,6 +14,7 @@ import {
   type HeaderButtonConfig,
   type HeaderButtonNoteField,
 } from '@/domain/headerButtons'
+import { dedupeHeaderButtonInput, duplicatesRemovedNotice } from '@/domain/headerButtonForm'
 import { rowForLoggedActivity } from '@/domain/colors'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
@@ -31,6 +32,8 @@ export interface UseHeaderButtonsResult {
   hidden: HeaderButtonConfig[]
   status: HeaderButtonsStatus
   error: string | null
+  /** Set when a save dropped repeated values (see `dedupeHeaderButtonInput`); cleared by the next save. */
+  notice: string | null
   addButton: (input: Omit<CreateHeaderButtonInput, 'id'>) => HeaderButtonConfig
   updateButton: (input: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }) => void
   hideButton: (id: string) => void
@@ -52,6 +55,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   const [all, setAll] = useState<HeaderButtonConfig[]>(() => loadLocalHeaderButtons() ?? [...DEFAULT_HEADER_BUTTONS])
   const [status, setStatus] = useState<HeaderButtonsStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const hasFetchedRef = useRef(false)
 
   useEffect(() => {
@@ -133,7 +137,9 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   }
 
   const addButton = useCallback(
-    (input: Omit<CreateHeaderButtonInput, 'id'>): HeaderButtonConfig => {
+    (rawInput: Omit<CreateHeaderButtonInput, 'id'>): HeaderButtonConfig => {
+      const { input, removed } = dedupeHeaderButtonInput(rawInput)
+      setNotice(duplicatesRemovedNotice(input.label, removed))
       const id = generateId()
       const maxSortOrder = all.reduce((max, b) => Math.max(max, b.sortOrder), -1)
       const created: HeaderButtonConfig = {
@@ -178,7 +184,9 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   )
 
   const updateButton = useCallback(
-    (input: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }): void => {
+    (rawInput: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }): void => {
+      const { input, removed } = dedupeHeaderButtonInput(rawInput)
+      setNotice(duplicatesRemovedNotice(input.label, removed))
       const next = all.map((button) => {
         if (button.id !== input.id) return button
         return {
@@ -313,5 +321,5 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [updateButton, syncNotesToActivity, all],
   )
 
-  return { visible, hidden, status, error, addButton: addButtonSynced, updateButton: updateButtonSynced, hideButton, unhideButton, reorder }
+  return { visible, hidden, status, error, notice, addButton: addButtonSynced, updateButton: updateButtonSynced, hideButton, unhideButton, reorder }
 }

@@ -89,9 +89,101 @@ export function addNoteField(
   if (draft.kind === 'multiselect' && trimmedOptions.length === 0) {
     return { ok: false, error: 'Add at least one option.' }
   }
+  const repeatedOption = draft.kind === 'multiselect' ? firstDuplicate(trimmedOptions) : null
+  if (repeatedOption !== null) return { ok: false, error: duplicateMessage(repeatedOption, 'option') }
   const key: 'primary' | 'secondary' | null =
     draft.kind === 'text' ? (fields.some((f) => f.key === 'primary') ? 'secondary' : 'primary') : null
   return { ok: true, fields: [...fields, { fieldKind: draft.kind, key, label: draft.label.trim(), options: trimmedOptions }] }
+}
+
+/**
+ * The first value that repeats an earlier one, ignoring case and surrounding
+ * spaces, as the user typed it; null when every value is distinct. The
+ * server rejects a repeated note type outright (`header_button_note_types`'s
+ * unique key), so the form has to catch it before Save rather than let the
+ * whole edit fail in the background.
+ */
+export function firstDuplicate(values: readonly string[]): string | null {
+  const seen = new Set<string>()
+  for (const value of values) {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === '') continue
+    if (seen.has(normalized)) return value.trim()
+    seen.add(normalized)
+  }
+  return null
+}
+
+/** Keeps the first copy of each value (ignoring case and surrounding spaces) and reports what it dropped. */
+export function uniqueValues(values: readonly string[]): { unique: string[]; removed: string[] } {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  const removed: string[] = []
+  for (const value of values) {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === '' || seen.has(normalized)) {
+      if (normalized !== '') removed.push(value.trim())
+      continue
+    }
+    seen.add(normalized)
+    unique.push(value)
+  }
+  return { unique, removed }
+}
+
+interface DedupableInput {
+  noteTypes?: string[] | null
+  checklistItems?: { key?: string; label: string }[] | null
+  noteFields?: HeaderButtonNoteFieldInput[] | null
+}
+
+/**
+ * Last line of defence before a save: drops repeated note types, checklist
+ * items and multiselect options so the database's unique keys can't reject
+ * the whole edit. The form already refuses duplicates; this covers any
+ * caller that skips it. `removed` names what was dropped, for the warning.
+ */
+export function dedupeHeaderButtonInput<T extends DedupableInput>(input: T): { input: T; removed: string[] } {
+  const removed: string[] = []
+  const next = { ...input }
+  if (input.noteTypes) {
+    const result = uniqueValues(input.noteTypes)
+    next.noteTypes = result.unique
+    removed.push(...result.removed)
+  }
+  if (input.checklistItems) {
+    const seen = new Set<string>()
+    next.checklistItems = input.checklistItems.filter((item) => {
+      const normalized = item.label.trim().toLowerCase()
+      if (normalized === '') return false
+      if (!seen.has(normalized)) {
+        seen.add(normalized)
+        return true
+      }
+      removed.push(item.label.trim())
+      return false
+    })
+  }
+  if (input.noteFields) {
+    next.noteFields = input.noteFields.map((field) => {
+      if (field.fieldKind !== 'multiselect' || !field.options) return field
+      const result = uniqueValues(field.options)
+      removed.push(...result.removed)
+      return { ...field, options: result.unique }
+    })
+  }
+  return { input: next, removed }
+}
+
+/** The warning shown after duplicates were dropped, or null when nothing was. */
+export function duplicatesRemovedNotice(label: string, removed: readonly string[]): string | null {
+  if (removed.length === 0) return null
+  const names = [...new Set(removed.map((v) => v.toLowerCase()))].map((l) => removed.find((v) => v.toLowerCase() === l)!)
+  return `“${label}”: saved with ${names.length === 1 ? 'one duplicate' : `${names.length} duplicates`} removed (${names.join(', ')}). Each value can only appear once.`
+}
+
+function duplicateMessage(value: string, noun: 'type' | 'item' | 'option'): string {
+  return `“${value}” is listed more than once. Each ${noun} can only appear once.`
 }
 
 /** The first problem with the form, in plain language, or null when it can be saved. */
@@ -106,6 +198,20 @@ export function validateHeaderButtonDraft(draft: HeaderButtonDraft, isEdit: bool
   }
   if (draft.category === 'day_value' && draft.dayValueUnit === 'target' && isBlank(draft.dayValueTarget)) {
     return 'Set a daily target.'
+  }
+  if (draft.category === 'notes') {
+    const repeated = firstDuplicate(lines(draft.noteTypesText))
+    if (repeated !== null) return duplicateMessage(repeated, 'type')
+  }
+  if (draft.category === 'checklist') {
+    const repeated = firstDuplicate(lines(draft.checklistItemsText))
+    if (repeated !== null) return duplicateMessage(repeated, 'item')
+  }
+  if (draft.category === 'activity') {
+    for (const field of draft.fields) {
+      const repeated = field.fieldKind === 'multiselect' ? firstDuplicate(field.options) : null
+      if (repeated !== null) return `${duplicateMessage(repeated, 'option')} (in “${field.label}”)`
+    }
   }
   return null
 }
