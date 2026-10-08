@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { setActivityLogUser } from '@/lib/activityLogger'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 import {
   completeOAuthSignIn,
@@ -135,6 +136,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // Mount-only by design: the callback is read once (see callbackRef).
   }, [])
+
+  // The activity log is per-user and records nothing while signed out (so the
+  // sign-in form is never captured). Local-only mode has no accounts: one
+  // device-local log.
+  useEffect(() => {
+    setActivityLogUser(user ? user.id : supabaseConfigured ? null : 'local')
+  }, [user])
 
   const signIn = useCallback(signInWithPassword, [])
   const signUp = useCallback(signUpWithPassword, [])

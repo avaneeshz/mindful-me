@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { logActivity } from '@/lib/activityLogger'
 import { dateFromLocalDateISO } from '@/lib/localTime'
 import { runIntent, type SyncIntent } from './sync'
 import {
   describeSyncError,
+  describeSyncIntent,
   enqueueIntents,
   markQueueItemFailed,
   nextItemToAttempt,
@@ -76,11 +78,23 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
         try {
           await runIntent(item.intent, dateFromLocalDateISO(item.referenceDateISO))
           updateQueue((current) => removeQueueItem(current, item.id))
+          logActivity({
+            kind: 'sync',
+            summary: `Synced: ${describeSyncIntent(item.intent)}${item.attempts > 0 ? ` (after ${item.attempts} failed ${item.attempts === 1 ? 'try' : 'tries'})` : ''}`,
+            detail: item.intent,
+          })
         } catch (error) {
           // Never thrown into the UI (rule 6) — recorded durably instead, so
           // it survives a reload and keeps retrying with backoff until it
           // clears (Bug C), and stays visible until it does (Bug B).
-          updateQueue((current) => markQueueItemFailed(current, item.id, describeSyncError(error), Date.now()))
+          const reason = describeSyncError(error)
+          updateQueue((current) => markQueueItemFailed(current, item.id, reason, Date.now()))
+          logActivity({
+            kind: 'sync',
+            level: 'error',
+            summary: `Not synced: ${describeSyncIntent(item.intent)} — ${reason}`,
+            detail: { attempt: item.attempts + 1, error: reason, intent: item.intent },
+          })
         }
       }
     } finally {
@@ -107,6 +121,9 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
 
   function enqueue(intents: SyncIntent[], referenceDateISO: string): void {
     if (disabled || intents.length === 0) return
+    for (const intent of intents) {
+      logActivity({ kind: 'save', summary: `Saved on device: ${describeSyncIntent(intent)}`, detail: intent })
+    }
     updateQueue((current) => enqueueIntents(current, intents, referenceDateISO, Date.now(), () => crypto.randomUUID()))
     void drainQueue()
   }

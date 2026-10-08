@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { logActivity } from '@/lib/activityLogger'
 import { apiCreateNoteEntry, apiDeleteNoteEntry, apiListNoteEntries, apiUpdateNoteEntry } from '@/api/notes'
 import { generateId } from '@/domain/scheduling'
 import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
@@ -88,10 +89,21 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       const withLocal = [local, ...entries]
       setEntries(withLocal)
       saveLocalNoteEntries(buttonKey, withLocal)
+      logActivity({
+        kind: 'save',
+        summary: `Saved on device: note on “${buttonKey}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
+        detail: { button: buttonKey, types: entryTypes, note: trimmed },
+      })
 
       if (supabaseConfigured) {
         const server = await apiCreateNoteEntry(buttonKey, trimmed, entryTypes)
         if (server === null) {
+          logActivity({
+            kind: 'sync',
+            level: 'error',
+            summary: `Not synced: note on “${buttonKey}” — kept on this device`,
+            detail: { button: buttonKey, types: entryTypes, note: trimmed },
+          })
           setError('Saved on this device — will sync once you’re back online.')
         } else {
           // Reconcile the locally-minted id/timestamp with the server's
@@ -128,10 +140,21 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       )
       setEntries(withLocal)
       saveLocalNoteEntries(buttonKey, withLocal)
+      logActivity({
+        kind: 'save',
+        summary: `Saved on device: edited note on “${buttonKey}”`,
+        detail: { button: buttonKey, id, types: entryTypes, note: trimmed },
+      })
 
       if (supabaseConfigured) {
         const server = await apiUpdateNoteEntry(id, trimmed, entryTypes)
         if (server === null) {
+          logActivity({
+            kind: 'sync',
+            level: 'error',
+            summary: `Not synced: edited note on “${buttonKey}” — kept on this device`,
+            detail: { button: buttonKey, id, types: entryTypes, note: trimmed },
+          })
           setError('Saved on this device — will sync once you’re back online.')
         } else {
           const reconciled = withLocal.map((entry) => (entry.id === id ? server : entry))
@@ -159,10 +182,21 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       const withoutEntry = entries.filter((entry) => entry.id !== id)
       setEntries(withoutEntry)
       saveLocalNoteEntries(buttonKey, withoutEntry)
+      logActivity({
+        kind: 'save',
+        summary: `Saved on device: deleted note on “${buttonKey}”`,
+        detail: entries.find((entry) => entry.id === id) ?? { id },
+      })
 
       if (supabaseConfigured) {
         const ok = await apiDeleteNoteEntry(id)
         if (!ok) {
+          logActivity({
+            kind: 'sync',
+            level: 'error',
+            summary: `Not synced: deleted note on “${buttonKey}” — removed on this device only`,
+            detail: { id },
+          })
           setError('Removed on this device — will sync once you’re back online.')
         }
       }

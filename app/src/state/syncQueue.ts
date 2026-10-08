@@ -65,6 +65,28 @@ export function intentActivityId(intent: SyncIntent): string {
   }
 }
 
+/** A plain-words label for an intent, for the user's activity log: `Add “Walk”`, `Delete an activity`. */
+export function describeSyncIntent(intent: SyncIntent): string {
+  switch (intent.kind) {
+    case 'create':
+      return `Add “${intent.activity.name}”`
+    case 'reschedule':
+      return `Edit “${intent.activity.name}”`
+    case 'flags':
+      return `Change flags on “${intent.activity.name}”`
+    case 'status':
+      return `Change status of “${intent.activity.name}”`
+    case 'delete':
+      return 'Delete an activity'
+    case 'restore':
+      return 'Restore an activity'
+    case 'addReflection':
+      return 'Save a reflection'
+    case 'removeReflection':
+      return 'Remove a reflection'
+  }
+}
+
 /** Appends one queue entry per intent, each due immediately (`nextAttemptAt: now`) — draining is what applies backoff, not enqueueing. */
 export function enqueueIntents(
   queue: SyncQueue,
