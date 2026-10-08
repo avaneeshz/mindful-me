@@ -130,3 +130,30 @@ export function overlayParameterOptions(server: readonly ParameterOptionDto[], w
   }
   return rows
 }
+
+interface SelectableOption {
+  optionId: string
+  selected: boolean
+}
+
+/**
+ * Ticks the user made on an activity's option checklist that the server has not
+ * confirmed yet, laid back over the checklist the server returned — so a failed
+ * tick is not undone by the next load. Also reports which types now hold an
+ * activity-specific choice (a tick makes the list the activity's own).
+ */
+export function overlayParameterSelections<T extends SelectableOption>(
+  byType: Record<ParameterOptionDto['parameterType'], T[]>,
+  activityId: string,
+  writes: readonly PendingWrite[],
+): { byType: Record<ParameterOptionDto['parameterType'], T[]>; ownTypes: Set<ParameterOptionDto['parameterType']> } {
+  const next = { ...byType }
+  const ownTypes = new Set<ParameterOptionDto['parameterType']>()
+  for (const write of inOrder(writes, 'parameterSelection')) {
+    const [forActivity, type, optionId, selected] = write.args as [string, ParameterOptionDto['parameterType'], string, boolean]
+    if (forActivity !== activityId || !next[type]) continue
+    ownTypes.add(type)
+    next[type] = next[type].map((option) => (option.optionId === optionId ? { ...option, selected } : option))
+  }
+  return { byType: next, ownTypes }
+}
