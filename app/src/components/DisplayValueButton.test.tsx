@@ -24,7 +24,7 @@ function render(
       buttonKey={buttonKey}
       viewedDate={VIEWED_DATE}
       activities={NO_ACTIVITIES}
-      onQuickLog={() => {}}
+      onQuickLog={() => ({ ok: true })}
       onEditActivity={() => {}}
     />,
   )
@@ -133,7 +133,7 @@ describe('DisplayValueButton', () => {
         buttonKey="sleep"
         viewedDate={VIEWED_DATE}
         activities={activities}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
       />,
     )
@@ -155,7 +155,7 @@ describe('DisplayValueButton', () => {
         buttonKey="sleep"
         viewedDate={VIEWED_DATE}
         activities={NO_ACTIVITIES}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
         defaultOpen
       />,
@@ -195,7 +195,7 @@ describe('DisplayValueButton', () => {
         buttonKey="exercise"
         viewedDate={VIEWED_DATE}
         activities={NO_ACTIVITIES}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
         defaultOpen
       />,
@@ -214,7 +214,7 @@ describe('DisplayValueButton', () => {
           buttonKey="worship"
           viewedDate={VIEWED_DATE}
           activities={NO_ACTIVITIES}
-          onQuickLog={() => {}}
+          onQuickLog={() => ({ ok: true })}
           onEditActivity={() => {}}
           defaultOpen
         />,
@@ -294,7 +294,7 @@ describe('DisplayValueButton', () => {
         buttonKey="worship"
         viewedDate={VIEWED_DATE}
         activities={activities}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
       />,
     )

@@ -241,7 +241,7 @@ function AuthedApp({ now }: { now?: Date }) {
  */
 function AppHeaderBar() {
   const { editMode, toggleEditMode } = useEditMode()
-  const { state, dispatch, now, viewedDate, setViewedDate, syncQueue, retrySyncNow } = useBoard()
+  const { state, dispatch, now, viewedDate, setViewedDate, logQuickLog, syncQueue, retrySyncNow } = useBoard()
   const { user, signOut } = useAuth()
 
   return (
@@ -252,9 +252,7 @@ function AppHeaderBar() {
       user={user}
       onSignOut={signOut}
       activities={state.activities}
-      onQuickLog={(cardName, startMinutes, durationMinutes, extra) =>
-        dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes, ...extra })
-      }
+      onQuickLog={logQuickLog}
       syncQueue={syncQueue}
       onRetrySyncNow={retrySyncNow}
       onEditActivity={(id) => dispatch({ type: 'editActivity', id })}

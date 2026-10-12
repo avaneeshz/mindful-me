@@ -32,7 +32,8 @@ import { EditLock } from '@/components/ui/EditLock'
 import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
 import { useSharedHeaderButtons } from '@/state/HeaderButtonsContext'
 import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
-import type { ActivityList, FieldSelections } from '@/domain/types'
+import type { ActivityList } from '@/domain/types'
+import type { QuickLogInput, QuickLogResult } from '@/state/BoardContext'
 import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
@@ -81,17 +82,7 @@ export interface HeaderBarProps {
    */
   activities: ActivityList
   /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. */
-  onQuickLog: (
-    cardName: string,
-    startMinutes: number,
-    durationMinutes: number,
-    extra?: {
-      path?: string[]
-      notes?: string | null
-      fieldSelections?: FieldSelections
-      dreamsNote?: string | null
-    },
-  ) => void
+  onQuickLog: (input: QuickLogInput) => QuickLogResult
   /** Bug B/C — the durable background-sync retry queue; see `SyncStatusPill`. */
   syncQueue: SyncQueue
   /** Wakes the sync queue immediately — the indicator's "Retry now" action. */

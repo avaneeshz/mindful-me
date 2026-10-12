@@ -1,4 +1,5 @@
 import { findCard } from '@/data/activities'
+import { QUICK_LOG_BOUNDS } from '@/domain/carryOver'
 import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
@@ -56,6 +57,13 @@ export interface RemovalRecord {
 
 export interface BoardState {
   activities: ScheduledActivity[]
+  /**
+   * Read-only spill-in from the PREVIOUS day (a stretch that started there and
+   * is still running at today's 00:00), on today's minute axis — see
+   * `domain/carryOver.ts`. Never persisted or synced from this board; it
+   * exists so rule 1's no-overlap check and the timeline both see it.
+   */
+  carryIn: ScheduledActivity[]
   selectedSlot: number
   staging: StagingState
   removal: RemovalRecord | null
@@ -186,6 +194,8 @@ export type BoardAction =
    * `fieldSelections`/`dreamsNote`. See `domain/displayButtons.ts`'s
    * `quickLogType`/`displayButtonNoteFields`.
    */
+  /** Replaces the read-only previous-day spill-in. Dispatched by `BoardContext` when the viewed day (or yesterday's data) changes. */
+  | { type: 'setCarryIn'; carryIn: ScheduledActivity[] }
   | {
       type: 'quickLogActivity'
       cardName: string
@@ -234,10 +244,16 @@ export function stagingOptions(staging: StagingState): { options: string[]; leve
   return { options: node.children.map((child) => child.name), level: staging.path.length }
 }
 
+/** Everything on the board that a new placement must not overlap: today's activities plus the previous day's spill-in. */
+function occupied(state: BoardState): ScheduledActivity[] {
+  return state.carryIn.length === 0 ? state.activities : [...state.carryIn, ...state.activities]
+}
+
 export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {
   const selectedSlot = slotIndexFromDate(now)
   return {
     activities,
+    carryIn: [],
     selectedSlot,
     staging: EMPTY_STAGING,
     removal: null,
@@ -317,7 +333,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'stepDuration': {
       if (!state.staging.cardName) return state
       const ceiling = maxContiguousDuration(
-        state.activities,
+        occupied(state),
         state.staging.startMinutes,
         state.staging.editingId,
       )
@@ -339,7 +355,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'setDuration': {
       if (!state.staging.cardName) return state
       const ceiling = maxContiguousDuration(
-        state.activities,
+        occupied(state),
         state.staging.startMinutes,
         state.staging.editingId,
       )
@@ -351,7 +367,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
     case 'setStagingStart': {
       if (!state.staging.cardName) return state
       const next = clampMove(
-        state.activities,
+        occupied(state),
         state.staging.startMinutes,
         state.staging.durationMinutes,
         action.minutes,
@@ -365,7 +381,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       if (!state.staging.cardName) return state
       const currentEnd = state.staging.startMinutes + state.staging.durationMinutes
       const next = clampResizeStart(
-        state.activities,
+        occupied(state),
         state.staging.startMinutes,
         currentEnd,
         action.minutes,
@@ -436,7 +452,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: staging.startMinutes,
         durationMinutes: staging.durationMinutes,
       }
-      const validation = validateSchedule(candidate, state.activities)
+      const validation = validateSchedule(candidate, occupied(state))
       if (!validation.ok) return state
 
       const prior = staging.editingId
@@ -531,7 +547,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: activity.startMinutes,
         durationMinutes: activity.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities).ok) {
+      if (!validateSchedule(candidate, occupied(state)).ok) {
         return { ...state, removal: null }
       }
 
@@ -645,6 +661,9 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       }
     }
 
+    case 'setCarryIn':
+      return { ...state, carryIn: action.carryIn }
+
     case 'quickLogActivity': {
       const candidate: CandidateSchedule = {
         id: null,
@@ -652,7 +671,10 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: action.startMinutes,
         durationMinutes: action.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities).ok) return state
+      // Wide bounds: a quick log may run past midnight (Sleep 10 PM -> 6 AM).
+      // The next day's board isn't held here — `BoardContext.logQuickLog`
+      // checks that side before it ever dispatches.
+      if (!validateSchedule(candidate, occupied(state), QUICK_LOG_BOUNDS).ok) return state
       const committed = commitSchedule(candidate, {
         notes: action.notes?.trim() ? action.notes : null,
         fieldSelections: action.fieldSelections ?? {},

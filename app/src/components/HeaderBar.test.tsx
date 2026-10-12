@@ -15,7 +15,7 @@ function render(editMode = false): string {
         user={null}
         onSignOut={() => {}}
         activities={[]}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         syncQueue={[]}
         onRetrySyncNow={() => {}}
         onEditActivity={() => {}}

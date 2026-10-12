@@ -1300,14 +1300,26 @@ describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quic
     expect(real(state)[0].durationMinutes).toBe(30)
   })
 
-  it('rejects a requested span that would cross local midnight — no partial placement (rule 13, and the shared scheduling module’s own day-boundary ceiling — see domain/scheduling.ts)', () => {
+  it('keeps a midnight-crossing session as ONE row on the day it started (rule 2) instead of rejecting it', () => {
     const state = boardReducer(start(), {
       type: 'quickLogActivity',
       cardName: 'Moon Exposure',
       startMinutes: 23 * 60 + 30,
-      durationMinutes: 45, // would need to reach 00:15 the next day
+      durationMinutes: 45, // reaches 00:15 the next day
     })
-    expect(real(state)).toHaveLength(0)
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0].startMinutes).toBe(23 * 60 + 30)
+    expect(real(state)[0].durationMinutes).toBe(45)
+  })
+
+  it('rejects a session that starts inside the previous day\'s spill-in (rule 1 across midnight)', () => {
+    const donor = boardReducer(start(), { type: 'quickLogActivity', cardName: 'Sleep', startMinutes: 0, durationMinutes: 1 })
+    const spill = { ...real(donor)[0], startMinutes: -120, durationMinutes: 480 }
+    const withSpill = boardReducer(start(), { type: 'setCarryIn', carryIn: [spill] })
+    const blocked = boardReducer(withSpill, { type: 'quickLogActivity', cardName: 'Moon Exposure', startMinutes: 60, durationMinutes: 30 })
+    expect(real(blocked)).toHaveLength(real(start()).length)
+    const clear = boardReducer(withSpill, { type: 'quickLogActivity', cardName: 'Moon Exposure', startMinutes: 6 * 60, durationMinutes: 30 })
+    expect(real(clear)).toHaveLength(real(start()).length + 1)
   })
 })
 

@@ -24,10 +24,19 @@ import {
   songCountToMinutes,
   type DisplayButtonKey,
 } from '@/domain/displayButtons'
-import { canSubmitQuickLog, clockToMinutes, durationBetween, formatDuration, nowClock } from '@/domain/quickLog'
-import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
+import {
+  canSubmitDatedQuickLog,
+  canSubmitQuickLog,
+  clockToMinutes,
+  dateTimeSpanMinutes,
+  defaultEndDate,
+  durationBetween,
+  formatDuration,
+  nowClock,
+} from '@/domain/quickLog'
 import { formatActivityRange } from '@/domain/slots'
 import type { ActivityList, FieldSelections, ScheduledActivity } from '@/domain/types'
+import type { QuickLogInput, QuickLogResult } from '@/state/BoardContext'
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory, type UseDisplayValueHistoryResult } from '@/state/useDisplayValueHistory'
 import { useSessionHistory } from '@/state/useSessionHistory'
@@ -100,17 +109,7 @@ export function DisplayValueButton({
   /** Today's board — only read for a `quickLogName` button's computed total/validation, and its own session-history list. */
   activities: ActivityList
   /** Dispatches `quickLogActivity` — see `state/boardReducer.ts`. Unused for a plain local counter. */
-  onQuickLog: (
-    cardName: string,
-    startMinutes: number,
-    durationMinutes: number,
-    extra?: {
-      path?: string[]
-      notes?: string | null
-      fieldSelections?: FieldSelections
-      dreamsNote?: string | null
-    },
-  ) => void
+  onQuickLog: (input: QuickLogInput) => QuickLogResult
   /** Dispatches `editActivity` — opens the SAME `LogActivityModal` the Timeline's own Edit does, for a `quickLogName` button's session history. Unused for a day-value button. */
   onEditActivity: (id: string) => void
   /**
@@ -145,6 +144,12 @@ export function DisplayValueButton({
   const [draft, setDraft] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  // Start/End calendar days for a `quickLogName` duration entry. Start defaults
+  // to the day on screen (today, unless the user navigated); End follows it —
+  // the next day when End's clock time is at or before Start's — until the
+  // user picks one explicitly (`endDateOverride`).
+  const [startDate, setStartDate] = useState(() => localDateISO(viewedDate))
+  const [endDateOverride, setEndDateOverride] = useState<string | null>(null)
   const [songCount, setSongCount] = useState('')
   const [type, setType] = useState('')
   const [note, setNote] = useState('')
@@ -195,14 +200,25 @@ export function DisplayValueButton({
   const mode = displayButtonInput(buttonKey)
   const parsedSongCount = parseDisplayValue(songCount)
   const songCountDuration = songCountToMinutes(parsedSongCount)
+  const datedRange = Boolean(quickLogName) && mode === 'duration'
+  const endDate = endDateOverride ?? defaultEndDate(startDate, start, end)
+  const spanMinutes = dateTimeSpanMinutes(startDate, start, endDate, end)
   const durationDraft =
-    mode === 'duration' ? durationBetween(start, end) : mode === 'songCount' ? songCountDuration : null
+    mode === 'duration'
+      ? datedRange
+        ? spanMinutes
+        : durationBetween(start, end)
+      : mode === 'songCount'
+        ? songCountDuration
+        : null
   // `canSubmitQuickLog` is duration-mode-specific (it takes two clock times),
   // so `'songCount'` gets its own equivalent: a valid Start time and a
   // positive whole number of songs.
   const canSave =
     mode === 'duration'
-      ? canSubmitQuickLog(start, end)
+      ? datedRange
+        ? canSubmitDatedQuickLog(startDate, start, endDate, end)
+        : canSubmitQuickLog(start, end)
       : mode === 'songCount'
         ? clockToMinutes(start) !== null && songCountDuration !== null
         : true
@@ -265,6 +281,8 @@ export function DisplayValueButton({
     // logged after the fact.
     setStart(nowClock())
     setEnd('')
+    setStartDate(localDateISO(viewedDate))
+    setEndDateOverride(null)
     setSongCount('')
     setType('')
     setNote('')
@@ -323,36 +341,36 @@ export function DisplayValueButton({
     if (submitting) return
 
     if (quickLogName) {
-      const durationMinutes = mode === 'songCount' ? songCountDuration : durationBetween(start, end)
+      const durationMinutes = mode === 'songCount' ? songCountDuration : spanMinutes
       const startMinutes = clockToMinutes(start)
       if (durationMinutes === null || startMinutes === null || !canSave) return
 
-      // Validated here (not just inside the reducer) so a real conflict can
-      // show an inline message rather than the request silently no-oping —
-      // same shared-scheduling-module contract every other placement uses.
-      const candidate: CandidateSchedule = {
-        id: null,
-        activity: { name: quickLogName, path: type ? [type] : [] },
+      // Validated by the board (not just inside the reducer) so a real
+      // conflict can show an inline message rather than the request silently
+      // no-oping — same shared-scheduling-module contract every other
+      // placement uses. It checks the day before and after too, since the
+      // stretch may begin or end on a different day than the one on screen.
+      setSubmitting(true)
+      const result = onQuickLog({
+        cardName: quickLogName,
+        startDate: dateFromLocalDateISO(mode === 'songCount' ? localDateISO(viewedDate) : startDate),
         startMinutes,
         durationMinutes,
-      }
-      const validation = validateSchedule(candidate, activities)
-      if (!validation.ok) {
+        path: type ? [type] : [],
+        notes: hasNote && note.trim() ? note : null,
+        fieldSelections,
+        dreamsNote: hasDreamsNote && dreamsNote.trim() ? dreamsNote : null,
+      })
+      if (!result.ok) {
+        setSubmitting(false)
         setError(
-          validation.reason === 'occupied'
+          result.reason === 'occupied'
             ? 'That time overlaps something already on the board.'
             : 'That doesn’t fit before something else starts — try a shorter stretch or a different time.',
         )
         return
       }
 
-      setSubmitting(true)
-      onQuickLog(quickLogName, startMinutes, durationMinutes, {
-        path: type ? [type] : [],
-        notes: hasNote && note.trim() ? note : null,
-        fieldSelections,
-        dreamsNote: hasDreamsNote && dreamsNote.trim() ? dreamsNote : null,
-      })
       setStart('')
       setEnd('')
       setSongCount('')
@@ -425,6 +443,17 @@ export function DisplayValueButton({
                     onStartChange={setStart}
                     endValue={end}
                     onEndChange={setEnd}
+                    {...(datedRange
+                      ? {
+                          startDate,
+                          onStartDateChange: (value: string) => {
+                            setStartDate(value)
+                            setEndDateOverride(null)
+                          },
+                          endDate,
+                          onEndDateChange: setEndDateOverride,
+                        }
+                      : {})}
                   />
                 ) : (
                   <>
@@ -455,6 +484,11 @@ export function DisplayValueButton({
                     simply isn't there until a real duration is computable. */}
                 {durationDraft !== null && durationDraft > 0 && (
                   <p className="text-caption text-ink-dim">{formatDuration(durationDraft)}</p>
+                )}
+                {datedRange && spanMinutes !== null && (spanMinutes <= 0 || spanMinutes > 24 * 60) && (
+                  <p role="alert" className="text-caption text-ink-dim">
+                    {spanMinutes <= 0 ? 'End must be after start.' : 'A single entry can be up to 24 hours.'}
+                  </p>
                 )}
 
                 {hasType && typeOptions.length > 0 && (
