@@ -81,3 +81,63 @@ export function totalMinutesFor(activities: readonly { name: string | null; dura
 export function formatMinutesLabel(totalMinutes: number): string {
   return totalMinutes > 0 ? `${Math.round(totalMinutes)}m` : ''
 }
+
+/* ------------------------------------------------------------------ *
+ * Dated Start/End — a quick log may begin on one calendar day and end on
+ * another (Sleep 10 PM → 6 AM). Pure `YYYY-MM-DD` arithmetic with no `Date`
+ * local-time parsing, so DST and the device zone can never shift a day
+ * (rule 3: wall-clock time is what the user typed, locked in).
+ * ------------------------------------------------------------------ */
+
+const MS_PER_DAY = 86_400_000
+
+function utcDay(iso: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!match) return null
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const ms = Date.UTC(year, month - 1, day)
+  const check = new Date(ms)
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null
+  return ms / MS_PER_DAY
+}
+
+/** Whole calendar days from `fromISO` to `toISO` (negative when `toISO` is earlier), or `null` if either is malformed. */
+export function daysBetweenISO(fromISO: string, toISO: string): number | null {
+  const from = utcDay(fromISO)
+  const to = utcDay(toISO)
+  return from === null || to === null ? null : to - from
+}
+
+/** `iso` shifted by `days` calendar days. Returns `iso` unchanged if it is malformed. */
+export function addDaysISO(iso: string, days: number): string {
+  const day = utcDay(iso)
+  if (day === null) return iso
+  return new Date((day + days) * MS_PER_DAY).toISOString().slice(0, 10)
+}
+
+/**
+ * Where End's date lands when the user hasn't picked one: the same day as
+ * Start, or the next day when End's clock time is at or before Start's
+ * (22:00 → 06:00 is an overnight stretch). This is what keeps the common
+ * "log last night's sleep" case a two-field entry.
+ */
+export function defaultEndDate(startDate: string, start: string, end: string): string {
+  const s = clockToMinutes(start)
+  const e = clockToMinutes(end)
+  return s !== null && e !== null && e <= s ? addDaysISO(startDate, 1) : startDate
+}
+
+/** Minutes from Start (date + clock) to End (date + clock), or `null` if any part is malformed. Negative when End is before Start. */
+export function dateTimeSpanMinutes(startDate: string, start: string, endDate: string, end: string): number | null {
+  const days = daysBetweenISO(startDate, endDate)
+  const s = clockToMinutes(start)
+  const e = clockToMinutes(end)
+  if (days === null || s === null || e === null) return null
+  return days * 24 * 60 + e - s
+}
+
+/** Store/Save for a dated range: a real span of more than 0 and at most 24h. */
+export function canSubmitDatedQuickLog(startDate: string, start: string, endDate: string, end: string): boolean {
+  const mins = dateTimeSpanMinutes(startDate, start, endDate, end)
+  return mins !== null && mins > 0 && mins <= 24 * 60
+}

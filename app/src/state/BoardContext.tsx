@@ -16,6 +16,8 @@ import {
   type BoardState,
 } from './boardReducer'
 import { createSeedActivities } from './seed'
+import { carryInFromPreviousDay, placementNeighbourhood, QUICK_LOG_BOUNDS } from '@/domain/carryOver'
+import { commitSchedule, validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import { slotIndexFromDate } from '@/domain/slots'
 import { deriveSyncIntents } from './sync'
 import { loadLocalActivities, saveLocalActivities } from './localPersistence'
@@ -29,8 +31,28 @@ import {
   shouldRolloverViewedDate,
 } from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
-import type { ScheduledActivity } from '@/domain/types'
+import type { FieldSelections, ScheduledActivity } from '@/domain/types'
 import { useLiveActivityCatalogSync } from './useLiveActivityCatalogSync'
+
+/** One quick-log stretch, anchored to the calendar day it STARTS on (rule 2) — which may not be the day on screen. */
+export interface QuickLogInput {
+  cardName: string
+  /** The day the stretch starts on. Any time of day is fine; only the calendar day is read. */
+  startDate: Date
+  /** Minutes since local midnight of `startDate`; `startMinutes + durationMinutes` may run past 1440. */
+  startMinutes: number
+  durationMinutes: number
+  path?: string[]
+  notes?: string | null
+  fieldSelections?: FieldSelections
+  dreamsNote?: string | null
+}
+
+export type QuickLogResult = { ok: true } | { ok: false; reason: 'occupied' | 'too-long' }
+
+function addLocalDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+}
 
 interface BoardContextValue {
   state: BoardState
@@ -52,6 +74,15 @@ interface BoardContextValue {
   isViewingToday: boolean
   /** Switch the whole board (timeline + editor) to a different day's schedule. */
   setViewedDate: (date: Date) => void
+  /**
+   * Logs a quick-log stretch on whichever day it starts, validated against
+   * that day, the spill-in from the day before and the day after (rule 1
+   * across midnight). A stretch on the viewed day goes through the reducer
+   * like any other write; one on a different day is written straight to that
+   * day's local store and the sync queue (rule 6), without touching the board
+   * on screen. Returns a conflict instead of writing when it doesn't fit.
+   */
+  logQuickLog: (input: QuickLogInput) => QuickLogResult
   /**
    * The durable background-sync retry queue (Bug B/C) — every write that
    * hasn't yet been CONFIRMED to have reached the server, whether it's
@@ -238,6 +269,33 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     }
   }, [isTest, viewedDate])
 
+  // Spill-in from the day before (rule 2 keeps a midnight-crossing activity on
+  // the day it started; this is only the read-only view of its tail on this
+  // day). Local data lands immediately; the server's view of yesterday is
+  // merged in the same way as today's, then the tail is recomputed. Bounded
+  // to one extra day (rule 8) — a quick log never exceeds 24h.
+  useEffect(() => {
+    if (isTest) return
+    let cancelled = false
+    const previousDay = addLocalDays(viewedDate, -1)
+    dispatch({ type: 'setCarryIn', carryIn: carryInFromPreviousDay(loadLocalActivities(previousDay) ?? []) })
+    ;(async () => {
+      const { start, end } = localDayRange(previousDay)
+      const server = await apiListScheduledActivities(start, end)
+      if (cancelled || server === null) return
+      const merged = reconcileServerActivities(
+        loadLocalActivities(previousDay) ?? [],
+        server,
+        pendingActivityIds(queueRef.current),
+        pendingDeleteActivityIds(queueRef.current),
+      )
+      dispatch({ type: 'setCarryIn', carryIn: carryInFromPreviousDay(merged) })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isTest, viewedDate])
+
   // Midnight rollover: `viewedDate` is otherwise only ever changed by an
   // explicit `setViewedDate` call (the date picker) — nothing previously
   // watched the live clock, so a tab left open (backgrounded, not reloaded)
@@ -285,6 +343,63 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     const normalized = localDayRange(date).start
     setViewedDateState(normalized)
     trackedDispatch({ type: 'hydrate', activities: loadActivitiesForDate(normalized, now) })
+    // Swap the spill-in in the same render so the previous day's tail never
+    // flashes on the wrong day while the carry-in effect above catches up.
+    dispatch({
+      type: 'setCarryIn',
+      carryIn: carryInFromPreviousDay(loadLocalActivities(addLocalDays(normalized, -1)) ?? []),
+    })
+  }
+
+  function logQuickLog(input: QuickLogInput): QuickLogResult {
+    const day = localDayRange(input.startDate).start
+    const onViewedDay = isSameLocalDay(day, viewedDate)
+    const dayActivities = onViewedDay ? state.activities : (loadLocalActivities(day) ?? [])
+    const carryIn = onViewedDay
+      ? state.carryIn
+      : carryInFromPreviousDay(loadLocalActivities(addLocalDays(day, -1)) ?? [])
+    const nextDayActivities = loadLocalActivities(addLocalDays(day, 1)) ?? []
+
+    const candidate: CandidateSchedule = {
+      id: null,
+      activity: { name: input.cardName, path: input.path ?? [] },
+      startMinutes: input.startMinutes,
+      durationMinutes: input.durationMinutes,
+    }
+    const validation = validateSchedule(
+      candidate,
+      placementNeighbourhood(carryIn, dayActivities, nextDayActivities),
+      QUICK_LOG_BOUNDS,
+    )
+    if (!validation.ok) return { ok: false, reason: validation.reason }
+
+    if (onViewedDay) {
+      trackedDispatch({
+        type: 'quickLogActivity',
+        cardName: input.cardName,
+        startMinutes: input.startMinutes,
+        durationMinutes: input.durationMinutes,
+        path: input.path,
+        notes: input.notes,
+        fieldSelections: input.fieldSelections,
+        dreamsNote: input.dreamsNote,
+      })
+      return { ok: true }
+    }
+
+    const committed = commitSchedule(candidate, {
+      notes: input.notes?.trim() ? input.notes : null,
+      fieldSelections: input.fieldSelections ?? {},
+      dreamsNote: input.dreamsNote?.trim() ? input.dreamsNote : null,
+    })
+    const updated = [...dayActivities, committed]
+    saveLocalActivities(day, updated)
+    enqueue([{ kind: 'create', activity: committed }], localDateISO(day))
+    // Logged on the day before the one on screen: its tail may now spill in.
+    if (isSameLocalDay(addLocalDays(day, 1), viewedDate)) {
+      dispatch({ type: 'setCarryIn', carryIn: carryInFromPreviousDay(updated) })
+    }
+    return { ok: true }
   }
 
   const value = useMemo(
@@ -296,6 +411,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       viewedDate,
       isViewingToday,
       setViewedDate,
+      logQuickLog,
       syncQueue: queue,
       retrySyncNow: retryNow,
     }),
