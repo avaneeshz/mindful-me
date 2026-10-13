@@ -3,6 +3,7 @@ import {
   DEFAULT_HEADER_BUTTONS,
   dedupeChecklistItemKey,
   headerButtonConfigFromDto,
+  isUuid,
   moveId,
   orderAfterGroupReorder,
   partitionHeaderButtons,
@@ -10,6 +11,7 @@ import {
   noteLabelsFromFields,
   toDisplayButtonLike,
   withActivityNotes,
+  withServerFieldIds,
   type HeaderButtonConfig,
   type HeaderButtonDto,
 } from './headerButtons'
@@ -267,5 +269,38 @@ describe('orderAfterGroupReorder', () => {
 
   it('keeps group members the caller left out', () => {
     expect(orderAfterGroupReorder(visible, 'notes', ['n2'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+  })
+})
+
+describe('note-field ids sent to the server', () => {
+  it('recognises real UUIDs only', () => {
+    expect(isUuid('cd89f9f7-3f43-4c2d-89c8-28c81d050534')).toBe(true)
+    expect(isUuid('CD89F9F7-3F43-4C2D-89C8-28C81D050534')).toBe(true)
+    expect(isUuid('cd89f9f7-3f43-4c2d-89c8-28c81d050534:note-primary')).toBe(false)
+    expect(isUuid('local-123-abc')).toBe(false)
+    expect(isUuid('')).toBe(false)
+    expect(isUuid(undefined)).toBe(false)
+  })
+
+  it('drops the placeholder id the screen invents, so the server treats the field as new', () => {
+    const fields = [
+      { id: 'cd89f9f7-3f43-4c2d-89c8-28c81d050534:note-primary', fieldKind: 'text', label: 'Note' },
+      { id: '11111111-2222-4333-8444-555555555555', fieldKind: 'multiselect', label: 'How was it' },
+      { fieldKind: 'text', label: 'No id yet' },
+    ]
+    const sent = withServerFieldIds(fields)
+    expect(sent[0].id).toBeUndefined()
+    expect(sent[1].id).toBe('11111111-2222-4333-8444-555555555555')
+    expect(sent[2].id).toBeUndefined()
+    expect(JSON.stringify(sent)).not.toContain('note-primary')
+  })
+
+  it('a button with no saved note fields produces a placeholder that is NOT a valid server id (the production failure)', () => {
+    const button = DEFAULT_HEADER_BUTTONS.find((b) => b.category === 'activity')
+    if (!button) return
+    const withNotes = withActivityNotes({ ...button, noteFields: [] }, null)
+    const placeholder = withNotes.noteFields.find((f) => f.fieldKind === 'text')
+    expect(isUuid(placeholder?.id)).toBe(false)
+    expect(withServerFieldIds(withNotes.noteFields).every((f) => f.id === undefined || isUuid(f.id))).toBe(true)
   })
 })

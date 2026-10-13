@@ -71,7 +71,7 @@ export function HiddenItemsPanel() {
           Hidden items
         </h2>
         <p className="mt-xs text-caption text-ink-dim">
-          Anything you hide from Today waits here. Restore puts it back exactly where it was.
+          Anything you delete from Today is kept here and can be restored any time, with no time limit. Restore puts it back exactly where it was. Deleting from here is permanent.
         </p>
       </div>
 

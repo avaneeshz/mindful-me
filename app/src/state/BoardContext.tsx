@@ -34,6 +34,7 @@ import { reconcileServerActivities } from './reconcileServerActivities'
 import { pendingActivityIds, pendingDeleteActivityIds, type SyncQueue } from './syncQueue'
 import { useSyncQueue } from './useSyncQueue'
 import {
+  dateFromLocalDateISO,
   dateFromLocalMinutes,
   isSameLocalDay,
   localDateISO,
@@ -89,6 +90,14 @@ interface BoardContextValue {
    * on screen. Returns a conflict instead of writing when it doesn't fit.
    */
   logQuickLog: (input: QuickLogInput) => QuickLogResult
+  /** Tries one refused or waiting write again right away — "Not synced" → Retry. */
+  retrySyncItem: (itemId: string) => void
+  /**
+   * "Not synced" → Discard. A refused CREATE means the activity never reached the account, so it
+   * is removed from this device too (nothing on the server to undo); a refused edit only drops the
+   * edit — the next refresh shows the server's version again.
+   */
+  discardSyncItem: (itemId: string) => void
   /**
    * The durable background-sync retry queue (Bug B/C) — every write that
    * hasn't yet been CONFIRMED to have reached the server, whether it's
@@ -226,7 +235,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // Bug B/C (write-failure-visibility incident) — the durable retry queue,
   // shared with Lumen's data provider so the two interfaces retry, back off
   // and persist identically. See `useSyncQueue`'s own doc comment.
-  const { queue, queueRef, enqueue, retryNow } = useSyncQueue(isTest)
+  const { queue, queueRef, enqueue, retryNow, retryItem, discardActivity, discardItem } = useSyncQueue(isTest)
 
   // Local-first write + background sync (rule 6). Runs after every action
   // that actually changed state — persisting is unconditional (any change to
@@ -349,6 +358,22 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     trackedDispatch({ type: 'hydrate', activities: loadWindowForDate(normalized, now) })
   }
 
+  function discardSyncItem(itemId: string): void {
+    const item = queueRef.current.find((i) => i.id === itemId)
+    if (!item) return
+    if (item.intent.kind !== 'create') {
+      discardItem(itemId)
+      return
+    }
+    // The activity lives under the day it started on: the item's reference day, shifted by whole days.
+    const activity = item.intent.activity
+    const day = addLocalDays(dateFromLocalDateISO(item.referenceDateISO), Math.floor(activity.startMinutes / 1440))
+    const stored = loadLocalActivities(day)
+    if (stored) saveLocalActivities(day, stored.filter((a) => a.id !== activity.id))
+    discardActivity(item.activityId)
+    dispatch({ type: 'discardActivity', id: activity.id })
+  }
+
   function logQuickLog(input: QuickLogInput): QuickLogResult {
     const startDay = new Date(input.startDate.getFullYear(), input.startDate.getMonth(), input.startDate.getDate())
     const offset = dayOffsetFromPage(localDateISO(viewedDate), localDateISO(startDay))
@@ -410,6 +435,8 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       isViewingToday,
       setViewedDate,
       logQuickLog,
+      retrySyncItem: retryItem,
+      discardSyncItem,
       syncQueue: queue,
       retrySyncNow: retryNow,
     }),
@@ -418,6 +445,11 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   )
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
+}
+
+/** The board when one is mounted, else `null` — for screens that can also render without it. */
+export function useOptionalBoard(): BoardContextValue | null {
+  return useContext(BoardContext)
 }
 
 export function useBoard(): BoardContextValue {

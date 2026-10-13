@@ -196,7 +196,10 @@ export function useLumenDays(dayISO: string, disabled = false): LumenDays {
     byDate,
     syncQueue: sync.queue,
     retrySyncNow: sync.retryNow,
-    syncStateOf: (id) => activitySyncState(sync.queue, id),
+    syncStateOf: (id) => {
+      const state = activitySyncState(sync.queue, id)
+      return state === 'rejected' ? 'failed' : state
+    },
     create,
     update,
     remove,

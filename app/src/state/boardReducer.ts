@@ -188,6 +188,12 @@ export type BoardAction =
    * `fieldSelections`/`dreamsNote`. See `domain/displayButtons.ts`'s
    * `quickLogType`/`displayButtonNoteFields`.
    */
+  /**
+   * Forgets an activity the server refused for good (it never reached the
+   * account), without the 30-day "removed" bookkeeping a real delete has and
+   * without queuing anything to sync — there is nothing on the server to remove.
+   */
+  | { type: 'discardActivity'; id: string }
   | {
       type: 'quickLogActivity'
       cardName: string
@@ -660,6 +666,16 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return {
         ...state,
         activities: state.activities.map((a) => (a.id === activity.id ? updated : a)),
+      }
+    }
+
+    case 'discardActivity': {
+      if (!state.activities.some((a) => a.id === action.id)) return state
+      return {
+        ...state,
+        activities: state.activities.filter((a) => a.id !== action.id),
+        selectedActivityId: state.selectedActivityId === action.id ? null : state.selectedActivityId,
+        staging: state.staging.editingId === action.id ? EMPTY_STAGING : state.staging,
       }
     }
 

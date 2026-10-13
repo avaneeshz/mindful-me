@@ -50,7 +50,7 @@ export function ActivitySummary({
    * existing caller (and test) that has no sync queue to check keeps
    * rendering exactly as before.
    */
-  syncState?: 'synced' | 'pending' | 'failed'
+  syncState?: 'synced' | 'pending' | 'failed' | 'rejected'
   /** The day the page is showing, so a range that starts the day before or ends the next day can name its dates. */
   pageDate?: Date
 }) {
@@ -83,12 +83,16 @@ export function ActivitySummary({
                 role="status"
                 className="flex items-center gap-xs rounded-full bg-ink/10 px-sm py-xs text-micro font-bold uppercase tracking-tag text-ink"
               >
-                {syncState === 'failed' ? (
+                {syncState === 'failed' || syncState === 'rejected' ? (
                   <AlertTriangle aria-hidden="true" className="size-[11px]" />
                 ) : (
                   <CloudUpload aria-hidden="true" className="size-[11px]" />
                 )}
-                {syncState === 'failed' ? "Couldn't sync — retrying" : 'Not yet synced'}
+                {syncState === 'rejected'
+                  ? 'Not saved — needs a decision (Settings → Not synced)'
+                  : syncState === 'failed'
+                    ? "Couldn't sync — retrying"
+                    : 'Not yet synced'}
               </span>
             )}
           </div>
