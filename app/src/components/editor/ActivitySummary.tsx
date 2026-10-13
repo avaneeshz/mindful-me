@@ -4,6 +4,8 @@ import { Activity, AlertTriangle, CloudUpload, HeartPulse, Pencil, Shield, X } f
 import { categoryOf, findCard } from '@/data/activities'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { formatActivityRange } from '@/domain/slots'
+import { formatDatedRange } from '@/domain/windowAxis'
+import { localDateISO } from '@/lib/localTime'
 import type { ScheduledActivity } from '@/domain/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -32,6 +34,7 @@ export function ActivitySummary({
   onClose,
   onOpenNote,
   syncState = 'synced',
+  pageDate,
 }: {
   activity: ScheduledActivity
   onEdit: () => void
@@ -48,6 +51,8 @@ export function ActivitySummary({
    * rendering exactly as before.
    */
   syncState?: 'synced' | 'pending' | 'failed'
+  /** The day the page is showing, so a range that starts the day before or ends the next day can name its dates. */
+  pageDate?: Date
 }) {
   const name = activity.name ?? 'Activity'
   const card = activity.name ? findCard(activity.name) : undefined
@@ -90,7 +95,8 @@ export function ActivitySummary({
 
           <div className="flex flex-wrap items-center gap-lg">
             <p className="text-caption text-ink-dim">
-              {formatActivityRange(activity.startMinutes, activity.durationMinutes)}
+              {(pageDate && formatDatedRange(localDateISO(pageDate), activity.startMinutes, activity.durationMinutes)) ??
+                formatActivityRange(activity.startMinutes, activity.durationMinutes)}
               {activity.path.length > 0 && ` · ${activity.path.join(' · ')}`}
             </p>
 

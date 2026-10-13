@@ -4,11 +4,13 @@ import {
   flagMarkerAt,
   formatSlotRange,
   minutesInSlot,
-  slotIndexFromMinutes,
+  visibleStartSlot,
   slotMinuteRange,
   SLOT_MINUTES,
 } from '@/domain/slots'
 import { isWindowFull, maxContiguousDuration } from '@/domain/scheduling'
+import { nextMorningLabel, windowBoundsFor } from '@/domain/windowAxis'
+import { localDateISO } from '@/lib/localTime'
 import { isStagingComplete, type BoardAction, type BoardState } from '@/state/boardReducer'
 import { useDismissedActivities } from '@/state/dismissedActivities'
 import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
@@ -99,7 +101,12 @@ export function SlotEditor({
     .map((a) => ({ id: a.id, minutes: minutesInSlot(a, selectedSlot) }))
 
   const maxDuration = staging.cardName
-    ? maxContiguousDuration(activities, staging.startMinutes, staging.editingId)
+    ? maxContiguousDuration(
+        activities,
+        staging.startMinutes,
+        staging.editingId,
+        windowBoundsFor(staging.editingId ? activities.find((a) => a.id === staging.editingId) : null),
+      )
     : 0
   // A slot reads as "full" once nothing new could start anywhere within it —
   // never while merely configuring something already staged for it.
@@ -170,12 +177,13 @@ export function SlotEditor({
         <EditLock>
         <ActivitySummary
           activity={selectedActivity}
+          pageDate={viewedDate}
           onEdit={() => dispatch({ type: 'editActivity', id: selectedActivity.id })}
           onRemove={() => {
             // Drop back into slot mode ON the removed activity's own slot
             // first, so the 4-second undo affordance actually renders in the
             // "In this slot" list (it only shows for the selected slot).
-            dispatch({ type: 'selectSlot', slot: slotIndexFromMinutes(selectedActivity.startMinutes) })
+            dispatch({ type: 'selectSlot', slot: visibleStartSlot(selectedActivity.startMinutes) })
             dispatch({ type: 'removeActivity', id: selectedActivity.id })
           }}
           onClose={() => dispatch({ type: 'selectScheduledActivity', id: null })}
@@ -193,6 +201,13 @@ export function SlotEditor({
                   className="font-display text-slot-time font-semibold text-ink"
                 >
                   {formatSlotRange(selectedSlot)}
+                  {nextMorningLabel(localDateISO(viewedDate), selectedSlot) && (
+                    // Cells 00:00-06:00 on this page are the NEXT calendar day's — say so, so a
+                    // time like 02:00 is never ambiguous.
+                    <span className="ml-sm text-caption font-normal text-ink-dim">
+                      · {nextMorningLabel(localDateISO(viewedDate), selectedSlot)}
+                    </span>
+                  )}
                 </h2>
                 <span className="rounded-full border border-line bg-bg px-sm py-xs text-micro font-bold text-ink">
                   Selected slot

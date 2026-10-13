@@ -24,7 +24,7 @@ function render(
       buttonKey={buttonKey}
       viewedDate={VIEWED_DATE}
       activities={NO_ACTIVITIES}
-      onQuickLog={() => {}}
+      onQuickLog={() => ({ ok: true })}
       onEditActivity={() => {}}
     />,
   )
@@ -99,7 +99,9 @@ describe('DisplayValueButton', () => {
         id: 'a1',
         name: 'Sleep',
         path: ['Night sleep'],
-        startMinutes: 0,
+        // 00:00-06:00 of the NEXT morning — the Night row's second half on this
+        // page's 06:00 -> 06:00 axis (`domain/windowAxis.ts`).
+        startMinutes: 1440,
         durationMinutes: 6 * 60,
         flags: [],
         quality: [],
@@ -133,7 +135,7 @@ describe('DisplayValueButton', () => {
         buttonKey="sleep"
         viewedDate={VIEWED_DATE}
         activities={activities}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
       />,
     )
@@ -155,7 +157,7 @@ describe('DisplayValueButton', () => {
         buttonKey="sleep"
         viewedDate={VIEWED_DATE}
         activities={NO_ACTIVITIES}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
         defaultOpen
       />,
@@ -195,7 +197,7 @@ describe('DisplayValueButton', () => {
         buttonKey="exercise"
         viewedDate={VIEWED_DATE}
         activities={NO_ACTIVITIES}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
         defaultOpen
       />,
@@ -214,7 +216,7 @@ describe('DisplayValueButton', () => {
           buttonKey="worship"
           viewedDate={VIEWED_DATE}
           activities={NO_ACTIVITIES}
-          onQuickLog={() => {}}
+          onQuickLog={() => ({ ok: true })}
           onEditActivity={() => {}}
           defaultOpen
         />,
@@ -294,7 +296,7 @@ describe('DisplayValueButton', () => {
         buttonKey="worship"
         viewedDate={VIEWED_DATE}
         activities={activities}
-        onQuickLog={() => {}}
+        onQuickLog={() => ({ ok: true })}
         onEditActivity={() => {}}
       />,
     )

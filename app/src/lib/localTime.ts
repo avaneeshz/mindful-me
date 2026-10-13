@@ -81,6 +81,18 @@ export function isSameLocalDay(a: Date, b: Date): boolean {
 }
 
 /**
+ * The hour at which Classic's "today" rolls over. A page is a 06:00 -> 06:00
+ * window (see `domain/windowAxis.ts`), so at 02:00 on the 13th the page being
+ * lived in is still the 12th's — its Night row is what's happening now.
+ */
+export const DAY_ROLLOVER_HOUR = 6
+
+/** Local-midnight `Date` of the page "today" is on: the calendar day of `now` minus six hours. */
+export function logicalToday(now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() - DAY_ROLLOVER_HOUR >= 0 ? 0 : -24, 0, 0, 0)
+}
+
+/**
  * Whether a device-clock tick that moved from `prevNow` to `now` should
  * auto-advance a "following today" viewed day to `now`'s calendar day.
  *
@@ -95,12 +107,13 @@ export function isSameLocalDay(a: Date, b: Date): boolean {
  * rollover already breaks by the time you'd go check it.
  *
  * True exactly when: (1) `prevNow` and `now` actually fall on different
- * calendar days — no tick, no rollover to consider — AND (2) `viewedDate`
- * still matched `prevNow`'s day, i.e. the board WAS following today the
+ * logical days (rollover at 06:00, see `logicalToday`) — no tick, no rollover to
+ * consider — AND (2) `viewedDate` still matched `prevNow`'s day, i.e. the board WAS following today the
  * instant before this crossing. A `viewedDate` pinned to any other day fails
  * (2) and this returns false, leaving that navigation undisturbed.
  */
 export function shouldRolloverViewedDate(viewedDate: Date, prevNow: Date, now: Date): boolean {
-  if (isSameLocalDay(prevNow, now)) return false
-  return isSameLocalDay(viewedDate, prevNow)
+  const prevDay = logicalToday(prevNow)
+  if (isSameLocalDay(prevDay, logicalToday(now))) return false
+  return isSameLocalDay(viewedDate, prevDay)
 }

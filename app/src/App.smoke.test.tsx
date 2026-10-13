@@ -85,11 +85,11 @@ describe('Today screen', () => {
 
   it('renders one anchored visual span per real seeded activity — no 2-activity-per-cell cap', () => {
     // The seed's 11 real activities (flag markers render no span of their
-    // own), plus ONE extra span: Night Sleep is now genuinely one 8-hour
-    // activity (00:00-08:00) rather than sixteen artificially separate
-    // 30-minute entries, and it legitimately crosses the Night/Day row
-    // boundary at 06:00 — correctly rendered as two segments, one per row.
-    expect(html.match(/data-activity="[^"]+"/g) ?? []).toHaveLength(12)
+    // own). Night Sleep is one 8-hour activity (00:00-08:00 of its own day);
+    // the page is a 06:00 -> 06:00 window, so only its 06:00-08:00 part is on
+    // this page (its 00:00-06:00 is the PREVIOUS page's Night-row tail) —
+    // one segment, not two.
+    expect(html.match(/data-activity="[^"]+"/g) ?? []).toHaveLength(11)
     // Two of them — Body Care (self) and Supplements — legitimately share
     // one grid cell without overlapping, which the old capacity rule
     // specifically disallowed beyond a hardcoded pair.

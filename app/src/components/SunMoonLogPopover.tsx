@@ -13,6 +13,7 @@ import {
 } from '@/domain/quickLog'
 import { validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import type { ActivityList } from '@/domain/types'
+import { placeClockInWindow, windowBoundsFor } from '@/domain/windowAxis'
 import { TimeRangeField } from '@/components/ui/TimeRangeField'
 
 export type SunMoonKind = 'sun' | 'moon'
@@ -120,8 +121,10 @@ export function SunMoonLogPopover({
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const durationMinutes = durationBetween(start, end)
-    const startMinutes = clockToMinutes(start)
-    if (!canSubmit || durationMinutes === null || startMinutes === null) return
+    const clockMinutes = clockToMinutes(start)
+    if (!canSubmit || durationMinutes === null || clockMinutes === null) return
+    // 00:00-05:59 typed on this page means the next morning (the Night row's second half).
+    const startMinutes = placeClockInWindow(clockMinutes)
 
     const candidate: CandidateSchedule = {
       id: null,
@@ -129,7 +132,7 @@ export function SunMoonLogPopover({
       startMinutes,
       durationMinutes,
     }
-    const validation = validateSchedule(candidate, activities)
+    const validation = validateSchedule(candidate, activities, windowBoundsFor(candidate))
     if (!validation.ok) {
       setError(
         validation.reason === 'occupied'

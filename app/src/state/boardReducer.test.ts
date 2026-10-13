@@ -235,9 +235,9 @@ describe('editing an existing activity', () => {
     )
     const id = real(state)[0].id
     state = boardReducer(state, { type: 'editActivity', id })
-    state = boardReducer(state, { type: 'stepDuration', delta: 500 })
-    // Nothing else exists today, so it can grow all the way to day's end.
-    expect(state.staging.durationMinutes).toBe(1440 - 16 * 60)
+    state = boardReducer(state, { type: 'stepDuration', delta: 1000 })
+    // Nothing else exists, so it can grow all the way to the window's end (06:00 the next morning).
+    expect(state.staging.durationMinutes).toBe(1800 - 16 * 60)
   })
 
   it('rule 4 — editing time/duration never silently clears completion', () => {
@@ -526,22 +526,22 @@ describe('drag and drop', () => {
 
 describe('a slot partially covered by an earlier, longer activity', () => {
   it('accepts a new activity into its genuine leftover minutes, resolved to the real free instant', () => {
-    // A 45-minute activity anchored at slot 10 (05:00) covers all of slot 10
-    // and the first 15 minutes of slot 11, leaving slot 11 with 15 free
+    // A 45-minute activity anchored at slot 20 (10:00) covers all of slot 20
+    // and the first 15 minutes of slot 21, leaving slot 21 with 15 free
     // minutes of its own.
     let state = run(
       start(),
-      { type: 'selectSlot', slot: 10 },
+      { type: 'selectSlot', slot: 20 },
       { type: 'pickCard', cardName: 'Homework' },
       { type: 'stepDuration', delta: 15 }, // 30 -> 45
       { type: 'commit' },
     )
-    state = boardReducer(state, { type: 'selectSlot', slot: 11 })
-    expect(state.selectedSlot).toBe(11)
+    state = boardReducer(state, { type: 'selectSlot', slot: 21 })
+    expect(state.selectedSlot).toBe(21)
 
     state = run(state, { type: 'pickCard', cardName: 'Errand time' }, { type: 'commit' })
     const errand = real(state).find((a) => a.name === 'Errand time')!
-    expect(errand.startMinutes).toBe(5 * 60 + 45) // the real free instant, not the raw slot boundary
+    expect(errand.startMinutes).toBe(10 * 60 + 45) // the real free instant, not the raw slot boundary
     // Unlike the old 30-minutes-per-cell cap, nothing else caps the default
     // duration here — it is free to run past this grid cell's own boundary,
     // since no other activity blocks it.
@@ -606,15 +606,15 @@ describe('an activity spanning three or more grid cells', () => {
   it('leaves every spanned cell independently selectable, with the one real activity reachable from any of them', () => {
     let state = run(
       start(),
-      { type: 'selectSlot', slot: 10 },
+      { type: 'selectSlot', slot: 20 },
       { type: 'pickCard', cardName: 'Homework' },
-      { type: 'stepDuration', delta: 60 }, // 30 -> 90, spans slots 10, 11, 12
+      { type: 'stepDuration', delta: 60 }, // 30 -> 90, spans slots 20, 21, 22
       { type: 'commit' },
     )
     expect(real(state)[0].durationMinutes).toBe(90)
     const id = real(state)[0].id
 
-    for (const slot of [11, 12]) {
+    for (const slot of [21, 22]) {
       const selected = boardReducer(state, { type: 'selectSlot', slot })
       expect(selected.selectedSlot).toBe(slot)
       // The one real activity is unchanged and still reachable by id.
@@ -1300,14 +1300,26 @@ describe('quickLogActivity — Sun/Moon exposure and Vipassana (entry_mode: quic
     expect(real(state)[0].durationMinutes).toBe(30)
   })
 
-  it('rejects a requested span that would cross local midnight — no partial placement (rule 13, and the shared scheduling module’s own day-boundary ceiling — see domain/scheduling.ts)', () => {
+  it('keeps a midnight-crossing session as ONE row on the day it started (rule 2) instead of rejecting it', () => {
     const state = boardReducer(start(), {
       type: 'quickLogActivity',
       cardName: 'Moon Exposure',
       startMinutes: 23 * 60 + 30,
-      durationMinutes: 45, // would need to reach 00:15 the next day
+      durationMinutes: 45, // reaches 00:15 the next day
     })
-    expect(real(state)).toHaveLength(0)
+    expect(real(state)).toHaveLength(1)
+    expect(real(state)[0].startMinutes).toBe(23 * 60 + 30)
+    expect(real(state)[0].durationMinutes).toBe(45)
+  })
+
+  it('rejects a session that starts inside an activity carried in from the day before (rule 1 across midnight)', () => {
+    const donor = boardReducer(start(), { type: 'quickLogActivity', cardName: 'Sleep', startMinutes: 0, durationMinutes: 1 })
+    const spill = { ...real(donor)[0], startMinutes: -120, durationMinutes: 480 }
+    const withSpill = boardReducer(start(), { type: 'hydrate', activities: [...start().activities, spill] })
+    const blocked = boardReducer(withSpill, { type: 'quickLogActivity', cardName: 'Moon Exposure', startMinutes: 60, durationMinutes: 30 })
+    expect(real(blocked)).toHaveLength(real(withSpill).length)
+    const clear = boardReducer(withSpill, { type: 'quickLogActivity', cardName: 'Moon Exposure', startMinutes: 6 * 60, durationMinutes: 30 })
+    expect(real(clear)).toHaveLength(real(withSpill).length + 1)
   })
 })
 

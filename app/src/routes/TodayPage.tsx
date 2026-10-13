@@ -59,6 +59,7 @@ export function TodayPage() {
         <EditLock>
         <Timeline
           activities={state.activities}
+          viewedDate={viewedDate}
           selectedSlot={state.selectedSlot}
           // BL-2: the NOW marker only ever belongs on the real current day —
           // `null` here means Timeline draws none at all.
