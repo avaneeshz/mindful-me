@@ -13,7 +13,7 @@ import {
   rowFocusStops,
   rowHourTickLabels,
   rowSlotIndices,
-  slotIndexFromMinutes,
+  visibleStartSlot,
   slotMinuteRange,
   tickLabelPositions,
   type RowFocusStop,
@@ -23,6 +23,8 @@ import { PERIOD_ICONS } from '@/data/periods'
 import { SunMoonLogPopover } from '@/components/SunMoonLogPopover'
 import type { ActivityList, FlagId, Period, ScheduledActivity } from '@/domain/types'
 import { readableInkOn } from '@/domain/colors'
+import { dateISOAtOffset, shortDateLabel } from '@/domain/windowAxis'
+import { localDateISO } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
 
 /** Spoken description of a slot — never relies on colour to convey state. */
@@ -69,6 +71,8 @@ const MIN_ACTIVITY_HIT_WIDTH_PX = 24
 
 interface TimelineProps {
   activities: ActivityList
+  /** The day the page is showing — dates the Night row's midnight tick, since its second half is the NEXT calendar day. */
+  viewedDate?: Date
   selectedSlot: number
   /**
    * Real device time, or `null` when the board is viewing a day other than
@@ -103,6 +107,7 @@ interface TimelineProps {
 
 export function Timeline({
   activities,
+  viewedDate,
   selectedSlot,
   now,
   onSelectSlot,
@@ -192,6 +197,7 @@ export function Timeline({
             key={period}
             period={period}
             activities={activities}
+            viewedDate={viewedDate}
             selectedSlot={selectedSlot}
             focusedStop={focusedStop}
             marker={marker && marker.period === period ? marker.ratio : null}
@@ -213,6 +219,7 @@ export function Timeline({
 interface TimelineRowProps {
   period: Period
   activities: ActivityList
+  viewedDate?: Date
   selectedSlot: number
   /** Last stop the user focused, on either row. Drives the roving tab stop. */
   focusedStop: RowFocusStop | null
@@ -231,6 +238,7 @@ interface TimelineRowProps {
 function TimelineRow({
   period,
   activities,
+  viewedDate,
   selectedSlot,
   focusedStop,
   marker,
@@ -482,7 +490,7 @@ function TimelineRow({
           */}
           <div className="pointer-events-none absolute inset-0 z-[1]">
             {rowActivitySegments(activities, period).map((segment) => {
-              const anchorSlot = slotIndexFromMinutes(segment.activity.startMinutes)
+              const anchorSlot = visibleStartSlot(segment.activity.startMinutes)
               const isFocusableActivity =
                 rovingStop?.kind === 'activity' && rovingStop.activityId === segment.activity.id
               const isDragOverActivity = dragOverSlot === anchorSlot
@@ -600,6 +608,16 @@ function TimelineRow({
             className="pointer-events-none absolute top-0 h-timeline-row w-px bg-night-strip-fixed-line mobile:h-timeline-row-sm ipad-land:h-timeline-row-md"
             style={{ left: `${(MIDNIGHT_TICK_POSITION / SLOTS_PER_ROW) * 100}%` }}
           />
+        )}
+        {/* Which calendar day the second half of the Night row is. */}
+        {period === 'night' && viewedDate && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-xl pl-xs text-nano font-semibold text-ink-dim"
+            style={{ left: `${(MIDNIGHT_TICK_POSITION / SLOTS_PER_ROW) * 100}%` }}
+          >
+            {shortDateLabel(dateISOAtOffset(localDateISO(viewedDate), 1))}
+          </span>
         )}
 
         {/*

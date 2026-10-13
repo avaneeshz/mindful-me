@@ -38,7 +38,7 @@ import type { AuthUser } from '@/state/AuthContext'
 import type { SyncQueue } from '@/state/syncQueue'
 import { useStepsBackfill } from '@/state/useStepsBackfill'
 import { useDayOffs } from '@/state/useDayOffs'
-import { isSameLocalDay, localDateISO } from '@/lib/localTime'
+import { isSameLocalDay, localDateISO, logicalToday } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
 import { useInterfaceMode } from '@/state/InterfaceContext'
 
@@ -428,7 +428,7 @@ function DatePill({
       {open && (
         <DatePicker
           viewedDate={viewedDate}
-          today={now}
+          today={logicalToday(now)}
           onSelect={selectDate}
           onClose={close}
           dayOffDates={dayOffDates}
@@ -437,7 +437,7 @@ function DatePill({
             // Marking a day off is an entry, so it's locked in Edit mode (#17).
             <EditLock>
             <DayOffControl
-              dayLabel={isSameLocalDay(viewedDate, now) ? 'today' : formatDatePill(viewedDate)}
+              dayLabel={isSameLocalDay(viewedDate, logicalToday(now)) ? 'today' : formatDatePill(viewedDate)}
               dayOff={viewedDayOff}
               pending={pendingDate === viewedIso}
               error={dayOffError}

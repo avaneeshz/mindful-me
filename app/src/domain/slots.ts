@@ -130,10 +130,24 @@ export function slotIndexFromDate(date: Date): number {
   return slotIndexFromMinutes(minutesSinceMidnight(date))
 }
 
-/** The grid cell's own [start, end) real-minute range. */
+/**
+ * The grid cell's own [start, end) range on the PAGE's minute axis
+ * (`domain/windowAxis.ts`): the page runs 06:00 -> 06:00, so cells 12..47 sit
+ * on the page's own day (360..1439) and cells 0..11 — the Night row's second
+ * half — are the NEXT day's 00:00-06:00 (1440..1799).
+ */
 export function slotMinuteRange(slot: number): { start: number; end: number } {
-  const start = normalizeSlot(slot) * SLOT_MINUTES
+  const s = normalizeSlot(slot)
+  const start = s * SLOT_MINUTES + (s < DAY_ROW_START_SLOT ? 1440 : 0)
   return { start, end: start + SLOT_MINUTES }
+}
+
+/**
+ * The grid cell an activity is first SEEN in on this page: its own start cell,
+ * or the first cell of the window when it began before the window opened.
+ */
+export function visibleStartSlot(startMinutes: number): number {
+  return slotIndexFromMinutes(Math.max(startMinutes, DAY_ROW_START_SLOT * SLOT_MINUTES))
 }
 
 /**
@@ -262,7 +276,7 @@ function rowPieces(period: Period): RowPiece[] {
   const eveningLength = 1440 - NIGHT_ROW_START_SLOT * SLOT_MINUTES // 18:00 -> midnight
   return [
     { absStart: NIGHT_ROW_START_SLOT * SLOT_MINUTES, absEnd: 1440, rowStart: 0 },
-    { absStart: 0, absEnd: DAY_ROW_START_SLOT * SLOT_MINUTES, rowStart: eveningLength },
+    { absStart: 1440, absEnd: 1440 + DAY_ROW_START_SLOT * SLOT_MINUTES, rowStart: eveningLength },
   ]
 }
 
@@ -278,7 +292,7 @@ export function activityRowSegments(
   period: Period,
 ): Array<{ startPosition: number; minutes: number }> {
   const activityStart = startMinutes
-  const activityEnd = Math.min(startMinutes + durationMinutes, 1440)
+  const activityEnd = startMinutes + durationMinutes
   if (activityEnd <= activityStart) return []
 
   const segments: Array<{ startPosition: number; minutes: number }> = []

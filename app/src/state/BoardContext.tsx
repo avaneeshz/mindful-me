@@ -16,18 +16,28 @@ import {
   type BoardState,
 } from './boardReducer'
 import { createSeedActivities } from './seed'
-import { carryInFromPreviousDay, placementNeighbourhood, QUICK_LOG_BOUNDS } from '@/domain/carryOver'
+import {
+  dayOffsetFromPage,
+  overlapsWindow,
+  toAxis,
+  WINDOW_END,
+  WINDOW_START,
+  windowBoundsFor,
+  windowFromDays,
+  type WindowDayOffset,
+} from '@/domain/windowAxis'
 import { commitSchedule, validateSchedule, type CandidateSchedule } from '@/domain/scheduling'
 import { slotIndexFromDate } from '@/domain/slots'
 import { deriveSyncIntents } from './sync'
-import { loadLocalActivities, saveLocalActivities } from './localPersistence'
+import { loadLocalActivities, loadLocalDays, saveLocalActivities, saveLocalWindow } from './localPersistence'
 import { reconcileServerActivities } from './reconcileServerActivities'
 import { pendingActivityIds, pendingDeleteActivityIds, type SyncQueue } from './syncQueue'
 import { useSyncQueue } from './useSyncQueue'
 import {
+  dateFromLocalMinutes,
   isSameLocalDay,
   localDateISO,
-  localDayRange,
+  logicalToday,
   shouldRolloverViewedDate,
 } from '@/lib/localTime'
 import { apiListScheduledActivities } from '@/api/scheduledActivities'
@@ -49,10 +59,6 @@ export interface QuickLogInput {
 }
 
 export type QuickLogResult = { ok: true } | { ok: false; reason: 'occupied' | 'too-long' }
-
-function addLocalDays(date: Date, days: number): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
-}
 
 interface BoardContextValue {
   state: BoardState
@@ -117,16 +123,36 @@ function useDeviceClock(fixed?: Date): Date {
 }
 
 /**
- * The activities to show for `date` — local-first (rule 6), never the
- * network. Demo seed content is a first-ever-run "today" concept only: any
- * OTHER date with nothing in local storage (past, future, or "today" again
- * after storage was cleared on some other day) starts genuinely empty, never
- * silently reseeded with the demo schedule.
+ * The activities to show on the page for `date` — a 06:00 -> 06:00 window built
+ * from the three calendar days it touches (`domain/windowAxis.ts`) — local-first
+ * (rule 6), never the network. Demo seed content is a first-ever-run "today"
+ * concept only: any OTHER date with nothing in local storage starts genuinely
+ * empty, never silently reseeded with the demo schedule.
  */
-function loadActivitiesForDate(date: Date, now: Date): ScheduledActivity[] {
-  const local = loadLocalActivities(date)
-  if (local) return local
-  return isSameLocalDay(date, now) ? createSeedActivities() : []
+function loadWindowForDate(date: Date, now: Date): ScheduledActivity[] {
+  const days = loadLocalDays(date)
+  const dayItself = days[0] ?? (isSameLocalDay(date, logicalToday(now)) ? createSeedActivities() : [])
+  return windowFromDays({ ...days, 0: dayItself } as Partial<Record<WindowDayOffset, ScheduledActivity[]>>)
+}
+
+/** A day offset from `date`, as a local-midnight `Date`. */
+function addLocalDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+}
+
+/**
+ * Everything stored for the days around `date` that a new stretch starting on
+ * it could run into, on `date`'s axis — the two days either side, whole, not
+ * just what overlaps the page, since a stretch may reach past the window.
+ */
+function localNeighbourhood(date: Date, exceptIds: ReadonlySet<string>): ScheduledActivity[] {
+  const result: ScheduledActivity[] = []
+  for (let offset = -2; offset <= 2; offset += 1) {
+    for (const activity of loadLocalActivities(addLocalDays(date, offset)) ?? []) {
+      if (!exceptIds.has(activity.id)) result.push(toAxis(activity, offset))
+    }
+  }
+  return result
 }
 
 export interface BoardProviderProps {
@@ -161,7 +187,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // `isViewingToday`/`setViewedDate` below for how navigating away from it
   // works. Always normalized to local midnight so it can be compared and
   // used as a local-storage/fetch-range key the same way everywhere.
-  const [viewedDate, setViewedDateState] = useState<Date>(() => localDayRange(now).start)
+  const [viewedDate, setViewedDateState] = useState<Date>(() => logicalToday(now))
 
   // Phase 1 -> Phase 2 persistence boundary: an in-memory-only board used to
   // be seeded fresh on every load. Now the FIRST render prefers whatever was
@@ -170,7 +196,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   // reconciles against the server. Only a genuinely first-ever run (nothing
   // in local storage yet, viewing today) falls back to the demo seed content.
   const [state, dispatch] = useReducer(boardReducer, undefined, () => {
-    const activities = isTest ? createSeedActivities() : loadActivitiesForDate(viewedDate, now)
+    const activities = isTest ? createSeedActivities() : loadWindowForDate(viewedDate, now)
     return createInitialState(activities, now)
   })
 
@@ -222,7 +248,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     lastActionRef.current = null
     if (state === prev) return
 
-    if (!isTest) saveLocalActivities(viewedDate, state.activities)
+    if (!isTest) saveLocalWindow(viewedDate, state.activities)
     if (!isTest && action) {
       enqueue(deriveSyncIntents(action, prev, state), localDateISO(viewedDate))
     }
@@ -253,9 +279,14 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     if (isTest) return
     let cancelled = false
     ;(async () => {
-      const { start, end } = localDayRange(viewedDate)
-      const server = await apiListScheduledActivities(start, end)
-      if (cancelled || server === null) return
+      // One bounded request for the page's whole 06:00 -> 06:00 window (rule 8).
+      // Starting a hair early keeps a flag marker sitting exactly on 06:00 in the
+      // result — the server's overlap test is strict at the open edge.
+      const start = new Date(dateFromLocalMinutes(viewedDate, WINDOW_START).getTime() - 1)
+      const end = dateFromLocalMinutes(viewedDate, WINDOW_END)
+      const serverRows = await apiListScheduledActivities(start, end, viewedDate)
+      if (cancelled || serverRows === null) return
+      const server = serverRows.filter(overlapsWindow)
       const merged = reconcileServerActivities(
         latestStateRef.current.activities,
         server,
@@ -263,33 +294,6 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
         pendingDeleteActivityIds(queueRef.current),
       )
       dispatch({ type: 'hydrate', activities: merged })
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [isTest, viewedDate])
-
-  // Spill-in from the day before (rule 2 keeps a midnight-crossing activity on
-  // the day it started; this is only the read-only view of its tail on this
-  // day). Local data lands immediately; the server's view of yesterday is
-  // merged in the same way as today's, then the tail is recomputed. Bounded
-  // to one extra day (rule 8) — a quick log never exceeds 24h.
-  useEffect(() => {
-    if (isTest) return
-    let cancelled = false
-    const previousDay = addLocalDays(viewedDate, -1)
-    dispatch({ type: 'setCarryIn', carryIn: carryInFromPreviousDay(loadLocalActivities(previousDay) ?? []) })
-    ;(async () => {
-      const { start, end } = localDayRange(previousDay)
-      const server = await apiListScheduledActivities(start, end)
-      if (cancelled || server === null) return
-      const merged = reconcileServerActivities(
-        loadLocalActivities(previousDay) ?? [],
-        server,
-        pendingActivityIds(queueRef.current),
-        pendingDeleteActivityIds(queueRef.current),
-      )
-      dispatch({ type: 'setCarryIn', carryIn: carryInFromPreviousDay(merged) })
     })()
     return () => {
       cancelled = true
@@ -316,7 +320,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     const prevNow = prevNowRef.current
     prevNowRef.current = now
     if (shouldRolloverViewedDate(viewedDate, prevNow, now)) {
-      setViewedDate(now)
+      setViewedDate(logicalToday(now))
     }
     // `viewedDate`/`setViewedDate` are read for their CURRENT render value
     // only at the moment `now` actually changes (see the doc comment above)
@@ -327,7 +331,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
   }, [now, isTest])
 
   const nowSlot = useMemo(() => slotIndexFromDate(now), [now])
-  const isViewingToday = useMemo(() => isSameLocalDay(viewedDate, now), [viewedDate, now])
+  const isViewingToday = useMemo(() => isSameLocalDay(viewedDate, logicalToday(now)), [viewedDate, now])
 
   /**
    * Switches the whole board (timeline + editor) to a different calendar
@@ -340,44 +344,38 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
    */
   function setViewedDate(date: Date): void {
     if (isTest) return
-    const normalized = localDayRange(date).start
+    const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate())
     setViewedDateState(normalized)
-    trackedDispatch({ type: 'hydrate', activities: loadActivitiesForDate(normalized, now) })
-    // Swap the spill-in in the same render so the previous day's tail never
-    // flashes on the wrong day while the carry-in effect above catches up.
-    dispatch({
-      type: 'setCarryIn',
-      carryIn: carryInFromPreviousDay(loadLocalActivities(addLocalDays(normalized, -1)) ?? []),
-    })
+    trackedDispatch({ type: 'hydrate', activities: loadWindowForDate(normalized, now) })
   }
 
   function logQuickLog(input: QuickLogInput): QuickLogResult {
-    const day = localDayRange(input.startDate).start
-    const onViewedDay = isSameLocalDay(day, viewedDate)
-    const dayActivities = onViewedDay ? state.activities : (loadLocalActivities(day) ?? [])
-    const carryIn = onViewedDay
-      ? state.carryIn
-      : carryInFromPreviousDay(loadLocalActivities(addLocalDays(day, -1)) ?? [])
-    const nextDayActivities = loadLocalActivities(addLocalDays(day, 1)) ?? []
+    const startDay = new Date(input.startDate.getFullYear(), input.startDate.getMonth(), input.startDate.getDate())
+    const offset = dayOffsetFromPage(localDateISO(viewedDate), localDateISO(startDay))
+    if (offset === null) return { ok: false, reason: 'occupied' }
 
+    // The stretch on the page's axis, wherever it starts. Anything it could run
+    // into — on the page or on the days around it — must be checked, so the
+    // page's own list is joined with what is stored locally for those days.
+    const startMinutes = input.startMinutes + offset * 1440
     const candidate: CandidateSchedule = {
       id: null,
       activity: { name: input.cardName, path: input.path ?? [] },
-      startMinutes: input.startMinutes,
+      startMinutes,
       durationMinutes: input.durationMinutes,
     }
-    const validation = validateSchedule(
-      candidate,
-      placementNeighbourhood(carryIn, dayActivities, nextDayActivities),
-      QUICK_LOG_BOUNDS,
-    )
+    const onPageIds = new Set(state.activities.map((a) => a.id))
+    const universe = [...state.activities, ...localNeighbourhood(viewedDate, onPageIds)]
+    const validation = validateSchedule(candidate, universe, windowBoundsFor(candidate))
     if (!validation.ok) return { ok: false, reason: validation.reason }
 
-    if (onViewedDay) {
+    // Overlaps the page: it goes through the reducer like any write, and the
+    // persist effect files it under the day it started on.
+    if (overlapsWindow(candidate)) {
       trackedDispatch({
         type: 'quickLogActivity',
         cardName: input.cardName,
-        startMinutes: input.startMinutes,
+        startMinutes,
         durationMinutes: input.durationMinutes,
         path: input.path,
         notes: input.notes,
@@ -387,18 +385,18 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
       return { ok: true }
     }
 
-    const committed = commitSchedule(candidate, {
-      notes: input.notes?.trim() ? input.notes : null,
-      fieldSelections: input.fieldSelections ?? {},
-      dreamsNote: input.dreamsNote?.trim() ? input.dreamsNote : null,
-    })
-    const updated = [...dayActivities, committed]
-    saveLocalActivities(day, updated)
-    enqueue([{ kind: 'create', activity: committed }], localDateISO(day))
-    // Logged on the day before the one on screen: its tail may now spill in.
-    if (isSameLocalDay(addLocalDays(day, 1), viewedDate)) {
-      dispatch({ type: 'setCarryIn', carryIn: carryInFromPreviousDay(updated) })
-    }
+    // Entirely on another day's page: write to that day's own store and the
+    // sync queue (rule 6), leaving the page on screen untouched.
+    const committed = commitSchedule(
+      { ...candidate, startMinutes: input.startMinutes },
+      {
+        notes: input.notes?.trim() ? input.notes : null,
+        fieldSelections: input.fieldSelections ?? {},
+        dreamsNote: input.dreamsNote?.trim() ? input.dreamsNote : null,
+      },
+    )
+    saveLocalActivities(startDay, [...(loadLocalActivities(startDay) ?? []), committed])
+    enqueue([{ kind: 'create', activity: committed }], localDateISO(startDay))
     return { ok: true }
   }
 

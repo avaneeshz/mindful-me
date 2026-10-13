@@ -216,9 +216,9 @@ describe('flagMarkerAt', () => {
 describe('countMarkedSlots', () => {
   it('counts only grid cells touched by a real activity, not flag-only ones', () => {
     const acts: ActivityList = [
-      activity(90, 30), // slot 3
-      marker(120, ['Triggered']), // slot 4, flagged but unmarked
-      activity(150, 60), // slots 5 and 6
+      activity(1440 + 90, 30), // slot 3 (the next morning's 01:30 on the page's axis)
+      marker(1440 + 120, ['Triggered']), // slot 4, flagged but unmarked
+      activity(1440 + 150, 60), // slots 5 and 6
     ]
     expect(countMarkedSlots(acts)).toBe(3)
     expect(countMarkedSlots([])).toBe(0)
@@ -250,12 +250,26 @@ describe('activityRowSegments', () => {
     expect(segment.minutes).toBe(20)
   })
 
-  it('clips an activity that would otherwise run past the visible 24-hour board', () => {
-    // 23:45 (1425) for 60 minutes: only 15 minutes remain before the board's
-    // end (midnight) — which sits at the Night row's own midpoint (position 12).
+  it('carries an activity across midnight into the Night row\'s second half (the next morning)', () => {
+    // 23:45 (1425) for 60 minutes: 15 minutes before midnight (the Night row's
+    // own midpoint, position 12), then 45 minutes of the next morning.
     const segments = activityRowSegments(1425, 60, 'night')
-    expect(segments).toEqual([{ startPosition: 11.5, minutes: 15 }])
-    expect(segments[0].startPosition + segments[0].minutes / SLOT_MINUTES).toBe(SLOTS_PER_ROW / 2)
+    expect(segments).toEqual([
+      { startPosition: 11.5, minutes: 15 },
+      { startPosition: 12, minutes: 45 },
+    ])
+  })
+
+  it('clips an activity at the window\'s right edge (06:00 the next morning)', () => {
+    const segments = activityRowSegments(1790, 60, 'night')
+    expect(segments).toEqual([{ startPosition: (SLOTS_PER_ROW * SLOT_MINUTES - 10) / SLOT_MINUTES, minutes: 10 }])
+  })
+
+  it('shows only the part of an activity from the day before that is inside the window', () => {
+    // Sleep that started at 21:42 the evening before (-138) and ends at 10:00:
+    // nothing of it in the Night row, 06:00-10:00 in the Day row.
+    expect(activityRowSegments(-138, 738, 'night')).toEqual([])
+    expect(activityRowSegments(-138, 738, 'day')).toEqual([{ startPosition: 0, minutes: 240 }])
   })
 
   it('returns nothing for an activity entirely outside the requested row', () => {
