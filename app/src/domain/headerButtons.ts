@@ -432,6 +432,24 @@ export function toDisplayButtonLike(config: HeaderButtonConfig): {
   }
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** True for a real UUID — what the server accepts as an existing note field's id. */
+export function isUuid(value: string | null | undefined): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value)
+}
+
+/**
+ * The note fields as the server should receive them. A field the screen invented
+ * (an activity button with no saved fields gets a placeholder id like
+ * `<buttonId>:note-primary`, see `withActivityNotes`) is not an id the server knows,
+ * and is not even a valid UUID — sending it makes the whole save fail. Dropping the id
+ * tells the server "this is a new field" and it assigns a real one.
+ */
+export function withServerFieldIds<T extends { id?: string | undefined }>(fields: readonly T[]): T[] {
+  return fields.map((field) => (isUuid(field.id) ? field : { ...field, id: undefined }))
+}
+
 /**
  * The activity row is the single source of truth for an activity's note
  * titles (`domain/activityNoteFields.ts`); an activity-category header

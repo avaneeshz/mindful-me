@@ -1,6 +1,11 @@
 import { supabase } from '@/lib/supabaseClient'
 import { dedupeHeaderButtonInput } from '@/domain/headerButtonForm'
-import { headerButtonConfigFromDto, type HeaderButtonConfig, type HeaderButtonDto } from '@/domain/headerButtons'
+import {
+  headerButtonConfigFromDto,
+  withServerFieldIds,
+  type HeaderButtonConfig,
+  type HeaderButtonDto,
+} from '@/domain/headerButtons'
 
 /**
  * The effective per-user button list — `public.list_header_buttons()`.
@@ -95,7 +100,7 @@ export async function apiCreateHeaderButton(rawInput: CreateHeaderButtonInput): 
     p_quick_log_type_label: input.quickLogTypeLabel ?? null,
     p_day_value_unit: input.dayValueUnit ?? null,
     p_day_value_target: input.dayValueTarget ?? null,
-    p_note_fields: input.noteFields ?? [],
+    p_note_fields: withServerFieldIds(input.noteFields ?? []),
     p_note_types: input.noteTypes ?? [],
     p_checklist_items: input.checklistItems ?? [],
   })
@@ -125,7 +130,7 @@ export async function apiUpdateHeaderButton(rawInput: UpdateHeaderButtonInput): 
     p_label: input.label,
     p_quick_log_type_label: input.quickLogTypeLabel ?? null,
     p_day_value_target: input.dayValueTarget ?? null,
-    p_note_fields: input.noteFields ?? null,
+    p_note_fields: input.noteFields ? withServerFieldIds(input.noteFields) : null,
     p_note_types: input.noteTypes ?? null,
     p_checklist_items: input.checklistItems ?? null,
   })

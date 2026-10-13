@@ -1,4 +1,6 @@
 import type { SyncIntent } from './sync'
+import { formatActivityRange } from '@/domain/slots'
+import { formatDatedRange, shortDateLabel } from '@/domain/windowAxis'
 
 /**
  * Bug C (write-failure-visibility incident) — a durable retry queue.
@@ -12,8 +14,8 @@ import type { SyncIntent } from './sync'
  * `syncQueueStorage.ts` for the (thin, fail-closed) persistence and
  * `BoardContext.tsx` for the effect that actually drains it.
  *
- * Deliberately NOT doing: coalescing repeated edits to one activity into a
- * single queued write. Each `enqueueIntents` call appends new entries as-is;
+ * Deliberately NOT doing (with two narrow exceptions below): coalescing
+ * repeated edits to one activity into a single queued write. Each `enqueueIntents` call appends new entries as-is;
  * `nextItemToAttempt`'s per-activity FIFO guarantees they are sent to the
  * server in the same order they were made, so the final server state always
  * converges on the latest local edit — just via one network call per edit
@@ -23,6 +25,12 @@ import type { SyncIntent } from './sync'
  * anything, and coalescing correctly (a delete cancelling an unsent create;
  * folding N edits into 1) is meaningfully more state to get right for no
  * observable benefit at this scale.
+ *
+ * The two exceptions both concern a create the server REFUSED for good (a
+ * `permanent` item — see `isPermanentSyncError`), which the server provably
+ * never stored: editing that activity re-sends the corrected create instead of
+ * queuing an edit behind a write that can never succeed, and deleting it just
+ * forgets it (there is nothing on the server to delete).
  */
 
 export interface QueuedSyncItem {
@@ -40,6 +48,14 @@ export interface QueuedSyncItem {
   referenceDateISO: string
   attempts: number
   status: 'pending' | 'failed'
+  /**
+   * The server refused this write in a way no retry can fix (an overlap, an
+   * invalid value, a function that does not exist). It is kept — never dropped —
+   * but not retried on its own: `nextAttemptAt` is pushed out of reach until the
+   * user retries it, edits the activity, or discards it. Absent on entries
+   * saved before this existed, which read as `false`.
+   */
+  permanent?: boolean
   /** Human-readable reason for the most recent failure, or `null` before any attempt has failed. */
   lastError: string | null
   /** Epoch ms — this item is not attempted again before this instant (backoff). */
@@ -87,7 +103,17 @@ export function describeSyncIntent(intent: SyncIntent): string {
   }
 }
 
-/** Appends one queue entry per intent, each due immediately (`nextAttemptAt: now`) — draining is what applies backoff, not enqueueing. */
+/** The create the server refused for good for this activity, if any — the one write the server provably never stored. */
+function refusedCreateFor(queue: SyncQueue, activityId: string): QueuedSyncItem | undefined {
+  return queue.find((item) => item.activityId === activityId && item.permanent === true && item.intent.kind === 'create')
+}
+
+/**
+ * Appends one queue entry per intent, each due immediately (`nextAttemptAt:
+ * now`) — draining is what applies backoff, not enqueueing. The two exceptions
+ * to "always append" are described at the top of this file: both only ever
+ * apply to an activity whose create the server refused for good.
+ */
 export function enqueueIntents(
   queue: SyncQueue,
   intents: readonly SyncIntent[],
@@ -96,17 +122,47 @@ export function enqueueIntents(
   makeId: () => string,
 ): SyncQueue {
   if (intents.length === 0) return queue
-  const additions: QueuedSyncItem[] = intents.map((intent) => ({
-    id: makeId(),
-    intent,
-    activityId: intentActivityId(intent),
-    referenceDateISO,
-    attempts: 0,
-    status: 'pending',
-    lastError: null,
-    nextAttemptAt: now,
-  }))
-  return [...queue, ...additions]
+  let next = queue
+  for (const intent of intents) {
+    const activityId = intentActivityId(intent)
+    const refused = refusedCreateFor(next, activityId)
+    if (refused && intent.kind === 'reschedule') {
+      // The edit carries the corrected placement: send THAT as the create.
+      next = next.map((item) =>
+        item.id === refused.id
+          ? {
+              ...item,
+              intent: { kind: 'create' as const, activity: intent.activity },
+              referenceDateISO,
+              attempts: 0,
+              status: 'pending' as const,
+              permanent: false,
+              lastError: null,
+              nextAttemptAt: now,
+            }
+          : item,
+      )
+      continue
+    }
+    if (refused && intent.kind === 'delete') {
+      next = next.filter((item) => item.activityId !== activityId)
+      continue
+    }
+    next = [
+      ...next,
+      {
+        id: makeId(),
+        intent,
+        activityId,
+        referenceDateISO,
+        attempts: 0,
+        status: 'pending' as const,
+        lastError: null,
+        nextAttemptAt: now,
+      },
+    ]
+  }
+  return next
 }
 
 export function removeQueueItem(queue: SyncQueue, itemId: string): SyncQueue {
@@ -140,6 +196,75 @@ export function markQueueItemFailed(queue: SyncQueue, itemId: string, error: str
   })
 }
 
+/** The server's answer to a write that a retry can never change: refused outright, not merely unreachable. */
+const PERMANENT_ERROR_CODES = new Set([
+  'P0001', // a rule the server enforces (e.g. `schedule_conflict`)
+  '22P02', // invalid input syntax (e.g. a value that is not a UUID)
+  '22023', // invalid parameter value
+  '22003', // numeric value out of range
+  '22001', // value too long
+  '23502', // not-null violation
+  '23503', // foreign-key violation
+  '23505', // unique violation
+  '23514', // check violation
+  '23P01', // exclusion violation (an overlap, at the database level)
+  '42501', // insufficient privilege
+  'PGRST202', // the function does not exist on this server
+  'PGRST204', // a column does not exist on this server
+])
+
+function errorCodeOf(error: unknown): string | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code
+    return typeof code === 'string' ? code : undefined
+  }
+  return undefined
+}
+
+/**
+ * True when retrying can never succeed. An unreachable server, a timeout, an
+ * expired login — anything transient — is NOT permanent and keeps retrying with
+ * backoff. Anything unrecognised is also treated as transient: when in doubt,
+ * keep trying rather than give up on someone's data.
+ */
+export function isPermanentSyncError(error: unknown): boolean {
+  const code = errorCodeOf(error)
+  return code !== undefined && PERMANENT_ERROR_CODES.has(code)
+}
+
+/** Records a refusal: kept, flagged, and parked until the user decides. */
+export function markQueueItemPermanent(queue: SyncQueue, itemId: string, error: string): SyncQueue {
+  return queue.map((item) =>
+    item.id === itemId
+      ? {
+          ...item,
+          attempts: item.attempts + 1,
+          status: 'failed' as const,
+          permanent: true,
+          lastError: error,
+          nextAttemptAt: Number.MAX_SAFE_INTEGER,
+        }
+      : item,
+  )
+}
+
+/** "Try again": the entry is due immediately and no longer parked. */
+export function retryQueueItem(queue: SyncQueue, itemId: string, now: number): SyncQueue {
+  return queue.map((item) =>
+    item.id === itemId ? { ...item, permanent: false, status: 'pending' as const, nextAttemptAt: now } : item,
+  )
+}
+
+/** "Retry now" for everything, parked entries included. */
+export function retryAllQueueItems(queue: SyncQueue, now: number): SyncQueue {
+  return queue.map((item) => ({ ...item, permanent: false, nextAttemptAt: now }))
+}
+
+/** Forgets every queued write for one activity — what "discard" means for an entry the server never accepted. */
+export function discardActivityItems(queue: SyncQueue, activityId: string): SyncQueue {
+  return queue.filter((item) => item.activityId !== activityId)
+}
+
 /**
  * The single next entry due to be (re)attempted, or `null` if nothing is due
  * right now. Enforces per-activity FIFO — an item is skipped if an EARLIER
@@ -171,15 +296,20 @@ export function pendingDeleteActivityIds(queue: SyncQueue): Set<string> {
 }
 
 /** This one activity's sync status, for the per-activity indicator (`ActivitySummary`). */
-export function activitySyncState(queue: SyncQueue, activityId: string): 'synced' | 'pending' | 'failed' {
+export function activitySyncState(queue: SyncQueue, activityId: string): 'synced' | 'pending' | 'failed' | 'rejected' {
   const items = queue.filter((item) => item.activityId === activityId)
   if (items.length === 0) return 'synced'
+  if (items.some((item) => item.permanent)) return 'rejected'
   return items.some((item) => item.status === 'failed') ? 'failed' : 'pending'
 }
 
 /** A short, user-safe message for the queue entry's `lastError` — never leaks a raw error object into the UI. */
 export function describeSyncError(error: unknown): string {
   if (error instanceof Error) return error.message
+  // A Postgrest error is a plain object carrying `message` (and `code`) on some client versions.
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+    return (error as { message: string }).message
+  }
   return typeof error === 'string' ? error : 'Unknown error'
 }
 
@@ -210,4 +340,65 @@ export function describeSyncIndicator(queue: readonly { status: 'pending' | 'fai
   const failedCount = queue.filter((item) => item.status === 'failed').length
   if (failedCount > 0) return { kind: 'failed', count: failedCount }
   return { kind: 'pending', count: queue.length }
+}
+
+
+/** How one unconfirmed activity write reads in Settings → "Not synced". Same shape the other ledger's rows use. */
+export interface SyncQueueRow {
+  id: string
+  activityId: string
+  state: 'rejected' | 'retrying' | 'sending'
+  title: string
+  reason: string
+  detail: string | undefined
+  attempts: number
+}
+
+function waitText(ms: number): string {
+  const seconds = Math.max(1, Math.round(ms / 1000))
+  if (seconds < 60) return seconds === 1 ? '1 second' : `${seconds} seconds`
+  const minutes = Math.round(seconds / 60)
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`
+}
+
+function whenText(item: QueuedSyncItem): string | undefined {
+  if (item.intent.kind !== 'create' && item.intent.kind !== 'reschedule') return undefined
+  const { startMinutes, durationMinutes } = item.intent.activity
+  return (
+    formatDatedRange(item.referenceDateISO, startMinutes, durationMinutes) ??
+    `${shortDateLabel(item.referenceDateISO)} ${formatActivityRange(startMinutes, durationMinutes)}`
+  )
+}
+
+export function describeQueueItem(item: QueuedSyncItem, now: number): SyncQueueRow {
+  const state = item.permanent ? 'rejected' : item.attempts > 0 ? 'retrying' : 'sending'
+  const overlap = item.permanent === true && /schedule_conflict/.test(item.lastError ?? '')
+  const reason =
+    state === 'rejected'
+      ? overlap
+        ? 'This time overlaps something already saved to your account (for example from another device). Change its time to send it again, or discard it.'
+        : 'The server refused this change, so it will not be retried on its own. Retry it, or discard it and make the change again.'
+      : state === 'retrying'
+        ? `The server did not accept it yet (tried ${item.attempts} ${item.attempts === 1 ? 'time' : 'times'}). Trying again in ${waitText(item.nextAttemptAt - now)}.`
+        : 'Saved on this device and being sent.'
+  const when = whenText(item)
+  return {
+    id: item.id,
+    activityId: item.activityId,
+    state,
+    title: when ? `${describeSyncIntent(item.intent)} · ${when}` : describeSyncIntent(item.intent),
+    reason,
+    detail: item.lastError ?? undefined,
+    attempts: item.attempts,
+  }
+}
+
+const ROW_ORDER = { rejected: 0, retrying: 1, sending: 2 } as const
+
+/** Refused entries first (they need a decision), then the rest in queue order. */
+export function syncQueueRows(queue: SyncQueue, now: number): SyncQueueRow[] {
+  return queue
+    .map((item, index) => ({ row: describeQueueItem(item, now), index }))
+    .sort((a, b) => ROW_ORDER[a.row.state] - ROW_ORDER[b.row.state] || a.index - b.index)
+    .map(({ row }) => row)
 }

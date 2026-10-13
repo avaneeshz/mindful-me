@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { logActivity } from '@/lib/activityLogger'
+import { withSyncLock } from '@/lib/syncLock'
 import { dateFromLocalDateISO } from '@/lib/localTime'
 import { runIntent, type SyncIntent } from './sync'
 import {
   describeSyncError,
   describeSyncIntent,
+  discardActivityItems,
   enqueueIntents,
+  isPermanentSyncError,
   markQueueItemFailed,
+  markQueueItemPermanent,
   nextItemToAttempt,
   removeQueueItem,
+  retryAllQueueItems,
+  retryQueueItem,
   type SyncQueue,
 } from './syncQueue'
-import { loadSyncQueue, saveSyncQueue } from './syncQueueStorage'
+import { loadSyncQueue, saveSyncQueue, SYNC_QUEUE_STORAGE_KEY } from './syncQueueStorage'
 
 /** How often the queue is woken to check for backed-off items becoming due again — see `drainQueue` below. */
 const SYNC_RETRY_INTERVAL_MS = 15_000
@@ -26,8 +32,14 @@ export interface SyncQueueHandle {
   queueRef: { readonly current: SyncQueue }
   /** Durably records intents (persisted before anything else sees them), then kicks a drain so a healthy connection still feels instant. */
   enqueue: (intents: SyncIntent[], referenceDateISO: string) => void
-  /** Wakes the queue now instead of waiting for the next backoff/interval tick — the indicator's "Retry now". */
+  /** Wakes the queue now instead of waiting for the next backoff/interval tick — the indicator's "Retry now". Entries the server refused are tried again too. */
   retryNow: () => void
+  /** Tries one entry again right away — the "Not synced" screen's Retry. */
+  retryItem: (itemId: string) => void
+  /** Forgets every queued write for one activity the server never accepted — the "Not synced" screen's Discard. */
+  discardActivity: (activityId: string) => void
+  /** Forgets one queued write only — used to drop a refused edit while leaving the activity itself alone. */
+  discardItem: (itemId: string) => void
 }
 
 /**
@@ -72,22 +84,47 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
     if (disabled || processingRef.current) return
     processingRef.current = true
     try {
-      for (;;) {
-        const item = nextItemToAttempt(queueRef.current, Date.now())
-        if (!item) return
-        try {
-          await runIntent(item.intent, dateFromLocalDateISO(item.referenceDateISO))
-          updateQueue((current) => removeQueueItem(current, item.id))
+      // Only one tab drains at a time (`lib/syncLock.ts`), and it starts from what is
+      // actually stored — another tab may have queued, edited or finished things since
+      // this one last looked.
+      await withSyncLock(async () => {
+        const stored = loadSyncQueue()
+        if (JSON.stringify(stored) !== JSON.stringify(queueRef.current)) updateQueue(() => stored)
+        await drainLoop()
+      })
+    } finally {
+      processingRef.current = false
+    }
+  }
+
+  async function drainLoop(): Promise<void> {
+    for (;;) {
+      const item = nextItemToAttempt(queueRef.current, Date.now())
+      if (!item) return
+      try {
+        await runIntent(item.intent, dateFromLocalDateISO(item.referenceDateISO))
+        updateQueue((current) => removeQueueItem(current, item.id))
+        logActivity({
+          kind: 'sync',
+          summary: `Synced: ${describeSyncIntent(item.intent)}${item.attempts > 0 ? ` (after ${item.attempts} failed ${item.attempts === 1 ? 'try' : 'tries'})` : ''}`,
+          detail: item.intent,
+        })
+      } catch (error) {
+        // Never thrown into the UI (rule 6) — recorded durably instead, so
+        // it survives a reload and keeps retrying with backoff until it
+        // clears (Bug C), and stays visible until it does (Bug B).
+        const reason = describeSyncError(error)
+        if (isPermanentSyncError(error)) {
+          // The server said no in a way a retry can never change. Keep it, stop hammering,
+          // and put it in front of the user ("Not synced") for a decision.
+          updateQueue((current) => markQueueItemPermanent(current, item.id, reason))
           logActivity({
             kind: 'sync',
-            summary: `Synced: ${describeSyncIntent(item.intent)}${item.attempts > 0 ? ` (after ${item.attempts} failed ${item.attempts === 1 ? 'try' : 'tries'})` : ''}`,
-            detail: item.intent,
+            level: 'error',
+            summary: `Refused by the server: ${describeSyncIntent(item.intent)} — kept, needs attention`,
+            detail: { error: reason, intent: item.intent },
           })
-        } catch (error) {
-          // Never thrown into the UI (rule 6) — recorded durably instead, so
-          // it survives a reload and keeps retrying with backoff until it
-          // clears (Bug C), and stays visible until it does (Bug B).
-          const reason = describeSyncError(error)
+        } else {
           updateQueue((current) => markQueueItemFailed(current, item.id, reason, Date.now()))
           logActivity({
             kind: 'sync',
@@ -97,8 +134,6 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
           })
         }
       }
-    } finally {
-      processingRef.current = false
     }
   }
 
@@ -112,9 +147,19 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
     wake()
     const interval = window.setInterval(wake, SYNC_RETRY_INTERVAL_MS)
     window.addEventListener('online', wake)
+    // Another tab changed the shared queue: follow it, so this tab's indicators are
+    // right and its next write never starts from an out-of-date copy.
+    const follow = (event: StorageEvent) => {
+      if (event.key !== SYNC_QUEUE_STORAGE_KEY) return
+      const stored = loadSyncQueue()
+      queueRef.current = stored
+      setQueue(stored)
+    }
+    window.addEventListener('storage', follow)
     return () => {
       window.clearInterval(interval)
       window.removeEventListener('online', wake)
+      window.removeEventListener('storage', follow)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disabled])
@@ -128,5 +173,23 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
     void drainQueue()
   }
 
-  return { queue, queueRef, enqueue, retryNow: () => void drainQueue() }
+  function retryNow(): void {
+    updateQueue((current) => retryAllQueueItems(current, Date.now()))
+    void drainQueue()
+  }
+
+  function retryItem(itemId: string): void {
+    updateQueue((current) => retryQueueItem(current, itemId, Date.now()))
+    void drainQueue()
+  }
+
+  function discardActivity(activityId: string): void {
+    updateQueue((current) => discardActivityItems(current, activityId))
+  }
+
+  function discardItem(itemId: string): void {
+    updateQueue((current) => removeQueueItem(current, itemId))
+  }
+
+  return { queue, queueRef, enqueue, retryNow, retryItem, discardActivity, discardItem }
 }
