@@ -8,6 +8,7 @@ import {
   effectiveCategoryOrder,
   findCard,
   FLAGS,
+  allActivityCards,
   itemFillColor,
   QUALITIES,
   resetLiveActivityCatalog,
@@ -289,6 +290,8 @@ describe('live activity catalog registry (PICKER-CUSTOM-1) — every lookup defa
     expect(effectiveCategoryOrder()).toEqual(['live-tile-1'])
     expect(findCard('My Live Activity')).toBe(liveCard)
     expect(cardsForCategory('live-tile-1')).toEqual([liveCard])
+    // The header-button activity dropdown reads this, so a user-created activity is pickable.
+    expect(allActivityCards()).toEqual([liveCard])
 
     // The static catalog's own names are no longer resolvable while a live
     // catalog is set — a live user sees ONLY their own tiles/activities,
