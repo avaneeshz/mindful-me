@@ -608,6 +608,11 @@ export function firstLevelOptionNames(card: ActivityCard | undefined): string[] 
   return card?.children?.map((child) => child.name) ?? []
 }
 
+/** Every top-level activity in the current catalog — the signed-in user's own live set once loaded (including ones they created), else the static default. */
+export function allActivityCards(): ActivityCard[] {
+  return liveCards ?? ACTIVITY_CARDS
+}
+
 /** Every item belonging to one tile, in on-screen order — never re-sorted. */
 export function cardsForCategory(categoryId: CategoryId): ActivityCard[] {
   return (liveCards ?? ACTIVITY_CARDS).filter((card) => card.categoryId === categoryId)
