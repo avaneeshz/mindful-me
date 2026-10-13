@@ -60,7 +60,12 @@ async function load(): Promise<CatalogMaps> {
 /** The catalog row id for a top-level card name, or null (e.g. offline, not yet loaded). */
 export async function catalogIdForName(name: string): Promise<string | null> {
   const { byName } = await load()
-  return byName.get(name) ?? null
+  const cached = byName.get(name)
+  if (cached) return cached
+  // An activity created after the catalog was first cached (e.g. made in
+  // this same session) isn't in the map yet — refetch once before giving up.
+  resetCatalogCache()
+  return (await load()).byName.get(name) ?? null
 }
 
 /** The top-level card name for a catalog row id. */

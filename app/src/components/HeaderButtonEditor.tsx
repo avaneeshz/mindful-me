@@ -19,7 +19,7 @@ import {
   type FieldDraft,
   type HeaderButtonDraft,
 } from '@/domain/headerButtonForm'
-import { ACTIVITY_CARDS, findCard, firstLevelOptionNames } from '@/data/activities'
+import { allActivityCards, findCard, firstLevelOptionNames } from '@/data/activities'
 import { catalogIdForName } from '@/api/catalog'
 import { fieldClass, labelClass } from '@/components/ui/formField'
 import { cn } from '@/lib/utils'
@@ -318,7 +318,7 @@ export function HeaderButtonFormDialog({
                       className={fieldClass}
                     >
                       <option value="">Choose an activity…</option>
-                      {ACTIVITY_CARDS.map((card) => (
+                      {allActivityCards().map((card) => (
                         <option key={card.name} value={card.name}>
                           {card.name}
                         </option>
