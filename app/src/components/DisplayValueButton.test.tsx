@@ -99,7 +99,9 @@ describe('DisplayValueButton', () => {
         id: 'a1',
         name: 'Sleep',
         path: ['Night sleep'],
-        startMinutes: 0,
+        // 00:00-06:00 of the NEXT morning — the Night row's second half on this
+        // page's 06:00 -> 06:00 axis (`domain/windowAxis.ts`).
+        startMinutes: 1440,
         durationMinutes: 6 * 60,
         flags: [],
         quality: [],

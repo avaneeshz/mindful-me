@@ -1,4 +1,5 @@
-import { dateFromLocalMinutes, localDateISO } from '@/lib/localTime'
+import { daysBetweenISO } from '@/domain/quickLog'
+import { dateFromLocalMinutes, localDateISO, localMinutesOf } from '@/lib/localTime'
 import { supabase } from '@/lib/supabaseClient'
 import type {
   ActivityQuality,
@@ -11,6 +12,11 @@ import type {
 } from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
 import { numberForReflectionCardId, reflectionCardIdForNumber } from './reflectionCards'
+
+function dayShiftMinutes(localDate: string, axisDate?: Date): number {
+  if (!axisDate) return 0
+  return (daysBetweenISO(localDateISO(axisDate), localDate) ?? 0) * 1440
+}
 
 /** The shape `public.scheduled_activity_dto` (see the Phase 2/quality/reflections migrations) hands back. */
 interface ScheduledActivityDto {
@@ -49,7 +55,14 @@ function fieldSelectionsToParam(selections: FieldSelections): { note_field_id: s
     .map(([note_field_id, selected_labels]) => ({ note_field_id, selected_labels }))
 }
 
-async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity> {
+/**
+ * `axisDate`, when given, is the day the caller's minute axis is anchored to
+ * (Classic's 06:00 -> 06:00 page, `domain/windowAxis.ts`): a row that started on
+ * another day comes back with its start shifted by whole days (so the day before
+ * is negative) rather than as raw own-day minutes, which would draw it on the
+ * wrong day. Omitted, `startMinutes` is the row's own-day minutes, as ever.
+ */
+async function dtoToClient(dto: ScheduledActivityDto, axisDate?: Date): Promise<ScheduledActivity> {
   const name = dto.activity_id ? await nameForCatalogId(dto.activity_id) : null
   const reflections = (
     await Promise.all(
@@ -67,7 +80,7 @@ async function dtoToClient(dto: ScheduledActivityDto): Promise<ScheduledActivity
     id: dto.id,
     name,
     path: dto.path ?? [],
-    startMinutes: dto.start_minute,
+    startMinutes: dto.start_minute + dayShiftMinutes(dto.local_date, axisDate),
     durationMinutes: dto.duration_minutes,
     flags: (dto.flags ?? []) as FlagId[],
     quality: (dto.quality ?? []) as ActivityQuality[],
@@ -96,7 +109,9 @@ async function scheduleParams(activity: ScheduledActivity, reference: Date) {
     p_start_at: startAt.toISOString(),
     p_duration_minutes: activity.durationMinutes,
     p_local_date: localDateISO(startAt),
-    p_start_minute: Math.min(1439, Math.max(0, activity.startMinutes)),
+    // From the real instant, not the raw minutes: on Classic's page axis a start can be
+    // negative (the day before) or past 1439 (the next morning).
+    p_start_minute: localMinutesOf(startAt),
     p_timezone: activity.timezone,
   }
 }
@@ -111,6 +126,7 @@ async function scheduleParams(activity: ScheduledActivity, reference: Date) {
 export async function apiListScheduledActivities(
   rangeStart: Date,
   rangeEnd: Date,
+  axisDate?: Date,
 ): Promise<ScheduledActivity[] | null> {
   if (!supabase) return null
   const { data, error } = await supabase.rpc('list_scheduled_activities', {
@@ -122,7 +138,7 @@ export async function apiListScheduledActivities(
     console.warn('[sync] list_scheduled_activities failed — staying on local data', error.message)
     return null
   }
-  return Promise.all(((data ?? []) as ScheduledActivityDto[]).map(dtoToClient))
+  return Promise.all(((data ?? []) as ScheduledActivityDto[]).map((dto) => dtoToClient(dto, axisDate)))
 }
 
 /** One row from `apiListScheduledActivitiesWithDates` — see its own doc comment for why the date rides along. */

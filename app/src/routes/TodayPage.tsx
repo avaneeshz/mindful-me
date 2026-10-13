@@ -12,7 +12,7 @@ import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 
 export function TodayPage() {
   const { editMode } = useEditMode()
-  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, setViewedDate, syncQueue } = useBoard()
+  const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
   const colors = useActivityColors()
 
   // Which activity + reflection card the note-entry popup is currently open
@@ -58,24 +58,15 @@ export function TodayPage() {
         <EditSectionLabel section="timeline" className="mb-sm" />
         <EditLock>
         <Timeline
-          // Today's activities plus the tail of anything that started
-          // yesterday and is still running at 00:00 (see `domain/carryOver.ts`).
-          activities={state.carryIn.length > 0 ? [...state.carryIn, ...state.activities] : state.activities}
+          activities={state.activities}
+          viewedDate={viewedDate}
           selectedSlot={state.selectedSlot}
           // BL-2: the NOW marker only ever belongs on the real current day —
           // `null` here means Timeline draws none at all.
           now={isViewingToday ? now : null}
           onSelectSlot={(slot) => dispatch({ type: 'selectSlot', slot })}
           onDropCard={(cardName, slot) => dispatch({ type: 'dropCard', cardName, slot })}
-          onSelectActivity={(id) => {
-            // A carried-over tail belongs to yesterday's board (rule 2), so
-            // tapping it opens that day rather than offering edits here.
-            if (state.carryIn.some((a) => a.id === id)) {
-              setViewedDate(new Date(viewedDate.getFullYear(), viewedDate.getMonth(), viewedDate.getDate() - 1))
-              return
-            }
-            dispatch({ type: 'selectScheduledActivity', id })
-          }}
+          onSelectActivity={(id) => dispatch({ type: 'selectScheduledActivity', id })}
           selectedActivityId={state.selectedActivityId}
           onQuickLog={(cardName, startMinutes, durationMinutes) =>
             dispatch({ type: 'quickLogActivity', cardName, startMinutes, durationMinutes })

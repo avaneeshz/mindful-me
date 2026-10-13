@@ -88,6 +88,7 @@ describe('shouldRolloverViewedDate', () => {
   const day1Morning = new Date(2026, 7, 25, 9, 0)
   const day1LateNight = new Date(2026, 7, 25, 23, 59)
   const day2Midnight = new Date(2026, 7, 26, 0, 0)
+  const day2SixAm = new Date(2026, 7, 26, 6, 0)
   const day2Morning = new Date(2026, 7, 26, 9, 0)
 
   it('is false when the clock tick has not crossed a calendar day at all', () => {
@@ -95,10 +96,15 @@ describe('shouldRolloverViewedDate', () => {
     expect(shouldRolloverViewedDate(day1Morning, day1Morning, day1LateNight)).toBe(false)
   })
 
-  it('is true the instant the device clock crosses local midnight while following today', () => {
-    // viewedDate matched `prevNow`'s day (Day 1) — the board WAS following
-    // today right up to this tick — and `now` has moved to Day 2.
-    expect(shouldRolloverViewedDate(day1LateNight, day1LateNight, day2Midnight)).toBe(true)
+  it('stays on the same page across local midnight — the page is a 06:00 -> 06:00 window', () => {
+    expect(shouldRolloverViewedDate(day1LateNight, day1LateNight, day2Midnight)).toBe(false)
+  })
+
+  it('is true the instant the device clock crosses 06:00 while following today', () => {
+    // viewedDate matched `prevNow`'s page (Day 1) — the board WAS following
+    // today right up to this tick — and `now` has moved to Day 2's page.
+    const justBeforeSix = new Date(2026, 7, 26, 5, 59)
+    expect(shouldRolloverViewedDate(day1LateNight, justBeforeSix, day2SixAm)).toBe(true)
   })
 
   it('is true even for the exact same instant used as both viewedDate and prevNow', () => {

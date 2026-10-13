@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { formatMinutes } from '@/domain/slots'
+import { windowBoundsFor } from '@/domain/windowAxis'
 import {
   clampMove,
   clampResizeStart,
@@ -39,7 +40,8 @@ import { cn } from '@/lib/utils'
 
 /** Half the visible ruler window, in minutes either side of the anchor. */
 const WINDOW_HALF_MINUTES = 180
-const MINUTES_PER_DAY = 1440
+/** Ruler padding either side of an activity too long to fit the centred window. */
+const LONG_ACTIVITY_PADDING_MINUTES = 60
 
 export const DURATION_DRAG_MESSAGE_ID = 'duration-drag-capacity-message'
 
@@ -70,10 +72,20 @@ export function DurationDragBlock({
   // Fixed for the component's lifetime (one modal open) so the ruler doesn't
   // visually re-center under a drag in progress — computed once from the
   // value staging had when this control first mounted.
-  const [windowStart] = useState(() =>
-    Math.max(0, Math.min(MINUTES_PER_DAY - WINDOW_HALF_MINUTES * 2, startMinutes - WINDOW_HALF_MINUTES)),
-  )
-  const windowEnd = windowStart + WINDOW_HALF_MINUTES * 2
+  // A short activity keeps the usual six-hour ruler centred on its start. A long
+  // one (an overnight Sleep) would have its end off-screen, so the ruler instead
+  // spans the whole activity with a little padding either side.
+  const [{ windowStart, windowEnd }] = useState(() => {
+    const centred = { windowStart: startMinutes - WINDOW_HALF_MINUTES, windowEnd: startMinutes + WINDOW_HALF_MINUTES }
+    const padded = {
+      windowStart: startMinutes - LONG_ACTIVITY_PADDING_MINUTES,
+      windowEnd: startMinutes + durationMinutes + LONG_ACTIVITY_PADDING_MINUTES,
+    }
+    return padded.windowEnd > centred.windowEnd ? padded : centred
+  })
+  // The page's 06:00 -> 06:00 window, widened to contain the activity being
+  // edited when it already runs past an edge — the same bounds the reducer uses.
+  const bounds = windowBoundsFor(editingId ? activities.find((a) => a.id === editingId) : null)
   const windowMinutes = windowEnd - windowStart
 
   function pctFor(minute: number): number {
@@ -116,10 +128,10 @@ export function DurationDragBlock({
   function onMoveKeyDown(event: KeyboardEvent) {
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
-      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes - DURATION_STEP_MINUTES, editingId))
+      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes - DURATION_STEP_MINUTES, editingId, bounds))
     } else if (event.key === 'ArrowRight') {
       event.preventDefault()
-      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes + DURATION_STEP_MINUTES, editingId))
+      onMove(clampMove(activities, startMinutes, durationMinutes, startMinutes + DURATION_STEP_MINUTES, editingId, bounds))
     }
   }
 
@@ -127,10 +139,10 @@ export function DurationDragBlock({
     const currentEnd = startMinutes + durationMinutes
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
-      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes - DURATION_STEP_MINUTES, editingId))
+      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes - DURATION_STEP_MINUTES, editingId, bounds))
     } else if (event.key === 'ArrowRight') {
       event.preventDefault()
-      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes + DURATION_STEP_MINUTES, editingId))
+      onResizeStart(clampResizeStart(activities, startMinutes, currentEnd, startMinutes + DURATION_STEP_MINUTES, editingId, bounds))
     }
   }
 
@@ -151,8 +163,8 @@ export function DurationDragBlock({
   // silently apply it" pattern `DurationStepperFallback`'s ceiling message
   // uses, now covering all three controls (move/resize-start/resize-end)
   // instead of only duration growth.
-  const { min: moveMin, max: moveMax } = moveBounds(activities, startMinutes, durationMinutes, editingId)
-  const endCeiling = maxContiguousDuration(activities, startMinutes, editingId)
+  const { min: moveMin, max: moveMax } = moveBounds(activities, startMinutes, durationMinutes, editingId, bounds)
+  const endCeiling = maxContiguousDuration(activities, startMinutes, editingId, bounds)
   const pinned = startMinutes <= moveMin || startMinutes >= moveMax || durationMinutes >= endCeiling
 
   const neighbors = activities.filter(
@@ -214,8 +226,8 @@ export function DurationDragBlock({
             tabIndex={0}
             aria-labelledby="duration-drag-label"
             aria-orientation="horizontal"
-            aria-valuemin={0}
-            aria-valuemax={MINUTES_PER_DAY}
+            aria-valuemin={bounds.floor}
+            aria-valuemax={bounds.horizon}
             aria-valuenow={startMinutes}
             aria-valuetext={moveBoundsDesc}
             aria-describedby={pinned ? DURATION_DRAG_MESSAGE_ID : undefined}
@@ -234,8 +246,8 @@ export function DurationDragBlock({
             tabIndex={0}
             aria-label={`Resize ${cardName}'s start time`}
             aria-orientation="horizontal"
-            aria-valuemin={0}
-            aria-valuemax={MINUTES_PER_DAY}
+            aria-valuemin={bounds.floor}
+            aria-valuemax={bounds.horizon}
             aria-valuenow={startMinutes}
             aria-valuetext={formatMinutes(startMinutes)}
             aria-describedby={pinned ? DURATION_DRAG_MESSAGE_ID : undefined}

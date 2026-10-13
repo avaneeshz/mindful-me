@@ -36,6 +36,7 @@ import {
 } from '@/domain/quickLog'
 import { formatActivityRange } from '@/domain/slots'
 import type { ActivityList, FieldSelections, ScheduledActivity } from '@/domain/types'
+import { minutesWithinWindow, startDateForClock } from '@/domain/windowAxis'
 import type { QuickLogInput, QuickLogResult } from '@/state/BoardContext'
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory, type UseDisplayValueHistoryResult } from '@/state/useDisplayValueHistory'
@@ -46,6 +47,10 @@ import { dateFromLocalDateISO, localDateISO } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
 
 const PANEL_WIDTH = 280
+
+function nowMinutes(): number {
+  return clockToMinutes(nowClock()) ?? 0
+}
 
 const fieldClass =
   'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
@@ -148,7 +153,7 @@ export function DisplayValueButton({
   // to the day on screen (today, unless the user navigated); End follows it —
   // the next day when End's clock time is at or before Start's — until the
   // user picks one explicitly (`endDateOverride`).
-  const [startDate, setStartDate] = useState(() => localDateISO(viewedDate))
+  const [startDate, setStartDate] = useState(() => startDateForClock(localDateISO(viewedDate), nowMinutes()))
   const [endDateOverride, setEndDateOverride] = useState<string | null>(null)
   const [songCount, setSongCount] = useState('')
   const [type, setType] = useState('')
@@ -229,7 +234,7 @@ export function DisplayValueButton({
     ? (() => {
         const total = activities
           .filter((a) => a.name === quickLogName)
-          .reduce((sum, a) => sum + a.durationMinutes, 0)
+          .reduce((sum, a) => sum + minutesWithinWindow(a), 0)
         return total > 0 ? total : null
       })()
     : synced
@@ -281,7 +286,9 @@ export function DisplayValueButton({
     // logged after the fact.
     setStart(nowClock())
     setEnd('')
-    setStartDate(localDateISO(viewedDate))
+    // The date the default Start time (now) falls on within this page's 06:00 -> 06:00
+    // window: 00:00-05:59 is the NEXT morning, so logging at 02:00 lands on today's date.
+    setStartDate(startDateForClock(localDateISO(viewedDate), nowMinutes()))
     setEndDateOverride(null)
     setSongCount('')
     setType('')
@@ -353,7 +360,7 @@ export function DisplayValueButton({
       setSubmitting(true)
       const result = onQuickLog({
         cardName: quickLogName,
-        startDate: dateFromLocalDateISO(mode === 'songCount' ? localDateISO(viewedDate) : startDate),
+        startDate: dateFromLocalDateISO(mode === 'songCount' ? startDateForClock(localDateISO(viewedDate), startMinutes) : startDate),
         startMinutes,
         durationMinutes,
         path: type ? [type] : [],
