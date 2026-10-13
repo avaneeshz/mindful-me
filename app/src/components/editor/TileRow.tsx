@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { EditableTileRow } from '@/components/editor/EditableTileRow'
 import { CheckCircle2, Circle, Info, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -132,10 +132,14 @@ function LoggingTileRow({
       <Dialog.Root open={openCategory !== null} onOpenChange={(open) => !open && setOpenCategory(null)}>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
         <Dialog.Content
+          // Fit the popup to its items: one chip is 92px wide with a 12px
+          // gap, plus the 24px padding either side. Wider than the screen
+          // allows (92vw) → the chips wrap into further rows.
+          style={{ '--chip-row-width': `${(openCards?.length ?? 0) * 104 - 12 + 48}px` } as CSSProperties}
           className={cn(
             'fixed z-50 flex flex-col gap-md overflow-y-auto bg-surface p-lg shadow-elevation-2 focus:outline-none',
             'inset-0 mobile:inset-0',
-            'md:inset-auto md:left-1/2 md:top-1/2 md:w-[min(640px,92vw)] md:max-h-[85vh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg',
+            'md:inset-auto md:left-1/2 md:top-1/2 md:w-[min(max(640px,var(--chip-row-width)),92vw)] md:max-h-[85vh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg',
           )}
         >
           {openCategory && openCards && openProgress && openCategoryDef && (

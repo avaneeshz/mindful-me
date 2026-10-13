@@ -324,11 +324,10 @@
    removed so the tile's own internal layout (icon/label/progress-bar
    stacking) is untouched.
 
-   `.item-chip-row` (the expand panel's item chips) keeps the SAME
-   horizontal-scroll treatment `.timeline-scroll-region` already established
-   — only the scrollbar is hidden (`overflow-x` stays `auto`), so touch/
-   trackpad/programmatic scrolling all keep working. This is the one place
-   that behaviour still applies; the top-level row above no longer scrolls. */
+   `.item-chip-row` (the tile popup's item chips) wraps onto further rows
+   instead of scrolling sideways, so every item is visible without a hidden
+   scroll. The popup widens with the item count (see `TileRow`) and only wraps
+   once it reaches the screen edge. */
 .tile-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
@@ -337,14 +336,8 @@
 
 .item-chip-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.item-chip-row::-webkit-scrollbar {
-  display: none;
 }
 
 /* Respect reduced-motion for every motion the redesign introduces: the smooth
