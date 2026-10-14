@@ -1426,3 +1426,20 @@ describe('notes persistence parity — quick-log button vs tile + modal', () => 
     expect(real(viaTile)[0]).toMatchObject({ notes: 'Slept well', dreamsNote: 'A dream' })
   })
 })
+
+describe('discardActivity — forgetting an activity the server never accepted', () => {
+  it('removes it without leaving a "removed" record and without anything to undo', () => {
+    let state = boardReducer(start(), { type: 'quickLogActivity', cardName: 'Moon Exposure', startMinutes: 23 * 60, durationMinutes: 30 })
+    const id = real(state)[0].id
+    state = boardReducer(state, { type: 'selectScheduledActivity', id })
+    state = boardReducer(state, { type: 'discardActivity', id })
+    expect(real(state)).toHaveLength(0)
+    expect(state.removal).toBeNull()
+    expect(state.selectedActivityId).toBeNull()
+  })
+
+  it('is a no-op for an id that is not on the board', () => {
+    const state = start()
+    expect(boardReducer(state, { type: 'discardActivity', id: 'nope' })).toBe(state)
+  })
+})

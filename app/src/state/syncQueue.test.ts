@@ -4,13 +4,19 @@ import {
   backoffMs,
   describeSyncError,
   describeSyncIndicator,
+  discardActivityItems,
   enqueueIntents,
   intentActivityId,
+  isPermanentSyncError,
   markQueueItemFailed,
+  markQueueItemPermanent,
   nextItemToAttempt,
   pendingActivityIds,
   pendingDeleteActivityIds,
   removeQueueItem,
+  retryAllQueueItems,
+  retryQueueItem,
+  syncQueueRows,
   type SyncQueue,
 } from './syncQueue'
 import type { SyncIntent } from './sync'
@@ -253,5 +259,118 @@ describe('describeSyncError', () => {
   it('falls back for anything else, never leaking a raw object into the UI', () => {
     expect(describeSyncError({ weird: true })).toBe('Unknown error')
     expect(describeSyncError(undefined)).toBe('Unknown error')
+  })
+})
+
+describe('refused-for-good writes', () => {
+  const conflict = { code: 'P0001', message: 'schedule_conflict: 30 minutes requested, 0 available' }
+
+  it('treats a rule the server enforces as permanent, and anything transient or unknown as retryable', () => {
+    expect(isPermanentSyncError(conflict)).toBe(true)
+    expect(isPermanentSyncError({ code: '22P02', message: 'invalid input syntax for type uuid' })).toBe(true)
+    expect(isPermanentSyncError({ code: 'PGRST202', message: 'function not found' })).toBe(true)
+    expect(isPermanentSyncError({ code: '23P01', message: 'exclusion violation' })).toBe(true)
+    // Not permanent: a dropped connection, a timeout, an expired login, or something unrecognised.
+    expect(isPermanentSyncError(new TypeError('Failed to fetch'))).toBe(false)
+    expect(isPermanentSyncError({ code: 'PGRST301', message: 'JWT expired' })).toBe(false)
+    expect(isPermanentSyncError({ code: '28000', message: 'not authenticated' })).toBe(false)
+    expect(isPermanentSyncError('boom')).toBe(false)
+    expect(isPermanentSyncError(undefined)).toBe(false)
+  })
+
+  it('reads the message off a plain error object', () => {
+    expect(describeSyncError(conflict)).toBe('schedule_conflict: 30 minutes requested, 0 available')
+  })
+
+  it('parks a refused entry: kept, never due again on its own, and it holds back that activity only', () => {
+    const a = activity('a1')
+    const b = activity('b1')
+    let queue = enqueueIntents([], [{ kind: 'create', activity: a }, { kind: 'create', activity: b }], '2026-10-13', NOW, makeId)
+    queue = markQueueItemPermanent(queue, queue[0].id, conflict.message)
+    expect(queue[0]).toMatchObject({ permanent: true, status: 'failed', attempts: 1 })
+    // Even a year later it is not attempted; the other activity still goes through.
+    expect(nextItemToAttempt(queue, NOW + 365 * 24 * 3_600_000)?.activityId).toBe('b1')
+    // Its own later writes wait behind it (they depend on it existing).
+    const withEdit = [...queue, ...enqueueIntents([], [{ kind: 'status', activity: a }], '2026-10-13', NOW, makeId)]
+    expect(nextItemToAttempt(withEdit.filter((i) => i.activityId === 'a1'), NOW + 10 ** 12)).toBeNull()
+  })
+
+  it('keeps a refused entry protected from the server-reconcile, and reports it as refused', () => {
+    const a = activity('a1')
+    let queue = enqueueIntents([], [{ kind: 'create', activity: a }], '2026-10-13', NOW, makeId)
+    queue = markQueueItemPermanent(queue, queue[0].id, conflict.message)
+    expect(pendingActivityIds(queue).has('a1')).toBe(true)
+    expect(activitySyncState(queue, 'a1')).toBe('rejected')
+    expect(describeSyncIndicator(queue)).toEqual({ kind: 'failed', count: 1 })
+  })
+
+  it('"Try again" makes it due immediately; "Retry now" also un-parks everything', () => {
+    let queue = enqueueIntents([], [{ kind: 'create', activity: activity('a1') }], '2026-10-13', NOW, makeId)
+    queue = markQueueItemPermanent(queue, queue[0].id, conflict.message)
+    const one = retryQueueItem(queue, queue[0].id, NOW + 5)
+    expect(one[0]).toMatchObject({ permanent: false, status: 'pending', nextAttemptAt: NOW + 5 })
+    expect(nextItemToAttempt(one, NOW + 5)?.id).toBe(queue[0].id)
+    expect(retryAllQueueItems(queue, NOW + 7)[0]).toMatchObject({ permanent: false, nextAttemptAt: NOW + 7 })
+  })
+
+  it('editing a refused create re-sends the corrected create instead of queuing an edit behind it', () => {
+    const original = activity('a1', { startMinutes: 600 })
+    let queue = enqueueIntents([], [{ kind: 'create', activity: original }], '2026-10-13', NOW, makeId)
+    queue = markQueueItemPermanent(queue, queue[0].id, conflict.message)
+    const moved = activity('a1', { startMinutes: 900 })
+    queue = enqueueIntents(queue, [{ kind: 'reschedule', activity: moved }], '2026-10-13', NOW + 50, makeId)
+    expect(queue).toHaveLength(1)
+    expect(queue[0]).toMatchObject({ permanent: false, status: 'pending', attempts: 0, nextAttemptAt: NOW + 50 })
+    expect(queue[0].intent).toEqual({ kind: 'create', activity: moved })
+  })
+
+  it('deleting a refused create just forgets it — there is nothing on the server to delete', () => {
+    let queue = enqueueIntents([], [{ kind: 'create', activity: activity('a1') }], '2026-10-13', NOW, makeId)
+    queue = markQueueItemPermanent(queue, queue[0].id, conflict.message)
+    queue = enqueueIntents(queue, [{ kind: 'delete', id: 'a1' }], '2026-10-13', NOW, makeId)
+    expect(queue).toEqual([])
+  })
+
+  it('does NOT shortcut for an ordinary (not refused) create: an edit or delete still queues behind it', () => {
+    let queue = enqueueIntents([], [{ kind: 'create', activity: activity('a1') }], '2026-10-13', NOW, makeId)
+    queue = markQueueItemFailed(queue, queue[0].id, 'Failed to fetch', NOW)
+    queue = enqueueIntents(queue, [{ kind: 'delete', id: 'a1' }], '2026-10-13', NOW, makeId)
+    expect(queue.map((i) => i.intent.kind)).toEqual(['create', 'delete'])
+  })
+
+  it('discarding forgets every queued write for that activity and nothing else', () => {
+    const queue = enqueueIntents(
+      [],
+      [{ kind: 'create', activity: activity('a1') }, { kind: 'create', activity: activity('b1') }, { kind: 'status', activity: activity('a1') }],
+      '2026-10-13',
+      NOW,
+      makeId,
+    )
+    expect(discardActivityItems(queue, 'a1').map((i) => i.activityId)).toEqual(['b1'])
+  })
+
+  it('reads a refused overlap in plain words, dated, and sorts refused entries first', () => {
+    let queue = enqueueIntents(
+      [],
+      [{ kind: 'create', activity: activity('a1', { name: 'Walk', startMinutes: 750, durationMinutes: 30 }) }, { kind: 'create', activity: activity('b1') }],
+      '2026-10-13',
+      NOW,
+      makeId,
+    )
+    queue = markQueueItemPermanent(queue, queue[0].id, conflict.message)
+    const rows = syncQueueRows([queue[1], queue[0]], NOW)
+    expect(rows[0]).toMatchObject({ state: 'rejected', activityId: 'a1' })
+    expect(rows[0].title).toContain('Add “Walk”')
+    expect(rows[0].title).toContain('13 Oct')
+    expect(rows[0].reason).toContain('overlaps something already saved')
+    expect(rows[1].state).toBe('sending')
+  })
+
+  it('an entry saved before this existed (no `permanent` field) behaves as not refused', () => {
+    const legacy: SyncQueue = [
+      { id: 'x', intent: { kind: 'create', activity: activity('a1') }, activityId: 'a1', referenceDateISO: '2026-10-03', attempts: 4, status: 'failed', lastError: 'x', nextAttemptAt: NOW },
+    ]
+    expect(activitySyncState(legacy, 'a1')).toBe('failed')
+    expect(nextItemToAttempt(legacy, NOW)?.id).toBe('x')
   })
 })

@@ -81,6 +81,8 @@ export function SyncStatusPill({
   // their own durable ledger; the pill reports both together.
   const pendingWrites = usePendingWrites()
   const indicator = describeSyncIndicator([...queue, ...pendingWrites])
+  // Changes the server refused for good wait for the user's decision instead of retrying.
+  const refusedCount = [...queue, ...pendingWrites].filter((item) => item.permanent === true).length
   const isFailed = indicator.kind === 'failed'
   const isSynced = indicator.kind === 'synced'
 
@@ -138,7 +140,9 @@ export function SyncStatusPill({
 
   const explanation = isSynced
     ? 'All your changes are saved and backed up.'
-    : isFailed
+    : isFailed && refusedCount > 0
+      ? `${refusedCount} ${refusedCount === 1 ? 'change was' : 'changes were'} refused by the server and ${refusedCount === 1 ? 'is' : 'are'} waiting for your decision. Nothing is lost — open "See what's waiting" to retry or discard.`
+      : isFailed
       ? `Couldn't sync ${indicator.count} ${indicator.count === 1 ? 'change' : 'changes'}. We'll keep retrying — you can also retry now.`
       : `Saving ${indicator.count} ${indicator.count === 1 ? 'change' : 'changes'} to your account…`
 

@@ -2,11 +2,24 @@ import { useEffect, useMemo, useState } from 'react'
 import { CircleCheck, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { discardPendingWrite, retryPendingWrite, retryPendingWritesNow } from '@/state/pendingWrites'
-import { pendingWriteRows, type PendingWriteRow } from '@/state/pendingWritesView'
+import { pendingWriteRows } from '@/state/pendingWritesView'
+import { useOptionalBoard } from '@/state/BoardContext'
+import { syncQueueRows } from '@/state/syncQueue'
 import { usePendingWrites } from '@/state/usePendingWrites'
 import { cn } from '@/lib/utils'
 
-const STATE_LABEL: Record<PendingWriteRow['state'], string> = {
+/** One line of the list, whichever of the two ledgers it came from. */
+interface AttentionItem {
+  id: string
+  state: 'rejected' | 'retrying' | 'sending'
+  title: string
+  reason: string
+  detail: string | undefined
+  onRetry: () => void
+  onDiscard: () => void
+}
+
+const STATE_LABEL: Record<AttentionItem['state'], string> = {
   rejected: 'Refused by the server',
   retrying: 'Retrying',
   sending: 'Sending',
@@ -21,7 +34,31 @@ const STATE_LABEL: Record<PendingWriteRow['state'], string> = {
 export function NeedsAttentionPanel() {
   const writes = usePendingWrites()
   const now = useNow(10_000)
-  const rows = useMemo(() => pendingWriteRows(writes, now), [writes, now])
+  // Scheduled activities (what you log on Today) have their own queue, held by the board.
+  const board = useOptionalBoard()
+  const queue = board?.syncQueue
+  const rows = useMemo<AttentionItem[]>(() => {
+    const fromLedger = pendingWriteRows(writes, now).map((row) => ({
+      id: `w:${row.id}`,
+      state: row.state,
+      title: row.title,
+      reason: row.reason,
+      detail: row.detail,
+      onRetry: () => retryPendingWrite(row.id),
+      onDiscard: () => discardPendingWrite(row.id),
+    }))
+    const fromQueue = (queue ? syncQueueRows(queue, now) : []).map((row) => ({
+      id: `q:${row.id}`,
+      state: row.state,
+      title: row.title,
+      reason: row.reason,
+      detail: row.detail,
+      onRetry: () => board?.retrySyncItem(row.id),
+      onDiscard: () => board?.discardSyncItem(row.id),
+    }))
+    const order = { rejected: 0, retrying: 1, sending: 2 } as const
+    return [...fromQueue, ...fromLedger].sort((a, b) => order[a.state] - order[b.state])
+  }, [writes, queue, board, now])
   const refused = rows.filter((row) => row.state === 'rejected').length
 
   if (rows.length === 0) {
@@ -40,9 +77,13 @@ export function NeedsAttentionPanel() {
     <div>
       <p className="text-caption text-ink-dim">
         {rows.length} {rows.length === 1 ? 'change is' : 'changes are'} saved on this device but not on the server yet
-        {refused > 0 ? `, ${refused} of them refused` : ''}. Nothing is lost — they keep retrying on their own.
+        {refused > 0 ? `, ${refused} of them refused by the server` : ''}. Nothing is lost.{' '}
+        {refused > 0 ? 'Refused ones wait for your decision; the others keep retrying on their own.' : 'They keep retrying on their own.'}
       </p>
-      <Button variant="outline" size="control" className="mt-lg" onClick={retryPendingWritesNow}>
+      <Button variant="outline" size="control" className="mt-lg" onClick={() => {
+          retryPendingWritesNow()
+          board?.retrySyncNow()
+        }}>
         <RotateCw aria-hidden="true" className="size-[16px]" />
         Retry all now
       </Button>
@@ -55,7 +96,7 @@ export function NeedsAttentionPanel() {
   )
 }
 
-function AttentionRow({ row }: { row: PendingWriteRow }) {
+function AttentionRow({ row }: { row: AttentionItem }) {
   const [showDetail, setShowDetail] = useState(false)
   const [confirming, setConfirming] = useState(false)
   return (
@@ -91,7 +132,7 @@ function AttentionRow({ row }: { row: PendingWriteRow }) {
             contained stays readable in the Activity log for 3 days.
           </p>
           <div className="mt-sm flex gap-sm">
-            <Button variant="primary" size="control" onClick={() => discardPendingWrite(row.id)}>
+            <Button variant="primary" size="control" onClick={row.onDiscard}>
               Yes, discard
             </Button>
             <Button variant="outline" size="control" onClick={() => setConfirming(false)}>
@@ -101,7 +142,7 @@ function AttentionRow({ row }: { row: PendingWriteRow }) {
         </div>
       ) : (
         <div className="mt-md flex gap-sm">
-          <Button variant="outline" size="control" onClick={() => retryPendingWrite(row.id)}>
+          <Button variant="outline" size="control" onClick={row.onRetry}>
             <RotateCw aria-hidden="true" className="size-[16px]" />
             Retry
           </Button>

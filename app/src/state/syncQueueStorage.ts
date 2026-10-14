@@ -12,7 +12,8 @@ import type { SyncQueue } from './syncQueue'
  * still needs to reach the server regardless of which day is on screen when
  * it finally does).
  */
-const STORAGE_KEY = 'mindful-me:syncQueue:v1'
+export const SYNC_QUEUE_STORAGE_KEY = 'mindful-me:syncQueue:v1'
+const STORAGE_KEY = SYNC_QUEUE_STORAGE_KEY
 
 export function loadSyncQueue(): SyncQueue {
   try {
