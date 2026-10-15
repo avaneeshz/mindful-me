@@ -301,7 +301,7 @@ export function DurationDragBlock({
       </div>
       {pinned && (
         <p id={DURATION_DRAG_MESSAGE_ID} role="status" className="text-note font-medium text-ink">
-          Capped — the next logged activity starts right there.
+          Capped — the next logged activity, or the end of the next day, is right there.
         </p>
       )}
     </div>

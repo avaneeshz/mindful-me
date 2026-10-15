@@ -54,7 +54,7 @@ export function DurationStepperFallback({
       <QuickAddButtons duration={duration} maxDuration={maxDuration} onSetDuration={onSetDuration} />
       {atCeiling && (
         <p id={CAPACITY_MESSAGE_ID} role="status" className="text-note font-medium text-ink">
-          Capped at {formatDuration(maxDuration)} — the next logged activity begins there.
+          Capped at {formatDuration(maxDuration)} — the next logged activity (or the end of the next day) is there.
         </p>
       )}
     </div>
