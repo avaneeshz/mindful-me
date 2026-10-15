@@ -105,7 +105,7 @@ export function SlotEditor({
         activities,
         staging.startMinutes,
         staging.editingId,
-        windowBoundsFor(staging.editingId ? activities.find((a) => a.id === staging.editingId) : null),
+        windowBoundsFor(staging.editingId ? activities.find((a) => a.id === staging.editingId) : null, state.horizonCap),
       )
     : 0
   // A slot reads as "full" once nothing new could start anywhere within it —
@@ -264,6 +264,7 @@ export function SlotEditor({
       <LogActivityModal
         staging={staging}
         activities={activities}
+        horizonCap={state.horizonCap}
         maxDuration={maxDuration}
         canCommit={canCommit}
         onPickOption={(level, value) => dispatch({ type: 'pickOption', level, value })}

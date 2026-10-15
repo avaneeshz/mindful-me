@@ -5,7 +5,7 @@ import {
   type CommitContext,
 } from '@/domain/scheduling'
 import type { ScheduledActivity } from '@/domain/types'
-import { axisToStorage, LUMEN_AXIS_BOUNDS, LUMEN_DAY_END, LUMEN_DAY_START, schedulingList, toAxis } from './lumenDay'
+import { axisToStorage, lumenAxisBounds, LUMEN_DAY_END, LUMEN_DAY_START, schedulingList, toAxis } from './lumenDay'
 
 /**
  * Lumen's write planning — pure, so every rule is tested without React.
@@ -49,13 +49,14 @@ export function planCreate(
   dayISO: string,
   byDate: ActivitiesByDate,
   input: { activity: ActivityRef; start: number; durationMinutes: number; context?: CommitContext },
+  horizonCap?: number,
 ): CreatePlan | PlanFailure {
   if (input.start < LUMEN_DAY_START || input.start >= LUMEN_DAY_END) {
     return { ok: false, reason: 'outside-day', maxDuration: 0 }
   }
   const list = schedulingList(toAxis(dayISO, byDate))
   const candidate = { id: null, activity: input.activity, startMinutes: input.start, durationMinutes: input.durationMinutes }
-  const check = validateSchedule(candidate, list, LUMEN_AXIS_BOUNDS)
+  const check = validateSchedule(candidate, list, lumenAxisBounds(horizonCap))
   if (!check.ok) return check
   const { date, startMinutes } = axisToStorage(dayISO, input.start)
   const activity = commitSchedule({ ...candidate, startMinutes }, input.context)
@@ -73,6 +74,7 @@ export function planUpdate(
   byDate: ActivitiesByDate,
   id: string,
   changes: { start?: number; durationMinutes?: number; path?: string[]; context?: CommitContext },
+  horizonCap?: number,
 ): UpdatePlan | PlanFailure {
   const stored = findStored(byDate, id)
   if (!stored) return { ok: false, reason: 'missing', maxDuration: 0 }
@@ -87,7 +89,7 @@ export function planUpdate(
   if (timeChanged) {
     if (start < LUMEN_DAY_START || start >= LUMEN_DAY_END) return { ok: false, reason: 'outside-day', maxDuration: 0 }
     const candidate = { id, activity: null, startMinutes: start, durationMinutes }
-    const check = validateSchedule(candidate, schedulingList(axis), LUMEN_AXIS_BOUNDS)
+    const check = validateSchedule(candidate, schedulingList(axis), lumenAxisBounds(horizonCap))
     if (!check.ok) return check
   }
 

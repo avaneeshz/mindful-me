@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { cn } from '@/lib/utils'
 import { DurationDragBlock } from './DurationDragBlock'
+import { WINDOW_END } from '@/domain/windowAxis'
 import { DurationStepperFallback } from './DurationStepperFallback'
 import { FlagPicker } from './FlagPicker'
 import { MultiselectFieldPicker } from './MultiselectFieldPicker'
@@ -31,6 +32,7 @@ import { SymptomsPicker } from './SymptomsPicker'
 export function LogActivityModal({
   staging,
   activities,
+  horizonCap = WINDOW_END,
   maxDuration,
   canCommit,
   onPickOption,
@@ -53,6 +55,8 @@ export function LogActivityModal({
 }: {
   staging: StagingState
   activities: ActivityList
+  /** How far past the page's window a stretch may reach — see `BoardState.horizonCap`. */
+  horizonCap?: number
   maxDuration: number
   canCommit: boolean
   onPickOption: (level: number, value: string) => void
@@ -203,6 +207,7 @@ export function LogActivityModal({
             ) : (
               <DurationDragBlock
                 activities={activities}
+                horizonCap={horizonCap}
                 cardName={staging.cardName}
                 startMinutes={staging.startMinutes}
                 durationMinutes={staging.durationMinutes}

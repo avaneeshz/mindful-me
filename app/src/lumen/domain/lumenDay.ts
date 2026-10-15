@@ -37,6 +37,26 @@ export const LUMEN_DAY_END = MINUTES_PER_DAY + LUMEN_DAY_START
 /** The three loaded calendar dates, end to end. */
 export const LUMEN_AXIS_BOUNDS: ScheduleBounds = { floor: -MINUTES_PER_DAY, horizon: 2 * MINUTES_PER_DAY }
 
+/** Axis minute where the loaded dates end — 24:00 on D+1. */
+export const LUMEN_AXIS_END = 2 * MINUTES_PER_DAY
+/** With nothing logged later, how far past the loaded dates a stretch may reach: the database's own 30-day fallback. */
+export const LUMEN_OPEN_SPAN_MINUTES = 30 * MINUTES_PER_DAY
+
+/**
+ * The axis bounds with the right edge pushed out to `horizonCap` — the start
+ * of the first activity logged AFTER the loaded dates (see
+ * `horizonCapFrom`). Only the neighbour is a stop, never a day or strip edge.
+ */
+export function lumenAxisBounds(horizonCap: number = LUMEN_AXIS_END): ScheduleBounds {
+  return { floor: LUMEN_AXIS_BOUNDS.floor, horizon: Math.max(LUMEN_AXIS_END, horizonCap) }
+}
+
+/** The horizon cap given the axis starts of whatever is logged beyond the loaded dates (empty = open-ended). */
+export function lumenHorizonCapFrom(laterStarts: readonly number[]): number {
+  const wall = laterStarts.filter((s) => s >= LUMEN_AXIS_END)
+  return wall.length === 0 ? LUMEN_AXIS_END + LUMEN_OPEN_SPAN_MINUTES : Math.min(...wall)
+}
+
 export type StripPeriod = 'day' | 'night'
 
 export const STRIP_RANGE: Record<StripPeriod, { start: number; end: number }> = {

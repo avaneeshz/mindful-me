@@ -21,6 +21,7 @@ import {
   overlapsWindow,
   toAxis,
   WINDOW_END,
+  horizonCapFrom,
   WINDOW_START,
   windowBoundsFor,
   windowFromDays,
@@ -38,10 +39,12 @@ import {
   dateFromLocalMinutes,
   isSameLocalDay,
   localDateISO,
+  localMinutesOf,
   logicalToday,
   shouldRolloverViewedDate,
 } from '@/lib/localTime'
-import { apiListScheduledActivities } from '@/api/scheduledActivities'
+import { apiListScheduledActivities, apiNextActivityStartAfter } from '@/api/scheduledActivities'
+import { daysBetweenISO } from '@/domain/quickLog'
 import type { FieldSelections, ScheduledActivity } from '@/domain/types'
 import { useLiveActivityCatalogSync } from './useLiveActivityCatalogSync'
 
@@ -309,6 +312,36 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     }
   }, [isTest, viewedDate])
 
+  // How far past 06:00 a stretch may reach: only the window's activities are
+  // loaded, so the first activity logged AFTER the window (however many days
+  // ahead) is looked up on its own. Nothing later = a far-off cap, not a stop.
+  // Reset first so a previous day's wall never applies to this one; offline,
+  // what is stored locally for the days ahead is all that is known.
+  useEffect(() => {
+    if (isTest) return
+    let cancelled = false
+    dispatch({ type: 'setHorizonCap', horizonCap: WINDOW_END })
+    const localStarts = localNeighbourhood(viewedDate, new Set())
+      .filter((a) => a.durationMinutes > 0)
+      .map((a) => a.startMinutes)
+    ;(async () => {
+      const windowEnd = dateFromLocalMinutes(viewedDate, WINDOW_END)
+      const next = await apiNextActivityStartAfter(windowEnd)
+      if (cancelled) return
+      if (next === undefined) {
+        // Unknown: stop at the last locally stored day rather than guess further.
+        dispatch({ type: 'setHorizonCap', horizonCap: horizonCapFrom([...localStarts, 3 * 1440]) })
+        return
+      }
+      const days = next === null ? null : daysBetweenISO(localDateISO(viewedDate), localDateISO(next))
+      const serverStart = next === null || days === null ? [] : [days * 1440 + localMinutesOf(next)]
+      dispatch({ type: 'setHorizonCap', horizonCap: horizonCapFrom([...localStarts, ...serverStart]) })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isTest, viewedDate])
+
   // Midnight rollover: `viewedDate` is otherwise only ever changed by an
   // explicit `setViewedDate` call (the date picker) — nothing previously
   // watched the live clock, so a tab left open (backgrounded, not reloaded)
@@ -391,7 +424,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
     }
     const onPageIds = new Set(state.activities.map((a) => a.id))
     const universe = [...state.activities, ...localNeighbourhood(viewedDate, onPageIds)]
-    const validation = validateSchedule(candidate, universe, windowBoundsFor(candidate))
+    const validation = validateSchedule(candidate, universe, windowBoundsFor(candidate, state.horizonCap))
     if (!validation.ok) return { ok: false, reason: validation.reason }
 
     // Overlaps the page: it goes through the reducer like any write, and the
