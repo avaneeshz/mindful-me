@@ -99,10 +99,23 @@ describe('HeaderBar checklist control', () => {
 })
 
 describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
-  it('starts with edit mode off — no per-button remove/edit affordance, no "Add button" chip', () => {
+  it('starts with edit mode off — no per-button remove/edit affordance, no Add buttons', () => {
     const html = render()
-    expect(html).not.toContain('aria-label="Add a Non-Negotiable Button"')
+    expect(html).not.toMatch(/aria-label="Add (note|activity|daily number|checklist)"/)
     expect(html).not.toMatch(/aria-label="Remove /)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit"/)
+  })
+
+  it('in edit mode shows one Add button per kind of button, each in its own row', () => {
+    const html = render(true)
+    for (const label of ['Add note', 'Add activity', 'Add daily number', 'Add checklist']) {
+      expect(html.match(new RegExp(`aria-label="${label}"`, 'g'))?.length).toBe(1)
+    }
+    expect(html).not.toContain('aria-label="Add a Non-Negotiable Button"')
+  })
+
+  it('renders four separate rows, with no visible row headings', () => {
+    const html = render(true)
+    expect(html.match(/role="group"/g)?.length).toBe(4)
   })
 })

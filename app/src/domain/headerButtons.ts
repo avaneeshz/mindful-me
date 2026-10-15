@@ -484,13 +484,30 @@ export function noteLabelsFromFields(fields: readonly { fieldKind: string; key?:
   return { first: label('primary'), second: label('secondary') }
 }
 
-/** The three visual groups the header row renders, in order. Reordering never crosses a group. */
-export type HeaderButtonGroup = 'notes' | 'quickLog' | 'checklist'
+/**
+ * The four rows the header renders, top to bottom — one per category, so each
+ * kind of button has its own row and its own Add button. Reordering never
+ * crosses a row.
+ */
+export const HEADER_BUTTON_GROUPS = ['notes', 'activity', 'day_value', 'checklist'] as const
+export type HeaderButtonGroup = (typeof HEADER_BUTTON_GROUPS)[number]
 
 export function headerButtonGroup(category: HeaderButtonCategory): HeaderButtonGroup {
-  if (category === 'notes') return 'notes'
-  if (category === 'checklist') return 'checklist'
-  return 'quickLog'
+  return category
+}
+
+/** The per-row Add button's text — names what the new button will be. */
+export function headerButtonAddLabel(category: HeaderButtonCategory): string {
+  switch (category) {
+    case 'activity':
+      return 'Add activity'
+    case 'checklist':
+      return 'Add checklist'
+    case 'notes':
+      return 'Add note'
+    case 'day_value':
+      return 'Add daily number'
+  }
 }
 
 /** `ids` with `movedId` moved to `toIndex` (clamped). Unknown ids return the list unchanged. */
@@ -505,7 +522,7 @@ export function moveId(ids: readonly string[], movedId: string, toIndex: number)
 
 /**
  * The full visible order to save after one group was reordered: groups stay
- * in their fixed order (notes, quick-log, checklist) and only `group`'s own
+ * in their fixed order (notes, activity, daily number, checklist) and only `group`'s own
  * buttons take `groupOrder`. Ids in `groupOrder` that aren't in that group
  * are ignored, so a drag can never move a button into another group.
  */
@@ -518,8 +535,7 @@ export function orderAfterGroupReorder(
   const reordered = groupOrder.filter((id) => inGroup.has(id))
   // Anything the caller dropped keeps its old relative position at the end.
   for (const b of visible) if (inGroup.has(b.id) && !reordered.includes(b.id)) reordered.push(b.id)
-  const groups: HeaderButtonGroup[] = ['notes', 'quickLog', 'checklist']
-  return groups.flatMap((g) =>
+  return HEADER_BUTTON_GROUPS.flatMap((g) =>
     g === group ? reordered : visible.filter((b) => headerButtonGroup(b.category) === g).map((b) => b.id),
   )
 }

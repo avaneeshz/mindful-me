@@ -4,7 +4,7 @@ import { AlignLeft, Check, ListChecks, Pencil, Plus, X } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
-  HEADER_BUTTON_CATEGORIES,
+  headerButtonAddLabel,
   headerButtonCategoryLabel,
   type HeaderButtonCategory,
   type HeaderButtonConfig,
@@ -89,11 +89,13 @@ export function EditModeControls({
   )
 }
 
-export function AddHeaderButtonChip({ onClick }: { onClick: () => void }) {
+/** One Add button per row — it opens the form already set to that row's kind of button. */
+export function AddHeaderButtonChip({ category, onClick }: { category: HeaderButtonCategory; onClick: () => void }) {
+  const label = headerButtonAddLabel(category)
   return (
     <button
       type="button"
-      aria-label="Add a Non-Negotiable Button"
+      aria-label={label}
       onClick={onClick}
       className={cn(
         chipVariants({ tone: 'surface', size: 'sm', interactive: true }),
@@ -101,12 +103,12 @@ export function AddHeaderButtonChip({ onClick }: { onClick: () => void }) {
       )}
     >
       <Plus aria-hidden="true" className="size-[14px]" />
-      <span>Add button</span>
+      <span>{label}</span>
     </button>
   )
 }
 
-type FormMode = { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }
+type FormMode = { kind: 'add'; category: HeaderButtonCategory } | { kind: 'edit'; button: HeaderButtonConfig }
 
 export function HeaderButtonFormDialog({
   mode,
@@ -122,7 +124,8 @@ export function HeaderButtonFormDialog({
   const isEdit = mode.kind === 'edit'
   const existing = mode.kind === 'edit' ? mode.button : null
 
-  const [category, setCategory] = useState<HeaderButtonCategory>(existing?.category ?? 'activity')
+  // The kind is fixed by where the form was opened — an Add button's own row, or the button being edited.
+  const category: HeaderButtonCategory = mode.kind === 'edit' ? mode.button.category : mode.category
   const [label, setLabel] = useState(existing?.label ?? '')
   const [activityName, setActivityName] = useState(existing?.activityName ?? '')
   const [quickLogType, setQuickLogType] = useState(existing?.quickLogType ?? false)
@@ -246,7 +249,7 @@ export function HeaderButtonFormDialog({
       >
         <div className="flex items-start justify-between gap-md">
           <Dialog.Title id={headingId} className="text-h1-sm font-semibold text-ink">
-            {isEdit ? `Edit ${existing!.label}` : 'Add a button'}
+            {isEdit ? `Edit ${existing!.label}` : headerButtonAddLabel(category)}
           </Dialog.Title>
           <Dialog.Close asChild>
             <button
@@ -259,7 +262,7 @@ export function HeaderButtonFormDialog({
           </Dialog.Close>
         </div>
         <Dialog.Description className="sr-only">
-          {isEdit ? 'Edit this Non-Negotiable Button.' : 'Choose what kind of Non-Negotiable Button to add, then configure it.'}
+          {isEdit ? 'Edit this Non-Negotiable Button.' : `${headerButtonCategoryLabel(category)} — configure the new Non-Negotiable Button.`}
         </Dialog.Description>
 
         <form
@@ -269,28 +272,6 @@ export function HeaderButtonFormDialog({
             void handleSubmit()
           }}
         >
-          {!isEdit && (
-              <div className="flex flex-col gap-sm">
-                <span className={labelClass}>Kind of button</span>
-                <div role="radiogroup" aria-label="Kind of button" className="flex flex-wrap gap-sm">
-                  {HEADER_BUTTON_CATEGORIES.map((option) => (
-                    <Chip
-                      key={option}
-                      as="button"
-                      size="sm"
-                      tone={category === option ? 'active' : 'surface'}
-                      interactive
-                      role="radio"
-                      aria-checked={category === option}
-                      onClick={() => setCategory(option)}
-                    >
-                      {headerButtonCategoryLabel(option)}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="flex flex-col gap-xs">
               <label htmlFor="header-button-label" className={labelClass}>
                 Name
@@ -558,7 +539,7 @@ export function HeaderButtonFormDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={submitting}>
-                {submitting ? 'Saving…' : isEdit ? 'Save' : 'Add button'}
+                {submitting ? 'Saving…' : isEdit ? 'Save' : 'Add'}
               </Button>
             </div>
         </form>

@@ -259,8 +259,18 @@ describe('orderAfterGroupReorder', () => {
   ]
 
   it('reorders one group and keeps the others in place', () => {
-    expect(orderAfterGroupReorder(visible, 'quickLog', ['q2', 'q1'])).toEqual(['n1', 'n2', 'q2', 'q1', 'c1'])
+    const activities = [...visible, makeButton({ id: 'q3', category: 'activity' })]
+    expect(orderAfterGroupReorder(activities, 'activity', ['q3', 'q1'])).toEqual(['n1', 'n2', 'q3', 'q1', 'q2', 'c1'])
     expect(orderAfterGroupReorder(visible, 'notes', ['n2', 'n1'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+  })
+
+  it('gives activities and daily numbers their own rows, in that order', () => {
+    const mixed = [
+      makeButton({ id: 'd1', category: 'day_value' }),
+      makeButton({ id: 'a1', category: 'activity' }),
+      makeButton({ id: 'n1', category: 'notes' }),
+    ]
+    expect(orderAfterGroupReorder(mixed, 'notes', ['n1'])).toEqual(['n1', 'a1', 'd1'])
   })
 
   it('never moves a button into another group', () => {
