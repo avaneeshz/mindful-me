@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { HeaderButtonFormDialog } from './HeaderButtonEditor'
-import { DEFAULT_HEADER_BUTTONS } from '@/domain/headerButtons'
+import { DEFAULT_HEADER_BUTTONS, type HeaderButtonCategory } from '@/domain/headerButtons'
 
 // Same SSR-string convention as `LogActivityModal.test.tsx`/
 // `DisplayValueButton.test.tsx` — no jsdom in this suite, so only the
@@ -10,9 +10,9 @@ import { DEFAULT_HEADER_BUTTONS } from '@/domain/headerButtons'
 // by DOM events, which this environment cannot simulate. What's tested here
 // is the render-time shape for every `mode` this dialog can start in.
 
-function renderAdd(): string {
+function renderAdd(category: HeaderButtonCategory = 'activity'): string {
   return renderToStaticMarkup(
-    <HeaderButtonFormDialog mode={{ kind: 'add' }} onClose={() => {}} onCreate={() => {}} onUpdate={() => {}} />,
+    <HeaderButtonFormDialog mode={{ kind: 'add', category }} onClose={() => {}} onCreate={() => {}} onUpdate={() => {}} />,
   )
 }
 
@@ -31,10 +31,11 @@ function renderEdit(button = SLEEP_BUTTON): string {
 }
 
 describe('HeaderButtonFormDialog — add mode', () => {
-  it('renders the "Kind of button" picker and no Fields section yet (activity is the default category, but no fields exist)', () => {
+  it('has no "Kind of button" picker — the kind comes from the Add button that opened it', () => {
     const html = renderAdd()
     expect(html).toContain('role="dialog"')
-    expect(html).toContain('Kind of button')
+    expect(html).not.toContain('Kind of button')
+    expect(html).toContain('Add activity')
     expect(html).toContain('Fields')
     expect(html).toContain('Add multiple-choice field')
   })
@@ -105,5 +106,29 @@ describe('HeaderButtonFormDialog — non-activity categories carry no Fields sec
     const protein = DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'protein')!
     const html = renderEdit(protein)
     expect(html).not.toContain('>Fields<')
+  })
+})
+
+describe('HeaderButtonFormDialog — add mode is fixed to the row it was opened from', () => {
+  it('a note button asks for type options only', () => {
+    const html = renderAdd('notes')
+    expect(html).toContain('Add note')
+    expect(html).toContain('Type options')
+    expect(html).not.toContain('Activity to quick-log')
+    expect(html).not.toContain('>Fields<')
+  })
+
+  it('a daily number asks for its value shape only', () => {
+    const html = renderAdd('day_value')
+    expect(html).toContain('Add daily number')
+    expect(html).toContain('Value shape')
+    expect(html).not.toContain('Activity to quick-log')
+  })
+
+  it('a checklist asks for its items only', () => {
+    const html = renderAdd('checklist')
+    expect(html).toContain('Add checklist')
+    expect(html).toContain('Items (one per line)')
+    expect(html).not.toContain('Value shape')
   })
 })

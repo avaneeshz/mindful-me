@@ -20,6 +20,8 @@ import {
 import { setNoteButtonsRegistry, setNoteButtonTypesRegistry } from '@/domain/notes'
 import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
 import {
+  HEADER_BUTTON_GROUPS,
+  headerButtonCategoryLabel,
   orderAfterGroupReorder,
   toDisplayButtonLike,
   type HeaderButtonCategory,
@@ -128,7 +130,7 @@ export function HeaderBar({
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
   const { visible, hidden, notice, addButton, updateButton, hideButton, reorder } = useSharedHeaderButtons()
-  const [formMode, setFormMode] = useState<null | { kind: 'add' } | { kind: 'edit'; button: HeaderButtonConfig }>(
+  const [formMode, setFormMode] = useState<null | { kind: 'add'; category: HeaderButtonCategory } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
 
@@ -146,10 +148,6 @@ export function HeaderBar({
   const noteButtonConfigs = allButtons.filter((b) => b.category === 'notes')
   setNoteButtonsRegistry(noteButtonConfigs.map((b) => ({ key: b.key ?? b.id, label: b.label })))
   setNoteButtonTypesRegistry(Object.fromEntries(noteButtonConfigs.map((b) => [b.key ?? b.id, b.noteTypes])))
-
-  const visibleNoteButtons = visible.filter((b) => b.category === 'notes')
-  const visibleQuickLogButtons = visible.filter((b) => b.category === 'activity' || b.category === 'day_value')
-  const visibleChecklistButtons = visible.filter((b) => b.category === 'checklist')
 
   function openEditForm(button: HeaderButtonConfig) {
     setFormMode({ kind: 'edit', button })
@@ -227,40 +225,47 @@ export function HeaderBar({
           Sermons and Worship moved here from the note-pill row — see
           `domain/notes.ts`'s own doc comment. */}
       <EditSectionLabel section="nonNegotiableButtons" editMode={editMode} />
-      <div className="flex flex-wrap items-center gap-sm">
-        {(
-          [
-            ['notes', visibleNoteButtons],
-            ['quickLog', visibleQuickLogButtons],
-            ['checklist', visibleChecklistButtons],
-          ] as const
-        ).map(([group, buttons]) => (
-          <HeaderButtonGroupItems
-            key={group}
-            buttons={buttons}
-            editMode={editMode}
-            onReorder={(groupOrder) => reorder(orderAfterGroupReorder(visible, group, groupOrder))}
-            onEdit={openEditForm}
-            onHide={(button) => hideButton(button.id)}
-            renderButton={(button) =>
-              button.category === 'notes' ? (
-                <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
-              ) : button.category === 'checklist' ? (
-                <ChecklistButton button={button} viewedDate={viewedDate} />
-              ) : (
-                <DisplayValueButton
-                  buttonKey={button.id}
-                  viewedDate={viewedDate}
-                  activities={activities}
-                  onQuickLog={onQuickLog}
-                  onEditActivity={onEditActivity}
-                />
-              )
-            }
-          />
-        ))}
-
-        {editMode && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add' })} />}
+      {/* One row per kind of button — notes, activities, daily numbers,
+          checklists — each with its own Add button in Edit mode. Rows carry no
+          visible heading (the buttons speak for themselves); a hairline
+          separates them, and an empty row only shows while editing. */}
+      <div className="flex flex-col">
+        {HEADER_BUTTON_GROUPS.map((group) => {
+          const buttons = visible.filter((b) => b.category === group)
+          if (buttons.length === 0 && !editMode) return null
+          return (
+            <div
+              key={group}
+              role="group"
+              aria-label={headerButtonCategoryLabel(group)}
+              className="flex flex-wrap items-center gap-sm border-t border-line-soft py-sm first:border-t-0 first:pt-0 last:pb-0"
+            >
+              <HeaderButtonGroupItems
+                buttons={buttons}
+                editMode={editMode}
+                onReorder={(groupOrder) => reorder(orderAfterGroupReorder(visible, group, groupOrder))}
+                onEdit={openEditForm}
+                onHide={(button) => hideButton(button.id)}
+                renderButton={(button) =>
+                  button.category === 'notes' ? (
+                    <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
+                  ) : button.category === 'checklist' ? (
+                    <ChecklistButton button={button} viewedDate={viewedDate} />
+                  ) : (
+                    <DisplayValueButton
+                      buttonKey={button.id}
+                      viewedDate={viewedDate}
+                      activities={activities}
+                      onQuickLog={onQuickLog}
+                      onEditActivity={onEditActivity}
+                    />
+                  )
+                }
+              />
+              {editMode && <AddHeaderButtonChip category={group} onClick={() => setFormMode({ kind: 'add', category: group })} />}
+            </div>
+          )
+        })}
       </div>
 
       {notice && (
@@ -284,7 +289,7 @@ export function HeaderBar({
 }
 
 /**
- * One group of header buttons (notes, quick-log or checklist). Outside Edit
+ * One row of header buttons (one kind each: notes, activities, daily numbers or checklists). Outside Edit
  * mode it just renders the buttons. In Edit mode each button is locked (a
  * tap shows "Finish editing to log" instead of logging) and can be dragged
  * — mouse on PC, finger on iPad — to a new spot within its own group.
