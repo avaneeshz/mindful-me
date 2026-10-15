@@ -1,5 +1,5 @@
 import { findCard } from '@/data/activities'
-import { windowBoundsFor, CLASSIC_WINDOW_BOUNDS } from '@/domain/windowAxis'
+import { windowBoundsFor, CLASSIC_WINDOW_BOUNDS, WINDOW_END } from '@/domain/windowAxis'
 import { slotIndexFromDate, slotMinuteRange } from '@/domain/slots'
 import {
   clampDuration,
@@ -79,6 +79,14 @@ export interface BoardState {
    * modal opens over the summary and returns to it on save/cancel.
    */
   selectedActivityId: string | null
+  /**
+   * Where a stretch is stopped by whatever is logged AFTER the page's window
+   * (axis minutes): the start of the first later activity, or a far-off cap
+   * when nothing later exists. Only the window's own activities are loaded,
+   * so this is the one thing that tells the editor how far past 06:00 a
+   * stretch may reach. `WINDOW_END` (no reach) until it has been looked up.
+   */
+  horizonCap: number
 }
 
 export const EMPTY_STAGING: StagingState = {
@@ -141,6 +149,7 @@ export type BoardAction =
   | { type: 'dismissRemoval'; id: string }
   | { type: 'dropCard'; cardName: string; slot: number }
   | { type: 'hydrate'; activities: ScheduledActivity[] }
+  | { type: 'setHorizonCap'; horizonCap: number }
   | { type: 'toggleComplete'; id: string }
   /**
    * Clicking (or keyboard-activating) an activity's own rendered segment on
@@ -249,7 +258,7 @@ export function stagingOptions(staging: StagingState): { options: string[]; leve
  */
 function boundsFor(state: BoardState, editingId: string | null): ScheduleBounds {
   const editing = editingId ? state.activities.find((a) => a.id === editingId) : null
-  return windowBoundsFor(editing)
+  return windowBoundsFor(editing, state.horizonCap)
 }
 
 export function createInitialState(activities: ScheduledActivity[], now: Date): BoardState {
@@ -260,6 +269,7 @@ export function createInitialState(activities: ScheduledActivity[], now: Date): 
     staging: EMPTY_STAGING,
     removal: null,
     selectedActivityId: null,
+    horizonCap: WINDOW_END,
   }
 }
 
@@ -555,7 +565,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         startMinutes: activity.startMinutes,
         durationMinutes: activity.durationMinutes,
       }
-      if (!validateSchedule(candidate, state.activities, windowBoundsFor(candidate)).ok) {
+      if (!validateSchedule(candidate, state.activities, windowBoundsFor(candidate, state.horizonCap)).ok) {
         return { ...state, removal: null }
       }
 
@@ -591,6 +601,9 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
      * that this swap may have just invalidated (and the selected-activity
      * viewing/mapping target, for the same reason).
      */
+    case 'setHorizonCap':
+      return action.horizonCap === state.horizonCap ? state : { ...state, horizonCap: action.horizonCap }
+
     case 'hydrate':
       return {
         ...state,
@@ -689,7 +702,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       // A quick log may start or end outside the page's window (Sleep 21:42 ->
       // 10:00), so its bounds widen to contain itself; `BoardContext.logQuickLog`
       // has already checked it against the days around the page.
-      if (!validateSchedule(candidate, state.activities, windowBoundsFor(candidate)).ok) return state
+      if (!validateSchedule(candidate, state.activities, windowBoundsFor(candidate, state.horizonCap)).ok) return state
       const committed = commitSchedule(candidate, {
         notes: action.notes?.trim() ? action.notes : null,
         fieldSelections: action.fieldSelections ?? {},

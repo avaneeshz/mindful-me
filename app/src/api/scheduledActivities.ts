@@ -141,6 +141,33 @@ export async function apiListScheduledActivities(
   return Promise.all(((data ?? []) as ScheduledActivityDto[]).map((dto) => dtoToClient(dto, axisDate)))
 }
 
+/**
+ * The start of the first real (non-zero-length, not deleted) activity at or
+ * after `after`, however far ahead it is. `null` = nothing later is logged;
+ * `undefined` = unknown (offline, no backend, or the read failed).
+ *
+ * A single-row read, not a window load (rule 8): it only tells the editor how
+ * far a stretch may reach before it meets the next logged activity.
+ */
+export async function apiNextActivityStartAfter(after: Date): Promise<Date | null | undefined> {
+  if (!supabase) return undefined
+  const { data, error } = await supabase
+    .from('scheduled_activities')
+    .select('start_at')
+    .is('deleted_at', null)
+    .gt('duration_minutes', 0)
+    .gte('start_at', after.toISOString())
+    .order('start_at', { ascending: true })
+    .limit(1)
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[sync] next activity lookup failed — limiting stretches to what is known locally', error.message)
+    return undefined
+  }
+  const first = (data ?? [])[0] as { start_at: string } | undefined
+  return first ? new Date(first.start_at) : null
+}
+
 /** One row from `apiListScheduledActivitiesWithDates` — see its own doc comment for why the date rides along. */
 export interface ScheduledActivityWithDate {
   activity: ScheduledActivity

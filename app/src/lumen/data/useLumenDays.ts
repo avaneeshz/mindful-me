@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiListScheduledActivitiesWithDates } from '@/api/scheduledActivities'
+import { apiListScheduledActivitiesWithDates, apiNextActivityStartAfter } from '@/api/scheduledActivities'
 import type { ActivityRef, CommitContext } from '@/domain/scheduling'
 import type { ScheduledActivity } from '@/domain/types'
-import { dateFromLocalDateISO } from '@/lib/localTime'
+import { dateFromLocalDateISO, localDateISO, localMinutesOf } from '@/lib/localTime'
 import { loadLocalActivities, saveLocalActivities } from '@/state/localPersistence'
 import type { SyncIntent } from '@/state/sync'
 import { activitySyncState, pendingActivityIds, pendingDeleteActivityIds, type SyncQueue } from '@/state/syncQueue'
 import { useSyncQueue } from '@/state/useSyncQueue'
-import { addDaysISO, lumenDayDates } from '@/lumen/domain/lumenDay'
+import { addDaysISO, daysBetweenISO, LUMEN_AXIS_END, lumenDayDates, lumenHorizonCapFrom } from '@/lumen/domain/lumenDay'
 import { reconcileDays } from '@/lumen/domain/reconcileDays'
 import {
   applyRemove,
@@ -27,6 +27,8 @@ export interface LumenDays {
   byDate: Readonly<ByDate>
   /** Every write not yet confirmed on the server — the same queue Classic shows. */
   syncQueue: SyncQueue
+  /** Axis minute where a stretch is stopped by the first activity logged after the loaded dates (or a far-off cap when none). */
+  horizonCap: number
   retrySyncNow: () => void
   syncStateOf: (id: string) => 'synced' | 'pending' | 'failed'
   create: (input: { activity: ActivityRef; start: number; durationMinutes: number; context?: CommitContext }) => CreatePlan | PlanFailure
@@ -71,6 +73,39 @@ export function useLumenDays(dayISO: string, disabled = false): LumenDays {
   // did while the request was in flight.
   const byDateRef = useRef(byDate)
   byDateRef.current = byDate
+  const [horizonCap, setHorizonCap] = useState(LUMEN_AXIS_END)
+  const horizonCapRef = useRef(horizonCap)
+  horizonCapRef.current = horizonCap
+
+  // How far past the loaded dates a stretch may reach: the first activity
+  // logged after them, however many days ahead (single-row read, rule 8).
+  // Reset per viewed day; offline, only what is stored locally is known.
+  useEffect(() => {
+    if (disabled) return
+    let cancelled = false
+    setHorizonCap(LUMEN_AXIS_END)
+    horizonCapRef.current = LUMEN_AXIS_END
+    const { next } = lumenDayDates(dayISO)
+    const localStarts: number[] = []
+    for (let offset = 2; offset <= 3; offset += 1) {
+      for (const a of loadDate(addDaysISO(dayISO, offset))) {
+        if (a.durationMinutes > 0) localStarts.push((offset) * 1440 + a.startMinutes)
+      }
+    }
+    ;(async () => {
+      const found = await apiNextActivityStartAfter(dateFromLocalDateISO(addDaysISO(next, 1)))
+      if (cancelled) return
+      const server =
+        found === null || found === undefined ? [] : [daysBetweenISO(dayISO, localDateISO(found)) * 1440 + localMinutesOf(found)]
+      // Unknown (offline): stop at the last locally stored day rather than guess further.
+      const cap = lumenHorizonCapFrom(found === undefined ? [...localStarts, 4 * 1440] : [...localStarts, ...server])
+      setHorizonCap(cap)
+      horizonCapRef.current = cap
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [dayISO, disabled])
 
   /** Replaces the given dates in the map, persisting exactly those — the one place local state changes. */
   function commit(changed: Record<string, ScheduledActivity[]>): void {
@@ -130,7 +165,7 @@ export function useLumenDays(dayISO: string, disabled = false): LumenDays {
   }
 
   function create(input: Parameters<LumenDays['create']>[0]) {
-    const plan = planCreate(dayISO, byDateRef.current, input)
+    const plan = planCreate(dayISO, byDateRef.current, input, horizonCapRef.current)
     if (!plan.ok) return plan
     commit(applyWrite(byDateRef.current, plan.activity, plan.date))
     enqueue([{ kind: 'create', activity: plan.activity }], plan.date)
@@ -138,7 +173,7 @@ export function useLumenDays(dayISO: string, disabled = false): LumenDays {
   }
 
   function update(id: string, changes: Parameters<LumenDays['update']>[1]) {
-    const plan = planUpdate(dayISO, byDateRef.current, id, changes)
+    const plan = planUpdate(dayISO, byDateRef.current, id, changes, horizonCapRef.current)
     if (!plan.ok) return plan
     commit(applyWrite(byDateRef.current, plan.activity, plan.toDate, plan.fromDate))
     // Same split Classic's `deriveSyncIntents` makes: quality, symptoms,
@@ -195,6 +230,7 @@ export function useLumenDays(dayISO: string, disabled = false): LumenDays {
   return {
     byDate,
     syncQueue: sync.queue,
+    horizonCap,
     retrySyncNow: sync.retryNow,
     syncStateOf: (id) => {
       const state = activitySyncState(sync.queue, id)

@@ -275,6 +275,33 @@ describe('editing an existing activity', () => {
   })
 })
 
+describe('stretching past 06:00 until the next logged activity', () => {
+  function editHomework(horizonCap: number | null) {
+    let state = run(
+      start(),
+      { type: 'pickCard', cardName: 'Homework' },
+      { type: 'commit' },
+    )
+    if (horizonCap !== null) state = boardReducer(state, { type: 'setHorizonCap', horizonCap })
+    return boardReducer(state, { type: 'editActivity', id: real(state)[0].id })
+  }
+
+  it('stops at the window edge until a cap is known', () => {
+    const state = boardReducer(editHomework(null), { type: 'stepDuration', delta: 100000 })
+    expect(state.staging.durationMinutes).toBe(1800 - 16 * 60)
+  })
+
+  it('reaches into the next day, stopping only at the first activity after the window', () => {
+    // The next logged activity starts two days on at 09:00 (axis 2 * 1440 + 540).
+    const wall = 2 * 1440 + 540
+    const state = boardReducer(editHomework(wall), { type: 'stepDuration', delta: 100000 })
+    expect(state.staging.durationMinutes).toBe(wall - 16 * 60)
+    const saved = boardReducer(state, { type: 'commit' })
+    expect(real(saved)[0].durationMinutes).toBe(wall - 16 * 60)
+    assertNoOverlaps(saved, 'stretch past the window')
+  })
+})
+
 describe('remove and undo', () => {
   it('removes independently and restores in place', () => {
     let state = run(

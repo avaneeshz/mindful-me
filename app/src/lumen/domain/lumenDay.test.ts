@@ -10,6 +10,8 @@ import {
   durationToClock,
   isInLumenDay,
   LUMEN_AXIS_BOUNDS,
+  lumenAxisBounds,
+  lumenHorizonCapFrom,
   LUMEN_DAY_END,
   LUMEN_DAY_START,
   loggedMinutes,
@@ -149,5 +151,25 @@ describe('typed times on the Lumen day', () => {
     expect(durationToClock(1530, 150)).toBe(60) // 01:30 → 02:30
     expect(durationToClock(600, 645)).toBe(45)
     expect(durationToClock(600, 600)).toBe(1440)
+  })
+})
+
+describe('stretching past the loaded dates until the next logged activity', () => {
+  it('keeps the loaded edge until a horizon cap is known', () => {
+    expect(lumenAxisBounds()).toEqual(LUMEN_AXIS_BOUNDS)
+    expect(lumenAxisBounds(5000).horizon).toBe(5000)
+  })
+
+  it('stops at the first activity after the loaded dates, or is open-ended', () => {
+    expect(lumenHorizonCapFrom([3 * 1440 + 60, 2880 + 30])).toBe(2880 + 30)
+    expect(lumenHorizonCapFrom([])).toBe(2880 + 30 * 1440)
+    expect(lumenHorizonCapFrom([100, 2000])).toBe(2880 + 30 * 1440) // on the loaded dates: already in the list
+  })
+
+  it('lets a sleep cross 06:00 and midnight on D+1, capped only by the wall', () => {
+    const bounds = lumenAxisBounds(2880 + 600) // next logged activity at 10:00 on D+2
+    const candidate = { id: null, activity: { name: 'Sleep', path: [] }, startMinutes: 22 * 60, durationMinutes: 2880 + 600 - 22 * 60 }
+    expect(validateSchedule(candidate, [], bounds)).toEqual({ ok: true })
+    expect(validateSchedule({ ...candidate, durationMinutes: candidate.durationMinutes + 1 }, [], bounds)).toMatchObject({ ok: false })
   })
 })
