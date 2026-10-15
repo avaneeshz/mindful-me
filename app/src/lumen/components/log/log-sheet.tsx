@@ -17,7 +17,7 @@ import {
   axisFromClock,
   durationToClock,
   isInLumenDay,
-  LUMEN_AXIS_BOUNDS,
+  lumenAxisBounds,
   LUMEN_DAY_START,
   schedulingList,
 } from '@/lumen/domain/lumenDay'
@@ -96,7 +96,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
     if (target.kind === 'new') {
       // Straight to one activity (a header button): find the tile it lives in.
       const home = target.cardName ? allTiles.find((t) => t.cards.some((c) => c.name === target.cardName)) : undefined
-      const room = maxContiguousDuration(schedulingList(axis), target.start, null, LUMEN_AXIS_BOUNDS)
+      const room = maxContiguousDuration(schedulingList(axis), target.start, null, lumenAxisBounds(data.horizonCap))
       setDraft({
         tileId: home?.id ?? target.tileId,
         cardName: home ? target.cardName! : null,
@@ -165,7 +165,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
 
   // Room: the same continuous-block ceiling every placement is validated against.
   const list = useMemo(() => schedulingList(axis), [axis])
-  const ceiling = draft ? maxContiguousDuration(list, draft.start, editing?.activity.id ?? null, LUMEN_AXIS_BOUNDS) : 0
+  const ceiling = draft ? maxContiguousDuration(list, draft.start, editing?.activity.id ?? null, lumenAxisBounds(data.horizonCap)) : 0
   const startInDay = draft ? isInLumenDay(draft.start) : false
   // An entry that started the evening before belongs to the previous Lumen
   // day; its time is changed there, where everything around it is loaded.
@@ -188,7 +188,7 @@ export function LogSheet({ target, onClose }: { target: LogTarget | null; onClos
 
   function pickCard(c: ActivityCard) {
     // Default to the usual 30 minutes, or whatever room there is.
-    const room = draft ? maxContiguousDuration(list, draft.start, null, LUMEN_AXIS_BOUNDS) : DEFAULT_DURATION
+    const room = draft ? maxContiguousDuration(list, draft.start, null, lumenAxisBounds(data.horizonCap)) : DEFAULT_DURATION
     set({ cardName: c.name, path: [], duration: Math.max(1, Math.min(DEFAULT_DURATION, room || DEFAULT_DURATION)) })
   }
 

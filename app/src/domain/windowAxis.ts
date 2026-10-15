@@ -29,6 +29,24 @@ export const WINDOW_END = 1800
 export const WINDOW_DAY_OFFSETS = [-1, 0, 1] as const
 export type WindowDayOffset = (typeof WINDOW_DAY_OFFSETS)[number]
 
+/**
+ * How far past the window's right edge a stretch may reach when nothing later
+ * is logged: the same 30 days the database's `scheduling_ceiling` falls back
+ * to. A generous cap, not a product limit — the only real stop is the next
+ * logged activity.
+ */
+export const OPEN_ENDED_SPAN_MINUTES = 30 * MINUTES_PER_DAY
+
+/**
+ * Where a stretch ends because of whatever is logged AFTER the window, on the
+ * page's axis: the first start at or beyond the window's right edge, or the
+ * open-ended span when nothing later is logged. `laterStarts` are axis minutes.
+ */
+export function horizonCapFrom(laterStarts: readonly number[]): number {
+  const wall = laterStarts.filter((s) => s >= WINDOW_END)
+  return wall.length === 0 ? WINDOW_END + OPEN_ENDED_SPAN_MINUTES : Math.min(...wall)
+}
+
 export const CLASSIC_WINDOW_BOUNDS: ScheduleBounds = { floor: WINDOW_START, horizon: WINDOW_END }
 
 function isReal(a: Pick<ScheduledActivity, 'durationMinutes'>): boolean {
@@ -57,11 +75,15 @@ export function minutesWithinWindow(a: Pick<ScheduledActivity, 'startMinutes' | 
  * already runs past a window edge (Sleep 21:42 -> 10:00 viewed from the next
  * day), so it can still be edited where it is seen.
  */
-export function windowBoundsFor(existing?: Pick<ScheduledActivity, 'startMinutes' | 'durationMinutes'> | null): ScheduleBounds {
-  if (!existing) return CLASSIC_WINDOW_BOUNDS
+export function windowBoundsFor(
+  existing?: Pick<ScheduledActivity, 'startMinutes' | 'durationMinutes'> | null,
+  horizonCap: number = WINDOW_END,
+): ScheduleBounds {
+  const horizon = Math.max(WINDOW_END, horizonCap)
+  if (!existing) return { floor: WINDOW_START, horizon }
   return {
     floor: Math.min(WINDOW_START, existing.startMinutes),
-    horizon: Math.max(WINDOW_END, existing.startMinutes + existing.durationMinutes),
+    horizon: Math.max(horizon, existing.startMinutes + existing.durationMinutes),
   }
 }
 

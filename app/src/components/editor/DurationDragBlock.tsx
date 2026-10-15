@@ -1,6 +1,6 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { formatMinutes } from '@/domain/slots'
-import { windowBoundsFor } from '@/domain/windowAxis'
+import { WINDOW_END, windowBoundsFor } from '@/domain/windowAxis'
 import {
   clampMove,
   clampResizeStart,
@@ -47,6 +47,8 @@ export const DURATION_DRAG_MESSAGE_ID = 'duration-drag-capacity-message'
 
 interface DurationDragBlockProps {
   activities: ActivityList
+  /** How far past the page's window a stretch may reach — see `BoardState.horizonCap`. */
+  horizonCap?: number
   cardName: string
   startMinutes: number
   durationMinutes: number
@@ -58,6 +60,7 @@ interface DurationDragBlockProps {
 
 export function DurationDragBlock({
   activities,
+  horizonCap = WINDOW_END,
   cardName,
   startMinutes,
   durationMinutes,
@@ -75,7 +78,7 @@ export function DurationDragBlock({
   // A short activity keeps the usual six-hour ruler centred on its start. A long
   // one (an overnight Sleep) would have its end off-screen, so the ruler instead
   // spans the whole activity with a little padding either side.
-  const [{ windowStart, windowEnd }] = useState(() => {
+  const [{ windowStart, windowEnd }, setRuler] = useState(() => {
     const centred = { windowStart: startMinutes - WINDOW_HALF_MINUTES, windowEnd: startMinutes + WINDOW_HALF_MINUTES }
     const padded = {
       windowStart: startMinutes - LONG_ACTIVITY_PADDING_MINUTES,
@@ -83,9 +86,17 @@ export function DurationDragBlock({
     }
     return padded.windowEnd > centred.windowEnd ? padded : centred
   })
+  // A stretch can now run on for as long as nothing else is logged, so the
+  // ruler grows to keep its end in view — but only between drags, never under
+  // the pointer, so the pill still follows the cursor.
+  useEffect(() => {
+    if (dragKind !== null) return
+    const needed = startMinutes + durationMinutes + LONG_ACTIVITY_PADDING_MINUTES
+    setRuler((ruler) => (needed > ruler.windowEnd ? { ...ruler, windowEnd: needed } : ruler))
+  }, [dragKind, startMinutes, durationMinutes])
   // The page's 06:00 -> 06:00 window, widened to contain the activity being
   // edited when it already runs past an edge — the same bounds the reducer uses.
-  const bounds = windowBoundsFor(editingId ? activities.find((a) => a.id === editingId) : null)
+  const bounds = windowBoundsFor(editingId ? activities.find((a) => a.id === editingId) : null, horizonCap)
   const windowMinutes = windowEnd - windowStart
 
   function pctFor(minute: number): number {
@@ -290,7 +301,7 @@ export function DurationDragBlock({
       </div>
       {pinned && (
         <p id={DURATION_DRAG_MESSAGE_ID} role="status" className="text-note font-medium text-ink">
-          Capped — a neighbouring activity (or the end of the day) starts right there.
+          Capped — the next logged activity starts right there.
         </p>
       )}
     </div>
