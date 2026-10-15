@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commitSchedule, maxContiguousDuration } from './scheduling'
+import { commitSchedule, latestEndFor, maxContiguousDuration } from './scheduling'
 import {
   horizonCapFrom,
   mergeWindowIntoDay,
@@ -119,11 +119,15 @@ describe('stretching past the window until the next logged activity', () => {
     expect(horizonCapFrom([100, 1000])).toBe(1800 + 30 * 1440) // inside the window: not a wall
   })
 
-  it('lets a Sleep from 22:00 run into the next day and stops at the next activity', () => {
-    const cap = horizonCapFrom([1440 + 9 * 60 + 1440]) // an activity on the day after tomorrow at 09:00
-    const bounds = windowBoundsFor(null, cap)
-    // Nothing else on the page: the only stop is that activity.
-    expect(maxContiguousDuration([], 22 * 60, null, bounds)).toBe(cap - 22 * 60)
+  it('lets a Sleep from 22:00 run through the whole next day, and no further', () => {
+    const bounds = windowBoundsFor(null, horizonCapFrom([]))
+    // Nothing logged ahead: the end of the day after the one it starts on.
+    expect(maxContiguousDuration([], 22 * 60, null, bounds)).toBe(2 * 1440 - 22 * 60)
+    // A wall inside that day stops it first.
+    expect(maxContiguousDuration([], 22 * 60, null, windowBoundsFor(null, 1440 + 17 * 60))).toBe(1440 + 17 * 60 - 22 * 60)
+    // Starting just after midnight, that day's own end is two days minus the start.
+    expect(latestEndFor(30)).toBe(2880)
+    expect(latestEndFor(1440 + 30)).toBe(4320)
     // A Breakfast already logged tomorrow at 07:00 (axis 1860) still caps it first.
     const breakfast = act('Breakfast', 1440 + 7 * 60, 30)
     expect(maxContiguousDuration([breakfast], 22 * 60, null, bounds)).toBe(1860 - 22 * 60)

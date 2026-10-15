@@ -292,13 +292,18 @@ describe('stretching past 06:00 until the next logged activity', () => {
   })
 
   it('reaches into the next day, stopping only at the first activity after the window', () => {
-    // The next logged activity starts two days on at 09:00 (axis 2 * 1440 + 540).
-    const wall = 2 * 1440 + 540
+    // The next logged activity starts tomorrow at 17:00 (axis 1440 + 17 * 60).
+    const wall = 1440 + 17 * 60
     const state = boardReducer(editHomework(wall), { type: 'stepDuration', delta: 100000 })
     expect(state.staging.durationMinutes).toBe(wall - 16 * 60)
     const saved = boardReducer(state, { type: 'commit' })
     expect(real(saved)[0].durationMinutes).toBe(wall - 16 * 60)
     assertNoOverlaps(saved, 'stretch past the window')
+  })
+
+  it('never runs past the end of the day after the one it starts on, even with nothing ahead', () => {
+    const state = boardReducer(editHomework(1800 + 30 * 1440), { type: 'stepDuration', delta: 100000 })
+    expect(state.staging.durationMinutes).toBe(2 * 1440 - 16 * 60)
   })
 })
 

@@ -166,9 +166,9 @@ describe('stretching past the loaded dates until the next logged activity', () =
     expect(lumenHorizonCapFrom([100, 2000])).toBe(2880 + 30 * 1440) // on the loaded dates: already in the list
   })
 
-  it('lets a sleep cross 06:00 and midnight on D+1, capped only by the wall', () => {
-    const bounds = lumenAxisBounds(2880 + 600) // next logged activity at 10:00 on D+2
-    const candidate = { id: null, activity: { name: 'Sleep', path: [] }, startMinutes: 22 * 60, durationMinutes: 2880 + 600 - 22 * 60 }
+  it('lets a sleep cross 06:00 and midnight, up to the end of the next day', () => {
+    const bounds = lumenAxisBounds(2880 + 600)
+    const candidate = { id: null, activity: { name: 'Sleep', path: [] }, startMinutes: 22 * 60, durationMinutes: 2880 - 22 * 60 }
     expect(validateSchedule(candidate, [], bounds)).toEqual({ ok: true })
     expect(validateSchedule({ ...candidate, durationMinutes: candidate.durationMinutes + 1 }, [], bounds)).toMatchObject({ ok: false })
   })
