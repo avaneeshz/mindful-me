@@ -143,9 +143,21 @@ export function nextFreeStart(
  * The continuous-block ceiling (rule 13): the largest duration a NEW or
  * EDITED activity anchored exactly at `start` may take without overlapping
  * anything else — i.e. minutes until the next activity's start, or 0 if
- * `start` itself is already occupied. Never offers a split placement; the
+ * `start` itself is already occupied, and never past `latestEndFor(start)`. Never offers a split placement; the
  * caller (`computeCandidateSchedule`) simply clamps to this ceiling.
  */
+/**
+ * The latest minute an activity starting at `start` may END at: the end of the
+ * calendar day AFTER the one it starts on (an activity belongs to its start
+ * day, rule 2, and every page and Lumen day looks back exactly one day for
+ * activities that started earlier, so nothing may run further than that and
+ * go missing from the days it covers). Within that, only a neighbouring
+ * activity stops a stretch.
+ */
+export function latestEndFor(start: number): number {
+  return (Math.floor(start / MINUTES_PER_DAY) + 2) * MINUTES_PER_DAY
+}
+
 export function maxContiguousDuration(
   existing: ActivityList,
   start: number,
@@ -154,7 +166,7 @@ export function maxContiguousDuration(
 ): number {
   if (blockerAt(existing, start, excludeId)) return 0
 
-  let ceiling = bounds.horizon - start
+  let ceiling = Math.min(bounds.horizon, latestEndFor(start)) - start
   for (const a of existing) {
     if (a.id === excludeId || !isReal(a)) continue
     if (a.startMinutes >= start && a.startMinutes - start < ceiling) {
