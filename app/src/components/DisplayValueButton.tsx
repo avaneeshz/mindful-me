@@ -453,9 +453,10 @@ export function DisplayValueButton({
                     {...(datedRange
                       ? {
                           startDate,
+                          // Changing Start never moves End (and vice versa): pin End where it is.
                           onStartDateChange: (value: string) => {
+                            setEndDateOverride(endDate)
                             setStartDate(value)
-                            setEndDateOverride(null)
                           },
                           endDate,
                           onEndDateChange: setEndDateOverride,

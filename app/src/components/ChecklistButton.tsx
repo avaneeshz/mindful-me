@@ -121,12 +121,11 @@ export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonCo
         className={cn(chipVariants({ tone: 'surface', size: 'sm', interactive: true }), 'font-semibold')}
       >
         <span>{button.label}</span>
-        {/* The 0–N fraction read as a score to chase, not a status — dropped
-            per product feedback. In its place: a quiet tick once the day is
-            "mostly done" (>= half), same threshold-not-count treatment as a
-            habit-tracker check-in rather than a running tally. The exact
-            count is still in `aria-label` above for assistive tech, just not
-            painted here. */}
+        {items.length > 0 && (
+          <span aria-hidden="true" className="tabular-nums text-ink-dim">
+            {doneCount}/{checklist.length}
+          </span>
+        )}
         {items.length > 0 && doneCount >= Math.ceil(items.length / 2) && (
           <Check aria-hidden="true" className="size-[14px] text-ink-dim" />
         )}

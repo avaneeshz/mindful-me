@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import { type ActivityRow } from '@/domain/pickerHierarchy'
+import { colorTintStyle } from '@/components/ui/colorStyles'
 import { cn } from '@/lib/utils'
 
 export function RowIconButton({
@@ -39,6 +40,7 @@ export function RowIconButton({
 export function EditableActivityList({
   rows,
   subtitle,
+  colorFor,
   emptyText,
   onOpen,
   onMove,
@@ -46,6 +48,8 @@ export function EditableActivityList({
 }: {
   rows: ActivityRow[]
   subtitle?: (row: ActivityRow) => string
+  /** The colour a row shows (its own or inherited), so the list matches the tiles; none → the default. */
+  colorFor?: (row: ActivityRow) => string | null
   emptyText: string
   onOpen: (id: string) => void
   onMove: (id: string, direction: -1 | 1) => void
@@ -57,7 +61,11 @@ export function EditableActivityList({
       {rows.map((row, index) => {
         const sub = subtitle?.(row)
         return (
-          <li key={row.id} className="flex items-center gap-xs rounded-md border border-line-soft bg-bg py-xs pl-md pr-xs">
+          <li
+            key={row.id}
+            className="flex items-center gap-xs rounded-md border border-line-soft bg-bg py-xs pl-md pr-xs"
+            style={colorTintStyle(colorFor?.(row) ?? null)}
+          >
             <button type="button" onClick={() => onOpen(row.id)} className="min-w-0 flex-1 text-left">
               <span className="block truncate text-body font-semibold text-ink">{row.name}</span>
               {sub ? <span className="block truncate text-caption text-ink-dim">{sub}</span> : null}
