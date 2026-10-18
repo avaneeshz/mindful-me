@@ -432,7 +432,9 @@ export function DisplayValueButton({
             // same reasoning `.scroll-cue-bottom`/`item-chip-row` elsewhere
             // in this app already use for "don't let content go off-screen
             // with no way back".
-            'absolute top-[calc(100%+8px)] z-30 max-h-[min(560px,calc(100vh-32px))] w-[min(280px,calc(100vw-32px))] overflow-y-auto rounded-md border border-line bg-surface p-md shadow-elevation-2',
+            'absolute top-[calc(100%+8px)] z-30 max-h-[min(560px,calc(100vh-32px))] overflow-y-auto rounded-md border border-line bg-surface p-md shadow-elevation-2',
+            // A dated range carries a < date > stepper per row, which needs the extra width to show the full year.
+            datedRange ? 'w-[min(328px,calc(100vw-32px))]' : 'w-[min(280px,calc(100vw-32px))]',
             align === 'left' ? 'left-0' : 'right-0',
           )}
         >

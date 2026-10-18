@@ -103,7 +103,7 @@ function TimeHalf({
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-xs px-sm py-sm">
-      <label htmlFor={id} className={cn('shrink-0 text-nano font-semibold uppercase tracking-tag text-ink-dim', date && 'w-8')}>
+      <label htmlFor={id} className={cn('shrink-0 text-nano font-semibold uppercase tracking-tag text-ink-dim', date && 'w-[44px]')}>
         {label}
       </label>
       {date && (
