@@ -20,6 +20,8 @@ describe('ChecklistButton', () => {
     // Local-only (no backend configured in tests): nothing has been touched
     // yet for this day, so every one of the 7 configured items renders unchecked.
     expect(html).toContain('aria-label="Supplements, 0 of 7 taken"')
+    // The face of the button shows the same count after the name.
+    expect(html).toContain('>0/7<')
   })
 
   it('shows no checklist, checkbox, or note field at all while closed', () => {
@@ -35,10 +37,10 @@ describe('ChecklistButton', () => {
     expect(html).not.toContain('tabindex="-1"')
   })
 
-  it('never shows the raw N/7 fraction on the trigger face — a score to chase reads as anxious, not a glance-and-go status', () => {
+  it('shows done/total after the name on the trigger face', () => {
     const html = renderToStaticMarkup(<ChecklistButton button={SUPPLEMENTS_BUTTON} viewedDate={VIEWED_DATE} />)
-    expect(html).not.toContain('/7')
-    expect(html).not.toMatch(/>\s*0\s*<\/span>/)
+    const triggerButton = html.match(/<button[^>]*aria-haspopup="dialog"[^>]*>.*?<\/button>/s)?.[0] ?? ''
+    expect(triggerButton).toMatch(/Supplements<\/span><span[^>]*>0\/7<\/span>/)
   })
 
   it('shows no tick below the "mostly done" threshold — a fresh local-only render starts at 0', () => {
@@ -46,8 +48,7 @@ describe('ChecklistButton', () => {
     const triggerButton = html.match(/<button[^>]*aria-haspopup="dialog"[^>]*>.*?<\/button>/s)?.[0] ?? ''
     expect(triggerButton).toContain('Supplements')
     expect(triggerButton).not.toContain('<svg')
-    // The exact count still reaches assistive tech even though it is no
-    // longer painted on the face.
+    // The count also reaches assistive tech.
     expect(html).toContain('aria-label="Supplements, 0 of 7 taken"')
   })
 

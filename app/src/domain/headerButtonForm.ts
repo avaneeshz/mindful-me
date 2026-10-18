@@ -254,13 +254,22 @@ export function toUpdateInput(
   }
 }
 
+/**
+ * A new button as the form hands it over: the API payload plus the activity's
+ * NAME, which only the local copy needs (the server joins the name back from
+ * `activityId`). Without it a just-created button has no activity name until
+ * the next fetch, so it isn't treated as a quick-log button.
+ */
+export type NewHeaderButtonInput = Omit<CreateHeaderButtonInput, 'id'> & { activityName?: string | null }
+
 /** What a new button saves. `activityId` is the catalog id of `draft.activityName`, resolved by the caller. */
-export function toCreateInput(draft: HeaderButtonDraft, activityId: string | null): Omit<CreateHeaderButtonInput, 'id'> {
+export function toCreateInput(draft: HeaderButtonDraft, activityId: string | null): NewHeaderButtonInput {
   const category = draft.category
   return {
     category,
     label: draft.label.trim(),
     activityId,
+    activityName: category === 'activity' ? draft.activityName : null,
     entryMode: 'duration',
     quickLogType: category === 'activity' ? draft.quickLogType : false,
     quickLogTypeLabel: category === 'activity' && draft.quickLogType ? draft.quickLogTypeLabel.trim() || 'Type' : null,

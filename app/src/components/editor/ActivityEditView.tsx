@@ -156,6 +156,7 @@ export function ActivityEditView({
               .visible.map((c) => c.name)
               .join(' · ')
           }
+          colorFor={(row) => effectiveActivityColor(rows, tiles, row.id)}
           onOpen={onOpen}
           onMove={(id, direction) => {
             const next = moveInOrder(

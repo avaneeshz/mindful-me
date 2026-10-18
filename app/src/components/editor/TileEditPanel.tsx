@@ -7,6 +7,7 @@ import { AddNameRow, EditableActivityList, RowIconButton } from '@/components/ed
 import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { TileForm } from '@/components/editor/TileForm'
 import { ColorPicker } from '@/components/ui/ColorPicker'
+import { effectiveActivityColor } from '@/domain/colors'
 import { childrenOf, isTopLevelNameTaken, moveInOrder } from '@/domain/pickerHierarchy'
 import { colorTintStyle } from '@/components/ui/colorStyles'
 import { resolveIcon } from '@/lib/iconRegistry'
@@ -115,6 +116,7 @@ export function TileEditPanel({
               .visible.map((c) => c.name)
               .join(' · ')
           }
+          colorFor={(row) => effectiveActivityColor(rows, tiles.tiles, row.id)}
           onOpen={setOpenActivityId}
           onMove={(id, direction) => {
             const next = moveInOrder(
