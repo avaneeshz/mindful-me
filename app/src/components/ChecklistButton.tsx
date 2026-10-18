@@ -126,9 +126,6 @@ export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonCo
             {doneCount}/{checklist.length}
           </span>
         )}
-        {items.length > 0 && doneCount >= Math.ceil(items.length / 2) && (
-          <Check aria-hidden="true" className="size-[14px] text-ink-dim" />
-        )}
       </button>
 
       {open && (
