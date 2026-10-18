@@ -43,7 +43,7 @@ describe('ChecklistButton', () => {
     expect(triggerButton).toMatch(/Supplements<\/span><span[^>]*>0\/7<\/span>/)
   })
 
-  it('shows no tick below the "mostly done" threshold — a fresh local-only render starts at 0', () => {
+  it('never shows a tick on the trigger face — only done/total, at none, some or all done', () => {
     const html = renderToStaticMarkup(<ChecklistButton button={SUPPLEMENTS_BUTTON} viewedDate={VIEWED_DATE} />)
     const triggerButton = html.match(/<button[^>]*aria-haspopup="dialog"[^>]*>.*?<\/button>/s)?.[0] ?? ''
     expect(triggerButton).toContain('Supplements')
