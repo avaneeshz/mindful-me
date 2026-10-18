@@ -9,9 +9,10 @@ import {
   type HeaderButtonCategory,
   type HeaderButtonConfig,
 } from '@/domain/headerButtons'
-import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
+import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
 import {
   addNoteField,
+  type NewHeaderButtonInput,
   ACTIVITY_NOTES_HINT,
   toCreateInput,
   toUpdateInput,
@@ -118,7 +119,7 @@ export function HeaderButtonFormDialog({
 }: {
   mode: FormMode
   onClose: () => void
-  onCreate: (input: Omit<CreateHeaderButtonInput, 'id'>) => void
+  onCreate: (input: NewHeaderButtonInput) => void
   onUpdate: (input: UpdateHeaderButtonInput & { category: HeaderButtonCategory }) => void
 }) {
   const isEdit = mode.kind === 'edit'
@@ -127,6 +128,8 @@ export function HeaderButtonFormDialog({
   // The kind is fixed by where the form was opened — an Add button's own row, or the button being edited.
   const category: HeaderButtonCategory = mode.kind === 'edit' ? mode.button.category : mode.category
   const [label, setLabel] = useState(existing?.label ?? '')
+  // The Name follows the chosen activity until the user types their own.
+  const [labelEdited, setLabelEdited] = useState(isEdit)
   const [activityName, setActivityName] = useState(existing?.activityName ?? '')
   const [quickLogType, setQuickLogType] = useState(existing?.quickLogType ?? false)
   const [quickLogTypeLabel, setQuickLogTypeLabel] = useState(existing?.quickLogTypeLabel ?? 'Type')
@@ -279,7 +282,10 @@ export function HeaderButtonFormDialog({
               <input
                 id="header-button-label"
                 value={label}
-                onChange={(event) => setLabel(event.target.value)}
+                onChange={(event) => {
+                  setLabel(event.target.value)
+                  setLabelEdited(true)
+                }}
                 placeholder="e.g. Journaling"
                 className={fieldClass}
               />
@@ -295,7 +301,10 @@ export function HeaderButtonFormDialog({
                     <select
                       id="header-button-activity"
                       value={activityName}
-                      onChange={(event) => setActivityName(event.target.value)}
+                      onChange={(event) => {
+                        setActivityName(event.target.value)
+                        if (!labelEdited) setLabel(event.target.value)
+                      }}
                       className={fieldClass}
                     >
                       <option value="">Choose an activity…</option>
