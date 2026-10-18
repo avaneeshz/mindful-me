@@ -88,6 +88,11 @@ describe('validation', () => {
 })
 
 describe('saving', () => {
+  it('keeps the chosen activity name on a new activity button, so it is a quick-log button straight away', () => {
+    const draft = { ...draftFromButton(null), category: 'activity' as const, label: 'Evening run', activityName: 'Exercise' }
+    expect(toCreateInput(draft, 'activity-id')).toMatchObject({ activityId: 'activity-id', activityName: 'Exercise' })
+  })
+
   it('builds a new checklist and a new target day value', () => {
     const draft = { ...draftFromButton(null), category: 'checklist' as const, label: ' Vitamins ', checklistItemsText: 'D3\n\n Omega 3 ' }
     expect(toCreateInput(draft, null)).toMatchObject({

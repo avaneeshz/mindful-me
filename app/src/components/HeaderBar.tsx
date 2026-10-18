@@ -31,7 +31,8 @@ import { useEditMode } from '@/state/EditModeContext'
 import { usePointerReorder } from '@/components/ui/usePointerReorder'
 import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 import { EditLock } from '@/components/ui/EditLock'
-import type { CreateHeaderButtonInput, UpdateHeaderButtonInput } from '@/api/headerButtons'
+import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
+import type { NewHeaderButtonInput } from '@/domain/headerButtonForm'
 import { useSharedHeaderButtons } from '@/state/HeaderButtonsContext'
 import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import type { ActivityList } from '@/domain/types'
@@ -153,7 +154,7 @@ export function HeaderBar({
     setFormMode({ kind: 'edit', button })
   }
 
-  function handleCreate(input: Omit<CreateHeaderButtonInput, 'id'>) {
+  function handleCreate(input: NewHeaderButtonInput) {
     addButton(input)
   }
 

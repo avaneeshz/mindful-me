@@ -14,7 +14,7 @@ import {
   type HeaderButtonConfig,
   type HeaderButtonNoteField,
 } from '@/domain/headerButtons'
-import { dedupeHeaderButtonInput, duplicatesRemovedNotice } from '@/domain/headerButtonForm'
+import { dedupeHeaderButtonInput, duplicatesRemovedNotice, type NewHeaderButtonInput } from '@/domain/headerButtonForm'
 import { rowForLoggedActivity } from '@/domain/colors'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
@@ -34,7 +34,7 @@ export interface UseHeaderButtonsResult {
   error: string | null
   /** Set when a save dropped repeated values (see `dedupeHeaderButtonInput`); cleared by the next save. */
   notice: string | null
-  addButton: (input: Omit<CreateHeaderButtonInput, 'id'>) => HeaderButtonConfig
+  addButton: (input: NewHeaderButtonInput) => HeaderButtonConfig
   updateButton: (input: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }) => void
   hideButton: (id: string) => void
   unhideButton: (id: string) => void
@@ -137,7 +137,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   }
 
   const addButton = useCallback(
-    (rawInput: Omit<CreateHeaderButtonInput, 'id'>): HeaderButtonConfig => {
+    ({ activityName, ...rawInput }: NewHeaderButtonInput): HeaderButtonConfig => {
       const { input, removed } = dedupeHeaderButtonInput(rawInput)
       setNotice(duplicatesRemovedNotice(input.label, removed))
       const id = generateId()
@@ -150,7 +150,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         hidden: false,
         sortOrder: maxSortOrder + 1,
         activityId: input.activityId ?? null,
-        activityName: null,
+        activityName: activityName ?? null,
         entryMode: input.entryMode ?? 'duration',
         quickLogType: input.quickLogType ?? false,
         quickLogTypeLabel: input.quickLogTypeLabel ?? 'Type',
@@ -306,7 +306,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [rowFor, setActivityNoteLabels],
   )
   const addButtonSynced = useCallback(
-    (input: Omit<CreateHeaderButtonInput, 'id'>): HeaderButtonConfig => {
+    (input: NewHeaderButtonInput): HeaderButtonConfig => {
       const created = addButton(input)
       if (input.noteFields?.some((f) => f.fieldKind === 'text')) syncNotesToActivity(created, input.noteFields)
       return created

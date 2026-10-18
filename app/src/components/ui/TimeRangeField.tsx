@@ -1,4 +1,6 @@
 import type { Ref } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { addDaysISO } from '@/domain/quickLog'
 import { useClockField } from './useClockField'
 import { cn } from '@/lib/utils'
 
@@ -101,18 +103,22 @@ function TimeHalf({
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-xs px-sm py-sm">
-      <label htmlFor={id} className={cn('shrink-0 text-nano font-semibold uppercase tracking-tag text-ink-dim', date && 'w-8')}>
+      <label htmlFor={id} className={cn('shrink-0 text-nano font-semibold uppercase tracking-tag text-ink-dim', date && 'w-[44px]')}>
         {label}
       </label>
       {date && (
-        <input
-          type="date"
-          required
-          aria-label={date.ariaLabel}
-          value={date.value}
-          onChange={(event) => event.target.value && date.onChange(event.target.value)}
-          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-caption font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-        />
+        <div className="flex min-w-0 flex-1 items-center gap-[2px]">
+          <DateStepButton direction="prev" label={date.ariaLabel} onStep={() => date.onChange(addDaysISO(date.value, -1))} />
+          <input
+            type="date"
+            required
+            aria-label={date.ariaLabel}
+            value={date.value}
+            onChange={(event) => event.target.value && date.onChange(event.target.value)}
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-caption font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          />
+          <DateStepButton direction="next" label={date.ariaLabel} onStep={() => date.onChange(addDaysISO(date.value, 1))} />
+        </div>
       )}
       <input
         ref={inputRef}
@@ -140,5 +146,20 @@ function TimeHalf({
         {meridiem}
       </button>
     </div>
+  )
+}
+
+/** The < / > beside a date: one day back or forward (a tap path alongside the native picker). */
+function DateStepButton({ direction, label, onStep }: { direction: 'prev' | 'next'; label: string; onStep: () => void }) {
+  const Icon = direction === 'prev' ? ChevronLeft : ChevronRight
+  return (
+    <button
+      type="button"
+      onClick={onStep}
+      aria-label={`${direction === 'prev' ? 'Previous' : 'Next'} day — ${label}`}
+      className="flex size-[24px] shrink-0 items-center justify-center rounded-sm text-ink-dim transition-colors hover:bg-bg hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+    >
+      <Icon aria-hidden="true" className="size-[16px]" />
+    </button>
   )
 }

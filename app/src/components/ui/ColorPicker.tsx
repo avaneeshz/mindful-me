@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Pipette, RotateCcw } from 'lucide-react'
+import { Pipette, RotateCcw } from 'lucide-react'
 import { fieldClass } from '@/components/ui/formField'
-import { COLOR_PRESETS, PICKER_START_COLOR, normalizeHexColor, readableInkOn } from '@/domain/colors'
+import { PICKER_START_COLOR, normalizeHexColor } from '@/domain/colors'
 import { cn } from '@/lib/utils'
 
 /**
- * A paint-style colour picker: a preset palette to tap, a "Custom" swatch
- * that opens the platform's full-spectrum colour dialog (any colour at all),
+ * A colour picker: a "Custom" swatch that opens the platform's full-spectrum colour dialog (any colour at all),
  * and a hex field for exact values. Every path is tap/keyboard reachable —
  * nothing relies on drag or hover (portability rule 5).
  *
@@ -42,7 +41,6 @@ export function ColorPicker({
   }, [])
 
   const shown = livePreview ?? value ?? inheritedColor
-  const isCustom = value !== null && !COLOR_PRESETS.includes(value)
 
   function commitHex() {
     if (hexDraft.trim() === '') {
@@ -83,31 +81,6 @@ export function ColorPicker({
         </button>
       </div>
 
-      <div role="radiogroup" aria-label="Colour" className="grid grid-cols-10 gap-xs">
-        {COLOR_PRESETS.map((preset) => {
-          const selected = value === preset
-          return (
-            <button
-              key={preset}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              aria-label={preset.toUpperCase()}
-              title={preset.toUpperCase()}
-              onClick={() => onChange(preset)}
-              className={cn(
-                'flex aspect-square w-full items-center justify-center rounded-sm border border-black/10 transition-transform',
-                'hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-                selected && 'outline outline-2 outline-offset-1 outline-ink',
-              )}
-              style={{ background: preset }}
-            >
-              {selected && <Check aria-hidden="true" className="size-[12px]" style={{ color: readableInkOn(preset) }} strokeWidth={3} />}
-            </button>
-          )
-        })}
-      </div>
-
       <div className="flex items-center gap-sm">
         {/* The full-spectrum picker: a real <input type="color"> styled as a
             swatch button, so the platform's own colour dialog opens on tap. */}
@@ -115,7 +88,7 @@ export function ColorPicker({
           className={cn(
             'relative flex shrink-0 cursor-pointer items-center gap-xs rounded-md border px-sm py-xs text-caption font-semibold text-ink transition-colors hover:border-ink',
             'focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink',
-            isCustom ? 'border-ink' : 'border-line',
+            value !== null ? 'border-ink' : 'border-line',
           )}
         >
           <Pipette aria-hidden="true" className="size-[14px]" />
