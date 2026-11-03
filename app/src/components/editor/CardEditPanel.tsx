@@ -28,7 +28,7 @@ interface Chosen {
  * anything is saved.
  */
 export function CardEditPanel({ card, onClose }: { card: number; onClose: () => void }) {
-  const { nameFor, imageFor, hasCustomName, hasCustomImage, rename, setImage } = useReflectionCards()
+  const { nameFor, imageFor, hasCustomImage, rename, setImage } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(nameFor(card))
   const [chosen, setChosen] = useState<Chosen | null>(null)
@@ -62,7 +62,6 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
       <div className="flex flex-col gap-md">
         <p className="text-caption font-semibold text-ink">Fit your picture</p>
         <CardImageCropper url={chosen.url} width={chosen.width} height={chosen.height} view={view} onChange={setView} />
-        <p className="text-caption text-ink-dim">Drag to move, zoom to resize. The frame is how it will look on the tile.</p>
         {error && (
           <p role="alert" className="text-caption text-ink">
             {error}
@@ -71,7 +70,6 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
         <div className="flex items-center gap-sm">
           <Button
             type="button"
-            size="inline"
             disabled={busy}
             onClick={() =>
               void run(
@@ -87,7 +85,7 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
             {busy ? <Loader2 aria-hidden="true" className="size-[14px] animate-spin" /> : null}
             Use picture
           </Button>
-          <Button type="button" variant="ghost" size="inline" disabled={busy} onClick={() => setChosen(null)}>
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => setChosen(null)}>
             Back
           </Button>
         </div>
@@ -161,22 +159,12 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
           </p>
         )}
         <div className="mt-xs flex items-center gap-sm">
-          <Button type="submit" size="inline" disabled={busy || nameProblem !== null}>
+          <Button type="submit" disabled={busy || nameProblem !== null}>
             Save
           </Button>
-          <Button type="button" variant="ghost" size="inline" disabled={busy} onClick={onClose}>
+          <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          {hasCustomName(card) && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void run(() => rename(card, ''), onClose)}
-              className="ml-auto text-caption font-medium text-ink-dim underline-offset-2 hover:text-ink hover:underline disabled:opacity-40"
-            >
-              Use original name
-            </button>
-          )}
         </div>
       </form>
     </div>

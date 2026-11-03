@@ -77,7 +77,6 @@ export function useReflectionCards() {
 
   const nameFor = useCallback((card: number) => resolveCardName(snap.names, card, defaultTitle(card)), [snap])
   const imageFor = useCallback((card: number) => snap.images[card] ?? defaultImage(card), [snap])
-  const hasCustomName = useCallback((card: number) => snap.names[card] !== undefined, [snap])
   const hasCustomImage = useCallback((card: number) => snap.images[card] !== undefined, [snap])
 
   const rename = useCallback(async (card: number, name: string): Promise<CardSaveResult> => {
@@ -105,5 +104,5 @@ export function useReflectionCards() {
     return { ok: false, message: result.reason === 'invalid' ? 'This picture can’t be saved. Try a different one.' : SAVE_FAILED }
   }, [])
 
-  return { nameFor, imageFor, hasCustomName, hasCustomImage, rename, setImage }
+  return { nameFor, imageFor, hasCustomImage, rename, setImage }
 }
