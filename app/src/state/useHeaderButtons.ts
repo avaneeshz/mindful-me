@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  apiListHeaderButtonGroups,
   apiListHeaderButtons,
   apiProvisionDefaultHeaderButtons,
   type CreateHeaderButtonInput,
@@ -8,17 +9,31 @@ import {
 } from '@/api/headerButtons'
 import {
   DEFAULT_HEADER_BUTTONS,
+  DEFAULT_HEADER_BUTTON_GROUPS,
+  applyLayout,
+  groupHeaderButtons,
+  isUuid,
+  layoutFromRows,
   noteLabelsFromFields,
   partitionHeaderButtons,
+  reassignGroup,
+  sortGroups,
   withActivityNotes,
   type HeaderButtonConfig,
+  type HeaderButtonGroup,
+  type HeaderButtonLayout,
   type HeaderButtonNoteField,
 } from '@/domain/headerButtons'
 import { dedupeHeaderButtonInput, duplicatesRemovedNotice, type NewHeaderButtonInput } from '@/domain/headerButtonForm'
 import { rowForLoggedActivity } from '@/domain/colors'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
-import { loadLocalHeaderButtons, saveLocalHeaderButtons } from '@/lib/headerButtonsLocalStore'
+import {
+  loadLocalHeaderButtonGroups,
+  loadLocalHeaderButtons,
+  saveLocalHeaderButtonGroups,
+  saveLocalHeaderButtons,
+} from '@/lib/headerButtonsLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useOptionalPickerData } from './PickerDataContext'
 import { getPendingIds, writeThrough } from './pendingWrites'
@@ -30,16 +45,26 @@ export interface UseHeaderButtonsResult {
   visible: HeaderButtonConfig[]
   /** Buttons this user has hidden — edit mode's own "Hidden" section, so a hide is never a dead end. */
   hidden: HeaderButtonConfig[]
+  /** The user's own categories, in their order. Always at least one. */
+  groups: HeaderButtonGroup[]
   status: HeaderButtonsStatus
   error: string | null
   /** Set when a save dropped repeated values (see `dedupeHeaderButtonInput`); cleared by the next save. */
   notice: string | null
-  addButton: (input: NewHeaderButtonInput) => HeaderButtonConfig
+  /** `groupId` — the category the new button goes into; omitted, it goes into the first one. */
+  addButton: (input: NewHeaderButtonInput, groupId?: string | null) => HeaderButtonConfig
   updateButton: (input: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }) => void
   hideButton: (id: string) => void
   unhideButton: (id: string) => void
   /** One full reorder (the whole visible list's new order), not a per-row move — see `reorder_header_buttons`'s own doc comment. */
   reorder: (orderedIds: string[]) => void
+  /** One drag or move: which category each visible button now lives in, and their order. */
+  arrange: (layout: HeaderButtonLayout) => void
+  addGroup: (name: string) => HeaderButtonGroup
+  renameGroup: (id: string, name: string) => void
+  /** Its buttons (hidden ones too) move to `moveToId`, or the first other category. The last category can't be deleted. */
+  deleteGroup: (id: string, moveToId?: string) => void
+  reorderGroups: (orderedIds: string[]) => void
 }
 
 /**
@@ -53,6 +78,9 @@ export interface UseHeaderButtonsResult {
  */
 export function useHeaderButtons(): UseHeaderButtonsResult {
   const [all, setAll] = useState<HeaderButtonConfig[]>(() => loadLocalHeaderButtons() ?? [...DEFAULT_HEADER_BUTTONS])
+  const [groups, setGroups] = useState<HeaderButtonGroup[]>(
+    () => loadLocalHeaderButtonGroups() ?? [...DEFAULT_HEADER_BUTTON_GROUPS],
+  )
   const [status, setStatus] = useState<HeaderButtonsStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -104,6 +132,23 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
       const merged = reconcileList(local, server, protectedIds, pending.delete, (b) => b.id)
       setAll(merged)
       saveLocalHeaderButtons(merged)
+
+      // Categories are read after the buttons: provisioning creates the first
+      // one server-side. A failed read keeps this device's copy.
+      const serverGroups = await apiListHeaderButtonGroups()
+      if (cancelled) return
+      if (serverGroups && serverGroups.length > 0) {
+        const localGroups = loadLocalHeaderButtonGroups() ?? []
+        const pendingGroups = getPendingIds('headerButtonGroup')
+        const protectedGroupIds = pendingGroups.save.has('order')
+          ? new Set([...pendingGroups.save, ...localGroups.map((g) => g.id)])
+          : pendingGroups.save
+        const mergedGroups = reconcileList(localGroups, serverGroups, protectedGroupIds, pendingGroups.delete, (g) => g.id)
+        if (mergedGroups.length > 0) {
+          setGroups(mergedGroups)
+          saveLocalHeaderButtonGroups(mergedGroups)
+        }
+      }
       setStatus('ready')
     }
 
@@ -116,6 +161,35 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   function commit(next: HeaderButtonConfig[]): void {
     setAll(next)
     saveLocalHeaderButtons(next)
+  }
+
+  function commitGroups(next: HeaderButtonGroup[]): void {
+    setGroups(next)
+    saveLocalHeaderButtonGroups(next)
+  }
+
+  /**
+   * Queues the server write for a layout. Only real server ids go over the
+   * wire: a button or category still carrying a device-made placeholder id
+   * (the local defaults) would make the whole call fail, and gets its real
+   * place on the next load instead.
+   */
+  function queueArrange(layout: HeaderButtonLayout, label: string): void {
+    if (!supabaseConfigured) return
+    const serverLayout = layout
+      .filter((entry) => isUuid(entry.groupId))
+      .map((entry) => ({ groupId: entry.groupId, buttonIds: entry.buttonIds.filter(isUuid) }))
+    void writeThrough({
+      action: 'headerButton.arrange',
+      entity: 'headerButton',
+      recordId: 'order',
+      op: 'save',
+      args: [serverLayout],
+      label,
+      coalesce: true,
+    }).then((out) => {
+      if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+    })
   }
 
   /**
@@ -137,7 +211,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   }
 
   const addButton = useCallback(
-    ({ activityName, ...rawInput }: NewHeaderButtonInput): HeaderButtonConfig => {
+    ({ activityName, ...rawInput }: NewHeaderButtonInput, groupId?: string | null): HeaderButtonConfig => {
       const { input, removed } = dedupeHeaderButtonInput(rawInput)
       setNotice(duplicatesRemovedNotice(input.label, removed))
       const id = generateId()
@@ -149,6 +223,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         label: input.label,
         hidden: false,
         sortOrder: maxSortOrder + 1,
+        groupId: groupId && groups.some((g) => g.id === groupId) ? groupId : null,
         activityId: input.activityId ?? null,
         activityName: activityName ?? null,
         entryMode: input.entryMode ?? 'duration',
@@ -166,6 +241,12 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
       commit([...all, created])
 
       if (supabaseConfigured) {
+        // The server files a new button under the first category; once it exists there, put it where it was added.
+        const placement =
+          created.groupId !== null
+            ? layoutFromRows(groupHeaderButtons(groups, partitionHeaderButtons([...all, created]).visible))
+            : null
+
         void writeThrough({
           action: 'headerButton.create',
           entity: 'headerButton',
@@ -175,12 +256,15 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
           label: `Add header button “${created.label}”`,
         }).then((out) => {
           if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+          // Sent only after the create: the move needs the button to exist. A queued create is replayed first (oldest first).
+          if (placement && out.status !== 'rejected') queueArrange(placement, `Place “${created.label}” in its category`)
         })
       }
 
       return created
     },
-    [all],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, groups],
   )
 
   const updateButton = useCallback(
@@ -270,6 +354,107 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [all],
   )
 
+  const arrange = useCallback(
+    (layout: HeaderButtonLayout): void => {
+      commit(applyLayout(all, layout))
+      queueArrange(layout, 'Rearrange header buttons')
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all],
+  )
+
+  const addGroup = useCallback(
+    (name: string): HeaderButtonGroup => {
+      const created: HeaderButtonGroup = {
+        id: generateId(),
+        name: name.trim(),
+        sortOrder: groups.reduce((max, g) => Math.max(max, g.sortOrder), -1) + 1,
+      }
+      commitGroups([...groups, created])
+      if (supabaseConfigured) {
+        void writeThrough({
+          action: 'headerButtonGroup.create',
+          entity: 'headerButtonGroup',
+          recordId: created.id,
+          op: 'save',
+          args: [created.id, created.name],
+          label: `Add category “${created.name}”`,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        })
+      }
+      return created
+    },
+    [groups],
+  )
+
+  const renameGroup = useCallback(
+    (id: string, name: string): void => {
+      const trimmed = name.trim()
+      commitGroups(groups.map((g) => (g.id === id ? { ...g, name: trimmed } : g)))
+      if (supabaseConfigured) {
+        void writeThrough({
+          action: 'headerButtonGroup.rename',
+          entity: 'headerButtonGroup',
+          recordId: id,
+          op: 'save',
+          args: [id, trimmed],
+          label: `Rename category “${trimmed}”`,
+          coalesce: true,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        })
+      }
+    },
+    [groups],
+  )
+
+  const deleteGroup = useCallback(
+    (id: string, moveToId?: string): void => {
+      const remaining = sortGroups(groups.filter((g) => g.id !== id))
+      const target = remaining.find((g) => g.id === moveToId) ?? remaining[0]
+      if (!target || remaining.length === groups.length) return
+      const name = groups.find((g) => g.id === id)?.name ?? 'a category'
+      commit(reassignGroup(all, id, target.id))
+      commitGroups(remaining)
+      if (supabaseConfigured) {
+        void writeThrough({
+          action: 'headerButtonGroup.delete',
+          entity: 'headerButtonGroup',
+          recordId: id,
+          op: 'delete',
+          args: [id, target.id],
+          label: `Delete category “${name}”`,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        })
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, groups],
+  )
+
+  const reorderGroups = useCallback(
+    (orderedIds: string[]): void => {
+      const orderIndex = new Map(orderedIds.map((id, index) => [id, index]))
+      commitGroups(groups.map((g) => (orderIndex.has(g.id) ? { ...g, sortOrder: orderIndex.get(g.id)! } : g)))
+      if (supabaseConfigured) {
+        void writeThrough({
+          action: 'headerButtonGroup.reorder',
+          entity: 'headerButtonGroup',
+          recordId: 'order',
+          op: 'save',
+          args: [orderedIds.filter(isUuid)],
+          label: 'Reorder header categories',
+          coalesce: true,
+        }).then((out) => {
+          if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+        })
+      }
+    },
+    [groups],
+  )
+
   const { visible: rawVisible, hidden: rawHidden } = partitionHeaderButtons(all)
 
   // An activity-category button is a view of its activity's own note titles
@@ -306,8 +491,8 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [rowFor, setActivityNoteLabels],
   )
   const addButtonSynced = useCallback(
-    (input: NewHeaderButtonInput): HeaderButtonConfig => {
-      const created = addButton(input)
+    (input: NewHeaderButtonInput, groupId?: string | null): HeaderButtonConfig => {
+      const created = addButton(input, groupId)
       if (input.noteFields?.some((f) => f.fieldKind === 'text')) syncNotesToActivity(created, input.noteFields)
       return created
     },
@@ -321,5 +506,24 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [updateButton, syncNotesToActivity, all],
   )
 
-  return { visible, hidden, status, error, notice, addButton: addButtonSynced, updateButton: updateButtonSynced, hideButton, unhideButton, reorder }
+  const sortedGroups = useMemo(() => sortGroups(groups), [groups])
+
+  return {
+    visible,
+    hidden,
+    groups: sortedGroups,
+    status,
+    error,
+    notice,
+    addButton: addButtonSynced,
+    updateButton: updateButtonSynced,
+    hideButton,
+    unhideButton,
+    reorder,
+    arrange,
+    addGroup,
+    renameGroup,
+    deleteGroup,
+    reorderGroups,
+  }
 }

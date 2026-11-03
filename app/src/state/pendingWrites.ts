@@ -1,5 +1,15 @@
 import { apiCreateActivity, apiReorderActivities, apiSetActivityColor, apiSetActivityHidden, apiSetActivityNoteLabels, apiUpdateActivity } from '@/api/activityHierarchy'
-import { apiCreateHeaderButton, apiReorderHeaderButtons, apiSetHeaderButtonHidden, apiUpdateHeaderButton } from '@/api/headerButtons'
+import {
+  apiArrangeHeaderButtons,
+  apiCreateHeaderButton,
+  apiCreateHeaderButtonGroup,
+  apiDeleteHeaderButtonGroup,
+  apiRenameHeaderButtonGroup,
+  apiReorderHeaderButtonGroups,
+  apiReorderHeaderButtons,
+  apiSetHeaderButtonHidden,
+  apiUpdateHeaderButton,
+} from '@/api/headerButtons'
 import { apiCreateNoteEntry, apiDeleteNoteEntry, apiUpdateNoteEntry } from '@/api/notes'
 import { apiCreateParameterOption, apiSetActivityParameterSelection } from '@/api/parameterOptions'
 import { apiSetDailyValue } from '@/api/dailyValues'
@@ -79,6 +89,11 @@ const executors: Record<string, (...args: any[]) => Promise<Executed>> = {
   'headerButton.update': async (input) => bool(await apiUpdateHeaderButton(input)),
   'headerButton.setHidden': async (id, hidden) => bool(await apiSetHeaderButtonHidden(id, hidden)),
   'headerButton.reorder': async (ids) => bool(await apiReorderHeaderButtons(ids)),
+  'headerButton.arrange': async (layout) => bool(await apiArrangeHeaderButtons(layout)),
+  'headerButtonGroup.create': async (id, name) => nullable(await apiCreateHeaderButtonGroup(id, name)),
+  'headerButtonGroup.rename': async (id, name) => bool(await apiRenameHeaderButtonGroup(id, name)),
+  'headerButtonGroup.delete': async (id, moveToId) => bool(await apiDeleteHeaderButtonGroup(id, moveToId)),
+  'headerButtonGroup.reorder': async (ids) => bool(await apiReorderHeaderButtonGroups(ids)),
   // `id` is absent on a change queued by an older build: that one falls back to the old create.
   'note.create': async (buttonKey, note, types, id) => nullable(await apiCreateNoteEntry(buttonKey, note, types, id)),
   'note.update': async (id, note, types) => nullable(await apiUpdateNoteEntry(serverId(id), note, types)),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CalendarDays, Moon, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
@@ -12,7 +12,9 @@ import { CounclMark, CounclTitle } from '@/components/CounclBrand'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import {
+  AddCategoryControl,
   AddHeaderButtonChip,
+  CategoryHeading,
   EditModeControls,
   EditModeToggle,
   HeaderButtonFormDialog,
@@ -20,12 +22,14 @@ import {
 import { setNoteButtonsRegistry, setNoteButtonTypesRegistry } from '@/domain/notes'
 import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
 import {
-  HEADER_BUTTON_GROUPS,
-  headerButtonCategoryLabel,
-  orderAfterGroupReorder,
+  groupHeaderButtons,
+  layoutAfterMove,
+  layoutFromRows,
   toDisplayButtonLike,
   type HeaderButtonCategory,
   type HeaderButtonConfig,
+  type HeaderButtonGroup,
+  type HeaderButtonLayout,
 } from '@/domain/headerButtons'
 import { useEditMode } from '@/state/EditModeContext'
 import { usePointerReorder } from '@/components/ui/usePointerReorder'
@@ -130,10 +134,24 @@ export function HeaderBar({
   // `state/useHeaderButtons.ts`). Row 2 below renders straight off
   // `visible`, grouped by category, instead of the three previously-
   // separate hardcoded arrays.
-  const { visible, hidden, notice, addButton, updateButton, hideButton, reorder } = useSharedHeaderButtons()
-  const [formMode, setFormMode] = useState<null | { kind: 'add'; category: HeaderButtonCategory } | { kind: 'edit'; button: HeaderButtonConfig }>(
+  const {
+    visible,
+    hidden,
+    groups,
+    notice,
+    addButton,
+    updateButton,
+    hideButton,
+    arrange,
+    addGroup,
+    renameGroup,
+    deleteGroup,
+    reorderGroups,
+  } = useSharedHeaderButtons()
+  const [formMode, setFormMode] = useState<null | { kind: 'add'; groupId: string } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
+  const rows = useMemo(() => groupHeaderButtons(groups, visible), [groups, visible])
 
   // `DisplayValueButton`/`NoteButtonPill` stay keyed by a plain string prop
   // (unchanged internals — see the full-stack-engineer report for why) and
@@ -154,12 +172,15 @@ export function HeaderBar({
     setFormMode({ kind: 'edit', button })
   }
 
-  function handleCreate(input: NewHeaderButtonInput) {
-    addButton(input)
+  function handleCreate(input: NewHeaderButtonInput, groupId: string) {
+    addButton(input, groupId)
   }
 
-  function handleUpdate(input: UpdateHeaderButtonInput & { category: HeaderButtonCategory }) {
+  function handleUpdate(input: UpdateHeaderButtonInput & { category: HeaderButtonCategory }, groupId: string) {
     updateButton(input)
+    // The form's Category picker is the tap way to move a button between categories.
+    const current = rows.find((row) => row.buttons.some((b) => b.id === input.id))?.group.id
+    if (current && current !== groupId) arrange(layoutAfterMove(layoutFromRows(rows), input.id, groupId))
   }
 
   return (
@@ -226,48 +247,45 @@ export function HeaderBar({
           Sermons and Worship moved here from the note-pill row — see
           `domain/notes.ts`'s own doc comment. */}
       <EditSectionLabel section="nonNegotiableButtons" editMode={editMode} />
-      {/* One row per kind of button — notes, activities, daily numbers,
-          checklists — each with its own Add button in Edit mode. Rows carry no
-          visible heading (the buttons speak for themselves); a hairline
-          separates them, and an empty row only shows while editing. */}
-      <div className="flex flex-col">
-        {HEADER_BUTTON_GROUPS.map((group) => {
-          const buttons = visible.filter((b) => b.category === group)
-          if (buttons.length === 0 && !editMode) return null
-          return (
-            <div
-              key={group}
-              role="group"
-              aria-label={headerButtonCategoryLabel(group)}
-              className="flex flex-wrap items-center gap-sm border-t border-line-soft py-sm first:border-t-0 first:pt-0 last:pb-0"
-            >
-              <HeaderButtonGroupItems
-                buttons={buttons}
-                editMode={editMode}
-                onReorder={(groupOrder) => reorder(orderAfterGroupReorder(visible, group, groupOrder))}
-                onEdit={openEditForm}
-                onHide={(button) => hideButton(button.id)}
-                renderButton={(button) =>
-                  button.category === 'notes' ? (
-                    <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
-                  ) : button.category === 'checklist' ? (
-                    <ChecklistButton button={button} viewedDate={viewedDate} />
-                  ) : (
-                    <DisplayValueButton
-                      buttonKey={button.id}
-                      viewedDate={viewedDate}
-                      activities={activities}
-                      onQuickLog={onQuickLog}
-                      onEditActivity={onEditActivity}
-                    />
-                  )
-                }
-              />
-              {editMode && <AddHeaderButtonChip category={group} onClick={() => setFormMode({ kind: 'add', category: group })} />}
-            </div>
+      {/* The user's own categories — each a named row holding any mix of the
+          four kinds of button (note, quick activity, daily number,
+          checklist). A hairline separates them; an empty category only shows
+          while editing. */}
+      <HeaderButtonRows
+        rows={rows}
+        groups={groups}
+        editMode={editMode}
+        onArrange={arrange}
+        onEdit={openEditForm}
+        onHide={(button) => hideButton(button.id)}
+        onAddButton={(group) => setFormMode({ kind: 'add', groupId: group.id })}
+        onAddGroup={addGroup}
+        onRenameGroup={renameGroup}
+        onDeleteGroup={deleteGroup}
+        onMoveGroup={(group, direction) => {
+          const ids = groups.map((g) => g.id)
+          const from = ids.indexOf(group.id)
+          const to = from + direction
+          if (from === -1 || to < 0 || to >= ids.length) return
+          ;[ids[from], ids[to]] = [ids[to]!, ids[from]!]
+          reorderGroups(ids)
+        }}
+        renderButton={(button) =>
+          button.category === 'notes' ? (
+            <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
+          ) : button.category === 'checklist' ? (
+            <ChecklistButton button={button} viewedDate={viewedDate} />
+          ) : (
+            <DisplayValueButton
+              buttonKey={button.id}
+              viewedDate={viewedDate}
+              activities={activities}
+              onQuickLog={onQuickLog}
+              onEditActivity={onEditActivity}
+            />
           )
-        })}
-      </div>
+        }
+      />
 
       {notice && (
         <p role="status" className="text-caption font-semibold text-ink-dim">
@@ -280,6 +298,7 @@ export function HeaderBar({
       {formMode && (
         <HeaderButtonFormDialog
           mode={formMode}
+          groups={groups}
           onClose={() => setFormMode(null)}
           onCreate={handleCreate}
           onUpdate={handleUpdate}
@@ -290,71 +309,131 @@ export function HeaderBar({
 }
 
 /**
- * One row of header buttons (one kind each: notes, activities, daily numbers or checklists). Outside Edit
- * mode it just renders the buttons. In Edit mode each button is locked (a
- * tap shows "Finish editing to log" instead of logging) and can be dragged
- * — mouse on PC, finger on iPad — to a new spot within its own group.
+ * The categories and their buttons. Outside Edit mode it just renders them.
+ * In Edit mode each button is locked (a tap shows "Finish editing to log"
+ * instead of logging) and can be dragged — mouse on PC, finger on iPad — to a
+ * new spot, in its own category or any other. The same moves are available by
+ * tapping: a button's Edit form has a Category picker, and each category
+ * heading has move up / down.
  */
-function HeaderButtonGroupItems({
-  buttons,
+function HeaderButtonRows({
+  rows,
+  groups,
   editMode,
-  onReorder,
+  onArrange,
   onEdit,
   onHide,
+  onAddButton,
+  onAddGroup,
+  onRenameGroup,
+  onDeleteGroup,
+  onMoveGroup,
   renderButton,
 }: {
-  buttons: HeaderButtonConfig[]
+  rows: { group: HeaderButtonGroup; buttons: HeaderButtonConfig[] }[]
+  groups: HeaderButtonGroup[]
   editMode: boolean
-  onReorder: (groupOrder: string[]) => void
+  onArrange: (layout: HeaderButtonLayout) => void
   onEdit: (button: HeaderButtonConfig) => void
   onHide: (button: HeaderButtonConfig) => void
+  onAddButton: (group: HeaderButtonGroup) => void
+  onAddGroup: (name: string) => void
+  onRenameGroup: (id: string, name: string) => void
+  onDeleteGroup: (id: string) => void
+  onMoveGroup: (group: HeaderButtonGroup, direction: -1 | 1) => void
   renderButton: (button: HeaderButtonConfig) => ReactNode
 }) {
   const { notifyLocked } = useEditMode()
-  const byId = new Map(buttons.map((b) => [b.id, b]))
-  const { order, draggingId, itemProps } = usePointerReorder({
-    ids: buttons.map((b) => b.id),
+  const idBase = useId()
+  const byId = new Map(rows.flatMap((row) => row.buttons).map((b) => [b.id, b]))
+  const { lanes, draggingId, itemProps, laneRef } = usePointerReorder({
+    lanes: layoutFromRows(rows),
     enabled: editMode,
-    onCommit: onReorder,
+    onCommit: onArrange,
     onTap: notifyLocked,
   })
 
   return (
-    <>
-      {order.map((id) => {
-        const button = byId.get(id)
-        if (!button) return null
-        if (!editMode) {
-          return (
-            <span key={id} className="relative">
-              {renderButton(button)}
-            </span>
-          )
-        }
-        const props = itemProps(id)
+    <div className="flex flex-col">
+      {rows.map((row, index) => {
+        const ids = lanes.find((lane) => lane.groupId === row.group.id)?.buttonIds ?? []
+        if (ids.length === 0 && !editMode) return null
+        const headingId = `${idBase}-${row.group.id}`
         return (
-          <span
-            key={id}
-            ref={props.ref}
-            onPointerDown={props.onPointerDown}
-            style={props.style}
-            data-dragging={props['data-dragging']}
-            aria-roledescription="draggable button"
-            className={cn(
-              'relative select-none rounded-full',
-              draggingId === id && 'shadow-elevation-2',
-            )}
+          <section
+            key={row.group.id}
+            aria-labelledby={headingId}
+            className="flex flex-col gap-sm border-t border-line-soft py-sm first:border-t-0 first:pt-0 last:pb-0"
           >
-            <span inert className="pointer-events-none block">
-              {renderButton(button)}
-            </span>
-            <span data-reorder-ignore="">
-              <EditModeControls button={button} onEdit={() => onEdit(button)} onHide={() => onHide(button)} />
-            </span>
-          </span>
+            <CategoryHeading
+              group={row.group}
+              groups={groups}
+              buttonCount={row.buttons.length}
+              index={index}
+              count={rows.length}
+              editMode={editMode}
+              headingId={headingId}
+              onRename={(name) => onRenameGroup(row.group.id, name)}
+              onMove={(direction) => onMoveGroup(row.group, direction)}
+              onDelete={() => onDeleteGroup(row.group.id)}
+            />
+            <div
+              ref={laneRef(row.group.id)}
+              role="group"
+              aria-labelledby={headingId}
+              className={cn('flex flex-wrap items-center gap-sm', editMode && 'min-h-[40px]')}
+            >
+              {ids.map((id) => {
+                const button = byId.get(id)
+                if (!button) return null
+                if (!editMode) {
+                  return (
+                    <span key={id} className="relative">
+                      {renderButton(button)}
+                    </span>
+                  )
+                }
+                const props = itemProps(id)
+                return (
+                  <span
+                    key={id}
+                    ref={props.ref}
+                    onPointerDown={props.onPointerDown}
+                    style={props.style}
+                    data-dragging={props['data-dragging']}
+                    aria-roledescription="draggable button"
+                    className={cn('relative select-none rounded-full', draggingId === id && 'shadow-elevation-2')}
+                  >
+                    {/* The wobble sits on this inner span, not the draggable one, so it
+                        never fights the drag's own transform; it stops while held. */}
+                    <span
+                      inert
+                      className={cn('pointer-events-none block', draggingId === null && 'animate-jiggle')}
+                      style={{ animationDelay: `${-(index % 4) * 0.07 - (ids.indexOf(id) % 3) * 0.05}s` }}
+                    >
+                      {renderButton(button)}
+                    </span>
+                    <span data-reorder-ignore="">
+                      <EditModeControls button={button} onEdit={() => onEdit(button)} onHide={() => onHide(button)} />
+                    </span>
+                  </span>
+                )
+              })}
+              {editMode && (
+                <span data-reorder-ignore="">
+                  <AddHeaderButtonChip onClick={() => onAddButton(row.group)} />
+                </span>
+              )}
+            </div>
+          </section>
         )
       })}
-    </>
+      {editMode && (
+        <div className="pt-sm" data-reorder-ignore="">
+          <AddCategoryControl groups={groups} onAdd={onAddGroup} />
+        </div>
+      )}
+    </div>
   )
 }
 
