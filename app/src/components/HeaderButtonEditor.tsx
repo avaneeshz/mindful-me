@@ -1,13 +1,16 @@
 import { useEffect, useId, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { AlignLeft, Check, ListChecks, Pencil, Plus, X } from 'lucide-react'
+import { AlignLeft, Check, ChevronDown, ChevronUp, Clock, Hash, ListChecks, Pencil, Plus, Trash2, X, type LucideIcon } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
-  headerButtonAddLabel,
+  HEADER_BUTTON_CATEGORIES,
+  MAX_GROUP_NAME_LENGTH,
   headerButtonCategoryLabel,
+  validateGroupName,
   type HeaderButtonCategory,
   type HeaderButtonConfig,
+  type HeaderButtonGroup,
 } from '@/domain/headerButtons'
 import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
 import {
@@ -89,9 +92,8 @@ export function EditModeControls({
   )
 }
 
-/** One Add button per row — it opens the form already set to that row's kind of button. */
-export function AddHeaderButtonChip({ category, onClick }: { category: HeaderButtonCategory; onClick: () => void }) {
-  const label = headerButtonAddLabel(category)
+/** A dashed "add" chip — one per category row ("Add button"), and one under the last row ("Add category"). */
+export function AddHeaderButtonChip({ label = 'Add button', onClick }: { label?: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -108,24 +110,246 @@ export function AddHeaderButtonChip({ category, onClick }: { category: HeaderBut
   )
 }
 
-type FormMode = { kind: 'add'; category: HeaderButtonCategory } | { kind: 'edit'; button: HeaderButtonConfig }
+const iconButtonClass =
+  'flex size-[24px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:pointer-events-none disabled:opacity-40'
+
+/** A one-line name field with Save / Cancel — adding a category and renaming one share it. */
+function CategoryNameForm({
+  initial,
+  groups,
+  exceptId,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  initial: string
+  groups: readonly HeaderButtonGroup[]
+  exceptId?: string
+  submitLabel: string
+  onSubmit: (name: string) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(initial)
+  const [error, setError] = useState<string | null>(null)
+  const errorId = useId()
+
+  function submit() {
+    const problem = validateGroupName(name, groups, exceptId)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    onSubmit(name.trim())
+  }
+
+  return (
+    <form
+      className="flex flex-wrap items-center gap-xs"
+      onSubmit={(event) => {
+        event.preventDefault()
+        submit()
+      }}
+    >
+      <input
+        autoFocus
+        aria-label="Category name"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        value={name}
+        maxLength={MAX_GROUP_NAME_LENGTH}
+        placeholder="e.g. Morning"
+        onChange={(event) => {
+          setName(event.target.value)
+          setError(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onCancel()
+        }}
+        className={cn(fieldClass, 'w-[200px]')}
+      />
+      <Button type="submit">
+        {submitLabel}
+      </Button>
+      <Button type="button" variant="ghost" onClick={onCancel}>
+        Cancel
+      </Button>
+      {error && (
+        <p id={errorId} role="alert" className="basis-full text-caption font-semibold text-ink">
+          {error}
+        </p>
+      )}
+    </form>
+  )
+}
+
+/**
+ * A category's name above its row. Always visible; in Edit mode it also carries
+ * rename, move up / down and delete — all plain taps, so none of it depends on
+ * dragging or hovering.
+ */
+export function CategoryHeading({
+  group,
+  groups,
+  buttonCount,
+  index,
+  count,
+  editMode,
+  headingId,
+  onRename,
+  onMove,
+  onDelete,
+}: {
+  group: HeaderButtonGroup
+  groups: readonly HeaderButtonGroup[]
+  buttonCount: number
+  index: number
+  count: number
+  editMode: boolean
+  headingId: string
+  onRename: (name: string) => void
+  onMove: (direction: -1 | 1) => void
+  onDelete: () => void
+}) {
+  const [renaming, setRenaming] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const target = groups.find((g) => g.id !== group.id)
+
+  if (renaming) {
+    return (
+      <CategoryNameForm
+        initial={group.name}
+        groups={groups}
+        exceptId={group.id}
+        submitLabel="Save"
+        onSubmit={(name) => {
+          onRename(name)
+          setRenaming(false)
+        }}
+        onCancel={() => setRenaming(false)}
+      />
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-xs">
+      <h2 id={headingId} className="text-nano font-bold uppercase tracking-tag text-ink-dim">
+        {group.name}
+      </h2>
+      {editMode && !confirming && (
+        <span className="flex items-center gap-[2px]">
+          <button type="button" aria-label={`Rename ${group.name}`} onClick={() => setRenaming(true)} className={iconButtonClass}>
+            <Pencil aria-hidden="true" className="size-[12px]" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${group.name} up`}
+            disabled={index === 0}
+            onClick={() => onMove(-1)}
+            className={iconButtonClass}
+          >
+            <ChevronUp aria-hidden="true" className="size-[14px]" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${group.name} down`}
+            disabled={index === count - 1}
+            onClick={() => onMove(1)}
+            className={iconButtonClass}
+          >
+            <ChevronDown aria-hidden="true" className="size-[14px]" />
+          </button>
+          {count > 1 && (
+            <button
+              type="button"
+              aria-label={`Delete ${group.name}`}
+              onClick={() => (buttonCount === 0 ? onDelete() : setConfirming(true))}
+              className={iconButtonClass}
+            >
+              <Trash2 aria-hidden="true" className="size-[12px]" />
+            </button>
+          )}
+        </span>
+      )}
+      {editMode && confirming && target && (
+        <span role="alert" className="flex flex-wrap items-center gap-xs text-caption text-ink-dim">
+          Delete this category? Its {buttonCount} {buttonCount === 1 ? 'button moves' : 'buttons move'} to “{target.name}”.
+          <Button
+            type="button"
+            onClick={() => {
+              setConfirming(false)
+              onDelete()
+            }}
+          >
+            Delete
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
+            Keep
+          </Button>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** "Add category" — opens an inline name field in place. */
+export function AddCategoryControl({
+  groups,
+  onAdd,
+}: {
+  groups: readonly HeaderButtonGroup[]
+  onAdd: (name: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (!open) return <AddHeaderButtonChip label="Add category" onClick={() => setOpen(true)} />
+  return (
+    <CategoryNameForm
+      initial=""
+      groups={groups}
+      submitLabel="Add"
+      onSubmit={(name) => {
+        onAdd(name)
+        setOpen(false)
+      }}
+      onCancel={() => setOpen(false)}
+    />
+  )
+}
+
+/** Step one of adding a button: what each type is, in a line. */
+const TYPE_CHOICES: Record<HeaderButtonCategory, { icon: LucideIcon; description: string }> = {
+  activity: { icon: Clock, description: 'Log time on an activity with one tap.' },
+  notes: { icon: AlignLeft, description: 'Jot down a short written entry.' },
+  day_value: { icon: Hash, description: 'Track one number for the day, like steps.' },
+  checklist: { icon: ListChecks, description: 'Tick off a list of items each day.' },
+}
+
+type FormMode = { kind: 'add'; groupId: string; category?: HeaderButtonCategory } | { kind: 'edit'; button: HeaderButtonConfig }
 
 export function HeaderButtonFormDialog({
   mode,
+  groups,
   onClose,
   onCreate,
   onUpdate,
 }: {
   mode: FormMode
+  /** The user's categories — the form's Category picker, which is also how a button is moved by tapping. */
+  groups: readonly HeaderButtonGroup[]
   onClose: () => void
-  onCreate: (input: NewHeaderButtonInput) => void
-  onUpdate: (input: UpdateHeaderButtonInput & { category: HeaderButtonCategory }) => void
+  onCreate: (input: NewHeaderButtonInput, groupId: string) => void
+  onUpdate: (input: UpdateHeaderButtonInput & { category: HeaderButtonCategory }, groupId: string) => void
 }) {
   const isEdit = mode.kind === 'edit'
   const existing = mode.kind === 'edit' ? mode.button : null
 
-  // The kind is fixed by where the form was opened — an Add button's own row, or the button being edited.
-  const category: HeaderButtonCategory = mode.kind === 'edit' ? mode.button.category : mode.category
+  // Adding is two steps: first pick the type of button, then fill in its form.
+  // Editing, or an add opened with a type already chosen, goes straight to the form.
+  const [step, setStep] = useState<'type' | 'form'>(isEdit || mode.category ? 'form' : 'type')
+  // The type is chosen when adding and fixed once the button exists.
+  const [category, setCategory] = useState<HeaderButtonCategory>(mode.kind === 'edit' ? mode.button.category : (mode.category ?? 'activity'))
+  const [groupId, setGroupId] = useState(
+    mode.kind === 'add' ? mode.groupId : (existing?.groupId ?? groups[0]?.id ?? ''),
+  )
   const [label, setLabel] = useState(existing?.label ?? '')
   // The Name follows the chosen activity until the user types their own.
   const [labelEdited, setLabelEdited] = useState(isEdit)
@@ -163,7 +387,7 @@ export function HeaderButtonFormDialog({
     // `NoteButtonPill`'s Store form already use.
     const el = document.getElementById('header-button-label') as HTMLInputElement | null
     el?.focus()
-  }, [])
+  }, [step])
 
   const typeOptions = category === 'activity' && activityName ? firstLevelOptionNames(findCard(activityName)) : []
 
@@ -228,13 +452,13 @@ export function HeaderButtonFormDialog({
     setError(null)
 
     if (isEdit) {
-      onUpdate(toUpdateInput(draft, existing!))
+      onUpdate(toUpdateInput(draft, existing!), groupId)
       onClose()
       return
     }
 
     const activityId = category === 'activity' ? await catalogIdForName(activityName) : null
-    onCreate(toCreateInput(draft, activityId))
+    onCreate(toCreateInput(draft, activityId), groupId)
     onClose()
   }
 
@@ -251,7 +475,7 @@ export function HeaderButtonFormDialog({
       >
         <div className="flex items-start justify-between gap-md">
           <Dialog.Title id={headingId} className="text-h1-sm font-semibold text-ink">
-            {isEdit ? `Edit ${existing!.label}` : headerButtonAddLabel(category)}
+            {isEdit ? `Edit ${existing!.label}` : 'Add button'}
           </Dialog.Title>
           <Dialog.Close asChild>
             <button
@@ -264,9 +488,40 @@ export function HeaderButtonFormDialog({
           </Dialog.Close>
         </div>
         <Dialog.Description className="sr-only">
-          {isEdit ? 'Edit this Non-Negotiable Button.' : `${headerButtonCategoryLabel(category)} — configure the new Non-Negotiable Button.`}
+          {isEdit
+            ? 'Edit this Non-Negotiable Button.'
+            : step === 'type'
+              ? 'Choose what kind of button to add.'
+              : `${headerButtonCategoryLabel(category)} — configure the new Non-Negotiable Button.`}
         </Dialog.Description>
 
+        {step === 'type' && (
+          <div role="group" aria-label="Button type" className="flex flex-col gap-sm">
+            <p className="text-body text-ink-dim">What kind of button do you want to add?</p>
+            {HEADER_BUTTON_CATEGORIES.map((option) => {
+              const Icon = TYPE_CHOICES[option].icon
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    setCategory(option)
+                    setStep('form')
+                  }}
+                  className="flex items-center gap-md rounded-md border border-line bg-surface px-md py-md text-left transition-colors hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink active:bg-bg"
+                >
+                  <Icon aria-hidden="true" className="size-[18px] shrink-0 text-ink-dim" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-body font-semibold text-ink">{headerButtonCategoryLabel(option)}</span>
+                    <span className="text-caption text-ink-dim">{TYPE_CHOICES[option].description}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {step === 'form' && (
         <form
           className="flex flex-col gap-md"
           onSubmit={(event) => {
@@ -274,6 +529,30 @@ export function HeaderButtonFormDialog({
             void handleSubmit()
           }}
         >
+            {!isEdit && (
+              <p className="text-caption font-semibold text-ink-dim">{headerButtonCategoryLabel(category)}</p>
+            )}
+
+            {groups.length > 1 && (
+              <div className="flex flex-col gap-xs">
+                <label htmlFor="header-button-group" className={labelClass}>
+                  Category
+                </label>
+                <select
+                  id="header-button-group"
+                  value={groupId}
+                  onChange={(event) => setGroupId(event.target.value)}
+                  className={fieldClass}
+                >
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex flex-col gap-xs">
               <label htmlFor="header-button-label" className={labelClass}>
                 Name
@@ -546,14 +825,21 @@ export function HeaderButtonFormDialog({
             )}
 
             <div className="flex items-center justify-end gap-sm">
-              <Button type="button" variant="ghost" onClick={onClose}>
-                Cancel
-              </Button>
+              {isEdit ? (
+                <Button type="button" variant="ghost" onClick={onClose}>
+                  Cancel
+                </Button>
+              ) : (
+                <Button type="button" variant="ghost" onClick={() => setStep('type')}>
+                  Back
+                </Button>
+              )}
               <Button type="submit" disabled={submitting}>
                 {submitting ? 'Saving…' : isEdit ? 'Save' : 'Add'}
               </Button>
             </div>
         </form>
+        )}
       </Dialog.Content>
     </Dialog.Root>
   )

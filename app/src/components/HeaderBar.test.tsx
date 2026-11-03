@@ -101,21 +101,36 @@ describe('HeaderBar checklist control', () => {
 describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
   it('starts with edit mode off — no per-button remove/edit affordance, no Add buttons', () => {
     const html = render()
-    expect(html).not.toMatch(/aria-label="Add (note|activity|daily number|checklist)"/)
+    expect(html).not.toMatch(/aria-label="Add (button|category)"/)
     expect(html).not.toMatch(/aria-label="Remove /)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit"/)
   })
 
-  it('in edit mode shows one Add button per kind of button, each in its own row', () => {
+  it('in edit mode shows an Add button in every category, and one Add category', () => {
     const html = render(true)
-    for (const label of ['Add note', 'Add activity', 'Add daily number', 'Add checklist']) {
-      expect(html.match(new RegExp(`aria-label="${label}"`, 'g'))?.length).toBe(1)
-    }
-    expect(html).not.toContain('aria-label="Add a Non-Negotiable Button"')
+    expect(html.match(/aria-label="Add button"/g)?.length).toBe(1)
+    expect(html.match(/aria-label="Add category"/g)?.length).toBe(1)
   })
 
-  it('renders four separate rows, with no visible row headings', () => {
+  it('a new user starts with one category, named, holding every default button', () => {
     const html = render(true)
-    expect(html.match(/role="group"/g)?.length).toBe(4)
+    expect(html.match(/role="group"/g)?.length).toBe(1)
+    expect(html).toMatch(/<h2[^>]*>Buttons<\/h2>/)
+  })
+
+  it('shows the category name outside edit mode too, but no rename / move / delete controls', () => {
+    const html = render()
+    expect(html).toMatch(/<h2[^>]*>Buttons<\/h2>/)
+    expect(html).not.toMatch(/aria-label="Rename /)
+    expect(html).not.toMatch(/aria-label="Delete /)
+  })
+
+  it('edit mode gives each category tap controls to rename and move it — nothing relies on dragging', () => {
+    const html = render(true)
+    expect(html).toContain('aria-label="Rename Buttons"')
+    expect(html).toContain('aria-label="Move Buttons up"')
+    expect(html).toContain('aria-label="Move Buttons down"')
+    // The only category can't be deleted — a button always needs somewhere to live.
+    expect(html).not.toContain('aria-label="Delete Buttons"')
   })
 })

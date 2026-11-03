@@ -4,7 +4,7 @@ import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { resolveCardName, withCardName } from '@/domain/reflectionCardNames'
 import { loadCardCustomization, saveCardCustomization, type CardCustomization } from '@/lib/reflectionCardsStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
-import { useOptionalAuth } from '@/state/AuthContext'
+import { useAccountOwner } from '@/state/useAccountOwner'
 
 /**
  * The signed-in account's own names and pictures for the State Tiles.
@@ -35,12 +35,6 @@ function publish(next: Snapshot) {
   listeners.forEach((l) => l())
 }
 
-function useOwner(): string | null {
-  const auth = useOptionalAuth()
-  if (!supabaseConfigured) return 'local'
-  return auth?.user?.id ?? null
-}
-
 const defaultTitle = (card: number) => REFLECTION_CARDS.find((c) => c.number === card)?.title ?? `Card ${card}`
 const defaultImage = (card: number) => REFLECTION_CARDS.find((c) => c.number === card)?.image ?? ''
 
@@ -48,7 +42,7 @@ const SAVE_FAILED = 'Couldn’t save right now. Check your connection and try ag
 export type CardSaveResult = { ok: true } | { ok: false; message: string }
 
 export function useReflectionCards() {
-  const owner = useOwner()
+  const owner = useAccountOwner()
   const snap = useSyncExternalStore(subscribe, current, () => EMPTY)
 
   useEffect(() => {

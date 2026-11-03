@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { HeaderButtonFormDialog } from './HeaderButtonEditor'
-import { DEFAULT_HEADER_BUTTONS, type HeaderButtonCategory } from '@/domain/headerButtons'
+import { DEFAULT_HEADER_BUTTONS, type HeaderButtonCategory, type HeaderButtonGroup } from '@/domain/headerButtons'
+
+const ONE_GROUP: HeaderButtonGroup[] = [{ id: 'g1', name: 'Morning', sortOrder: 0 }]
+const TWO_GROUPS: HeaderButtonGroup[] = [...ONE_GROUP, { id: 'g2', name: 'Evening', sortOrder: 1 }]
 
 // Same SSR-string convention as `LogActivityModal.test.tsx`/
 // `DisplayValueButton.test.tsx` — no jsdom in this suite, so only the
@@ -10,19 +13,40 @@ import { DEFAULT_HEADER_BUTTONS, type HeaderButtonCategory } from '@/domain/head
 // by DOM events, which this environment cannot simulate. What's tested here
 // is the render-time shape for every `mode` this dialog can start in.
 
-function renderAdd(category: HeaderButtonCategory = 'activity'): string {
+/** How "Add button" opens: no type chosen yet. */
+function renderAddStepOne(groups = ONE_GROUP): string {
   return renderToStaticMarkup(
-    <HeaderButtonFormDialog mode={{ kind: 'add', category }} onClose={() => {}} onCreate={() => {}} onUpdate={() => {}} />,
+    <HeaderButtonFormDialog
+      mode={{ kind: 'add', groupId: groups[0]!.id }}
+      groups={groups}
+      onClose={() => {}}
+      onCreate={() => {}}
+      onUpdate={() => {}}
+    />,
+  )
+}
+
+/** The form step, with a type already chosen. */
+function renderAdd(category: HeaderButtonCategory = 'activity', groups = ONE_GROUP): string {
+  return renderToStaticMarkup(
+    <HeaderButtonFormDialog
+      mode={{ kind: 'add', groupId: groups[0]!.id, category }}
+      groups={groups}
+      onClose={() => {}}
+      onCreate={() => {}}
+      onUpdate={() => {}}
+    />,
   )
 }
 
 const SLEEP_BUTTON = DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'sleep')!
 const VIPASSANA_BUTTON = DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'vipassana')!
 
-function renderEdit(button = SLEEP_BUTTON): string {
+function renderEdit(button = SLEEP_BUTTON, groups = ONE_GROUP): string {
   return renderToStaticMarkup(
     <HeaderButtonFormDialog
       mode={{ kind: 'edit', button }}
+      groups={groups}
       onClose={() => {}}
       onCreate={() => {}}
       onUpdate={() => {}}
@@ -31,11 +55,27 @@ function renderEdit(button = SLEEP_BUTTON): string {
 }
 
 describe('HeaderButtonFormDialog — add mode', () => {
-  it('has no "Kind of button" picker — the kind comes from the Add button that opened it', () => {
-    const html = renderAdd()
+  it('starts on step one: the four button types, and no form yet', () => {
+    const html = renderAddStepOne()
     expect(html).toContain('role="dialog"')
-    expect(html).not.toContain('Kind of button')
-    expect(html).toContain('Add activity')
+    expect(html).toContain('Add button')
+    expect(html).toContain('What kind of button do you want to add?')
+    for (const label of ['Quick activity', 'Checklist', 'Content entry', 'Daily number']) {
+      expect(html).toContain(label)
+    }
+    expect(html).not.toContain('<form')
+    expect(html).not.toContain('id="header-button-label"')
+    expect(html).not.toContain('Fields')
+    expect(html).not.toContain('id="header-button-group"')
+  })
+
+  it('shows the form once a type is chosen, with no type list and a Back button to change the choice', () => {
+    const html = renderAdd()
+    expect(html).toContain('<form')
+    expect(html).not.toContain('What kind of button do you want to add?')
+    expect(html).toContain('>Back<')
+    expect(html).not.toContain('Fields')
+    expect(html).not.toContain('Add multiple-choice field')
   })
 
   it('asks for nothing about note fields — they come from the activity without explanation', () => {
@@ -105,10 +145,9 @@ describe('HeaderButtonFormDialog — non-activity categories carry no Fields sec
   })
 })
 
-describe('HeaderButtonFormDialog — add mode is fixed to the row it was opened from', () => {
+describe('HeaderButtonFormDialog — each button type asks only for its own settings', () => {
   it('a note button asks for type options only', () => {
     const html = renderAdd('notes')
-    expect(html).toContain('Add note')
     expect(html).toContain('Type options')
     expect(html).not.toContain('Activity to quick-log')
     expect(html).not.toContain('>Fields<')
@@ -116,15 +155,35 @@ describe('HeaderButtonFormDialog — add mode is fixed to the row it was opened 
 
   it('a daily number asks for its value shape only', () => {
     const html = renderAdd('day_value')
-    expect(html).toContain('Add daily number')
     expect(html).toContain('Value shape')
     expect(html).not.toContain('Activity to quick-log')
   })
 
   it('a checklist asks for its items only', () => {
     const html = renderAdd('checklist')
-    expect(html).toContain('Add checklist')
     expect(html).toContain('Items (one per line)')
     expect(html).not.toContain('Value shape')
+  })
+})
+
+describe('HeaderButtonFormDialog — category picker', () => {
+  it('is hidden while the user has a single category', () => {
+    expect(renderAdd('notes', ONE_GROUP)).not.toContain('id="header-button-group"')
+  })
+
+  it('lists every category once there is more than one, so a button can be moved with a tap', () => {
+    const html = renderAdd('notes', TWO_GROUPS)
+    expect(html).toContain('id="header-button-group"')
+    expect(html).toContain('>Morning</option>')
+    expect(html).toContain('>Evening</option>')
+  })
+
+  it('an edited button starts in its own category', () => {
+    const button = { ...SLEEP_BUTTON, groupId: 'g2' }
+    expect(renderEdit(button, TWO_GROUPS)).toMatch(/<option value="g2" selected="">Evening<\/option>/)
+  })
+
+  it('has no button type picker when editing — the type is fixed once the button exists', () => {
+    expect(renderEdit()).not.toContain('aria-label="Button type"')
   })
 })
