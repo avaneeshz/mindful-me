@@ -13,7 +13,7 @@ import {
 import { HEADER_BUTTON_CATEGORIES, headerButtonCategoryLabel, type HeaderButtonCategory, type HeaderButtonConfig } from '@/domain/headerButtons'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { Button } from '@/lumen/components/ui/button'
-import { MenuItem, Segmented, Switch } from '@/lumen/components/ui/primitives'
+import { MenuItem, Segmented } from '@/lumen/components/ui/primitives'
 import { Sheet } from '@/lumen/components/ui/sheet'
 import { useStore } from '@/lumen/lib/store'
 import { cn } from '@/lumen/lib/utils'
@@ -232,18 +232,6 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
                 </select>
               </Field>
             )}
-            {!isEdit && firstLevelOptionNames(findCard(draft.activityName)).length > 0 && (
-              <div className="flex min-h-11 items-center justify-between gap-3">
-                <span className="text-sm text-ink">Type selector</span>
-                <Switch checked={draft.quickLogType} onChange={() => set({ quickLogType: !draft.quickLogType })} label="Offer a type choice" />
-              </div>
-            )}
-            {((isEdit && existing?.quickLogType) || (!isEdit && draft.quickLogType)) && (
-              <Field label="Type name">
-                <input className={inputClass} value={draft.quickLogTypeLabel} onChange={(e) => set({ quickLogTypeLabel: e.target.value })} />
-              </Field>
-            )}
-
             {isEdit && (
             <div>
               <p className="mb-1 text-xs font-medium text-ink-muted">Note fields</p>

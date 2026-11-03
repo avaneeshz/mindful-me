@@ -355,7 +355,7 @@ export function HeaderButtonFormDialog({
   const [labelEdited, setLabelEdited] = useState(isEdit)
   const [activityName, setActivityName] = useState(existing?.activityName ?? '')
   const [quickLogType, setQuickLogType] = useState(existing?.quickLogType ?? false)
-  const [quickLogTypeLabel, setQuickLogTypeLabel] = useState(existing?.quickLogTypeLabel ?? 'Type')
+  const quickLogTypeLabel = existing?.quickLogTypeLabel ?? 'Type'
   const [fields, setFields] = useState<FieldDraft[]>(
     (existing?.noteFields ?? []).map((f) => ({
       id: f.id,
@@ -388,8 +388,6 @@ export function HeaderButtonFormDialog({
     const el = document.getElementById('header-button-label') as HTMLInputElement | null
     el?.focus()
   }, [step])
-
-  const typeOptions = category === 'activity' && activityName ? firstLevelOptionNames(findCard(activityName)) : []
 
   // The form's rules live in `domain/headerButtonForm.ts`, shared with Lumen's editor.
   const draft: HeaderButtonDraft = {
@@ -594,30 +592,6 @@ export function HeaderButtonFormDialog({
                         </option>
                       ))}
                     </select>
-                  </div>
-                )}
-
-                {!isEdit && typeOptions.length > 0 && (
-                  <label className="flex items-center gap-sm text-body text-ink">
-                    <input
-                      type="checkbox"
-                      checked={quickLogType}
-                      onChange={(event) => setQuickLogType(event.target.checked)}
-                    />
-                    Type selector
-                  </label>
-                )}
-                {((isEdit && existing!.quickLogType) || (!isEdit && quickLogType)) && (
-                  <div className="flex flex-col gap-xs pl-lg">
-                    <label htmlFor="header-button-type-label" className={labelClass}>
-                      Type name
-                    </label>
-                    <input
-                      id="header-button-type-label"
-                      value={quickLogTypeLabel}
-                      onChange={(event) => setQuickLogTypeLabel(event.target.value)}
-                      className={fieldClass}
-                    />
                   </div>
                 )}
 
