@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useId, useState, type FormEvent } from 'react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import { cardNoteWasEdited, MAX_CARD_NOTE_LENGTH, validateCardNote } from '@/domain/reflectionCardNotes'
@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
  */
 export function CardNotesPanel({ card, title, open }: { card: number; title: string; open: boolean }) {
   const { notes, status, saving, addNote, updateNote } = useReflectionCardNotes(card, open)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const historyListId = useId()
   const [draft, setDraft] = useState('')
   const [draftError, setDraftError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -71,8 +73,19 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
         </div>
       </form>
 
-      <section aria-label="Earlier notes" className="flex flex-col gap-sm border-t border-line pt-md">
-        <h3 className="text-nano font-semibold uppercase tracking-tag text-ink-dim">History</h3>
+      <section aria-label="Earlier notes" className="flex flex-col border-t border-line pt-sm">
+        <button
+          type="button"
+          aria-expanded={historyOpen}
+          aria-controls={historyListId}
+          onClick={() => setHistoryOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-sm rounded-sm py-xs text-nano font-semibold uppercase tracking-tag text-ink-dim transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        >
+          History
+          <ChevronDown aria-hidden="true" className={cn('size-[16px] transition-transform', historyOpen && 'rotate-180')} />
+        </button>
+        {historyOpen && (
+          <div id={historyListId} className="mt-sm flex flex-col gap-sm">
         {status === 'loading' && notes.length === 0 && (
           <p className="flex items-center gap-sm text-caption text-ink-dim">
             <Loader2 aria-hidden="true" className="size-[14px] animate-spin" />
@@ -87,7 +100,7 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
         {status !== 'loading' && notes.length === 0 && (
           <p className="text-caption text-ink-dim">No notes yet. What you write here will be kept with its date and time.</p>
         )}
-        <ul className="flex max-h-[260px] flex-col gap-sm overflow-y-auto">
+        <ul className="flex flex-col gap-sm">
           {notes.map((n) => (
             <li key={n.id} className="rounded-md border border-line bg-surface-2 p-sm">
               {editingId === n.id ? (
@@ -142,6 +155,8 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
             </li>
           ))}
         </ul>
+          </div>
+        )}
       </section>
     </div>
   )
