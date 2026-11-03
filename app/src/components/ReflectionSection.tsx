@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
+import { EditOverlay } from '@/components/editor/EditOverlay'
+import { InlineNameForm } from '@/components/editor/InlineNameForm'
+import { validateCardName, MAX_CARD_NAME_LENGTH } from '@/domain/reflectionCardNames'
+import { useReflectionCardNames } from '@/state/useReflectionCardNames'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import type { ActivityList } from '@/domain/types'
 import { cn } from '@/lib/utils'
@@ -17,6 +21,10 @@ import { sectionName } from '@/domain/appLanguage'
  *      (`onRequestMapping`). Cards already mapped to the selected activity
  *      show a check; re-tapping one reopens the popup to edit or remove it.
  *
+ * In Edit mode the cards stop mapping and become renameable instead: tap a
+ * card (or its pencil) to change its name. The picture stays; only the name is
+ * the user's. Names are stored on this device.
+ *
  * With no activity selected, tapping a card can't map anything — it shows a
  * one-line inline hint instead of silently doing nothing.
  */
@@ -24,12 +32,22 @@ export function ReflectionSection({
   activities,
   selectedActivityId,
   onRequestMapping,
+  editMode = false,
 }: {
   activities: ActivityList
   selectedActivityId: string | null
   /** Tap path — the caller (`TodayPage`) only acts on this when an activity is actually selected. */
   onRequestMapping: (card: number) => void
+  /** Edit mode: cards are renamed instead of mapped. */
+  editMode?: boolean
 }) {
+  const { nameFor, rename, isCustom } = useReflectionCardNames()
+  const [renaming, setRenaming] = useState<number | null>(null)
+  const [renameError, setRenameError] = useState<string | null>(null)
+  function closeRename() {
+    setRenaming(null)
+    setRenameError(null)
+  }
   const selected = selectedActivityId ? activities.find((a) => a.id === selectedActivityId) ?? null : null
   const mappedCards = new Set(selected?.reflections.map((r) => r.card) ?? [])
 
@@ -70,6 +88,69 @@ export function ReflectionSection({
         className="mt-xl grid grid-cols-9 gap-md mobile:mt-lg mobile:grid-cols-3 mobile:gap-sm"
       >
         {REFLECTION_CARDS.map((card) => {
+          const title = nameFor(card.number)
+          if (editMode) {
+            return (
+              <EditOverlay
+                key={card.number}
+                open={renaming === card.number}
+                onOpenChange={(next) => (next ? (setRenameError(null), setRenaming(card.number)) : closeRename())}
+                label={`Rename ${title}`}
+                anchor={
+                  <div className="relative min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setRenaming(card.number)}
+                      aria-label={`Rename ${title}`}
+                      aria-expanded={renaming === card.number}
+                      className={cn(
+                        'flex w-full flex-col overflow-hidden rounded-md border bg-surface text-left transition-colors',
+                        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                        renaming === card.number ? 'border-ink ring-2 ring-ink' : 'border-dashed border-line hover:border-ink',
+                      )}
+                    >
+                      <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
+                        <img src={card.image} alt="" className="size-full object-cover" />
+                      </div>
+                      <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">{title}</p>
+                    </button>
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-xs top-xs flex size-[24px] items-center justify-center rounded-full border border-line bg-surface text-ink-dim"
+                    >
+                      <Pencil className="size-[12px]" />
+                    </span>
+                  </div>
+                }
+              >
+                <p className="text-caption font-semibold text-ink">Rename tile</p>
+                <InlineNameForm
+                  initial={title}
+                  error={renameError}
+                  onSave={(name) => {
+                    const problem = validateCardName(name)
+                    if (problem) return setRenameError(problem)
+                    rename(card.number, name)
+                    closeRename()
+                  }}
+                  onCancel={closeRename}
+                />
+                {isCustom(card.number) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      rename(card.number, card.title)
+                      closeRename()
+                    }}
+                    className="self-start text-caption font-medium text-ink-dim underline-offset-2 hover:text-ink hover:underline"
+                  >
+                    Reset to “{card.title}”
+                  </button>
+                )}
+                <p className="text-caption text-ink-dim">Up to {MAX_CARD_NAME_LENGTH} characters.</p>
+              </EditOverlay>
+            )
+          }
           const isMapped = mappedCards.has(card.number)
           return (
             <button
@@ -79,10 +160,10 @@ export function ReflectionSection({
               aria-pressed={isMapped}
               aria-label={
                 isMapped
-                  ? `${card.title} — mapped to ${selected?.name}, tap to edit or remove`
+                  ? `${title} — mapped to ${selected?.name}, tap to edit or remove`
                   : selected
-                    ? `${card.title} — tap to map to ${selected.name}`
-                    : card.title
+                    ? `${title} — tap to map to ${selected.name}`
+                    : title
               }
               className={cn(
                 'relative flex flex-col overflow-hidden rounded-md border bg-surface text-left transition-colors',
@@ -94,7 +175,7 @@ export function ReflectionSection({
                 <img src={card.image} alt="" className="size-full object-cover" />
               </div>
               <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">
-                {card.title}
+                {title}
               </p>
               {isMapped && (
                 <span

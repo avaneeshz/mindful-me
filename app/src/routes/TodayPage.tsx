@@ -99,13 +99,13 @@ export function TodayPage() {
 
       <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
         <EditSectionLabel section="stateTiles" className="mb-sm" />
-        <EditLock>
-          <ReflectionSection
-            activities={state.activities}
-            selectedActivityId={state.selectedActivityId}
-            onRequestMapping={openMapping}
-          />
-        </EditLock>
+        {/* Not wrapped in EditLock: in Edit mode the cards are renamed, not logged. */}
+        <ReflectionSection
+          activities={state.activities}
+          selectedActivityId={state.selectedActivityId}
+          onRequestMapping={openMapping}
+          editMode={editMode}
+        />
       </div>
 
       <ReflectionMappingPopover

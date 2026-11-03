@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { useReflectionCardNames } from '@/state/useReflectionCardNames'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import type { ActivityList } from '@/domain/types'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ export function ReflectionMappingPopover({
   onRemove: () => void
   onClose: () => void
 }) {
+  const { nameFor } = useReflectionCardNames()
   const [note, setNote] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -70,7 +72,7 @@ export function ReflectionMappingPopover({
       >
         <div className="flex items-start justify-between gap-md">
           <div className="min-w-0">
-            <Dialog.Title className="text-h1-sm font-semibold text-ink">{card?.title}</Dialog.Title>
+            <Dialog.Title className="text-h1-sm font-semibold text-ink">{card ? nameFor(card.number) : null}</Dialog.Title>
             {activity && (
               <Dialog.Description className="mt-xs text-caption text-ink-dim">
                 {activity.name}

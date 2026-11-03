@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { useActivityNoteFields } from '@/state/useActivityNoteFields'
 import { CategoryIconChip } from './CategoryIconChip'
 import { sectionName } from '@/domain/appLanguage'
+import { useReflectionCardNames } from '@/state/useReflectionCardNames'
 
 /**
  * The read-only detail view for an activity selected on the timeline — the
@@ -54,6 +55,7 @@ export function ActivitySummary({
   /** The day the page is showing, so a range that starts the day before or ends the next day can name its dates. */
   pageDate?: Date
 }) {
+  const { nameFor } = useReflectionCardNames()
   const name = activity.name ?? 'Activity'
   const card = activity.name ? findCard(activity.name) : undefined
   const category = activity.name ? categoryOf(activity.name) : undefined
@@ -151,7 +153,7 @@ export function ActivitySummary({
             <ul className="mt-sm flex flex-wrap gap-md">
               {activity.reflections.map((r) => {
                 const rc = REFLECTION_CARDS.find((c) => c.number === r.card)
-                const title = rc?.title ?? `Card ${r.card}`
+                const title = nameFor(r.card)
                 return (
                   <li key={r.card}>
                     <button
