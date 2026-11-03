@@ -35,11 +35,11 @@ export type HeaderButtonCategory = (typeof HEADER_BUTTON_CATEGORIES)[number]
 export function headerButtonCategoryLabel(category: HeaderButtonCategory): string {
   switch (category) {
     case 'activity':
-      return 'Quick-log an activity'
+      return 'Quick activity'
     case 'checklist':
       return 'Checklist'
     case 'notes':
-      return 'Freeform note'
+      return 'Content entry'
     case 'day_value':
       return 'Daily number'
   }
@@ -94,6 +94,8 @@ export interface HeaderButtonConfig {
   /** This user's own hide state (`header_button_user_state`). */
   hidden: boolean
   sortOrder: number
+  /** The user's own category this button sits in. `null` until the server assigns one — shown in the first category. */
+  groupId: string | null
   // --- 'activity' ---
   activityId: string | null
   /** The catalog card name `quickLogName` used to key off — e.g. `'Sports or Exercise'`. */
@@ -126,6 +128,7 @@ function base(input: {
     label: input.label,
     hidden: false,
     sortOrder: input.sortOrder,
+    groupId: null,
     activityId: null,
     activityName: null,
     entryMode: 'duration',
@@ -322,6 +325,7 @@ export interface HeaderButtonDto {
   note_fields: { id: string; fieldKind: string; key: string | null; label: string; options: string[] }[]
   note_types: string[]
   checklist_items: { key: string; label: string }[]
+  group_id?: string | null
 }
 
 export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonConfig {
@@ -332,6 +336,7 @@ export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonCon
     label: dto.label,
     hidden: dto.hidden,
     sortOrder: dto.sort_order,
+    groupId: dto.group_id ?? null,
     activityId: dto.activity_id,
     activityName: dto.activity_name,
     entryMode: dto.entry_mode === 'song_count' ? 'songCount' : 'duration',
@@ -484,32 +489,6 @@ export function noteLabelsFromFields(fields: readonly { fieldKind: string; key?:
   return { first: label('primary'), second: label('secondary') }
 }
 
-/**
- * The four rows the header renders, top to bottom — one per category, so each
- * kind of button has its own row and its own Add button. Reordering never
- * crosses a row.
- */
-export const HEADER_BUTTON_GROUPS = ['notes', 'activity', 'day_value', 'checklist'] as const
-export type HeaderButtonGroup = (typeof HEADER_BUTTON_GROUPS)[number]
-
-export function headerButtonGroup(category: HeaderButtonCategory): HeaderButtonGroup {
-  return category
-}
-
-/** The per-row Add button's text — names what the new button will be. */
-export function headerButtonAddLabel(category: HeaderButtonCategory): string {
-  switch (category) {
-    case 'activity':
-      return 'Add activity'
-    case 'checklist':
-      return 'Add checklist'
-    case 'notes':
-      return 'Add note'
-    case 'day_value':
-      return 'Add daily number'
-  }
-}
-
 /** `ids` with `movedId` moved to `toIndex` (clamped). Unknown ids return the list unchanged. */
 export function moveId(ids: readonly string[], movedId: string, toIndex: number): string[] {
   const from = ids.indexOf(movedId)
@@ -520,22 +499,134 @@ export function moveId(ids: readonly string[], movedId: string, toIndex: number)
   return next
 }
 
+// ---------------------------------------------------------------------------
+// Categories — the user's own named rows of header buttons.
+//
+// Any number of them, each holding any mix of the four kinds of button. They
+// replace the four fixed rows (one per kind) the header used to have.
+// ---------------------------------------------------------------------------
+
+export interface HeaderButtonGroup {
+  id: string
+  name: string
+  sortOrder: number
+}
+
+/** The shape `public.list_header_button_groups()` hands back. */
+export interface HeaderButtonGroupDto {
+  id: string
+  name: string
+  sort_order: number
+}
+
+export function headerButtonGroupFromDto(dto: HeaderButtonGroupDto): HeaderButtonGroup {
+  return { id: dto.id, name: dto.name, sortOrder: dto.sort_order }
+}
+
+export const MAX_GROUP_NAME_LENGTH = 40
+
+/** Local-only / pre-fetch fallback — the one category everyone starts with. */
+export const DEFAULT_GROUP_NAME = 'Buttons'
+export const DEFAULT_HEADER_BUTTON_GROUPS: readonly HeaderButtonGroup[] = [
+  { id: 'buttons', name: DEFAULT_GROUP_NAME, sortOrder: 0 },
+]
+
+export function sortGroups(groups: readonly HeaderButtonGroup[]): HeaderButtonGroup[] {
+  return [...groups].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+}
+
+/** `null` when `name` is acceptable as a category name, else the sentence to show the user. */
+export function validateGroupName(
+  name: string,
+  groups: readonly HeaderButtonGroup[],
+  exceptId?: string,
+): string | null {
+  const trimmed = name.trim()
+  if (trimmed === '') return 'Give the category a name.'
+  if (trimmed.length > MAX_GROUP_NAME_LENGTH) return `Keep it to ${MAX_GROUP_NAME_LENGTH} characters or fewer.`
+  const clash = groups.some((g) => g.id !== exceptId && g.name.trim().toLowerCase() === trimmed.toLowerCase())
+  return clash ? 'You already have a category with that name.' : null
+}
+
+export interface HeaderButtonRow {
+  group: HeaderButtonGroup
+  buttons: HeaderButtonConfig[]
+}
+
 /**
- * The full visible order to save after one group was reordered: groups stay
- * in their fixed order (notes, activity, daily number, checklist) and only `group`'s own
- * buttons take `groupOrder`. Ids in `groupOrder` that aren't in that group
- * are ignored, so a drag can never move a button into another group.
+ * The rows to render: every category in the user's order, each with its visible
+ * buttons in the user's order. A button whose category is unknown (not yet
+ * assigned, or its category was deleted elsewhere) is shown in the first
+ * category rather than disappearing.
  */
-export function orderAfterGroupReorder(
+export function groupHeaderButtons(
+  groups: readonly HeaderButtonGroup[],
   visible: readonly HeaderButtonConfig[],
-  group: HeaderButtonGroup,
-  groupOrder: readonly string[],
-): string[] {
-  const inGroup = new Set(visible.filter((b) => headerButtonGroup(b.category) === group).map((b) => b.id))
-  const reordered = groupOrder.filter((id) => inGroup.has(id))
-  // Anything the caller dropped keeps its old relative position at the end.
-  for (const b of visible) if (inGroup.has(b.id) && !reordered.includes(b.id)) reordered.push(b.id)
-  return HEADER_BUTTON_GROUPS.flatMap((g) =>
-    g === group ? reordered : visible.filter((b) => headerButtonGroup(b.category) === g).map((b) => b.id),
-  )
+): HeaderButtonRow[] {
+  const sorted = sortGroups(groups)
+  if (sorted.length === 0) return []
+  const known = new Set(sorted.map((g) => g.id))
+  const first = sorted[0]!.id
+  return sorted.map((group) => ({
+    group,
+    buttons: visible.filter((b) => (b.groupId && known.has(b.groupId) ? b.groupId : first) === group.id),
+  }))
+}
+
+/** What a drag or a move commits: which category each visible button now lives in, and their order. */
+export interface HeaderButtonLayoutEntry {
+  groupId: string
+  buttonIds: string[]
+}
+export type HeaderButtonLayout = HeaderButtonLayoutEntry[]
+
+export function layoutFromRows(rows: readonly HeaderButtonRow[]): HeaderButtonLayout {
+  return rows.map((row) => ({ groupId: row.group.id, buttonIds: row.buttons.map((b) => b.id) }))
+}
+
+/**
+ * The layout after putting one button at `toIndex` (clamped; omitted = the end)
+ * of a category — a drag across rows, and, with no index, the tap equivalent
+ * ("Move to…"). An unknown category or button returns the layout unchanged.
+ */
+export function layoutAfterMove(
+  layout: HeaderButtonLayout,
+  buttonId: string,
+  toGroupId: string,
+  toIndex: number = Number.POSITIVE_INFINITY,
+): HeaderButtonLayout {
+  if (!layout.some((entry) => entry.groupId === toGroupId)) return layout
+  if (!layout.some((entry) => entry.buttonIds.includes(buttonId))) return layout
+  return layout.map((entry) => {
+    const without = entry.buttonIds.filter((id) => id !== buttonId)
+    if (entry.groupId !== toGroupId) return { ...entry, buttonIds: without }
+    const at = Math.max(0, Math.min(toIndex, without.length))
+    return { ...entry, buttonIds: [...without.slice(0, at), buttonId, ...without.slice(at)] }
+  })
+}
+
+export function layoutsEqual(a: HeaderButtonLayout, b: HeaderButtonLayout): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** `buttons` with each laid-out button's category and position applied; buttons not in the layout (hidden ones) are untouched. */
+export function applyLayout(buttons: readonly HeaderButtonConfig[], layout: HeaderButtonLayout): HeaderButtonConfig[] {
+  const placement = new Map<string, { groupId: string; position: number }>()
+  let position = 0
+  for (const entry of layout) {
+    for (const id of entry.buttonIds) placement.set(id, { groupId: entry.groupId, position: position++ })
+  }
+  return buttons.map((b) => {
+    const at = placement.get(b.id)
+    return at ? { ...b, groupId: at.groupId, sortOrder: at.position } : b
+  })
+}
+
+/** After deleting a category: every button in it (hidden ones too) moves to `toGroupId`. */
+export function reassignGroup(
+  buttons: readonly HeaderButtonConfig[],
+  fromGroupId: string,
+  toGroupId: string,
+): HeaderButtonConfig[] {
+  return buttons.map((b) => (b.groupId === fromGroupId ? { ...b, groupId: toGroupId } : b))
 }

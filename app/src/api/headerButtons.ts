@@ -2,9 +2,13 @@ import { supabase } from '@/lib/supabaseClient'
 import { dedupeHeaderButtonInput } from '@/domain/headerButtonForm'
 import {
   headerButtonConfigFromDto,
+  headerButtonGroupFromDto,
   withServerFieldIds,
   type HeaderButtonConfig,
   type HeaderButtonDto,
+  type HeaderButtonGroup,
+  type HeaderButtonGroupDto,
+  type HeaderButtonLayout,
 } from '@/domain/headerButtons'
 
 /**
@@ -162,6 +166,80 @@ export async function apiReorderHeaderButtons(orderedIds: string[]): Promise<boo
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[headerButtons] reorder_header_buttons failed — kept locally, will retry on next load', error.message)
+    return false
+  }
+  return true
+}
+
+/**
+ * The user's own categories — `public.list_header_button_groups()`. `null`
+ * (never `[]`) on any failure to reach the server, same contract as
+ * `apiListHeaderButtons`.
+ */
+export async function apiListHeaderButtonGroups(): Promise<HeaderButtonGroup[] | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('list_header_button_groups')
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] list_header_button_groups failed — staying on local data', error.message)
+    return null
+  }
+  return ((data ?? []) as HeaderButtonGroupDto[]).map(headerButtonGroupFromDto)
+}
+
+/** `id` is client-supplied, so a dropped-connection retry never creates a second category. */
+export async function apiCreateHeaderButtonGroup(id: string, name: string): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('create_header_button_group', { p_name: name, p_id: id })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] create_header_button_group failed — kept locally, will retry', error.message)
+    return null
+  }
+  return data as string
+}
+
+export async function apiRenameHeaderButtonGroup(id: string, name: string): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('rename_header_button_group', { p_id: id, p_name: name })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] rename_header_button_group failed — kept locally, will retry', error.message)
+    return false
+  }
+  return true
+}
+
+/** Its buttons move to `moveToId` — deleting a category never deletes buttons. */
+export async function apiDeleteHeaderButtonGroup(id: string, moveToId: string): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('delete_header_button_group', { p_id: id, p_move_to: moveToId })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] delete_header_button_group failed — kept locally, will retry', error.message)
+    return false
+  }
+  return true
+}
+
+export async function apiReorderHeaderButtonGroups(orderedIds: string[]): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('reorder_header_button_groups', { p_ordered_ids: orderedIds })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] reorder_header_button_groups failed — kept locally, will retry', error.message)
+    return false
+  }
+  return true
+}
+
+/** One atomic write for a drag or a move: each visible button's category and order. */
+export async function apiArrangeHeaderButtons(layout: HeaderButtonLayout): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('arrange_header_buttons', { p_layout: layout })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] arrange_header_buttons failed — kept locally, will retry on next load', error.message)
     return false
   }
   return true

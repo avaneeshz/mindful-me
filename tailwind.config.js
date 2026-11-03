@@ -198,6 +198,11 @@ export default {
         'out-soft': 'cubic-bezier(0.22, 0.61, 0.36, 1)',
       },
       keyframes: {
+        // Edit mode: a gentle wobble that says "these can be picked up and moved".
+        jiggle: {
+          '0%, 100%': { transform: 'rotate(-1.2deg)' },
+          '50%': { transform: 'rotate(1.2deg)' },
+        },
         'undo-fade': {
           '0%': { opacity: '1' },
           '92%': { opacity: '1' },
@@ -205,6 +210,7 @@ export default {
         },
       },
       animation: {
+        jiggle: 'jiggle 260ms ease-in-out infinite',
         'undo-fade': 'undo-fade 4000ms linear 1 forwards',
       },
     },
