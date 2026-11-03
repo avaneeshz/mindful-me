@@ -99,13 +99,8 @@ export function TodayPage() {
 
       <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
         <EditSectionLabel section="stateTiles" className="mb-sm" />
-        {/* Not wrapped in EditLock: in Edit mode the cards are renamed, not logged. */}
-        <ReflectionSection
-          activities={state.activities}
-          selectedActivityId={state.selectedActivityId}
-          onRequestMapping={openMapping}
-          editMode={editMode}
-        />
+        {/* Not wrapped in EditLock: in Edit mode the tiles are edited; otherwise they open their notes. */}
+        <ReflectionSection editMode={editMode} />
       </div>
 
       <ReflectionMappingPopover
