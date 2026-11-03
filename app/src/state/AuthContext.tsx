@@ -169,3 +169,8 @@ export function useAuth(): AuthContextValue {
   if (!value) throw new Error('useAuth must be used inside an <AuthProvider>')
   return value
 }
+
+/** Like `useAuth`, but `null` outside a provider — for hooks that must also work in isolated renders. */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext)
+}
