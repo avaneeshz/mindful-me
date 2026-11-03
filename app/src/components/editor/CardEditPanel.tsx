@@ -28,7 +28,7 @@ interface Chosen {
  * anything is saved.
  */
 export function CardEditPanel({ card, onClose }: { card: number; onClose: () => void }) {
-  const { nameFor, imageFor, hasCustomImage, rename, setImage } = useReflectionCards()
+  const { nameFor, imageFor, rename, setImage } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(nameFor(card))
   const [chosen, setChosen] = useState<Chosen | null>(null)
@@ -122,16 +122,6 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
           Change picture
         </span>
       </button>
-      {hasCustomImage(card) && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void run(() => setImage(card, null), () => undefined)}
-          className="self-start text-caption font-medium text-ink-dim underline-offset-2 hover:text-ink hover:underline disabled:opacity-40"
-        >
-          Use the original picture
-        </button>
-      )}
 
       <form
         className="flex flex-col gap-xs"
