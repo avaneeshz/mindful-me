@@ -241,6 +241,12 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
       commit([...all, created])
 
       if (supabaseConfigured) {
+        // The server files a new button under the first category; once it exists there, put it where it was added.
+        const placement =
+          created.groupId !== null
+            ? layoutFromRows(groupHeaderButtons(groups, partitionHeaderButtons([...all, created]).visible))
+            : null
+
         void writeThrough({
           action: 'headerButton.create',
           entity: 'headerButton',
@@ -250,13 +256,9 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
           label: `Add header button “${created.label}”`,
         }).then((out) => {
           if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
+          // Sent only after the create: the move needs the button to exist. A queued create is replayed first (oldest first).
+          if (placement && out.status !== 'rejected') queueArrange(placement, `Place “${created.label}” in its category`)
         })
-
-        // The server files a new button under the first category; put it where it was added.
-        if (created.groupId) {
-          const rows = groupHeaderButtons(groups, partitionHeaderButtons([...all, created]).visible)
-          queueArrange(layoutFromRows(rows), `Place “${created.label}” in its category`)
-        }
       }
 
       return created
@@ -489,8 +491,8 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [rowFor, setActivityNoteLabels],
   )
   const addButtonSynced = useCallback(
-    (input: NewHeaderButtonInput): HeaderButtonConfig => {
-      const created = addButton(input)
+    (input: NewHeaderButtonInput, groupId?: string | null): HeaderButtonConfig => {
+      const created = addButton(input, groupId)
       if (input.noteFields?.some((f) => f.fieldKind === 'text')) syncNotesToActivity(created, input.noteFields)
       return created
     },
