@@ -1,6 +1,7 @@
-import type { HeaderButtonConfig } from '@/domain/headerButtons'
+import type { HeaderButtonConfig, HeaderButtonGroup } from '@/domain/headerButtons'
 
 const SNAPSHOT_KEY = 'mindful-me:header-buttons:snapshot'
+const GROUPS_KEY = 'mindful-me:header-button-groups:snapshot'
 
 /**
  * Rule 6 — every write lands locally first, instantly, regardless of
@@ -34,6 +35,26 @@ export function loadLocalHeaderButtons(): HeaderButtonConfig[] | null {
 export function saveLocalHeaderButtons(buttons: readonly HeaderButtonConfig[]): void {
   try {
     window.localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(buttons))
+  } catch {
+    // In-memory state is still correct; only cross-reload durability is lost.
+  }
+}
+
+/** The user's categories — same one-local-copy, fail-closed contract as the button snapshot above. */
+export function loadLocalHeaderButtonGroups(): HeaderButtonGroup[] | null {
+  try {
+    const raw = window.localStorage.getItem(GROUPS_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length > 0 ? (parsed as HeaderButtonGroup[]) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveLocalHeaderButtonGroups(groups: readonly HeaderButtonGroup[]): void {
+  try {
+    window.localStorage.setItem(GROUPS_KEY, JSON.stringify(groups))
   } catch {
     // In-memory state is still correct; only cross-reload durability is lost.
   }

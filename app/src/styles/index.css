@@ -361,6 +361,14 @@
     animation: none !important;
     opacity: 1;
   }
+
+  /* Product decision: the edit-mode wobble always plays, even with reduced
+     motion on, so people can see header buttons can be dragged. Undoes the
+     blanket rule above for this one animation. */
+  .animate-jiggle {
+    animation-duration: 260ms !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 /* Transparency backdrop for an uploaded icon's "before" preview (IconPicker). */

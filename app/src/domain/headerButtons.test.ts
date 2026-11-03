@@ -5,7 +5,13 @@ import {
   headerButtonConfigFromDto,
   isUuid,
   moveId,
-  orderAfterGroupReorder,
+  applyLayout,
+  groupHeaderButtons,
+  layoutAfterMove,
+  layoutFromRows,
+  reassignGroup,
+  validateGroupName,
+  type HeaderButtonGroup,
   partitionHeaderButtons,
   slugifyChecklistItemKey,
   noteLabelsFromFields,
@@ -24,6 +30,7 @@ function makeButton(overrides: Partial<HeaderButtonConfig>): HeaderButtonConfig 
     label: 'Label',
     hidden: false,
     sortOrder: 0,
+    groupId: null,
     activityId: null,
     activityName: null,
     entryMode: 'duration',
@@ -249,36 +256,132 @@ describe('moveId', () => {
   })
 })
 
-describe('orderAfterGroupReorder', () => {
-  const visible = [
-    makeButton({ id: 'n1', category: 'notes' }),
-    makeButton({ id: 'n2', category: 'notes' }),
-    makeButton({ id: 'q1', category: 'activity' }),
-    makeButton({ id: 'q2', category: 'day_value' }),
-    makeButton({ id: 'c1', category: 'checklist' }),
+const GROUPS: HeaderButtonGroup[] = [
+  { id: 'g2', name: 'Evening', sortOrder: 1 },
+  { id: 'g1', name: 'Morning', sortOrder: 0 },
+]
+
+describe('groupHeaderButtons — the rows to render', () => {
+  it('lists categories in the user order, each with its own buttons in order', () => {
+    const rows = groupHeaderButtons(GROUPS, [
+      makeButton({ id: 'a', groupId: 'g1' }),
+      makeButton({ id: 'b', groupId: 'g2', category: 'checklist' }),
+      makeButton({ id: 'c', groupId: 'g1', category: 'day_value' }),
+    ])
+    expect(rows.map((r) => [r.group.id, r.buttons.map((b) => b.id)])).toEqual([
+      ['g1', ['a', 'c']],
+      ['g2', ['b']],
+    ])
+  })
+
+  it('any mix of the four button types can share a category', () => {
+    const [row] = groupHeaderButtons(GROUPS, [
+      makeButton({ id: 'n', groupId: 'g1', category: 'notes' }),
+      makeButton({ id: 'q', groupId: 'g1', category: 'activity' }),
+      makeButton({ id: 'd', groupId: 'g1', category: 'day_value' }),
+      makeButton({ id: 'c', groupId: 'g1', category: 'checklist' }),
+    ])
+    expect(row!.buttons).toHaveLength(4)
+  })
+
+  it('shows a button with no category, or a deleted one, in the first category rather than losing it', () => {
+    const rows = groupHeaderButtons(GROUPS, [makeButton({ id: 'a', groupId: null }), makeButton({ id: 'b', groupId: 'gone' })])
+    expect(rows[0]!.buttons.map((b) => b.id)).toEqual(['a', 'b'])
+    expect(rows[1]!.buttons).toEqual([])
+  })
+
+  it('returns nothing when there are no categories', () => {
+    expect(groupHeaderButtons([], [makeButton({ id: 'a' })])).toEqual([])
+  })
+})
+
+describe('layoutAfterMove — dragging across categories, and the tap equivalent', () => {
+  const layout = [
+    { groupId: 'g1', buttonIds: ['a', 'b'] },
+    { groupId: 'g2', buttonIds: ['c'] },
   ]
 
-  it('reorders one group and keeps the others in place', () => {
-    const activities = [...visible, makeButton({ id: 'q3', category: 'activity' })]
-    expect(orderAfterGroupReorder(activities, 'activity', ['q3', 'q1'])).toEqual(['n1', 'n2', 'q3', 'q1', 'q2', 'c1'])
-    expect(orderAfterGroupReorder(visible, 'notes', ['n2', 'n1'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+  it('moves a button to another category at a chosen position', () => {
+    expect(layoutAfterMove(layout, 'a', 'g2', 0)).toEqual([
+      { groupId: 'g1', buttonIds: ['b'] },
+      { groupId: 'g2', buttonIds: ['a', 'c'] },
+    ])
   })
 
-  it('gives activities and daily numbers their own rows, in that order', () => {
-    const mixed = [
-      makeButton({ id: 'd1', category: 'day_value' }),
-      makeButton({ id: 'a1', category: 'activity' }),
-      makeButton({ id: 'n1', category: 'notes' }),
+  it('with no position it goes to the end — what the form Category picker does', () => {
+    expect(layoutAfterMove(layout, 'a', 'g2')).toEqual([
+      { groupId: 'g1', buttonIds: ['b'] },
+      { groupId: 'g2', buttonIds: ['c', 'a'] },
+    ])
+  })
+
+  it('reorders inside the same category', () => {
+    expect(layoutAfterMove(layout, 'a', 'g1', 1)).toEqual([
+      { groupId: 'g1', buttonIds: ['b', 'a'] },
+      { groupId: 'g2', buttonIds: ['c'] },
+    ])
+  })
+
+  it('can fill an empty category', () => {
+    const withEmpty = [...layout, { groupId: 'g3', buttonIds: [] }]
+    expect(layoutAfterMove(withEmpty, 'c', 'g3')[2]).toEqual({ groupId: 'g3', buttonIds: ['c'] })
+  })
+
+  it('ignores an unknown category or button', () => {
+    expect(layoutAfterMove(layout, 'a', 'nope')).toBe(layout)
+    expect(layoutAfterMove(layout, 'zzz', 'g2')).toBe(layout)
+  })
+})
+
+describe('applyLayout', () => {
+  it('sets each laid-out button category and position, and leaves hidden buttons alone', () => {
+    const buttons = [
+      makeButton({ id: 'a', groupId: 'g1', sortOrder: 0 }),
+      makeButton({ id: 'b', groupId: 'g1', sortOrder: 1 }),
+      makeButton({ id: 'h', groupId: 'g1', sortOrder: 7, hidden: true }),
     ]
-    expect(orderAfterGroupReorder(mixed, 'notes', ['n1'])).toEqual(['n1', 'a1', 'd1'])
+    const next = applyLayout(buttons, [
+      { groupId: 'g2', buttonIds: ['b'] },
+      { groupId: 'g1', buttonIds: ['a'] },
+    ])
+    expect(next.map((b) => [b.id, b.groupId, b.sortOrder])).toEqual([
+      ['a', 'g1', 1],
+      ['b', 'g2', 0],
+      ['h', 'g1', 7],
+    ])
   })
 
-  it('never moves a button into another group', () => {
-    expect(orderAfterGroupReorder(visible, 'notes', ['c1', 'n2', 'n1'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+  it('round-trips with layoutFromRows', () => {
+    const buttons = [makeButton({ id: 'a', groupId: 'g1' }), makeButton({ id: 'b', groupId: 'g2' })]
+    expect(layoutFromRows(groupHeaderButtons(GROUPS, buttons))).toEqual([
+      { groupId: 'g1', buttonIds: ['a'] },
+      { groupId: 'g2', buttonIds: ['b'] },
+    ])
   })
+})
 
-  it('keeps group members the caller left out', () => {
-    expect(orderAfterGroupReorder(visible, 'notes', ['n2'])).toEqual(['n2', 'n1', 'q1', 'q2', 'c1'])
+describe('reassignGroup', () => {
+  it('moves every button of a deleted category — hidden ones too', () => {
+    const next = reassignGroup(
+      [makeButton({ id: 'a', groupId: 'g1' }), makeButton({ id: 'b', groupId: 'g1', hidden: true }), makeButton({ id: 'c', groupId: 'g2' })],
+      'g1',
+      'g2',
+    )
+    expect(next.map((b) => b.groupId)).toEqual(['g2', 'g2', 'g2'])
+  })
+})
+
+describe('validateGroupName', () => {
+  it('accepts a fresh name', () => {
+    expect(validateGroupName('Night', GROUPS)).toBeNull()
+  })
+  it('rejects blank, over-long and duplicate names', () => {
+    expect(validateGroupName('   ', GROUPS)).toMatch(/name/i)
+    expect(validateGroupName('x'.repeat(41), GROUPS)).toMatch(/40/)
+    expect(validateGroupName(' morning ', GROUPS)).toMatch(/already/i)
+  })
+  it('lets a category keep its own name when renamed', () => {
+    expect(validateGroupName('Morning', GROUPS, 'g1')).toBeNull()
   })
 })
 
