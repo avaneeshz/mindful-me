@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { useActivityNoteFields } from '@/state/useActivityNoteFields'
 import { CategoryIconChip } from './CategoryIconChip'
 import { sectionName } from '@/domain/appLanguage'
-import { useReflectionCardNames } from '@/state/useReflectionCardNames'
+import { useReflectionCards } from '@/state/useReflectionCards'
 
 /**
  * The read-only detail view for an activity selected on the timeline — the
@@ -55,7 +55,7 @@ export function ActivitySummary({
   /** The day the page is showing, so a range that starts the day before or ends the next day can name its dates. */
   pageDate?: Date
 }) {
-  const { nameFor } = useReflectionCardNames()
+  const { nameFor, imageFor } = useReflectionCards()
   const name = activity.name ?? 'Activity'
   const card = activity.name ? findCard(activity.name) : undefined
   const category = activity.name ? categoryOf(activity.name) : undefined
@@ -163,7 +163,7 @@ export function ActivitySummary({
                       className="block w-[72px] overflow-hidden rounded-sm border border-line bg-surface-2 transition-colors hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                     >
                       <span className="block aspect-[4/3] w-full">
-                        {rc && <img src={rc.image} alt="" className="size-full object-cover" />}
+                        {rc && <img src={imageFor(r.card)} alt="" className="size-full object-cover" />}
                       </span>
                     </button>
                   </li>

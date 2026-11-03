@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Check, Pencil } from 'lucide-react'
 import { EditOverlay } from '@/components/editor/EditOverlay'
-import { InlineNameForm } from '@/components/editor/InlineNameForm'
-import { validateCardName, MAX_CARD_NAME_LENGTH } from '@/domain/reflectionCardNames'
-import { useReflectionCardNames } from '@/state/useReflectionCardNames'
+import { CardEditPanel } from '@/components/editor/CardEditPanel'
+import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import type { ActivityList } from '@/domain/types'
 import { cn } from '@/lib/utils'
@@ -22,8 +21,7 @@ import { sectionName } from '@/domain/appLanguage'
  *      show a check; re-tapping one reopens the popup to edit or remove it.
  *
  * In Edit mode the cards stop mapping and become renameable instead: tap a
- * card (or its pencil) to change its name. The picture stays; only the name is
- * the user's. Names are stored on this device.
+ * card to change its name or its picture. Both belong to the signed-in account.
  *
  * With no activity selected, tapping a card can't map anything — it shows a
  * one-line inline hint instead of silently doing nothing.
@@ -41,13 +39,8 @@ export function ReflectionSection({
   /** Edit mode: cards are renamed instead of mapped. */
   editMode?: boolean
 }) {
-  const { nameFor, rename, isCustom } = useReflectionCardNames()
+  const { nameFor, imageFor } = useReflectionCards()
   const [renaming, setRenaming] = useState<number | null>(null)
-  const [renameError, setRenameError] = useState<string | null>(null)
-  function closeRename() {
-    setRenaming(null)
-    setRenameError(null)
-  }
   const selected = selectedActivityId ? activities.find((a) => a.id === selectedActivityId) ?? null : null
   const mappedCards = new Set(selected?.reflections.map((r) => r.card) ?? [])
 
@@ -94,14 +87,14 @@ export function ReflectionSection({
               <EditOverlay
                 key={card.number}
                 open={renaming === card.number}
-                onOpenChange={(next) => (next ? (setRenameError(null), setRenaming(card.number)) : closeRename())}
-                label={`Rename ${title}`}
+                onOpenChange={(next) => setRenaming(next ? card.number : null)}
+                label={`Edit ${title}`}
                 anchor={
                   <div className="relative min-w-0">
                     <button
                       type="button"
                       onClick={() => setRenaming(card.number)}
-                      aria-label={`Rename ${title}`}
+                      aria-label={`Edit ${title}`}
                       aria-expanded={renaming === card.number}
                       className={cn(
                         'flex w-full flex-col overflow-hidden rounded-md border bg-surface text-left transition-colors',
@@ -110,7 +103,7 @@ export function ReflectionSection({
                       )}
                     >
                       <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
-                        <img src={card.image} alt="" className="size-full object-cover" />
+                        <img src={imageFor(card.number)} alt="" className="size-full object-cover" />
                       </div>
                       <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">{title}</p>
                     </button>
@@ -123,31 +116,7 @@ export function ReflectionSection({
                   </div>
                 }
               >
-                <p className="text-caption font-semibold text-ink">Rename tile</p>
-                <InlineNameForm
-                  initial={title}
-                  error={renameError}
-                  onSave={(name) => {
-                    const problem = validateCardName(name)
-                    if (problem) return setRenameError(problem)
-                    rename(card.number, name)
-                    closeRename()
-                  }}
-                  onCancel={closeRename}
-                />
-                {isCustom(card.number) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      rename(card.number, card.title)
-                      closeRename()
-                    }}
-                    className="self-start text-caption font-medium text-ink-dim underline-offset-2 hover:text-ink hover:underline"
-                  >
-                    Reset to “{card.title}”
-                  </button>
-                )}
-                <p className="text-caption text-ink-dim">Up to {MAX_CARD_NAME_LENGTH} characters.</p>
+                <CardEditPanel card={card.number} onClose={() => setRenaming(null)} />
               </EditOverlay>
             )
           }
@@ -172,7 +141,7 @@ export function ReflectionSection({
               )}
             >
               <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
-                <img src={card.image} alt="" className="size-full object-cover" />
+                <img src={imageFor(card.number)} alt="" className="size-full object-cover" />
               </div>
               <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">
                 {title}

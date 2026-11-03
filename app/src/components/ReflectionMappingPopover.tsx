@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { useReflectionCardNames } from '@/state/useReflectionCardNames'
+import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import type { ActivityList } from '@/domain/types'
 import { Button } from '@/components/ui/button'
@@ -39,7 +39,7 @@ export function ReflectionMappingPopover({
   onRemove: () => void
   onClose: () => void
 }) {
-  const { nameFor } = useReflectionCardNames()
+  const { nameFor } = useReflectionCards()
   const [note, setNote] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
