@@ -39,7 +39,7 @@ export const APP_SECTIONS: Record<AppSectionId, AppSection> = {
   stateTiles: {
     id: 'stateTiles',
     name: 'State Tiles',
-    description: 'Cards for how you felt. Pick an activity on the Timeline, then tap a card to map it.',
+    description: 'Cards for how you felt. Tap one to write a note and see the notes you wrote before.',
   },
 }
 
