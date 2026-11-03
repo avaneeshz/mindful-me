@@ -1,9 +1,9 @@
 import { AlignLeft, ArrowDown, ArrowUp, EyeOff, Hash, ListChecks, NotebookPen, Pencil, Plus, Timer, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { catalogIdForName } from '@/api/catalog'
+import { findCard, firstLevelOptionNames } from '@/data/activities'
 import {
   addNoteField,
-  ACTIVITY_NOTES_HINT,
   draftFromButton,
   toCreateInput,
   toUpdateInput,
@@ -218,7 +218,7 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
           <>
             {!isEdit && (
               <Field label="Activity to quick-log">
-                <select className={cn(inputClass, '[color-scheme:dark]')} value={draft.activityName} onChange={(e) => set({ activityName: e.target.value })}>
+                <select className={cn(inputClass, '[color-scheme:dark]')} value={draft.activityName} onChange={(e) => set({ activityName: e.target.value, quickLogType: firstLevelOptionNames(findCard(e.target.value)).length > 0 })}>
                   <option value="">Choose an activity…</option>
                   {allTiles.map((t) => (
                     <optgroup key={t.id} label={t.label}>
@@ -232,21 +232,21 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
                 </select>
               </Field>
             )}
-            {!isEdit && (
+            {!isEdit && firstLevelOptionNames(findCard(draft.activityName)).length > 0 && (
               <div className="flex min-h-11 items-center justify-between gap-3">
-                <span className="text-sm text-ink">Offer a type choice when logging</span>
+                <span className="text-sm text-ink">Type selector</span>
                 <Switch checked={draft.quickLogType} onChange={() => set({ quickLogType: !draft.quickLogType })} label="Offer a type choice" />
               </div>
             )}
             {((isEdit && existing?.quickLogType) || (!isEdit && draft.quickLogType)) && (
-              <Field label="Type field label">
+              <Field label="Type name">
                 <input className={inputClass} value={draft.quickLogTypeLabel} onChange={(e) => set({ quickLogTypeLabel: e.target.value })} />
               </Field>
             )}
 
+            {isEdit && (
             <div>
               <p className="mb-1 text-xs font-medium text-ink-muted">Note fields</p>
-              <p className="mb-2 text-xs text-ink-faint">{ACTIVITY_NOTES_HINT}</p>
               <ul className="flex flex-col gap-1.5">
                 {draft.fields.length === 0 && <li className="text-sm text-ink-faint">None.</li>}
                 {draft.fields.map((f, i) => (
@@ -254,7 +254,7 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
                     {f.fieldKind === 'text' ? <AlignLeft className="h-4 w-4 text-ink-muted" /> : <ListChecks className="h-4 w-4 text-ink-muted" />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-ink">{f.label}</span>
-                      <span className="block truncate text-xs text-ink-faint">{f.fieldKind === 'text' ? 'Text · from the activity' : f.options.join(', ')}</span>
+                      <span className="block truncate text-xs text-ink-faint">{f.fieldKind === 'text' ? 'Text' : f.options.join(', ')}</span>
                     </span>
                     {f.fieldKind === 'multiselect' && (
                       <Button variant="ghost" size="icon" aria-label={`Remove ${f.label}`} onClick={() => set({ fields: draft.fields.filter((_, j) => j !== i) })}>
@@ -325,6 +325,7 @@ function ButtonFormSheet({ form, onClose }: { form: null | { button: HeaderButto
                 </Button>
               )}
             </div>
+            )}
           </>
         )}
 

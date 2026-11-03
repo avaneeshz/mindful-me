@@ -74,17 +74,15 @@ describe('HeaderButtonFormDialog — add mode', () => {
     expect(html).toContain('<form')
     expect(html).not.toContain('What kind of button do you want to add?')
     expect(html).toContain('>Back<')
-    expect(html).toContain('Fields')
-    expect(html).toContain('Add multiple-choice field')
+    expect(html).not.toContain('Fields')
+    expect(html).not.toContain('Add multiple-choice field')
   })
 
-  it('shows the dashed "+ Add field" affordance, not the inline expand panel, by default', () => {
+  it('asks for nothing about note fields — they come from the activity without explanation', () => {
     const html = renderAdd()
-    expect(html).toContain('border-dashed')
-    expect(html).toContain('Add multiple-choice field')
-    // The inline panel's own controls are absent until "Add multiple-choice field" is clicked.
-    expect(html).not.toContain('New multiple-choice field')
-    expect(html).not.toContain('id="field-title"')
+    expect(html).not.toContain('Fields')
+    expect(html).not.toContain('Add multiple-choice field')
+    expect(html).not.toContain('from the activity')
   })
 
   it('renders no field rows when nothing is configured yet', () => {
@@ -115,11 +113,11 @@ describe('HeaderButtonFormDialog — edit mode, Sleep (2 text fields + 1 multise
     expect(html).not.toContain('aria-label="Remove Note"')
     expect(html).not.toContain('aria-label="Remove Dreams"')
     expect(html).toContain('aria-label="Remove How was your sleep?"')
-    expect(html).toContain('Text note · from the activity')
+    expect(html).not.toContain('from the activity')
   })
 
-  it('explains that written notes are managed on the activity', () => {
-    expect(renderEdit()).toContain('Written notes come from the activity itself')
+  it('does not explain where note fields come from', () => {
+    expect(renderEdit()).not.toContain('Written notes come from the activity itself')
   })
 
   it('still shows the dashed "+ Add field" row below the configured list', () => {

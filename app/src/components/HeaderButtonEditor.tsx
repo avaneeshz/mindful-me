@@ -16,7 +16,6 @@ import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
 import {
   addNoteField,
   type NewHeaderButtonInput,
-  ACTIVITY_NOTES_HINT,
   toCreateInput,
   toUpdateInput,
   validateHeaderButtonDraft,
@@ -583,6 +582,8 @@ export function HeaderButtonFormDialog({
                       onChange={(event) => {
                         setActivityName(event.target.value)
                         if (!labelEdited) setLabel(event.target.value)
+                        // An activity with types gets its type selector by default.
+                        setQuickLogType(firstLevelOptionNames(findCard(event.target.value)).length > 0)
                       }}
                       className={fieldClass}
                     >
@@ -603,13 +604,13 @@ export function HeaderButtonFormDialog({
                       checked={quickLogType}
                       onChange={(event) => setQuickLogType(event.target.checked)}
                     />
-                    Offer a type selector ({typeOptions.join(', ')})
+                    Type selector
                   </label>
                 )}
                 {((isEdit && existing!.quickLogType) || (!isEdit && quickLogType)) && (
                   <div className="flex flex-col gap-xs pl-lg">
                     <label htmlFor="header-button-type-label" className={labelClass}>
-                      Type field label
+                      Type name
                     </label>
                     <input
                       id="header-button-type-label"
@@ -625,9 +626,9 @@ export function HeaderButtonFormDialog({
                     separate checkboxes: primary note / secondary note / the
                     Sleep-only "quality picker" special case; now one
                     generic, uncapped-for-multiselect list). */}
+                {isEdit && (
                 <div className="flex flex-col gap-sm">
                   <span className={labelClass}>Fields</span>
-                  <p className="text-caption text-ink-dim">{ACTIVITY_NOTES_HINT}</p>
 
                   {fields.length > 0 && (
                     <div className="flex flex-col gap-xs">
@@ -644,7 +645,7 @@ export function HeaderButtonFormDialog({
                           <div className="flex min-w-0 flex-1 flex-col">
                             <span className="truncate text-body font-medium text-ink">{field.label}</span>
                             <span className="text-caption text-ink-dim">
-                              {field.fieldKind === 'multiselect' ? 'Multiple choice' : 'Text note · from the activity'}
+                              {field.fieldKind === 'multiselect' ? 'Multiple choice' : 'Text note'}
                             </span>
                           </div>
                           {field.fieldKind === 'multiselect' && (
@@ -742,6 +743,7 @@ export function HeaderButtonFormDialog({
                     </div>
                   )}
                 </div>
+                )}
               </>
             )}
 
