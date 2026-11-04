@@ -482,8 +482,6 @@ function HeaderButtonRows({
                     aria-current={selected ? 'true' : undefined}
                     className={cn(
                       'relative select-none rounded-full transition-opacity duration-200',
-                      // While something is selected the rest fade back, so the selection is the only thing at full strength.
-                      hasSelection && !selected && 'opacity-40',
                       selected && 'shadow-elevation-2',
                       inGroupDrag && 'opacity-40',
                       draggingId === id && 'shadow-elevation-2',
