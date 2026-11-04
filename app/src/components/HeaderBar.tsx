@@ -346,12 +346,49 @@ function HeaderButtonRows({
   const { notifyLocked } = useEditMode()
   const idBase = useId()
   const byId = new Map(rows.flatMap((row) => row.buttons).map((b) => [b.id, b]))
+  // The button last pressed in Edit mode stays highlighted — through a drag and
+  // after the drop — so it can be found again among dozens. It clears when you
+  // press anywhere outside the buttons, press Escape, or leave Edit mode.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const { lanes, draggingId, itemProps, laneRef } = usePointerReorder({
     lanes: layoutFromRows(rows),
     enabled: editMode,
-    onCommit: onArrange,
+    onCommit: (layout) => {
+      onArrange(layout)
+      // The drop may have moved it out of view; bring it back into view.
+      const id = selectedIdRef.current
+      if (id) {
+        requestAnimationFrame(() => {
+          document.querySelector(`[data-header-button-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        })
+      }
+    },
     onTap: notifyLocked,
   })
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
+
+  useEffect(() => {
+    if (!editMode) setSelectedId(null)
+  }, [editMode])
+
+  useEffect(() => {
+    if (!selectedId) return
+    function onPointerDown(event: PointerEvent) {
+      // A press on any button (or its edit / remove controls) is handled by that button itself.
+      if ((event.target as Element | null)?.closest('[data-header-button-id]')) return
+      setSelectedId(null)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSelectedId(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [selectedId])
 
   return (
     <div className="flex flex-col">
@@ -394,21 +431,32 @@ function HeaderButtonRows({
                   )
                 }
                 const props = itemProps(id)
+                const selected = selectedId === id
                 return (
                   <span
                     key={id}
                     ref={props.ref}
-                    onPointerDown={props.onPointerDown}
+                    onPointerDown={(event) => {
+                      setSelectedId(id)
+                      props.onPointerDown(event)
+                    }}
                     style={props.style}
                     data-dragging={props['data-dragging']}
+                    data-header-button-id={id}
+                    data-selected={selected ? '' : undefined}
                     aria-roledescription="draggable button"
-                    className={cn('relative select-none rounded-full', draggingId === id && 'shadow-elevation-2')}
+                    aria-current={selected ? 'true' : undefined}
+                    className={cn(
+                      'relative select-none rounded-full transition-shadow',
+                      selected && 'ring-2 ring-ink ring-offset-2 ring-offset-bg',
+                      draggingId === id && 'shadow-elevation-2',
+                    )}
                   >
                     {/* The wobble sits on this inner span, not the draggable one, so it
                         never fights the drag's own transform; it stops while held. */}
                     <span
                       inert
-                      className={cn('pointer-events-none block', draggingId === null && 'animate-jiggle')}
+                      className={cn('pointer-events-none block', draggingId === null && !selected && 'animate-jiggle')}
                       style={{ animationDelay: `${-(index % 4) * 0.07 - (ids.indexOf(id) % 3) * 0.05}s` }}
                     >
                       {renderButton(button)}
