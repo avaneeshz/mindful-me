@@ -60,15 +60,16 @@ export function EditModeToggle({ active, onToggle }: { active: boolean; onToggle
   )
 }
 
-/** The small Edit/Remove overlay a button wears in edit mode — a phone-home-screen-widget shape, not a hover-only affordance (so it works on touch too). */
+/** The small Edit/Delete overlay a button wears in edit mode — a phone-home-screen-widget shape, not a hover-only affordance (so it works on touch too). */
 export function EditModeControls({
   button,
   onEdit,
-  onHide,
+  onDelete,
 }: {
   button: HeaderButtonConfig
   onEdit: () => void
-  onHide: () => void
+  /** Asks first — the caller shows a confirmation before anything is removed. */
+  onDelete: () => void
 }) {
   return (
     <span className="absolute -right-xs -top-xs z-10 flex gap-[2px]">
@@ -82,11 +83,11 @@ export function EditModeControls({
       </button>
       <button
         type="button"
-        aria-label={`Remove ${button.label}`}
-        onClick={onHide}
+        aria-label={`Delete ${button.label}`}
+        onClick={onDelete}
         className="flex size-[20px] items-center justify-center rounded-full border border-line bg-surface text-ink-dim shadow-elevation-1 transition-colors hover:bg-bg hover:text-ink"
       >
-        <X aria-hidden="true" className="size-[11px]" />
+        <Trash2 aria-hidden="true" className="size-[11px]" />
       </button>
     </span>
   )

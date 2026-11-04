@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { CalendarDays, Moon, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
@@ -31,8 +32,8 @@ import {
   type HeaderButtonGroup,
   type HeaderButtonLayout,
 } from '@/domain/headerButtons'
-import { useEditMode } from '@/state/EditModeContext'
-import { usePointerReorder } from '@/components/ui/usePointerReorder'
+import { usePointerReorder, type DragGhost } from '@/components/ui/usePointerReorder'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 import { EditLock } from '@/components/ui/EditLock'
 import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
@@ -152,6 +153,8 @@ export function HeaderBar({
     null,
   )
   const rows = useMemo(() => groupHeaderButtons(groups, visible), [groups, visible])
+  // "Delete" asks first; the button is removed from the header (it can be brought back from Settings → Hidden items).
+  const [pendingDelete, setPendingDelete] = useState<HeaderButtonConfig | null>(null)
 
   // `DisplayValueButton`/`NoteButtonPill` stay keyed by a plain string prop
   // (unchanged internals — see the full-stack-engineer report for why) and
@@ -257,7 +260,7 @@ export function HeaderBar({
         editMode={editMode}
         onArrange={arrange}
         onEdit={openEditForm}
-        onHide={(button) => hideButton(button.id)}
+        onDelete={setPendingDelete}
         onAddButton={(group) => setFormMode({ kind: 'add', groupId: group.id })}
         onAddGroup={addGroup}
         onRenameGroup={renameGroup}
@@ -295,6 +298,22 @@ export function HeaderBar({
 
       {editMode && <HiddenInSettingsLink count={hidden.length} noun="button" />}
 
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Are you sure you want to delete this button?"
+        description={
+          pendingDelete
+            ? `“${pendingDelete.label}” will be removed from your header. You can bring it back any time from Settings → Hidden items.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) hideButton(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
+
       {formMode && (
         <HeaderButtonFormDialog
           mode={formMode}
@@ -322,7 +341,7 @@ function HeaderButtonRows({
   editMode,
   onArrange,
   onEdit,
-  onHide,
+  onDelete,
   onAddButton,
   onAddGroup,
   onRenameGroup,
@@ -335,7 +354,7 @@ function HeaderButtonRows({
   editMode: boolean
   onArrange: (layout: HeaderButtonLayout) => void
   onEdit: (button: HeaderButtonConfig) => void
-  onHide: (button: HeaderButtonConfig) => void
+  onDelete: (button: HeaderButtonConfig) => void
   onAddButton: (group: HeaderButtonGroup) => void
   onAddGroup: (name: string) => void
   onRenameGroup: (id: string, name: string) => void
@@ -343,15 +362,68 @@ function HeaderButtonRows({
   onMoveGroup: (group: HeaderButtonGroup, direction: -1 | 1) => void
   renderButton: (button: HeaderButtonConfig) => ReactNode
 }) {
-  const { notifyLocked } = useEditMode()
   const idBase = useId()
   const byId = new Map(rows.flatMap((row) => row.buttons).map((b) => [b.id, b]))
-  const { lanes, draggingId, itemProps, laneRef } = usePointerReorder({
+  // Tapping a button selects it; tapping more buttons in the SAME category adds
+  // them (tap a selected one again to drop it from the selection). Dragging any
+  // selected button carries the whole selection, to any category. The selection
+  // stays through the drag and after the drop, so it can be found again among
+  // dozens, and clears when you press anywhere outside the buttons, press
+  // Escape, or leave Edit mode.
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const selectedIdsRef = useRef(selectedIds)
+  selectedIdsRef.current = selectedIds
+  const categoryOf = (id: string) => rows.find((row) => row.buttons.some((b) => b.id === id))?.group.id
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      if (current.length === 0) return [id]
+      // One category at a time: picking from another category starts a new selection.
+      if (categoryOf(current[0]!) !== categoryOf(id)) return [id]
+      return current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    })
+  }
+
+  const { lanes, draggingId, draggingIds, ghost, itemProps, laneRef } = usePointerReorder({
     lanes: layoutFromRows(rows),
     enabled: editMode,
-    onCommit: onArrange,
-    onTap: notifyLocked,
+    selectedIds,
+    onCommit: (layout) => {
+      onArrange(layout)
+      // The drop may have moved it out of view; bring it back into view.
+      const id = selectedIdsRef.current[0]
+      if (id) {
+        requestAnimationFrame(() => {
+          document.querySelector(`[data-header-button-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        })
+      }
+    },
+    onTap: toggleSelected,
+    onDragStart: (id) => setSelectedIds([id]),
   })
+
+  useEffect(() => {
+    if (!editMode) setSelectedIds([])
+  }, [editMode])
+
+  const hasSelection = selectedIds.length > 0
+  useEffect(() => {
+    if (!hasSelection) return
+    function onPointerDown(event: PointerEvent) {
+      // A press on any button (or its edit / delete controls) is handled by that button itself.
+      if ((event.target as Element | null)?.closest('[data-header-button-id]')) return
+      setSelectedIds([])
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSelectedIds([])
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [hasSelection])
 
   return (
     <div className="flex flex-col">
@@ -394,6 +466,9 @@ function HeaderButtonRows({
                   )
                 }
                 const props = itemProps(id)
+                const selected = selectedIds.includes(id)
+                // While several travel together their own slots are placeholders showing where they'll land.
+                const inGroupDrag = draggingIds.length > 1 && draggingIds.includes(id)
                 return (
                   <span
                     key={id}
@@ -401,20 +476,35 @@ function HeaderButtonRows({
                     onPointerDown={props.onPointerDown}
                     style={props.style}
                     data-dragging={props['data-dragging']}
+                    data-header-button-id={id}
+                    data-selected={selected ? '' : undefined}
                     aria-roledescription="draggable button"
-                    className={cn('relative select-none rounded-full', draggingId === id && 'shadow-elevation-2')}
+                    aria-current={selected ? 'true' : undefined}
+                    className={cn(
+                      'relative select-none rounded-full transition-opacity duration-200',
+                      selected && 'shadow-elevation-2',
+                      inGroupDrag && 'opacity-40',
+                      draggingId === id && 'shadow-elevation-2',
+                    )}
                   >
                     {/* The wobble sits on this inner span, not the draggable one, so it
-                        never fights the drag's own transform; it stops while held. */}
+                        never fights the drag's own transform. Only selected buttons wobble,
+                        and they hold still while being dragged. */}
                     <span
                       inert
-                      className={cn('pointer-events-none block', draggingId === null && 'animate-jiggle')}
+                      className={cn(
+                        'pointer-events-none block rounded-full transition-transform duration-200',
+                        inGroupDrag && 'scale-95',
+                        selected && draggingIds.length === 0 && 'animate-jiggle',
+                        // A selected button is the theme's solid "invert" pair (the same fill as the Done pill).
+                        selected && '[&_*]:!text-inv-ink [&_button]:!border-inv-bg [&_button]:!bg-inv-bg',
+                      )}
                       style={{ animationDelay: `${-(index % 4) * 0.07 - (ids.indexOf(id) % 3) * 0.05}s` }}
                     >
                       {renderButton(button)}
                     </span>
                     <span data-reorder-ignore="">
-                      <EditModeControls button={button} onEdit={() => onEdit(button)} onHide={() => onHide(button)} />
+                      <EditModeControls button={button} onEdit={() => onEdit(button)} onDelete={() => onDelete(button)} />
                     </span>
                   </span>
                 )
@@ -433,6 +523,35 @@ function HeaderButtonRows({
           <AddCategoryControl groups={groups} onAdd={onAddGroup} />
         </div>
       )}
+      {ghost && typeof document !== 'undefined' && createPortal(<DragStack ghost={ghost} label={byId.get(ghost.primaryId)?.label ?? ''} />, document.body)}
+    </div>
+  )
+}
+
+/**
+ * What follows the pointer while several buttons travel together: the pressed
+ * button's own label on top, two layers fanned out behind it, and a count.
+ * Purely visual — the buttons' real slots (shown faded) are where they'll land.
+ */
+function DragStack({ ghost, label }: { ghost: DragGhost; label: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed left-0 top-0 z-[60]"
+      style={{ transform: `translate3d(${ghost.x - ghost.grabX}px, ${ghost.y - ghost.grabY}px, 0)` }}
+    >
+      <div className="relative">
+        {ghost.ids.length > 2 && (
+          <span className="absolute inset-0 translate-x-[12px] translate-y-[12px] animate-stack-fan rounded-full border border-inv-bg bg-inv-bg/60" />
+        )}
+        <span className="absolute inset-0 translate-x-[6px] translate-y-[6px] animate-stack-fan rounded-full border border-inv-bg bg-inv-bg/80" />
+        <span className="relative flex animate-stack-pop items-center whitespace-nowrap rounded-full border border-inv-bg bg-inv-bg px-md py-[7px] text-body font-semibold text-inv-ink shadow-elevation-2">
+          {label}
+          <span className="absolute -right-[8px] -top-[8px] flex size-[22px] items-center justify-center rounded-full border-2 border-bg bg-surface text-nano font-bold text-ink shadow-elevation-1">
+            {ghost.ids.length}
+          </span>
+        </span>
+      </div>
     </div>
   )
 }
