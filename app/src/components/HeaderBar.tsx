@@ -447,8 +447,10 @@ function HeaderButtonRows({
                     aria-roledescription="draggable button"
                     aria-current={selected ? 'true' : undefined}
                     className={cn(
-                      'relative select-none rounded-full transition-shadow',
-                      selected && 'ring-2 ring-ink ring-offset-2 ring-offset-bg',
+                      'relative select-none rounded-full transition-opacity',
+                      // While one button is selected the rest fade back, so the selected one is the only one at full strength.
+                      selectedId !== null && !selected && 'opacity-40',
+                      selected && 'shadow-elevation-2',
                       draggingId === id && 'shadow-elevation-2',
                     )}
                   >
@@ -456,7 +458,12 @@ function HeaderButtonRows({
                         never fights the drag's own transform; it stops while held. */}
                     <span
                       inert
-                      className={cn('pointer-events-none block', draggingId === null && !selected && 'animate-jiggle')}
+                      className={cn(
+                        'pointer-events-none block rounded-full',
+                        draggingId === null && !selected && 'animate-jiggle',
+                        // The selected button is the theme's solid "invert" pair (the same fill as the Done pill).
+                        selected && '[&_*]:!text-inv-ink [&_button]:!border-inv-bg [&_button]:!bg-inv-bg',
+                      )}
                       style={{ animationDelay: `${-(index % 4) * 0.07 - (ids.indexOf(id) % 3) * 0.05}s` }}
                     >
                       {renderButton(button)}
