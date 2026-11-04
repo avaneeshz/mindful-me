@@ -102,8 +102,15 @@ describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
   it('starts with edit mode off — no per-button remove/edit affordance, no Add buttons', () => {
     const html = render()
     expect(html).not.toMatch(/aria-label="Add (button|category)"/)
-    expect(html).not.toMatch(/aria-label="Remove /)
+    expect(html).not.toMatch(/aria-label="(Remove|Delete) /)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*aria-label="Edit"/)
+  })
+
+  it('in edit mode every button carries a Delete icon (not a cross), and nothing wobbles until it is selected', () => {
+    const html = render(true)
+    expect(html).toMatch(/aria-label="Delete Supplements"/)
+    expect(html).not.toMatch(/aria-label="Remove /)
+    expect(html).not.toContain('animate-jiggle')
   })
 
   it('in edit mode shows an Add button in every category, and one Add category', () => {
