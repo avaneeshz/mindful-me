@@ -8,6 +8,7 @@ import {
   applyLayout,
   groupHeaderButtons,
   layoutAfterMove,
+  layoutAfterMoveMany,
   layoutFromRows,
   reassignGroup,
   validateGroupName,
@@ -330,6 +331,45 @@ describe('layoutAfterMove — dragging across categories, and the tap equivalent
   it('ignores an unknown category or button', () => {
     expect(layoutAfterMove(layout, 'a', 'nope')).toBe(layout)
     expect(layoutAfterMove(layout, 'zzz', 'g2')).toBe(layout)
+  })
+})
+
+describe('layoutAfterMoveMany — dragging several selected buttons together', () => {
+  const layout = [
+    { groupId: 'g1', buttonIds: ['a', 'b', 'c', 'd'] },
+    { groupId: 'g2', buttonIds: ['x', 'y'] },
+    { groupId: 'g3', buttonIds: [] },
+  ]
+
+  it('moves them all to another category at a chosen position, keeping their order', () => {
+    expect(layoutAfterMoveMany(layout, ['c', 'a'], 'g2', 1)).toEqual([
+      { groupId: 'g1', buttonIds: ['b', 'd'] },
+      { groupId: 'g2', buttonIds: ['x', 'a', 'c', 'y'] },
+      { groupId: 'g3', buttonIds: [] },
+    ])
+  })
+
+  it('with no position they go to the end', () => {
+    expect(layoutAfterMoveMany(layout, ['a', 'b'], 'g2')[1]).toEqual({ groupId: 'g2', buttonIds: ['x', 'y', 'a', 'b'] })
+  })
+
+  it('can fill an empty category, and move up as well as down', () => {
+    expect(layoutAfterMoveMany(layout, ['x', 'y'], 'g3')[2]).toEqual({ groupId: 'g3', buttonIds: ['x', 'y'] })
+    expect(layoutAfterMoveMany(layout, ['x', 'y'], 'g1', 0)[0]).toEqual({ groupId: 'g1', buttonIds: ['x', 'y', 'a', 'b', 'c', 'd'] })
+  })
+
+  it('reorders inside the same category without losing any button', () => {
+    const next = layoutAfterMoveMany(layout, ['a', 'b'], 'g1', 2)
+    expect(next[0]).toEqual({ groupId: 'g1', buttonIds: ['c', 'd', 'a', 'b'] })
+  })
+
+  it('one button behaves exactly like layoutAfterMove', () => {
+    expect(layoutAfterMoveMany(layout, ['a'], 'g2', 0)).toEqual(layoutAfterMove(layout, 'a', 'g2', 0))
+  })
+
+  it('ignores an unknown category, and unknown buttons', () => {
+    expect(layoutAfterMoveMany(layout, ['a', 'b'], 'nope')).toBe(layout)
+    expect(layoutAfterMoveMany(layout, ['zzz', 'qqq'], 'g2')).toBe(layout)
   })
 })
 

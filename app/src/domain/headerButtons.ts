@@ -605,6 +605,32 @@ export function layoutAfterMove(
   })
 }
 
+/**
+ * The layout after putting SEVERAL buttons at `toIndex` (clamped; omitted = the
+ * end) of one category, kept in the order they already had. This is the
+ * multi-select drag: they travel together and land side by side. Unknown
+ * buttons are ignored; an unknown category, or none of the buttons known,
+ * returns the layout unchanged.
+ */
+export function layoutAfterMoveMany(
+  layout: HeaderButtonLayout,
+  buttonIds: readonly string[],
+  toGroupId: string,
+  toIndex: number = Number.POSITIVE_INFINITY,
+): HeaderButtonLayout {
+  if (buttonIds.length === 1) return layoutAfterMove(layout, buttonIds[0]!, toGroupId, toIndex)
+  if (!layout.some((entry) => entry.groupId === toGroupId)) return layout
+  const moving = new Set(buttonIds)
+  const ordered = layout.flatMap((entry) => entry.buttonIds).filter((id) => moving.has(id))
+  if (ordered.length === 0) return layout
+  return layout.map((entry) => {
+    const without = entry.buttonIds.filter((id) => !moving.has(id))
+    if (entry.groupId !== toGroupId) return { ...entry, buttonIds: without }
+    const at = Math.max(0, Math.min(toIndex, without.length))
+    return { ...entry, buttonIds: [...without.slice(0, at), ...ordered, ...without.slice(at)] }
+  })
+}
+
 export function layoutsEqual(a: HeaderButtonLayout, b: HeaderButtonLayout): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }

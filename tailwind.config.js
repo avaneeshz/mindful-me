@@ -203,6 +203,14 @@ export default {
           '0%, 100%': { transform: 'rotate(-1.2deg)' },
           '50%': { transform: 'rotate(1.2deg)' },
         },
+        // Multi-select drag: the stack under the pointer pops in, and its back layers fan out.
+        'stack-pop': {
+          '0%': { transform: 'scale(0.88)', opacity: '0.7' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        'stack-fan': {
+          '0%': { transform: 'translate(0, 0)', opacity: '0' },
+        },
         'undo-fade': {
           '0%': { opacity: '1' },
           '92%': { opacity: '1' },
@@ -211,6 +219,8 @@ export default {
       },
       animation: {
         jiggle: 'jiggle 260ms ease-in-out infinite',
+        'stack-pop': 'stack-pop 180ms cubic-bezier(0.22, 0.61, 0.36, 1) 1',
+        'stack-fan': 'stack-fan 240ms cubic-bezier(0.22, 0.61, 0.36, 1) 1 backwards',
         'undo-fade': 'undo-fade 4000ms linear 1 forwards',
       },
     },

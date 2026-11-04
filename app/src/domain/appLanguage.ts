@@ -19,7 +19,7 @@ export const APP_SECTIONS: Record<AppSectionId, AppSection> = {
   nonNegotiableButtons: {
     id: 'nonNegotiableButtons',
     name: 'Non-Negotiable Buttons',
-    description: 'Daily notes, quick logs and checklists. Drag one to reorder it within its group.',
+    description: 'Daily notes, quick logs and checklists. Tap buttons to select them, then drag to reorder or move them between categories.',
   },
   timeline: {
     id: 'timeline',
