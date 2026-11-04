@@ -252,7 +252,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
           entity: 'headerButton',
           recordId: id,
           op: 'save',
-          args: [{ ...input, id }],
+          args: [{ ...input, id, checklistItems: created.checklistItems.map((item) => ({ key: item.key, label: item.label })) }],
           label: `Add header button “${created.label}”`,
         }).then((out) => {
           if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
