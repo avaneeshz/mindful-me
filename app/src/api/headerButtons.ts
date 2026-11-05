@@ -80,7 +80,7 @@ export interface CreateHeaderButtonInput {
   dayValueTarget?: number | null
   noteFields?: HeaderButtonNoteFieldInput[]
   noteTypes?: string[]
-  checklistItems?: { label: string }[]
+  checklistItems?: { key?: string; label: string }[]
 }
 
 /**
