@@ -43,3 +43,22 @@ export async function apiSetReflectionCardImage(card: number, imageData: string 
   const { error } = await supabase.rpc('set_reflection_card_image', { p_card: card, p_image_data: imageData })
   return toResult(error)
 }
+
+/** This user's own tile order, as stored (unchecked; `normalizeCardOrder` repairs it). `undefined` = none saved yet, `null` = couldn't be read. */
+export async function apiGetReflectionCardOrder(): Promise<number[] | undefined | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('reflection_card_order').select('card_order').maybeSingle()
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[reflectionCardOrder] read failed', error.message)
+    return null
+  }
+  return (data as { card_order: number[] } | null)?.card_order
+}
+
+export async function apiSetReflectionCardOrder(order: readonly number[]): Promise<SaveCardResult> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
+  const { error } = await supabase.rpc('set_reflection_card_order', { p_order: [...order] })
+  if (!error) return { ok: true }
+  return error.message.includes('invalid_order') ? { ok: false, reason: 'invalid' } : { ok: false, reason: 'unreachable' }
+}
