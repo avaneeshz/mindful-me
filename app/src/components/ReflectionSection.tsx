@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { ImagePlus, Pencil, Plus } from 'lucide-react'
 import { EditOverlay } from '@/components/editor/EditOverlay'
 import { CardEditPanel } from '@/components/editor/CardEditPanel'
+import { NewCardPanel } from '@/components/editor/NewCardPanel'
 import { StateTileNotesWindow } from '@/components/StateTileNotesWindow'
 import { hasStateTileNotesWindow } from '@/domain/notes'
 import { CardNotesPanel } from '@/components/editor/CardNotesPanel'
@@ -23,7 +24,8 @@ import { sectionName } from '@/domain/appLanguage'
  * (`CardEditPanel`). Both belong to the signed-in account.
  */
 export function ReflectionSection({ editMode = false }: { editMode?: boolean }) {
-  const { nameFor, imageFor, order, reorder } = useReflectionCards()
+  const { nameFor, imageFor, order, reorder, canAddCard } = useReflectionCards()
+  const [adding, setAdding] = useState(false)
   const [openCard, setOpenCard] = useState<number | null>(null)
   const [orderError, setOrderError] = useState<string | null>(null)
 
@@ -43,7 +45,8 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
     onTap: (id) => setOpenCard(Number(id)),
   })
   const shown = editMode ? lanes[0]!.buttonIds.map(Number) : order
-  const cards = shown.flatMap((n) => REFLECTION_CARDS.find((c) => c.number === n) ?? [])
+  // Built-in tiles come with a title and picture; a tile the account added has only what it was given.
+  const cards = shown.map((n) => REFLECTION_CARDS.find((c) => c.number === n) ?? { number: n, title: `Card ${n}`, subtitle: '', image: '' })
 
   return (
     <section
@@ -107,7 +110,13 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
                     )}
                   >
                     <div className="aspect-[4/3] w-full overflow-hidden bg-surface-2">
-                      <img src={imageFor(card.number)} alt="" className="size-full object-cover" />
+                      {imageFor(card.number) ? (
+                        <img src={imageFor(card.number)} alt="" className="size-full object-cover" />
+                      ) : (
+                        <span aria-hidden="true" className="flex size-full items-center justify-center text-ink-dim">
+                          <ImagePlus className="size-[22px]" />
+                        </span>
+                      )}
                     </div>
                     <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">{title}</p>
                   </button>
@@ -139,6 +148,31 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
             </EditOverlay>
           )
         })}
+        {editMode && canAddCard && (
+          <EditOverlay
+            open={adding}
+            onOpenChange={setAdding}
+            label="Add a tile"
+            anchor={
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                aria-label="Add a tile"
+                aria-expanded={adding}
+                className={cn(
+                  'flex h-full min-h-[96px] w-full flex-col items-center justify-center gap-xs rounded-md border border-dashed border-line bg-surface p-sm text-note font-semibold text-ink-dim transition-colors',
+                  'hover:border-ink hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                  adding && 'border-ink text-ink',
+                )}
+              >
+                <Plus aria-hidden="true" className="size-[18px]" />
+                Add tile
+              </button>
+            }
+          >
+            <NewCardPanel onClose={() => setAdding(false)} />
+          </EditOverlay>
+        )}
       </div>
       {orderError && (
         <p role="alert" className="mt-md text-caption text-ink">
