@@ -1,6 +1,6 @@
 import { readStoredJSON, writeStoredJSON } from '@/lib/storage'
 import { parseCardNames, type ReflectionCardNames } from '@/domain/reflectionCardNames'
-import { normalizeCardOrder } from '@/domain/reflectionCardOrder'
+import { isCustomCard, normalizeCardOrder } from '@/domain/reflectionCardOrder'
 
 /**
  * Device cache of one account's State Tile names and pictures, so the grid
@@ -13,6 +13,8 @@ export interface CardCustomization {
   images: Readonly<Record<number, string>>
   /** The order the tiles are shown in — always a full permutation of 1..18. */
   order: readonly number[]
+  /** This account's own tiles (numbers 19 and up). */
+  custom: readonly number[]
 }
 
 const keyFor = (owner: string) => `mindful-me:state-tiles:${owner}`
@@ -27,10 +29,18 @@ export function parseCardImages(value: unknown): Record<number, string> {
   return out
 }
 
+export function parseCustomCards(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  const out = new Set<number>()
+  for (const v of value) if (typeof v === 'number' && isCustomCard(v)) out.add(v)
+  return [...out].sort((a, b) => a - b)
+}
+
 export function loadCardCustomization(owner: string): CardCustomization {
   const raw = readStoredJSON(keyFor(owner))
   const obj = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
-  return { names: parseCardNames(obj.names), images: parseCardImages(obj.images), order: normalizeCardOrder(obj.order) }
+  const custom = parseCustomCards(obj.custom)
+  return { names: parseCardNames(obj.names), images: parseCardImages(obj.images), order: normalizeCardOrder(obj.order, custom), custom }
 }
 
 export function saveCardCustomization(owner: string, value: CardCustomization): void {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CARD_ORDER,
+  isCustomCard,
   isDefaultOrder,
+  nextCustomCardNumber,
   moveCardBy,
   moveCardTo,
   normalizeCardOrder,
@@ -59,5 +61,32 @@ describe('order comparison', () => {
     expect(isDefaultOrder(moveCardTo([...DEFAULT_CARD_ORDER], 9, 0))).toBe(false)
     expect(sameOrder([1, 2], [1, 2])).toBe(true)
     expect(sameOrder([1, 2], [2, 1])).toBe(false)
+  })
+})
+
+describe('custom tiles', () => {
+  it('knows which numbers are custom', () => {
+    expect(isCustomCard(18)).toBe(false)
+    expect(isCustomCard(19)).toBe(true)
+    expect(isCustomCard(1.5)).toBe(false)
+  })
+
+  it('keeps a saved order that includes custom tiles', () => {
+    const order = [19, ...DEFAULT_CARD_ORDER, 20]
+    expect(normalizeCardOrder(order, [19, 20])).toEqual(order)
+  })
+
+  it('appends a custom tile missing from a saved order, after the built-ins', () => {
+    expect(normalizeCardOrder([...DEFAULT_CARD_ORDER], [20, 19])).toEqual([...DEFAULT_CARD_ORDER, 19, 20])
+  })
+
+  it('drops a custom number the account does not have', () => {
+    expect(normalizeCardOrder([...DEFAULT_CARD_ORDER, 25], [19])).toEqual([...DEFAULT_CARD_ORDER, 19])
+    expect(normalizeCardOrder([...DEFAULT_CARD_ORDER, 19], [])).toEqual([...DEFAULT_CARD_ORDER])
+  })
+
+  it('numbers the next custom tile one past the highest', () => {
+    expect(nextCustomCardNumber([])).toBe(19)
+    expect(nextCustomCardNumber([19, 21])).toBe(22)
   })
 })
