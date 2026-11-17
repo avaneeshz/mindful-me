@@ -5,8 +5,8 @@ import {
   formatNoteTimestamp,
   GIFT_TYPES,
   hasStateTileNotesWindow,
-  stateTileCardFromKey,
-  stateTileNoteKey,
+  newTileNoteKey,
+  tileCardFromNoteKey,
   LEARNING_TYPES,
   NOTE_BUTTONS,
   noteButtonLabel,
@@ -208,23 +208,18 @@ describe('formatNoteTimestamp', () => {
   })
 })
 
-describe('state tile note keys', () => {
-  it('round-trips a card number through its reserved key', () => {
-    expect(stateTileNoteKey(9)).toBe('state_tile_9')
-    expect(stateTileCardFromKey('state_tile_9')).toBe(9)
-    expect(stateTileCardFromKey('state_tile_18')).toBe(18)
+describe('state tile note buttons', () => {
+  it('mints keys that map back to their tile', () => {
+    const key = newTileNoteKey(9)
+    expect(key).toMatch(/^tile9_[0-9a-f]{32}$/)
+    expect(tileCardFromNoteKey(key)).toBe(9)
+    expect(newTileNoteKey(9)).not.toBe(key)
   })
 
-  it('rejects anything that is not a reserved tile key', () => {
-    for (const key of ['gifts', 'state_tile_', 'state_tile_0', 'state_tile_19', 'state_tile_9x', 'xstate_tile_9']) {
-      expect(stateTileCardFromKey(key)).toBeNull()
+  it('treats header button keys as not belonging to any tile', () => {
+    for (const key of ['gifts', 'user_abc123', 'tile_9', 'tile0_ab', 'tile19_ab', 'tile9_', 'xtile9_ab', null, undefined]) {
+      expect(tileCardFromNoteKey(key)).toBeNull()
     }
-  })
-
-  it('labels a tile key readably and offers no type selector', () => {
-    expect(noteButtonLabel('state_tile_9')).toBe('State tile')
-    expect(noteButtonTypes('state_tile_9')).toBeNull()
-    expect(canSubmitNote('state_tile_9', 'a thought', [])).toBe(true)
   })
 
   it('opens the full-screen window for Decisions only', () => {

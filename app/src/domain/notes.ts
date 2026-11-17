@@ -23,6 +23,7 @@
  * this is a display/entry-point change, not a data migration.
  */
 import { isSameLocalDay } from '@/lib/localTime'
+import { generateId } from '@/domain/scheduling'
 
 /** The header pills, in the order they render — the local-only / pre-fetch fallback; see `domain/headerButtons.ts`'s `DEFAULT_HEADER_BUTTONS` for the unified shape this mirrors. */
 export const NOTE_BUTTONS = [
@@ -114,27 +115,27 @@ export interface NoteEntry {
 }
 
 export function noteButtonLabel(key: NoteButtonKey): string {
-  const found = (registry ?? NOTE_BUTTONS).find((button) => button.key === key)?.label
-  if (found) return found
-  return stateTileCardFromKey(key) !== null ? 'State tile' : key
+  return (registry ?? NOTE_BUTTONS).find((button) => button.key === key)?.label ?? key
 }
 
 /**
- * State Tiles with a full-screen free-form notes window. Their notes are
- * stored exactly like a header note button's (`note_entries`), under the
- * reserved key `state_tile_<card>` — see
- * `20261105060000_state_tile_notes.sql`. Today only Decisions (card 9).
+ * State Tiles with a full-screen notes window. Inside it the user creates any
+ * number of note buttons, exactly like the header's: each is an ordinary
+ * `header_buttons` 'notes' row (own label, optional types) whose notes are
+ * ordinary `note_entries`. What marks a button as a tile's is only its
+ * storage key, `tile<card>_<id>` — the header skips those, the tile's
+ * window shows only them. Today only Decisions (card 9).
  */
 export const STATE_TILE_NOTE_CARDS: readonly number[] = [9]
 
-/** The `note_entries.button_key` a State Tile's notes are stored under. */
-export function stateTileNoteKey(card: number): NoteButtonKey {
-  return `state_tile_${card}`
+/** A fresh storage key for a new note button on a State Tile. */
+export function newTileNoteKey(card: number): NoteButtonKey {
+  return `tile${card}_${generateId().replace(/-/g, '')}`
 }
 
-/** The card a reserved `state_tile_<n>` key belongs to, or `null` for any other key. */
-export function stateTileCardFromKey(key: NoteButtonKey): number | null {
-  const match = /^state_tile_(\d{1,2})$/.exec(key)
+/** The tile a note button's key belongs to, or `null` for a header button. */
+export function tileCardFromNoteKey(key: string | null | undefined): number | null {
+  const match = key ? /^tile(\d{1,2})_[0-9a-z]+$/.exec(key) : null
   if (!match) return null
   const card = Number(match[1])
   return card >= 1 && card <= 18 ? card : null
