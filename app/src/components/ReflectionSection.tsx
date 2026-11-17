@@ -72,6 +72,9 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
               onOpenChange={(next) => setOpenCard(next ? card.number : null)}
               label={editMode ? `Edit ${title}` : `Notes: ${title}`}
               anchor={
+                // The popover's anchor stays a plain, stable element; the drag wrapper (whose
+                // ref the drag hook re-creates every render) sits inside it, never on it.
+                <div className="relative min-w-0">
                 <div
                   className={cn('relative min-w-0 select-none', editMode && draggingId === String(card.number) && 'shadow-elevation-2')}
                   {...(editMode ? itemProps(String(card.number)) : null)}
@@ -124,6 +127,7 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
                       <Pencil className="size-[12px]" />
                     </span>
                   )}
+                </div>
                 </div>
               }
             >
