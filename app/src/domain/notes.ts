@@ -114,7 +114,34 @@ export interface NoteEntry {
 }
 
 export function noteButtonLabel(key: NoteButtonKey): string {
-  return (registry ?? NOTE_BUTTONS).find((button) => button.key === key)?.label ?? key
+  const found = (registry ?? NOTE_BUTTONS).find((button) => button.key === key)?.label
+  if (found) return found
+  return stateTileCardFromKey(key) !== null ? 'State tile' : key
+}
+
+/**
+ * State Tiles with a full-screen free-form notes window. Their notes are
+ * stored exactly like a header note button's (`note_entries`), under the
+ * reserved key `state_tile_<card>` — see
+ * `20261105060000_state_tile_notes.sql`. Today only Decisions (card 9).
+ */
+export const STATE_TILE_NOTE_CARDS: readonly number[] = [9]
+
+/** The `note_entries.button_key` a State Tile's notes are stored under. */
+export function stateTileNoteKey(card: number): NoteButtonKey {
+  return `state_tile_${card}`
+}
+
+/** The card a reserved `state_tile_<n>` key belongs to, or `null` for any other key. */
+export function stateTileCardFromKey(key: NoteButtonKey): number | null {
+  const match = /^state_tile_(\d{1,2})$/.exec(key)
+  if (!match) return null
+  const card = Number(match[1])
+  return card >= 1 && card <= 18 ? card : null
+}
+
+export function hasStateTileNotesWindow(card: number): boolean {
+  return STATE_TILE_NOTE_CARDS.includes(card)
 }
 
 /** The type values this button offers, or `null` if it has no type selector. */
