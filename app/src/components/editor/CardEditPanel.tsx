@@ -4,22 +4,10 @@ import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import { CardImageCropper } from '@/components/editor/CardImageCropper'
 import { MAX_CARD_NAME_LENGTH, validateCardName } from '@/domain/reflectionCardNames'
-import { CARD_IMAGE, INITIAL_CROP, type CardImageFileProblem } from '@/domain/reflectionCardImages'
-import { cropCardImage, loadCardImage } from '@/lib/cardImage'
+import { CARD_IMAGE } from '@/domain/reflectionCardImages'
+import { useCardPicture } from '@/components/editor/useCardPicture'
 import { useReflectionCards } from '@/state/useReflectionCards'
 import { cn } from '@/lib/utils'
-
-const PROBLEMS: Record<CardImageFileProblem | 'unreadable', string> = {
-  type: 'Choose a JPG, PNG or WebP picture.',
-  size: 'That picture is over 10 MB. Choose a smaller one.',
-  unreadable: 'That file couldn’t be opened as a picture.',
-}
-
-interface Chosen {
-  url: string
-  width: number
-  height: number
-}
 
 /**
  * The editor for one State Tile: its name and its picture. Two steps — the
@@ -31,8 +19,7 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
   const { nameFor, imageFor, rename, setImage, order, moveBy } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(nameFor(card))
-  const [chosen, setChosen] = useState<Chosen | null>(null)
-  const [view, setView] = useState(INITIAL_CROP)
+  const { chosen, view, setView, problem, choose, frame, cancel } = useCardPicture()
   const position = order.indexOf(card)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,18 +31,6 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
     setBusy(false)
     if (result.ok) done()
     else setError(result.message)
-  }
-
-  async function onFile(file: File | undefined) {
-    if (!file) return
-    setError(null)
-    const loaded = await loadCardImage(file)
-    if (!loaded.ok) {
-      setError(PROBLEMS[loaded.problem])
-      return
-    }
-    setView(INITIAL_CROP)
-    setChosen(loaded)
   }
 
   if (chosen) {
@@ -75,18 +50,18 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
             onClick={() =>
               void run(
                 async () => {
-                  const data = await cropCardImage(chosen.url, view)
+                  const data = await frame()
                   if (!data) return { ok: false, message: 'This picture couldn’t be prepared. Try a different one.' }
                   return setImage(card, data)
                 },
-                () => setChosen(null),
+                cancel,
               )
             }
           >
             {busy ? <Loader2 aria-hidden="true" className="size-[14px] animate-spin" /> : null}
             Use picture
           </Button>
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => setChosen(null)}>
+          <Button type="button" variant="ghost" disabled={busy} onClick={cancel}>
             Back
           </Button>
         </div>
@@ -105,7 +80,7 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
         tabIndex={-1}
         aria-label="Choose a picture"
         onChange={(e) => {
-          void onFile(e.target.files?.[0])
+          void choose(e.target.files?.[0])
           e.target.value = ''
         }}
       />
@@ -170,9 +145,9 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
           aria-invalid={nameProblem !== null && name !== ''}
         />
         {name !== '' && nameProblem && <p className="text-caption text-ink-dim">{nameProblem}</p>}
-        {error && (
+        {(error ?? problem) && (
           <p role="alert" className="text-caption text-ink">
-            {error}
+            {error ?? problem}
           </p>
         )}
         <div className="mt-xs flex items-center gap-sm">

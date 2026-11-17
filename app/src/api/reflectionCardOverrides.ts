@@ -62,3 +62,28 @@ export async function apiSetReflectionCardOrder(order: readonly number[]): Promi
   if (!error) return { ok: true }
   return error.message.includes('invalid_order') ? { ok: false, reason: 'invalid' } : { ok: false, reason: 'unreachable' }
 }
+
+/** This user's own custom State Tile numbers (19 and up). `null` (never `[]`) when the server couldn't be read. */
+export async function apiListReflectionCustomCards(): Promise<number[] | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('reflection_custom_cards').select('card_number').order('card_number')
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[reflectionCustomCards] list failed', error.message)
+    return null
+  }
+  return (data ?? []).map((r: { card_number: number }) => r.card_number)
+}
+
+export type CreateCustomCardResult = { ok: true; card: number } | { ok: false; reason: 'invalid' | 'limit' | 'unreachable' }
+
+/** Adds a tile with its name (required) and picture (optional); the server allocates its number. */
+export async function apiCreateReflectionCustomCard(name: string, imageData: string | null): Promise<CreateCustomCardResult> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
+  const { data, error } = await supabase.rpc('create_reflection_custom_card', { p_name: name, p_image_data: imageData })
+  if (!error && typeof data === 'number') return { ok: true, card: data }
+  const message = error?.message ?? ''
+  if (message.includes('too_many_cards')) return { ok: false, reason: 'limit' }
+  const invalid = ['name_required', 'name_too_long', 'invalid_image_format', 'image_too_large']
+  return invalid.some((code) => message.includes(code)) ? { ok: false, reason: 'invalid' } : { ok: false, reason: 'unreachable' }
+}

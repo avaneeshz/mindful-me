@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
+  apiCreateReflectionCustomCard,
   apiGetReflectionCardOrder,
+  apiListReflectionCustomCards,
   apiListReflectionCardOverrides,
   apiSetReflectionCardImage,
   apiSetReflectionCardName,
@@ -8,7 +10,7 @@ import {
 } from '@/api/reflectionCardOverrides'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { resolveCardName, withCardName } from '@/domain/reflectionCardNames'
-import { DEFAULT_CARD_ORDER, moveCardBy, normalizeCardOrder, sameOrder } from '@/domain/reflectionCardOrder'
+import { DEFAULT_CARD_ORDER, MAX_CUSTOM_CARDS, moveCardBy, nextCustomCardNumber, normalizeCardOrder, sameOrder } from '@/domain/reflectionCardOrder'
 import { loadCardCustomization, saveCardCustomization, type CardCustomization } from '@/lib/reflectionCardsStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useAccountOwner } from '@/state/useAccountOwner'
@@ -26,7 +28,7 @@ interface Snapshot extends CardCustomization {
   owner: string | null
 }
 
-const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER }
+const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER, custom: [] }
 let snapshot: Snapshot = EMPTY
 const listeners = new Set<() => void>()
 
@@ -38,7 +40,7 @@ const current = () => snapshot
 
 function publish(next: Snapshot) {
   snapshot = next
-  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order })
+  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order, custom: next.custom })
   listeners.forEach((l) => l())
 }
 
@@ -71,10 +73,15 @@ export function useReflectionCards() {
       }
       publish({ ...snapshot, owner, names, images })
     })
-    void apiGetReflectionCardOrder().then((stored) => {
+    // The account's own tiles first: the saved order is only meaningful together with them.
+    void (async () => {
+      const custom = await apiListReflectionCustomCards()
+      if (cancelled || snapshot.owner !== owner) return
+      if (custom !== null) publish({ ...snapshot, custom, order: normalizeCardOrder(snapshot.order, custom) })
+      const stored = await apiGetReflectionCardOrder()
       if (cancelled || stored === null || snapshot.owner !== owner) return
-      publish({ ...snapshot, order: normalizeCardOrder(stored) })
-    })
+      publish({ ...snapshot, order: normalizeCardOrder(stored, snapshot.custom) })
+    })()
     return () => {
       cancelled = true
     }
@@ -111,7 +118,7 @@ export function useReflectionCards() {
   /** Puts the tiles in `next` order. Shown at once; rolled back, with a message, if the server refuses or can't be reached. */
   const reorder = useCallback(async (next: readonly number[]): Promise<CardSaveResult> => {
     const before = snapshot
-    const order = normalizeCardOrder(next)
+    const order = normalizeCardOrder(next, before.custom)
     if (sameOrder(order, before.order)) return { ok: true }
     publish({ ...before, order })
     if (!supabaseConfigured) return { ok: true }
@@ -124,5 +131,44 @@ export function useReflectionCards() {
   /** The tap alternative to dragging: one step earlier or later. */
   const moveBy = useCallback((card: number, delta: -1 | 1) => reorder(moveCardBy(snapshot.order, card, delta)), [reorder])
 
-  return { nameFor, imageFor, rename, setImage, order: snap.order, reorder, moveBy }
+  /**
+   * Adds a tile of the account's own, with a name and an optional picture
+   * (`imageData`, the cropped JPEG). Waits for the server, which allocates the
+   * tile's number; with no backend the number is allocated on this device.
+   * The new tile goes last.
+   */
+  const addCard = useCallback(async (name: string, imageData: string | null): Promise<CardSaveResult & { card?: number }> => {
+    const before = snapshot
+    const trimmed = name.trim().replace(/\s+/g, ' ')
+    if (before.custom.length >= MAX_CUSTOM_CARDS) return { ok: false, message: `You can add up to ${MAX_CUSTOM_CARDS} tiles.` }
+    let card: number
+    if (supabaseConfigured) {
+      const result = await apiCreateReflectionCustomCard(trimmed, imageData)
+      if (!result.ok) {
+        const message =
+          result.reason === 'invalid'
+            ? 'That name or picture can’t be saved.'
+            : result.reason === 'limit'
+              ? `You can add up to ${MAX_CUSTOM_CARDS} tiles.`
+              : SAVE_FAILED
+        return { ok: false, message }
+      }
+      card = result.card
+    } else {
+      card = nextCustomCardNumber(before.custom)
+    }
+    const latest = snapshot
+    if (latest.owner !== before.owner) return { ok: true, card }
+    const custom = [...latest.custom, card].sort((a, b) => a - b)
+    publish({
+      ...latest,
+      custom,
+      names: { ...latest.names, [card]: trimmed },
+      images: imageData ? { ...latest.images, [card]: imageData } : latest.images,
+      order: normalizeCardOrder([...latest.order, card], custom),
+    })
+    return { ok: true, card }
+  }, [])
+
+  return { nameFor, imageFor, rename, setImage, order: snap.order, reorder, moveBy, addCard, canAddCard: snap.custom.length < MAX_CUSTOM_CARDS }
 }
