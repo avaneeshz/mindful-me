@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { ImagePlus, Loader2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ImagePlus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import { CardImageCropper } from '@/components/editor/CardImageCropper'
@@ -28,11 +28,12 @@ interface Chosen {
  * anything is saved.
  */
 export function CardEditPanel({ card, onClose }: { card: number; onClose: () => void }) {
-  const { nameFor, imageFor, rename, setImage } = useReflectionCards()
+  const { nameFor, imageFor, rename, setImage, order, moveBy } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(nameFor(card))
   const [chosen, setChosen] = useState<Chosen | null>(null)
   const [view, setView] = useState(INITIAL_CROP)
+  const position = order.indexOf(card)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -122,6 +123,32 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
           Change picture
         </span>
       </button>
+
+      <div className="flex items-center justify-between gap-sm" role="group" aria-label="Position">
+        <span className="text-caption font-semibold text-ink">
+          Position <span className="font-normal text-ink-dim">{position + 1} of {order.length}</span>
+        </span>
+        <span className="flex items-center gap-xs">
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Move earlier"
+            disabled={busy || position <= 0}
+            onClick={() => void run(() => moveBy(card, -1), () => undefined)}
+          >
+            <ArrowLeft aria-hidden="true" className="size-[14px]" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Move later"
+            disabled={busy || position === order.length - 1}
+            onClick={() => void run(() => moveBy(card, 1), () => undefined)}
+          >
+            <ArrowRight aria-hidden="true" className="size-[14px]" />
+          </Button>
+        </span>
+      </div>
 
       <form
         className="flex flex-col gap-xs"

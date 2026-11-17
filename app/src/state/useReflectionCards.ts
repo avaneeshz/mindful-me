@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { apiListReflectionCardOverrides, apiSetReflectionCardImage, apiSetReflectionCardName } from '@/api/reflectionCardOverrides'
+import {
+  apiGetReflectionCardOrder,
+  apiListReflectionCardOverrides,
+  apiSetReflectionCardImage,
+  apiSetReflectionCardName,
+  apiSetReflectionCardOrder,
+} from '@/api/reflectionCardOverrides'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { resolveCardName, withCardName } from '@/domain/reflectionCardNames'
+import { DEFAULT_CARD_ORDER, moveCardBy, normalizeCardOrder, sameOrder } from '@/domain/reflectionCardOrder'
 import { loadCardCustomization, saveCardCustomization, type CardCustomization } from '@/lib/reflectionCardsStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useAccountOwner } from '@/state/useAccountOwner'
@@ -19,7 +26,7 @@ interface Snapshot extends CardCustomization {
   owner: string | null
 }
 
-const EMPTY: Snapshot = { owner: null, names: {}, images: {} }
+const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER }
 let snapshot: Snapshot = EMPTY
 const listeners = new Set<() => void>()
 
@@ -31,7 +38,7 @@ const current = () => snapshot
 
 function publish(next: Snapshot) {
   snapshot = next
-  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images })
+  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order })
   listeners.forEach((l) => l())
 }
 
@@ -62,7 +69,11 @@ export function useReflectionCards() {
         if (r.name) names[r.card] = r.name
         if (r.imageData) images[r.card] = r.imageData
       }
-      publish({ owner, names, images })
+      publish({ ...snapshot, owner, names, images })
+    })
+    void apiGetReflectionCardOrder().then((stored) => {
+      if (cancelled || stored === null || snapshot.owner !== owner) return
+      publish({ ...snapshot, order: normalizeCardOrder(stored) })
     })
     return () => {
       cancelled = true
@@ -97,5 +108,21 @@ export function useReflectionCards() {
     return { ok: false, message: result.reason === 'invalid' ? 'This picture can’t be saved. Try a different one.' : SAVE_FAILED }
   }, [])
 
-  return { nameFor, imageFor, rename, setImage }
+  /** Puts the tiles in `next` order. Shown at once; rolled back, with a message, if the server refuses or can't be reached. */
+  const reorder = useCallback(async (next: readonly number[]): Promise<CardSaveResult> => {
+    const before = snapshot
+    const order = normalizeCardOrder(next)
+    if (sameOrder(order, before.order)) return { ok: true }
+    publish({ ...before, order })
+    if (!supabaseConfigured) return { ok: true }
+    const result = await apiSetReflectionCardOrder(order)
+    if (result.ok) return result
+    if (snapshot.owner === before.owner) publish({ ...snapshot, order: before.order })
+    return { ok: false, message: result.reason === 'invalid' ? 'That order can’t be saved.' : SAVE_FAILED }
+  }, [])
+
+  /** The tap alternative to dragging: one step earlier or later. */
+  const moveBy = useCallback((card: number, delta: -1 | 1) => reorder(moveCardBy(snapshot.order, card, delta)), [reorder])
+
+  return { nameFor, imageFor, rename, setImage, order: snap.order, reorder, moveBy }
 }

@@ -5,6 +5,7 @@ import { CardEditPanel } from '@/components/editor/CardEditPanel'
 import { StateTileNotesWindow } from '@/components/StateTileNotesWindow'
 import { hasStateTileNotesWindow } from '@/domain/notes'
 import { CardNotesPanel } from '@/components/editor/CardNotesPanel'
+import { usePointerReorder } from '@/components/ui/usePointerReorder'
 import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { cn } from '@/lib/utils'
@@ -22,8 +23,27 @@ import { sectionName } from '@/domain/appLanguage'
  * (`CardEditPanel`). Both belong to the signed-in account.
  */
 export function ReflectionSection({ editMode = false }: { editMode?: boolean }) {
-  const { nameFor, imageFor } = useReflectionCards()
+  const { nameFor, imageFor, order, reorder } = useReflectionCards()
   const [openCard, setOpenCard] = useState<number | null>(null)
+  const [orderError, setOrderError] = useState<string | null>(null)
+
+  // Edit mode drags tiles into a new order with the same pointer drag the
+  // header buttons use; a press that doesn't move is a tap and opens the
+  // tile's editor. The editor also has Move earlier / later, so dragging is
+  // never the only way.
+  const { lanes, draggingId, itemProps } = usePointerReorder({
+    lanes: [{ groupId: 'state-tiles', buttonIds: order.map(String) }],
+    enabled: editMode,
+    onCommit: (layout) => {
+      setOrderError(null)
+      void reorder(layout[0]!.buttonIds.map(Number)).then((result) => {
+        if (!result.ok) setOrderError(result.message)
+      })
+    },
+    onTap: (id) => setOpenCard(Number(id)),
+  })
+  const shown = editMode ? lanes[0]!.buttonIds.map(Number) : order
+  const cards = shown.flatMap((n) => REFLECTION_CARDS.find((c) => c.number === n) ?? [])
 
   return (
     <section
@@ -39,7 +59,7 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
         aria-label={sectionName('stateTiles')}
         className="mt-xl grid grid-cols-9 gap-md mobile:mt-lg mobile:grid-cols-3 mobile:gap-sm"
       >
-        {REFLECTION_CARDS.map((card) => {
+        {cards.map((card) => {
           const title = nameFor(card.number)
           const isOpen = openCard === card.number
           // A tile with a full-screen notes window opens it instead of the small
@@ -52,8 +72,27 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
               onOpenChange={(next) => setOpenCard(next ? card.number : null)}
               label={editMode ? `Edit ${title}` : `Notes: ${title}`}
               anchor={
-                <div className="relative min-w-0">
+                <div
+                  className={cn('relative min-w-0 select-none', editMode && draggingId === String(card.number) && 'shadow-elevation-2')}
+                  {...(editMode ? itemProps(String(card.number)) : null)}
+                  {...(editMode
+                    ? {
+                        role: 'button',
+                        tabIndex: 0,
+                        'aria-label': `Edit ${title}`,
+                        'aria-roledescription': 'draggable tile',
+                        onKeyDown: (e: React.KeyboardEvent) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setOpenCard(card.number)
+                          }
+                        },
+                      }
+                    : null)}
+                >
                   <button
+                    // In Edit mode the wrapper owns the press (drag or tap), so the button itself is inert.
+                    {...(editMode ? { inert: true, tabIndex: -1 } : null)}
                     type="button"
                     onClick={() => setOpenCard(card.number)}
                     aria-label={editMode ? `Edit ${title}` : `${title} — notes`}
@@ -97,6 +136,11 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
           )
         })}
       </div>
+      {orderError && (
+        <p role="alert" className="mt-md text-caption text-ink">
+          {orderError}
+        </p>
+      )}
     </section>
   )
 }
