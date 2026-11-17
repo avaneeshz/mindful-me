@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { EditOverlay } from '@/components/editor/EditOverlay'
 import { CardEditPanel } from '@/components/editor/CardEditPanel'
+import { StateTileNotesWindow } from '@/components/StateTileNotesWindow'
+import { hasStateTileNotesWindow } from '@/domain/notes'
 import { CardNotesPanel } from '@/components/editor/CardNotesPanel'
 import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
@@ -40,10 +42,13 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
         {REFLECTION_CARDS.map((card) => {
           const title = nameFor(card.number)
           const isOpen = openCard === card.number
+          // A tile with a full-screen notes window opens it instead of the small
+          // popover — except in Edit mode, which still edits the tile itself.
+          const fullScreen = !editMode && hasStateTileNotesWindow(card.number)
           return (
             <EditOverlay
               key={card.number}
-              open={isOpen}
+              open={isOpen && !fullScreen}
               onOpenChange={(next) => setOpenCard(next ? card.number : null)}
               label={editMode ? `Edit ${title}` : `Notes: ${title}`}
               anchor={
@@ -64,6 +69,14 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
                     </div>
                     <p className="border-t border-line px-sm py-sm text-center text-note font-semibold leading-snug text-ink">{title}</p>
                   </button>
+                  {fullScreen && (
+                    <StateTileNotesWindow
+                      card={card.number}
+                      title={title}
+                      open={isOpen}
+                      onOpenChange={(next) => setOpenCard(next ? card.number : null)}
+                    />
+                  )}
                   {editMode && (
                     <span
                       aria-hidden="true"

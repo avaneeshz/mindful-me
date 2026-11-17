@@ -332,8 +332,11 @@ export function HeaderButtonFormDialog({
   onClose,
   onCreate,
   onUpdate,
+  lockCategory = false,
 }: {
   mode: FormMode
+  /** The type was fixed by the caller (an add opened with `category`): no Back to the type list, just Cancel. */
+  lockCategory?: boolean
   /** The user's categories — the form's Category picker, which is also how a button is moved by tapping. */
   groups: readonly HeaderButtonGroup[]
   onClose: () => void
@@ -800,7 +803,7 @@ export function HeaderButtonFormDialog({
             )}
 
             <div className="flex items-center justify-end gap-sm">
-              {isEdit ? (
+              {isEdit || lockCategory ? (
                 <Button type="button" variant="ghost" onClick={onClose}>
                   Cancel
                 </Button>

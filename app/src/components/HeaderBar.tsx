@@ -138,6 +138,7 @@ export function HeaderBar({
   const {
     visible,
     hidden,
+    noteButtons,
     groups,
     notice,
     addButton,
@@ -167,7 +168,7 @@ export function HeaderBar({
   setDisplayButtonsRegistry(
     allButtons.filter((b) => b.category === 'activity' || b.category === 'day_value').map(toDisplayButtonLike),
   )
-  const noteButtonConfigs = allButtons.filter((b) => b.category === 'notes')
+  const noteButtonConfigs = noteButtons
   setNoteButtonsRegistry(noteButtonConfigs.map((b) => ({ key: b.key ?? b.id, label: b.label })))
   setNoteButtonTypesRegistry(Object.fromEntries(noteButtonConfigs.map((b) => [b.key ?? b.id, b.noteTypes])))
 

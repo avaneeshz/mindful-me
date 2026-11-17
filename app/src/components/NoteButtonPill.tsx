@@ -1,18 +1,16 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { ChevronDown, Loader2, Pencil, X } from 'lucide-react'
+import { ChevronDown, Loader2, X } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
   canSubmitNote,
-  formatEntryTypes,
-  formatNoteTimestamp,
   noteButtonTypes,
-  noteEntryWasEdited,
   partitionNoteEntriesByToday,
   toggleEntryType,
   type NoteButtonKey,
   type NoteEntry,
 } from '@/domain/notes'
+import { NoteEntryRow } from '@/components/NoteEntryRow'
 import { useNoteEntries } from '@/state/useNoteEntries'
 import { cn } from '@/lib/utils'
 
@@ -64,13 +62,6 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   // straight to the Store form; the log of past notes is a click away
   // rather than always taking up space underneath it.
   const [historyOpen, setHistoryOpen] = useState(false)
-  // Which past entry (if any) the history list currently has open as an
-  // inline edit form — mutually exclusive with the Store form above; only
-  // ever one row at a time, same "one thing being edited" shape the
-  // timeline's own `LogActivityModal` follows.
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
-  const [editNoteText, setEditNoteText] = useState('')
-  const [editEntryTypes, setEditEntryTypes] = useState<string[]>([])
 
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -81,7 +72,6 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const recentHeadingId = useId()
   const historyHeadingId = useId()
   const historyListId = useId()
-  const editTextareaId = useId()
 
   const { entries, status, error, submitting, addNote, pendingEntryId, updateNote, deleteNote } = useNoteEntries(
     buttonKey,
@@ -89,7 +79,6 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   )
   const types = noteButtonTypes(buttonKey)
   const canSubmit = canSubmitNote(buttonKey, noteText, entryTypes)
-  const canSubmitEdit = canSubmitNote(buttonKey, editNoteText, editEntryTypes)
   // "Today" here is the real device-current calendar day — notes aren't
   // day-scoped like a `ScheduledActivity` (no `viewedDate` concept exists in
   // this component at all), so this is deliberately NOT the header's viewed
@@ -132,7 +121,6 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     if (open) textareaRef.current?.focus()
     else {
       setHistoryOpen(false) // Collapsed again next time this popover opens.
-      setEditingEntryId(null) // Same — a stale edit form never survives a close/reopen.
     }
   }, [open])
 
@@ -169,136 +157,17 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 2500)
   }
 
-  function startEdit(entry: NoteEntry) {
-    setEditingEntryId(entry.id)
-    setEditNoteText(entry.note)
-    setEditEntryTypes([...entry.entryTypes])
-  }
-
-  function cancelEdit() {
-    setEditingEntryId(null)
-  }
-
-  async function saveEdit(event: FormEvent) {
-    event.preventDefault()
-    if (editingEntryId === null || pendingEntryId !== null || !canSubmitEdit) return
-    const ok = await updateNote(editingEntryId, editNoteText, editEntryTypes)
-    if (ok) setEditingEntryId(null)
-  }
-
-  /**
-   * One entry's `<li>` — either its inline edit form or its view/edit/remove
-   * row — shared by BOTH the "Recent" and "History" lists below so neither
-   * duplicates this markup (CLAUDE.md's Component Rule).
-   */
   function renderEntryRow(entry: NoteEntry) {
-    if (editingEntryId === entry.id) {
-      return (
-        <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
-          <form onSubmit={saveEdit} className="flex flex-col gap-sm">
-            {types && (
-              <fieldset className="flex flex-col gap-sm">
-                <legend className="sr-only">Type (choose one or more)</legend>
-                <div role="group" aria-label="Type" className="flex flex-wrap gap-xs">
-                  {types.map((type) => {
-                    const isSelected = editEntryTypes.includes(type)
-                    return (
-                      <Chip
-                        key={type}
-                        as="button"
-                        size="xs"
-                        tone={isSelected ? 'active' : 'surface'}
-                        interactive
-                        aria-pressed={isSelected}
-                        onClick={() => setEditEntryTypes((selected) => toggleEntryType(selected, type))}
-                      >
-                        {type}
-                      </Chip>
-                    )
-                  })}
-                </div>
-              </fieldset>
-            )}
-            <label htmlFor={editTextareaId} className="sr-only">
-              Edit note
-            </label>
-            <textarea
-              id={editTextareaId}
-              value={editNoteText}
-              onChange={(event) => setEditNoteText(event.target.value)}
-              rows={3}
-              autoFocus
-              disabled={pendingEntryId === entry.id}
-              className={cn(fieldClass, 'resize-none text-caption disabled:opacity-60')}
-            />
-            <div className="flex items-center gap-md">
-              <Button
-                type="submit"
-                variant="accent"
-                size="inline"
-                disabled={pendingEntryId === entry.id || !canSubmitEdit}
-              >
-                {pendingEntryId === entry.id ? (
-                  <>
-                    <Loader2 aria-hidden="true" className="size-[13px] animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  'Save'
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="inline"
-                onClick={cancelEdit}
-                disabled={pendingEntryId === entry.id}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </li>
-      )
-    }
-
     return (
-      <li key={entry.id} className="rounded-sm bg-bg px-sm py-xs">
-        <div className="flex items-center justify-between gap-sm">
-          <time dateTime={entry.createdAt} className="text-nano font-semibold text-ink-dim">
-            {formatNoteTimestamp(new Date(entry.createdAt))}
-            {noteEntryWasEdited(entry) && ' · edited'}
-          </time>
-          {entry.entryTypes.length > 0 && (
-            <span className="text-right text-nano font-semibold text-ink-dim">
-              {formatEntryTypes(entry.entryTypes)}
-            </span>
-          )}
-        </div>
-        <p className="mt-xs whitespace-pre-wrap text-caption text-ink">{entry.note}</p>
-        <div className="mt-xs flex items-center gap-lg">
-          <Button
-            variant="accent"
-            size="inline"
-            onClick={() => startEdit(entry)}
-            disabled={pendingEntryId !== null}
-            aria-label={`Edit this ${label} note`}
-          >
-            <Pencil aria-hidden="true" className="size-[12px]" />
-            Edit
-          </Button>
-          <Button
-            variant="destructive"
-            size="inline"
-            onClick={() => void deleteNote(entry.id)}
-            disabled={pendingEntryId !== null}
-            aria-label={`Remove this ${label} note`}
-          >
-            <X aria-hidden="true" className="size-[12px]" />
-            {pendingEntryId === entry.id ? 'Removing…' : 'Remove'}
-          </Button>
-        </div>
-      </li>
+      <NoteEntryRow
+        key={entry.id}
+        entry={entry}
+        label={label}
+        types={types}
+        pendingEntryId={pendingEntryId}
+        onUpdate={updateNote}
+        onDelete={deleteNote}
+      />
     )
   }
 

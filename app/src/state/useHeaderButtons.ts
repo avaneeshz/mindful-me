@@ -26,6 +26,7 @@ import {
 } from '@/domain/headerButtons'
 import { dedupeHeaderButtonInput, duplicatesRemovedNotice, type NewHeaderButtonInput } from '@/domain/headerButtonForm'
 import { rowForLoggedActivity } from '@/domain/colors'
+import { tileCardFromNoteKey } from '@/domain/notes'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
 import {
@@ -43,6 +44,10 @@ export type HeaderButtonsStatus = 'idle' | 'loading' | 'ready' | 'error'
 export interface UseHeaderButtonsResult {
   /** This user's effective button list, in their own chosen order — what the header row renders. */
   visible: HeaderButtonConfig[]
+  /** Every note button, tile-scoped and hidden ones included — what the note-type/label lookups read. */
+  noteButtons: HeaderButtonConfig[]
+  /** A State Tile's own note buttons (those created inside its window), in order. Never in `visible`/`hidden`. */
+  tileButtons: (card: number) => HeaderButtonConfig[]
   /** Buttons this user has hidden — edit mode's own "Hidden" section, so a hide is never a dead end. */
   hidden: HeaderButtonConfig[]
   /** The user's own categories, in their order. Always at least one. */
@@ -455,7 +460,13 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [groups],
   )
 
-  const { visible: rawVisible, hidden: rawHidden } = partitionHeaderButtons(all)
+  // Note buttons created inside a State Tile's window belong to that tile, not the header.
+  const { visible: rawVisible, hidden: rawHidden } = partitionHeaderButtons(all.filter((b) => tileCardFromNoteKey(b.key) === null))
+  const noteButtons = useMemo(() => all.filter((b) => b.category === 'notes'), [all])
+  const tileButtons = useCallback(
+    (card: number) => partitionHeaderButtons(all.filter((b) => tileCardFromNoteKey(b.key) === card)).visible,
+    [all],
+  )
 
   // An activity-category button is a view of its activity's own note titles
   // (the single source of truth — see `withActivityNotes`), so what the
@@ -511,6 +522,8 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   return {
     visible,
     hidden,
+    noteButtons,
+    tileButtons,
     groups: sortedGroups,
     status,
     error,

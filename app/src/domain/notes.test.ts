@@ -4,6 +4,9 @@ import {
   formatEntryTypes,
   formatNoteTimestamp,
   GIFT_TYPES,
+  hasStateTileNotesWindow,
+  newTileNoteKey,
+  tileCardFromNoteKey,
   LEARNING_TYPES,
   NOTE_BUTTONS,
   noteButtonLabel,
@@ -202,5 +205,25 @@ describe('formatNoteTimestamp', () => {
     expect(formatted).toContain('5')
     expect(formatted).toMatch(/3:45/)
     expect(formatted).toContain('·')
+  })
+})
+
+describe('state tile note buttons', () => {
+  it('mints keys that map back to their tile', () => {
+    const key = newTileNoteKey(9)
+    expect(key).toMatch(/^tile9_[0-9a-f]{32}$/)
+    expect(tileCardFromNoteKey(key)).toBe(9)
+    expect(newTileNoteKey(9)).not.toBe(key)
+  })
+
+  it('treats header button keys as not belonging to any tile', () => {
+    for (const key of ['gifts', 'user_abc123', 'tile_9', 'tile0_ab', 'tile19_ab', 'tile9_', 'xtile9_ab', null, undefined]) {
+      expect(tileCardFromNoteKey(key)).toBeNull()
+    }
+  })
+
+  it('opens the full-screen window for Decisions only', () => {
+    expect(hasStateTileNotesWindow(9)).toBe(true)
+    expect(hasStateTileNotesWindow(1)).toBe(false)
   })
 })
