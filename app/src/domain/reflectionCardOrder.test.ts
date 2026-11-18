@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CARD_ORDER,
   isCustomCard,
+  mergeVisibleOrder,
+  normalizeHiddenCards,
+  visibleCards,
   isDefaultOrder,
   nextCustomCardNumber,
   moveCardBy,
@@ -88,5 +91,39 @@ describe('custom tiles', () => {
   it('numbers the next custom tile one past the highest', () => {
     expect(nextCustomCardNumber([])).toBe(19)
     expect(nextCustomCardNumber([19, 21])).toBe(22)
+  })
+})
+
+describe('hidden tiles', () => {
+  it('normalises the hidden list to tiles that exist, once each, ascending', () => {
+    expect(normalizeHiddenCards([9, 3, 9, 99, 'x', 0])).toEqual([3, 9])
+    expect(normalizeHiddenCards([20, 19], [19, 20])).toEqual([19, 20])
+    expect(normalizeHiddenCards([20], [])).toEqual([])
+    expect(normalizeHiddenCards(undefined)).toEqual([])
+  })
+
+  it('takes hidden tiles out of what is shown, keeping order', () => {
+    expect(visibleCards([3, 1, 2, 4], [1, 4])).toEqual([3, 2])
+    expect(visibleCards([3, 1, 2], [])).toEqual([3, 1, 2])
+  })
+
+  it('merges a rearranged visible order back, leaving hidden tiles in their own slots', () => {
+    // hidden 2 and 4 stay at positions 2 and 4; visible 1,3,5 swap to 5,3,1
+    expect(mergeVisibleOrder([1, 2, 3, 4, 5], [2, 4], [5, 3, 1])).toEqual([5, 2, 3, 4, 1])
+  })
+
+  it('is the identity when nothing is hidden', () => {
+    expect(mergeVisibleOrder([1, 2, 3], [], [3, 1, 2])).toEqual([3, 1, 2])
+  })
+
+  it('a restored tile returns to its old slot after the others were rearranged', () => {
+    const full = [1, 2, 3, 4]
+    const afterDrag = mergeVisibleOrder(full, [2], [4, 3, 1]) // 2 hidden, others reversed
+    expect(afterDrag).toEqual([4, 2, 3, 1])
+    expect(visibleCards(afterDrag, [])).toEqual([4, 2, 3, 1]) // restore: 2 is back at slot 2
+  })
+
+  it('ignores unknown and hidden entries in the new visible order, and keeps stragglers', () => {
+    expect(mergeVisibleOrder([1, 2, 3], [2], [3, 2, 99])).toEqual([3, 2, 1])
   })
 })
