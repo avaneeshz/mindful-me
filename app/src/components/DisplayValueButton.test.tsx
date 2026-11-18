@@ -186,7 +186,7 @@ describe('DisplayValueButton', () => {
     const html = renderOpenSleep()
     const panel = html.match(/<div role="dialog"[^>]*class="([^"]*)"/)?.[1] ?? ''
     expect(panel).toContain('overflow-y-auto')
-    expect(panel).toContain('max-h-[min(560px,calc(100vh-32px))]')
+    expect(panel).toContain('max-h-[calc(100dvh-96px)]')
     // History is still present in the (scrollable) panel markup.
     expect(html).toContain('>History<')
   })

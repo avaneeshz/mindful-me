@@ -71,25 +71,19 @@ export function EditModeControls({
   /** Asks first — the caller shows a confirmation before anything is removed. */
   onDelete: () => void
 }) {
+  // Edit sits on the top-left corner, Delete on the top-right: two corners, so
+  // neither covers the other nor the button's own label.
+  const cornerClass =
+    'absolute -top-xs z-10 flex size-[20px] items-center justify-center rounded-full border border-line bg-surface text-ink-dim shadow-elevation-1 transition-colors hover:bg-bg hover:text-ink'
   return (
-    <span className="absolute -right-xs -top-xs z-10 flex gap-[2px]">
-      <button
-        type="button"
-        aria-label={`Edit ${button.label}`}
-        onClick={onEdit}
-        className="flex size-[20px] items-center justify-center rounded-full border border-line bg-surface text-ink-dim shadow-elevation-1 transition-colors hover:bg-bg hover:text-ink"
-      >
+    <>
+      <button type="button" aria-label={`Edit ${button.label}`} onClick={onEdit} className={cn(cornerClass, '-left-xs')}>
         <Pencil aria-hidden="true" className="size-[11px]" />
       </button>
-      <button
-        type="button"
-        aria-label={`Delete ${button.label}`}
-        onClick={onDelete}
-        className="flex size-[20px] items-center justify-center rounded-full border border-line bg-surface text-ink-dim shadow-elevation-1 transition-colors hover:bg-bg hover:text-ink"
-      >
+      <button type="button" aria-label={`Delete ${button.label}`} onClick={onDelete} className={cn(cornerClass, '-right-xs')}>
         <Trash2 aria-hidden="true" className="size-[11px]" />
       </button>
-    </span>
+    </>
   )
 }
 
@@ -199,6 +193,7 @@ export function CategoryHeading({
   onRename,
   onMove,
   onDelete,
+  noun = 'button',
 }: {
   group: HeaderButtonGroup
   groups: readonly HeaderButtonGroup[]
@@ -210,6 +205,8 @@ export function CategoryHeading({
   onRename: (name: string) => void
   onMove: (direction: -1 | 1) => void
   onDelete: () => void
+  /** What the category holds, for the delete confirmation: "button", "tile". */
+  noun?: string
 }) {
   const [renaming, setRenaming] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -273,7 +270,7 @@ export function CategoryHeading({
       )}
       {editMode && confirming && target && (
         <span role="alert" className="flex flex-wrap items-center gap-xs text-caption text-ink-dim">
-          Delete this category? Its {buttonCount} {buttonCount === 1 ? 'button moves' : 'buttons move'} to “{target.name}”.
+          Delete this category? Its {buttonCount} {buttonCount === 1 ? `${noun} moves` : `${noun}s move`} to “{target.name}”.
           <Button
             type="button"
             onClick={() => {

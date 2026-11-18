@@ -1,5 +1,5 @@
 import { useId, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { Mail, Sparkles } from 'lucide-react'
+import { Eye, EyeOff, Mail, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/state/AuthContext'
 import { validateEmail, validatePassword } from '@/lib/auth'
@@ -31,6 +31,7 @@ export function AuthScreen() {
   const [mode, setMode] = useState<Mode>('signIn')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   // Seeded with a failed Google round trip, so coming back from one explains itself.
@@ -43,6 +44,7 @@ export function AuthScreen() {
   function switchMode(next: Mode) {
     setMode(next)
     setPassword('')
+    setShowPassword(false)
     setEmailError(null)
     setPasswordError(null)
     setFormError(null)
@@ -187,17 +189,28 @@ export function AuthScreen() {
             <label htmlFor={passwordId} className="mb-sm block text-caption font-semibold text-ink-dim">
               Password
             </label>
-            <input
-              id={passwordId}
-              type="password"
-              autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={handlePasswordChange}
-              aria-invalid={passwordError ? true : undefined}
-              aria-describedby={passwordError ? `${passwordId}-error` : undefined}
-              className={cn(inputClass, passwordError ? 'border-ink' : 'border-line hover:border-ink')}
-              placeholder={mode === 'signUp' ? 'At least 6 characters' : undefined}
-            />
+            <div className="relative">
+              <input
+                id={passwordId}
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={handlePasswordChange}
+                aria-invalid={passwordError ? true : undefined}
+                aria-describedby={passwordError ? `${passwordId}-error` : undefined}
+                className={cn(inputClass, 'pr-[44px]', passwordError ? 'border-ink' : 'border-line hover:border-ink')}
+                placeholder={mode === 'signUp' ? 'At least 6 characters' : undefined}
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute right-xs top-1/2 flex size-[36px] -translate-y-1/2 items-center justify-center rounded-sm text-ink-dim transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
+              >
+                {showPassword ? <EyeOff aria-hidden="true" className="size-[16px]" /> : <Eye aria-hidden="true" className="size-[16px]" />}
+              </button>
+            </div>
             {passwordError && (
               <p id={`${passwordId}-error`} className="mt-xs text-caption font-semibold text-ink">
                 {passwordError}

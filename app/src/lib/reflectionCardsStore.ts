@@ -1,6 +1,7 @@
 import { readStoredJSON, writeStoredJSON } from '@/lib/storage'
 import { parseCardNames, type ReflectionCardNames } from '@/domain/reflectionCardNames'
 import { isCustomCard, normalizeCardOrder, normalizeHiddenCards } from '@/domain/reflectionCardOrder'
+import { flattenCardGroups, normalizeCardGroups, type CardGroup } from '@/domain/reflectionCardGroups'
 
 /**
  * Device cache of one account's State Tile names and pictures, so the grid
@@ -17,6 +18,8 @@ export interface CardCustomization {
   custom: readonly number[]
   /** Tiles the user deleted; shown again from Settings → Hidden items. */
   hidden: readonly number[]
+  /** The user's own categories and the tiles in each, in order. Every tile is in exactly one. */
+  groups: readonly CardGroup[]
 }
 
 const keyFor = (owner: string) => `mindful-me:state-tiles:${owner}`
@@ -42,7 +45,9 @@ export function loadCardCustomization(owner: string): CardCustomization {
   const raw = readStoredJSON(keyFor(owner))
   const obj = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
   const custom = parseCustomCards(obj.custom)
-  return { names: parseCardNames(obj.names), images: parseCardImages(obj.images), order: normalizeCardOrder(obj.order, custom), custom, hidden: normalizeHiddenCards(obj.hidden, custom) }
+  const groups = normalizeCardGroups(obj.groups, normalizeCardOrder(obj.order, custom), custom)
+  // The categories decide the order: it is always their tiles, category by category.
+  return { names: parseCardNames(obj.names), images: parseCardImages(obj.images), order: flattenCardGroups(groups), custom, hidden: normalizeHiddenCards(obj.hidden, custom), groups }
 }
 
 export function saveCardCustomization(owner: string, value: CardCustomization): void {

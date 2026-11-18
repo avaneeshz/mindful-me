@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient'
+import type { CardGroup } from '@/domain/reflectionCardGroups'
 
 export interface ReflectionCardOverrideRow {
   card: number
@@ -104,4 +105,26 @@ export async function apiSetReflectionCardHidden(card: number, hidden: boolean):
   if (!supabase) return { ok: false, reason: 'unreachable' }
   const { error } = await supabase.rpc('set_reflection_card_hidden', { p_card: card, p_hidden: hidden })
   return toResult(error)
+}
+
+/** This user's State Tile categories, as stored (unchecked; `normalizeCardGroups` repairs them). `undefined` = none saved yet, `null` = couldn't be read. */
+export async function apiGetReflectionCardGroups(): Promise<unknown[] | undefined | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('reflection_card_groups').select('groups').maybeSingle()
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[reflectionCardGroups] read failed', error.message)
+    return null
+  }
+  return (data as { groups: unknown[] } | null)?.groups
+}
+
+/** Saves the whole layout — every category and its tiles, in order — in one atomic write. The server keeps the plain tile order in step. */
+export async function apiSetReflectionCardLayout(groups: readonly CardGroup[]): Promise<SaveCardResult> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
+  const { error } = await supabase.rpc('set_reflection_card_layout', { p_groups: groups })
+  if (!error) return { ok: true }
+  return ['invalid_layout', 'invalid_group_name'].some((code) => error.message.includes(code))
+    ? { ok: false, reason: 'invalid' }
+    : { ok: false, reason: 'unreachable' }
 }

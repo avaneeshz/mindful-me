@@ -44,9 +44,8 @@ import { useSessionHistory } from '@/state/useSessionHistory'
 import { loadDisplayValue, saveDisplayValue } from '@/lib/displayValuesLocalStore'
 import type { DisplayValueHistoryEntry } from '@/lib/displayValuesLocalStore'
 import { dateFromLocalDateISO, localDateISO } from '@/lib/localTime'
+import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
-
-const PANEL_WIDTH = 280
 
 function nowMinutes(): number {
   return clockToMinutes(nowClock()) ?? 0
@@ -160,7 +159,6 @@ export function DisplayValueButton({
   const [note, setNote] = useState('')
   const [fieldSelections, setFieldSelections] = useState<FieldSelections>({})
   const [dreamsNote, setDreamsNote] = useState('')
-  const [align, setAlign] = useState<'left' | 'right'>('right')
   const [error, setError] = useState<string | null>(null)
   // Rule 9's double-submit guard: `onQuickLog`/`commitLocal` return
   // synchronously (the actual write is dispatched in the background), so
@@ -297,30 +295,6 @@ export function DisplayValueButton({
     setDreamsNote('')
     setError(null)
     setSubmitting(false)
-    // Anchor the popover to whichever edge keeps it fully on screen.
-    // Checking only the 'left' fit and falling through to 'right'
-    // unconditionally (the original shape here, mirrored from
-    // `NoteButtonPill`) could push the panel off the LEFT edge instead when
-    // a trigger near the right side of a narrow viewport also fails the
-    // 'right' check — confirmed on a 390px mobile viewport. `effectiveWidth`
-    // matches the panel's own `calc(100vw-32px)` shrink so this check is
-    // accurate on a viewport narrower than `PANEL_WIDTH` itself; when a
-    // trigger sits far enough into the middle of a narrow row that NEITHER
-    // side fits cleanly, picking whichever spills less keeps the visible
-    // clipping to a minimum rather than always favouring one edge.
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const effectiveWidth = Math.min(PANEL_WIDTH, window.innerWidth - 32)
-      const fitsLeft = rect.left + effectiveWidth <= window.innerWidth - 16
-      const fitsRight = rect.right - effectiveWidth >= 16
-      if (fitsLeft) setAlign('left')
-      else if (fitsRight) setAlign('right')
-      else {
-        const leftOverflow = rect.left + effectiveWidth - (window.innerWidth - 16)
-        const rightOverflow = 16 - (rect.right - effectiveWidth)
-        setAlign(leftOverflow <= rightOverflow ? 'left' : 'right')
-      }
-    }
     setOpen(true)
   }
 
@@ -417,27 +391,7 @@ export function DisplayValueButton({
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-label={`${label} value`}
-          className={cn(
-            // Bounded height + internal scroll — without this, the Sleep
-            // popover's tall content (start/end time, duration, type chips,
-            // sleep quality, two notes, Save, then History) could run off
-            // the bottom of a short/mobile viewport with no way to reach
-            // History below the fold. Every OTHER button's popover here is
-            // short enough that this changes nothing visible for them, so
-            // it's applied to the shared panel rather than only the Sleep
-            // case — one rule, consistently short of the viewport edge,
-            // same reasoning `.scroll-cue-bottom`/`item-chip-row` elsewhere
-            // in this app already use for "don't let content go off-screen
-            // with no way back".
-            'absolute top-[calc(100%+8px)] z-30 max-h-[min(560px,calc(100vh-32px))] overflow-y-auto rounded-md border border-line bg-surface p-md shadow-elevation-2',
-            // A dated range carries a < date > stepper per row, which needs the extra width to show the full year.
-            datedRange ? 'w-[min(328px,calc(100vw-32px))]' : 'w-[min(280px,calc(100vw-32px))]',
-            align === 'left' ? 'left-0' : 'right-0',
-          )}
-        >
+        <HeaderPopup aria-label={`${label} value`} onClose={() => setOpen(false)}>
           <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
             {mode === 'duration' || mode === 'songCount' ? (
               <>
@@ -699,7 +653,7 @@ export function DisplayValueButton({
               )}
             </div>
           </div>
-        </div>
+        </HeaderPopup>
       )}
     </div>
   )

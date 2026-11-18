@@ -12,28 +12,11 @@ import {
 } from '@/domain/notes'
 import { NoteEntryRow } from '@/components/NoteEntryRow'
 import { useNoteEntries } from '@/state/useNoteEntries'
+import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
 
 const fieldClass =
   'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-
-const PANEL_WIDTH = 560
-/** Minimum gap the panel keeps from either viewport edge. */
-const VIEWPORT_GUTTER = 16
-
-/**
- * Horizontal offset (px, relative to the trigger's left edge) that places a
- * `PANEL_WIDTH`-wide panel as close to left-aligned with its trigger as
- * possible while keeping it fully on screen. The panel itself shrinks to
- * `100vw − 2 × gutter` on a viewport narrower than `PANEL_WIDTH`, so the
- * same math covers phones.
- */
-function panelOffset(triggerLeft: number, viewportWidth: number): number {
-  const width = Math.min(PANEL_WIDTH, viewportWidth - VIEWPORT_GUTTER * 2)
-  const maxLeft = viewportWidth - VIEWPORT_GUTTER - width
-  const left = Math.min(Math.max(triggerLeft, VIEWPORT_GUTTER), maxLeft)
-  return left - triggerLeft
-}
 
 /**
  * One header pill's whole note-entry surface: the trigger button, a Store
@@ -52,9 +35,6 @@ function panelOffset(triggerLeft: number, viewportWidth: number): number {
  */
 export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey; label: string }) {
   const [open, setOpen] = useState(false)
-  // Horizontal shift (px from the trigger's left edge) that keeps the panel
-  // inside the viewport — recomputed on open and on resize while open.
-  const [offset, setOffset] = useState(0)
   const [noteText, setNoteText] = useState('')
   const [entryTypes, setEntryTypes] = useState<string[]>([])
   const [justSaved, setJustSaved] = useState(false)
@@ -100,18 +80,11 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
       triggerRef.current?.focus()
     }
 
-    function handleResize() {
-      const rect = triggerRef.current?.getBoundingClientRect()
-      if (rect) setOffset(panelOffset(rect.left, window.innerWidth))
-    }
-
     document.addEventListener('mousedown', handlePointerDown)
     document.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('resize', handleResize)
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('resize', handleResize)
     }
   }, [open])
 
@@ -134,13 +107,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   }
 
   function toggle() {
-    setOpen((wasOpen) => {
-      if (!wasOpen) {
-        const rect = triggerRef.current?.getBoundingClientRect()
-        if (rect) setOffset(panelOffset(rect.left, window.innerWidth))
-      }
-      return !wasOpen
-    })
+    setOpen((wasOpen) => !wasOpen)
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -189,14 +156,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-label={`${label} notes`}
-          className={cn(
-            'absolute left-0 top-[calc(100%+8px)] z-30 w-[min(560px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2',
-          )}
-          style={{ transform: `translateX(${offset}px)` }}
-        >
+        <HeaderPopup aria-label={`${label} notes`} onClose={close}>
           <div className="mb-md flex items-center justify-between">
             <h2 className="text-body font-semibold text-ink">{label}</h2>
             <button
@@ -344,7 +304,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
               )}
             </div>
           </div>
-        </div>
+        </HeaderPopup>
       )}
     </div>
   )

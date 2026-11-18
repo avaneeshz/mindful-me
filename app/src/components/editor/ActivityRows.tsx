@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fieldClass } from '@/components/ui/formField'
 import { type ActivityRow } from '@/domain/pickerHierarchy'
@@ -80,7 +80,7 @@ export function EditableActivityList({
               <ChevronDown aria-hidden="true" className="size-[14px]" />
             </RowIconButton>
             <RowIconButton label={`Hide ${row.name}`} onClick={() => onHide(row.id)}>
-              <X aria-hidden="true" className="size-[14px]" />
+              <Trash2 aria-hidden="true" className="size-[14px]" />
             </RowIconButton>
           </li>
         )

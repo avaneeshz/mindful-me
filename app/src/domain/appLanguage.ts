@@ -34,12 +34,12 @@ export const APP_SECTIONS: Record<AppSectionId, AppSection> = {
   tileActivities: {
     id: 'tileActivities',
     name: 'Tile/Activities',
-    description: 'Your tiles and the activities inside them. Tap one to rename it, change its icon or delete it.',
+    description: 'Your tiles and the activities inside them. Tap a tile to select it, then drag to reorder. Use the pencil to rename it or change its icon, and the bin to delete it.',
   },
   stateTiles: {
     id: 'stateTiles',
     name: 'State Tiles',
-    description: 'Cards for how you felt. Tap one to write a note and see the notes you wrote before.',
+    description: 'Cards for how you felt. Tap one to write a note and see the notes you wrote before. In Edit, tap cards to select them, then drag to reorder or move them between categories.',
   },
 }
 
