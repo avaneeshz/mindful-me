@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  * anything is saved.
  */
 export function CardEditPanel({ card, onClose }: { card: number; onClose: () => void }) {
-  const { nameFor, imageFor, rename, setImage, order, moveBy } = useReflectionCards()
+  const { nameFor, imageFor, rename, setImage, visibleOrder: order, moveBy } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(nameFor(card))
   const { chosen, view, setView, problem, choose, frame, cancel } = useCardPicture()

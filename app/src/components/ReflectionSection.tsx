@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { ImagePlus, Pencil, Plus } from 'lucide-react'
+import { ImagePlus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { EditOverlay } from '@/components/editor/EditOverlay'
 import { CardEditPanel } from '@/components/editor/CardEditPanel'
 import { NewCardPanel } from '@/components/editor/NewCardPanel'
 import { StateTileNotesWindow } from '@/components/StateTileNotesWindow'
 import { hasStateTileNotesWindow } from '@/domain/notes'
 import { CardNotesPanel } from '@/components/editor/CardNotesPanel'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { usePointerReorder } from '@/components/ui/usePointerReorder'
 import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
@@ -24,7 +26,8 @@ import { sectionName } from '@/domain/appLanguage'
  * (`CardEditPanel`). Both belong to the signed-in account.
  */
 export function ReflectionSection({ editMode = false }: { editMode?: boolean }) {
-  const { nameFor, imageFor, order, reorder, canAddCard } = useReflectionCards()
+  const { nameFor, imageFor, visibleOrder: order, hiddenCards, reorder, hideCard, canAddCard } = useReflectionCards()
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
   const [openCard, setOpenCard] = useState<number | null>(null)
   const [orderError, setOrderError] = useState<string | null>(null)
@@ -78,6 +81,16 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
                 // The popover's anchor stays a plain, stable element; the drag wrapper (whose
                 // ref the drag hook re-creates every render) sits inside it, never on it.
                 <div className="relative min-w-0">
+                {editMode && (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${title}`}
+                    onClick={() => setPendingDelete(card.number)}
+                    className="absolute right-xs top-xs z-10 flex size-[24px] items-center justify-center rounded-full border border-line bg-surface text-ink-dim shadow-elevation-1 transition-colors hover:bg-bg hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  >
+                    <Trash2 aria-hidden="true" className="size-[12px]" />
+                  </button>
+                )}
                 <div
                   className={cn('relative min-w-0 select-none', editMode && draggingId === String(card.number) && 'shadow-elevation-2')}
                   {...(editMode ? itemProps(String(card.number)) : null)}
@@ -174,6 +187,33 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
           </EditOverlay>
         )}
       </div>
+      {cards.length === 0 && !editMode && (
+        <p className="mt-lg text-caption text-ink-dim">
+          No tiles are showing. Turn on Edit to add one, or bring deleted tiles back from Settings → Hidden items.
+        </p>
+      )}
+      {editMode && <HiddenInSettingsLink count={hiddenCards.length} noun="state tile" />}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Are you sure you want to delete this tile?"
+        description={
+          pendingDelete !== null
+            ? `“${nameFor(pendingDelete)}” will be removed from your State Tiles. Its notes are kept, and you can bring it back any time from Settings → Hidden items.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const card = pendingDelete
+          setPendingDelete(null)
+          if (card === null) return
+          setOpenCard((open) => (open === card ? null : open))
+          setOrderError(null)
+          void hideCard(card).then((result) => {
+            if (!result.ok) setOrderError(result.message)
+          })
+        }}
+      />
       {orderError && (
         <p role="alert" className="mt-md text-caption text-ink">
           {orderError}

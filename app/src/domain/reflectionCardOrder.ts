@@ -65,3 +65,31 @@ export function isDefaultOrder(order: readonly number[]): boolean {
 export function sameOrder(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((c, i) => c === b[i])
 }
+
+/** Hidden tiles made safe: only tiles that exist (built-in, or in `custom`), each once, ascending. */
+export function normalizeHiddenCards(value: unknown, custom: readonly number[] = []): number[] {
+  const allowed = new Set<number>([...DEFAULT_CARD_ORDER, ...custom.filter(isCustomCard)])
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.filter((v): v is number => typeof v === 'number' && allowed.has(v)))].sort((a, b) => a - b)
+}
+
+/** The tiles that are shown: the order with the hidden ones taken out. */
+export function visibleCards(order: readonly number[], hidden: readonly number[]): number[] {
+  const gone = new Set(hidden)
+  return order.filter((card) => !gone.has(card))
+}
+
+/**
+ * The full order after the user rearranges only what they can see. Hidden
+ * tiles keep their own slots, and the visible tiles fill the other slots in
+ * the new sequence — so a restored tile comes back exactly where it was.
+ */
+export function mergeVisibleOrder(order: readonly number[], hidden: readonly number[], nextVisible: readonly number[]): number[] {
+  const gone = new Set(hidden)
+  const queue = nextVisible.filter((card) => !gone.has(card) && order.includes(card))
+  // A visible tile missing from `nextVisible` keeps its place behind the others.
+  const leftover = order.filter((card) => !gone.has(card) && !queue.includes(card))
+  const fill = [...queue, ...leftover]
+  let i = 0
+  return order.map((card) => (gone.has(card) ? card : fill[i++]!))
+}

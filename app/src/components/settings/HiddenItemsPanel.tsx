@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { activityPathNames, tileIdForActivity } from '@/domain/pickerHierarchy'
 import { usePickerData } from '@/state/PickerDataContext'
 import { useSharedHeaderButtons } from '@/state/HeaderButtonsContext'
+import { useReflectionCards } from '@/state/useReflectionCards'
 
 type DeleteResult = { ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }
 
@@ -28,6 +29,7 @@ export const HIDDEN_ITEMS_ANCHOR = 'hidden'
 export function HiddenItemsPanel() {
   const headerButtons = useSharedHeaderButtons()
   const { tiles, activities } = usePickerData()
+  const { hiddenCards, nameFor, restoreCard } = useReflectionCards()
 
   const tileLabel = (tileId: string | null) => tiles.tiles.find((t) => t.id === tileId)?.label
 
@@ -61,8 +63,15 @@ export function HiddenItemsPanel() {
     })
     .sort((a, b) => a.label.localeCompare(b.label))
 
+  // A deleted State Tile keeps its notes, name, picture and place; restoring puts it straight back.
+  const stateTileItems: HiddenItem[] = hiddenCards.map((card) => ({
+    id: `state-tile-${card}`,
+    label: nameFor(card),
+    onRestore: () => void restoreCard(card),
+  }))
+
   const loading = tiles.status === 'loading' || activities.status === 'loading' || headerButtons.status === 'loading'
-  const total = buttonItems.length + tileItems.length + activityItems.length
+  const total = buttonItems.length + stateTileItems.length + tileItems.length + activityItems.length
 
   return (
     <div className="flex flex-col gap-lg">
@@ -83,6 +92,7 @@ export function HiddenItemsPanel() {
       ) : (
         <>
           <HiddenGroup title="Header buttons" items={buttonItems} />
+          <HiddenGroup title="State tiles" items={stateTileItems} />
           <HiddenGroup title="Tiles" items={tileItems} />
           <HiddenGroup title="Activities" items={activityItems} />
         </>
