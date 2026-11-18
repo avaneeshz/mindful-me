@@ -2,15 +2,27 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
   apiCreateReflectionCustomCard,
   apiGetReflectionCardOrder,
+  apiGetReflectionHiddenCards,
   apiListReflectionCustomCards,
   apiListReflectionCardOverrides,
+  apiSetReflectionCardHidden,
   apiSetReflectionCardImage,
   apiSetReflectionCardName,
   apiSetReflectionCardOrder,
 } from '@/api/reflectionCardOverrides'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { resolveCardName, withCardName } from '@/domain/reflectionCardNames'
-import { DEFAULT_CARD_ORDER, MAX_CUSTOM_CARDS, moveCardBy, nextCustomCardNumber, normalizeCardOrder, sameOrder } from '@/domain/reflectionCardOrder'
+import {
+  DEFAULT_CARD_ORDER,
+  MAX_CUSTOM_CARDS,
+  mergeVisibleOrder,
+  moveCardBy,
+  nextCustomCardNumber,
+  normalizeCardOrder,
+  normalizeHiddenCards,
+  sameOrder,
+  visibleCards,
+} from '@/domain/reflectionCardOrder'
 import { loadCardCustomization, saveCardCustomization, type CardCustomization } from '@/lib/reflectionCardsStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useAccountOwner } from '@/state/useAccountOwner'
@@ -28,7 +40,7 @@ interface Snapshot extends CardCustomization {
   owner: string | null
 }
 
-const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER, custom: [] }
+const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER, custom: [], hidden: [] }
 let snapshot: Snapshot = EMPTY
 const listeners = new Set<() => void>()
 
@@ -40,7 +52,7 @@ const current = () => snapshot
 
 function publish(next: Snapshot) {
   snapshot = next
-  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order, custom: next.custom })
+  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order, custom: next.custom, hidden: next.hidden })
   listeners.forEach((l) => l())
 }
 
@@ -79,8 +91,11 @@ export function useReflectionCards() {
       if (cancelled || snapshot.owner !== owner) return
       if (custom !== null) publish({ ...snapshot, custom, order: normalizeCardOrder(snapshot.order, custom) })
       const stored = await apiGetReflectionCardOrder()
-      if (cancelled || stored === null || snapshot.owner !== owner) return
-      publish({ ...snapshot, order: normalizeCardOrder(stored, snapshot.custom) })
+      if (cancelled || snapshot.owner !== owner) return
+      if (stored !== null) publish({ ...snapshot, order: normalizeCardOrder(stored, snapshot.custom) })
+      const hidden = await apiGetReflectionHiddenCards()
+      if (cancelled || hidden === null || snapshot.owner !== owner) return
+      publish({ ...snapshot, hidden: normalizeHiddenCards(hidden, snapshot.custom) })
     })()
     return () => {
       cancelled = true
@@ -115,10 +130,13 @@ export function useReflectionCards() {
     return { ok: false, message: result.reason === 'invalid' ? 'This picture can’t be saved. Try a different one.' : SAVE_FAILED }
   }, [])
 
-  /** Puts the tiles in `next` order. Shown at once; rolled back, with a message, if the server refuses or can't be reached. */
-  const reorder = useCallback(async (next: readonly number[]): Promise<CardSaveResult> => {
+  /**
+   * Puts the shown tiles in `nextVisible` order; hidden tiles keep their own
+   * slots. Shown at once; rolled back, with a message, if the server refuses or can't be reached.
+   */
+  const reorder = useCallback(async (nextVisible: readonly number[]): Promise<CardSaveResult> => {
     const before = snapshot
-    const order = normalizeCardOrder(next, before.custom)
+    const order = normalizeCardOrder(mergeVisibleOrder(before.order, before.hidden, nextVisible), before.custom)
     if (sameOrder(order, before.order)) return { ok: true }
     publish({ ...before, order })
     if (!supabaseConfigured) return { ok: true }
@@ -129,7 +147,10 @@ export function useReflectionCards() {
   }, [])
 
   /** The tap alternative to dragging: one step earlier or later. */
-  const moveBy = useCallback((card: number, delta: -1 | 1) => reorder(moveCardBy(snapshot.order, card, delta)), [reorder])
+  const moveBy = useCallback(
+    (card: number, delta: -1 | 1) => reorder(moveCardBy(visibleCards(snapshot.order, snapshot.hidden), card, delta)),
+    [reorder],
+  )
 
   /**
    * Adds a tile of the account's own, with a name and an optional picture
@@ -170,5 +191,35 @@ export function useReflectionCards() {
     return { ok: true, card }
   }, [])
 
-  return { nameFor, imageFor, rename, setImage, order: snap.order, reorder, moveBy, addCard, canAddCard: snap.custom.length < MAX_CUSTOM_CARDS }
+  /** Deleting a tile hides it: its notes, name, picture and place are kept, and Settings → Hidden items brings it back. */
+  const setHidden = useCallback(async (card: number, hidden: boolean): Promise<CardSaveResult> => {
+    const before = snapshot
+    if (before.hidden.includes(card) === hidden) return { ok: true }
+    const next = normalizeHiddenCards(hidden ? [...before.hidden, card] : before.hidden.filter((c) => c !== card), before.custom)
+    publish({ ...before, hidden: next })
+    if (!supabaseConfigured) return { ok: true }
+    const result = await apiSetReflectionCardHidden(card, hidden)
+    if (result.ok) return result
+    if (snapshot.owner === before.owner) publish({ ...snapshot, hidden: before.hidden })
+    return { ok: false, message: result.reason === 'invalid' ? 'That tile can’t be changed.' : SAVE_FAILED }
+  }, [])
+  const hideCard = useCallback((card: number) => setHidden(card, true), [setHidden])
+  const restoreCard = useCallback((card: number) => setHidden(card, false), [setHidden])
+
+  return {
+    nameFor,
+    imageFor,
+    rename,
+    setImage,
+    /** Every tile in the account's order, hidden ones included (they keep their slot). */
+    order: snap.order,
+    /** What the grid shows: the order without the hidden tiles. */
+    visibleOrder: visibleCards(snap.order, snap.hidden),
+    hiddenCards: snap.hidden,
+    reorder,
+    moveBy,
+    hideCard,
+    restoreCard,
+    addCard, canAddCard: snap.custom.length < MAX_CUSTOM_CARDS,
+  }
 }

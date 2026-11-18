@@ -87,3 +87,21 @@ export async function apiCreateReflectionCustomCard(name: string, imageData: str
   const invalid = ['name_required', 'name_too_long', 'invalid_image_format', 'image_too_large']
   return invalid.some((code) => message.includes(code)) ? { ok: false, reason: 'invalid' } : { ok: false, reason: 'unreachable' }
 }
+
+/** The tiles this user has hidden (deleted). `null` (never `[]`) when the server couldn't be read. */
+export async function apiGetReflectionHiddenCards(): Promise<number[] | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('reflection_card_hidden').select('hidden_cards').maybeSingle()
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[reflectionCardHidden] read failed', error.message)
+    return null
+  }
+  return (data as { hidden_cards: number[] } | null)?.hidden_cards ?? []
+}
+
+export async function apiSetReflectionCardHidden(card: number, hidden: boolean): Promise<SaveCardResult> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
+  const { error } = await supabase.rpc('set_reflection_card_hidden', { p_card: card, p_hidden: hidden })
+  return toResult(error)
+}
