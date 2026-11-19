@@ -5,6 +5,7 @@ import type { ScheduledActivity } from '@/domain/types'
 import { Button } from '@/lumen/components/ui/button'
 import { useStore } from '@/lumen/lib/store'
 import { cn } from '@/lumen/lib/utils'
+import { DictationField } from '@/lumen/components/ui/dictation-button'
 
 const cardByNumber = new Map(REFLECTION_CARDS.map((c) => [c.number, c]))
 
@@ -110,14 +111,16 @@ export function ReflectionsSection({ activity }: { activity: ScheduledActivity }
               <X className="h-4 w-4" />
             </button>
           </div>
-          <textarea
-            value={note}
-            rows={3}
-            placeholder="What came up?"
-            aria-label={`Note for ${cardByNumber.get(open)?.title ?? 'card'}`}
-            onChange={(e) => setNote(e.target.value)}
-            className="resize-y rounded-control border border-line/[0.09] bg-surface-1 px-3 py-2.5 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
-          />
+          <DictationField>
+            <textarea
+              value={note}
+              rows={3}
+              placeholder="What came up?"
+              aria-label={`Note for ${cardByNumber.get(open)?.title ?? 'card'}`}
+              onChange={(e) => setNote(e.target.value)}
+              className="pr-14 resize-y rounded-control border border-line/[0.09] bg-surface-1 px-3 py-2.5 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
+            />
+          </DictationField>
           <div className="flex items-center gap-2">
             {mapped.some((r) => r.card === open) && (
               <Button

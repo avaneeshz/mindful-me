@@ -323,7 +323,7 @@ describe('feature-flag-gated duration fallback', () => {
 
   it('swaps to the numeric stepper when the flag is flipped on — mutually exclusive, never both', async () => {
     vi.resetModules()
-    vi.doMock('@/lib/featureFlags', () => ({ SHOW_DURATION_STEPPER_FALLBACK: true }))
+    vi.doMock('@/lib/featureFlags', () => ({ SHOW_DURATION_STEPPER_FALLBACK: true, VOICE_DICTATION_ENABLED: true }))
     const { LogActivityModal: FlaggedModal } = await import('./LogActivityModal')
     const { EMPTY_STAGING: EmptyStaging } = await import('@/state/boardReducer')
 

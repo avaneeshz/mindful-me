@@ -7,6 +7,7 @@ import { useSupplementCompletions } from '@/state/useSupplementCompletions'
 import { localDateISO } from '@/lib/localTime'
 import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
+import { DictationField } from '@/components/ui/DictationButton'
 
 
 /**
@@ -197,17 +198,19 @@ export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonCo
                         <label htmlFor={`checklist-note-${button.id}-${entry.itemKey}`} className="sr-only">
                           Note for {supplementItemLabel(items, entry.itemKey)}
                         </label>
-                        <textarea
-                          id={`checklist-note-${button.id}-${entry.itemKey}`}
-                          value={draftFor(entry)}
-                          onChange={(event) =>
-                            setNoteDrafts((prev) => ({ ...prev, [entry.itemKey]: event.target.value }))
-                          }
-                          onBlur={() => saveNote(entry)}
-                          placeholder="Add a note"
-                          rows={2}
-                          className="w-full resize-y rounded-md border border-line bg-bg px-sm py-xs text-caption text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-                        />
+                        <DictationField>
+                          <textarea
+                            id={`checklist-note-${button.id}-${entry.itemKey}`}
+                            value={draftFor(entry)}
+                            onChange={(event) =>
+                              setNoteDrafts((prev) => ({ ...prev, [entry.itemKey]: event.target.value }))
+                            }
+                            onBlur={() => saveNote(entry)}
+                            placeholder="Add a note"
+                            rows={2}
+                            className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-sm py-xs text-caption text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                          />
+                        </DictationField>
                       </div>
                     )}
                   </li>

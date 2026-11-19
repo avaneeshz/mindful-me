@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { DictationSettings } from '@/components/settings/DictationSettings'
 import { ChevronRight, CloudAlert, HeartPulse, Loader2, Plus, ScrollText, Watch, type LucideIcon } from 'lucide-react'
 import { apiGetHealthConnectionStatus, type HealthConnectionStatus } from '@/api/healthSync'
 import { availableDeviceProviders, type DeviceProvider } from '@/domain/deviceProviders'
@@ -83,6 +84,8 @@ export function SettingsPage() {
       <section id={HIDDEN_ITEMS_ANCHOR} aria-labelledby="hidden-heading" className="mt-3xl scroll-mt-lg">
         <HiddenItemsPanel />
       </section>
+
+      <DictationSettings />
 
       <section aria-labelledby="not-synced-heading" className="mt-3xl">
         <h2 id="not-synced-heading" className="text-body font-semibold text-ink">

@@ -6,6 +6,7 @@ import { cardNoteWasEdited, MAX_CARD_NOTE_LENGTH, validateCardNote } from '@/dom
 import { formatNoteTimestamp } from '@/domain/notes'
 import { useReflectionCardNotes } from '@/state/useReflectionCardNotes'
 import { cn } from '@/lib/utils'
+import { DictationField } from '@/components/ui/DictationButton'
 
 /**
  * What opens when a State Tile is tapped: a box to write a note, and below it
@@ -51,15 +52,17 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
         <label htmlFor={`card-note-${card}`} className="text-caption font-semibold text-ink">
           {title}
         </label>
-        <textarea
-          id={`card-note-${card}`}
-          rows={4}
-          value={draft}
-          maxLength={MAX_CARD_NOTE_LENGTH}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Write a note…"
-          className={cn(fieldClass, 'resize-y py-sm')}
-        />
+        <DictationField>
+          <textarea
+            id={`card-note-${card}`}
+            rows={4}
+            value={draft}
+            maxLength={MAX_CARD_NOTE_LENGTH}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Write a note…"
+            className={cn('pr-5xl', fieldClass, 'resize-y py-sm')}
+          />
+        </DictationField>
         {draftError && (
           <p role="alert" className="text-caption text-ink">
             {draftError}
@@ -105,15 +108,17 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
             <li key={n.id} className="rounded-md border border-line bg-surface-2 p-sm">
               {editingId === n.id ? (
                 <form onSubmit={onSaveEdit} className="flex flex-col gap-sm">
-                  <textarea
-                    aria-label="Edit note"
-                    autoFocus
-                    rows={4}
-                    value={editText}
-                    maxLength={MAX_CARD_NOTE_LENGTH}
-                    onChange={(e) => setEditText(e.target.value)}
-                    className={cn(fieldClass, 'resize-y py-sm')}
-                  />
+                  <DictationField>
+                    <textarea
+                      aria-label="Edit note"
+                      autoFocus
+                      rows={4}
+                      value={editText}
+                      maxLength={MAX_CARD_NOTE_LENGTH}
+                      onChange={(e) => setEditText(e.target.value)}
+                      className={cn('pr-5xl', fieldClass, 'resize-y py-sm')}
+                    />
+                  </DictationField>
                   {editError && (
                     <p role="alert" className="text-caption text-ink">
                       {editError}
