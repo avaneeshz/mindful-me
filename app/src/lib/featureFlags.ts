@@ -14,3 +14,10 @@
  * exact same `stepDuration`/`setDuration` reducer actions either way.
  */
 export const SHOW_DURATION_STEPPER_FALLBACK = false
+
+/**
+ * Voice dictation (mic button on free-text fields). Turning it off hides every
+ * mic button; nothing is recorded or sent anywhere. The per-person on/off
+ * switch lives in Settings; this is the developer kill switch.
+ */
+export const VOICE_DICTATION_ENABLED = true
