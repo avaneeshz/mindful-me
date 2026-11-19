@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 /**
  * The window a header button opens (a note entry, a quick log, a checklist).
  * Centered on the screen and sized to the screen rather than to the button: on
- * a desktop or tablet it is 60% of the width — a 20% margin each side — and
+ * a desktop or tablet it is 80% of the width — a 10% margin each side — and
  * fills the height less a margin top and bottom; on a phone the side margins
  * shrink to 8px so the content gets nearly the whole screen. It scrolls inside
  * itself when the content is taller.
@@ -30,7 +30,7 @@ export function HeaderPopup({
         {...dialogProps}
         className={cn(
           'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-y-auto',
-          'w-[60vw] max-h-[calc(100dvh-96px)] mobile:w-[calc(100vw-16px)] mobile:max-h-[calc(100dvh-32px)]',
+          'w-[80vw] max-h-[calc(100dvh-96px)] mobile:w-[calc(100vw-16px)] mobile:max-h-[calc(100dvh-32px)]',
           'rounded-md border border-line bg-surface p-lg shadow-elevation-2 mobile:p-md',
           className,
         )}

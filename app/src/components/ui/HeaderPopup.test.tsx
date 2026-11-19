@@ -14,9 +14,9 @@ describe('HeaderPopup', () => {
     expect(html).toContain('<p>content</p>')
   })
 
-  it('fills 60% of the width (20% margins) and the height less a margin, scrolling inside itself', () => {
+  it('fills 80% of the width (10% margins) and the height less a margin, scrolling inside itself', () => {
     const panel = html.match(/<div role="dialog"[^>]*class="([^"]*)"/)?.[1] ?? ''
-    expect(panel).toContain('w-[60vw]')
+    expect(panel).toContain('w-[80vw]')
     expect(panel).toContain('max-h-[calc(100dvh-96px)]')
     expect(panel).toContain('overflow-y-auto')
   })
