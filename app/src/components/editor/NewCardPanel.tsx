@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
  * step that fits the chosen picture to the tile's 4:3 shape — but nothing is
  * saved until Add tile; the new tile then appears last in the grid.
  */
-export function NewCardPanel({ onClose, onAdded }: { onClose: () => void; onAdded?: (card: number) => void }) {
+export function NewCardPanel({ onClose, onAdded, groupId }: { onClose: () => void; onAdded?: (card: number) => void; /** The category the new tile goes into; omitted → the first. */ groupId?: string }) {
   const { addCard } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const { chosen, view, setView, problem, choose, frame, cancel } = useCardPicture()
@@ -70,7 +70,7 @@ export function NewCardPanel({ onClose, onAdded }: { onClose: () => void; onAdde
     if (nameProblem || busy) return
     setBusy(true)
     setError(null)
-    const result = await addCard(name, picture)
+    const result = await addCard(name, picture, groupId)
     setBusy(false)
     if (!result.ok) {
       setError(result.message)

@@ -10,7 +10,7 @@ The words product, engineering and users all use for the parts of mindful-me (Cl
 | **Non-Negotiable Buttons** | The row of daily buttons under the header: notes, quick logs, day values and checklists. In Edit mode you can drag one within its group. | Header button row in `HeaderBar.tsx`; data `header_buttons`; `state/useHeaderButtons.ts` |
 | **Timeline** | Your day and night in 30-minute slots, in two rows: Day (6am–6pm) and Night (6pm–6am). | `components/Timeline.tsx` |
 | **Slot Details** | The panel under the Timeline for the selected slot: its time, how full it is and what's logged in it. Shows an activity's summary when you select one. | `components/editor/SlotEditor.tsx` |
-| **Tile/Activities** | Inside Slot Details: your tiles. Tap a tile to pick an activity to log. In Edit mode, tap a tile to rename it, change its icon or colour, and manage its activities. | `components/editor/TileRow.tsx`, `EditableTileRow.tsx`; data `tiles`, `activities` |
+| **Tile/Activities** | Inside Slot Details: your tiles. Tap a tile to pick an activity to log. In Edit mode, tap a tile to select it (it wobbles) and drag to reorder; the pencil opens it to rename it, change its icon or colour, and manage its activities. | `components/editor/TileRow.tsx`, `EditableTileRow.tsx`; data `tiles`, `activities` |
 | **State Tiles** | The cards for how you felt (formerly "Reflection"). Select an activity on the Timeline, then tap a card to map it. | `components/ReflectionSection.tsx`; data `scheduled_activities.reflections` |
 
 ## Inside each section
@@ -79,6 +79,7 @@ They come in three groups, always in this order. A button can only be moved with
 | Name | What it is | In code |
 |---|---|---|
 | **State Tile** | One card (e.g. a feeling or state). | `data/reflectionCards.ts` |
+| **State Tile category** | A named group of State Tiles you make yourself, like the Non-Negotiable Buttons' categories. Rename, reorder, delete (its tiles move to another category) and add them in Edit mode; drag tiles between them, or use Category in a tile's editor. | `state/useReflectionCards.ts`, `domain/reflectionCardGroups.ts`; table `reflection_card_groups` |
 | **Map / mapped** | Linking a State Tile to a logged activity, with an optional note. | `mapReflectionCard` action |
 
 ## Modes and states

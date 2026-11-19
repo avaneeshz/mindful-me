@@ -32,7 +32,8 @@ import {
   type HeaderButtonGroup,
   type HeaderButtonLayout,
 } from '@/domain/headerButtons'
-import { usePointerReorder, type DragGhost } from '@/components/ui/usePointerReorder'
+import type { DragGhost } from '@/components/ui/usePointerReorder'
+import { REORDER_ITEM_ATTR, useSelectableReorder } from '@/components/ui/useSelectableReorder'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 import { EditLock } from '@/components/ui/EditLock'
@@ -370,61 +371,21 @@ function HeaderButtonRows({
   // selected button carries the whole selection, to any category. The selection
   // stays through the drag and after the drop, so it can be found again among
   // dozens, and clears when you press anywhere outside the buttons, press
-  // Escape, or leave Edit mode.
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const selectedIdsRef = useRef(selectedIds)
-  selectedIdsRef.current = selectedIds
-  const categoryOf = (id: string) => rows.find((row) => row.buttons.some((b) => b.id === id))?.group.id
-
-  function toggleSelected(id: string) {
-    setSelectedIds((current) => {
-      if (current.length === 0) return [id]
-      // One category at a time: picking from another category starts a new selection.
-      if (categoryOf(current[0]!) !== categoryOf(id)) return [id]
-      return current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
-    })
-  }
-
-  const { lanes, draggingId, draggingIds, ghost, itemProps, laneRef } = usePointerReorder({
+  // Escape, or leave Edit mode. (All of that lives in `useSelectableReorder`.)
+  const { lanes, draggingId, draggingIds, ghost, itemProps, laneRef, isSelected, wobbles } = useSelectableReorder({
     lanes: layoutFromRows(rows),
     enabled: editMode,
-    selectedIds,
-    onCommit: (layout) => {
+    onCommit: (layout, selectedIds) => {
       onArrange(layout)
       // The drop may have moved it out of view; bring it back into view.
-      const id = selectedIdsRef.current[0]
+      const id = selectedIds[0]
       if (id) {
         requestAnimationFrame(() => {
           document.querySelector(`[data-header-button-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
         })
       }
     },
-    onTap: toggleSelected,
-    onDragStart: (id) => setSelectedIds([id]),
   })
-
-  useEffect(() => {
-    if (!editMode) setSelectedIds([])
-  }, [editMode])
-
-  const hasSelection = selectedIds.length > 0
-  useEffect(() => {
-    if (!hasSelection) return
-    function onPointerDown(event: PointerEvent) {
-      // A press on any button (or its edit / delete controls) is handled by that button itself.
-      if ((event.target as Element | null)?.closest('[data-header-button-id]')) return
-      setSelectedIds([])
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setSelectedIds([])
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [hasSelection])
 
   return (
     <div className="flex flex-col">
@@ -467,7 +428,7 @@ function HeaderButtonRows({
                   )
                 }
                 const props = itemProps(id)
-                const selected = selectedIds.includes(id)
+                const selected = isSelected(id)
                 // While several travel together their own slots are placeholders showing where they'll land.
                 const inGroupDrag = draggingIds.length > 1 && draggingIds.includes(id)
                 return (
@@ -478,6 +439,7 @@ function HeaderButtonRows({
                     style={props.style}
                     data-dragging={props['data-dragging']}
                     data-header-button-id={id}
+                    {...{ [REORDER_ITEM_ATTR]: '' }}
                     data-selected={selected ? '' : undefined}
                     aria-roledescription="draggable button"
                     aria-current={selected ? 'true' : undefined}
@@ -496,7 +458,7 @@ function HeaderButtonRows({
                       className={cn(
                         'pointer-events-none block rounded-full transition-transform duration-200',
                         inGroupDrag && 'scale-95',
-                        selected && draggingIds.length === 0 && 'animate-jiggle',
+                        wobbles(id) && 'animate-jiggle',
                         // A selected button is the theme's solid "invert" pair (the same fill as the Done pill).
                         selected && '[&_*]:!text-inv-ink [&_button]:!border-inv-bg [&_button]:!bg-inv-bg',
                       )}

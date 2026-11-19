@@ -270,10 +270,15 @@ function AppHeaderBar() {
 function CancelLoggingOnEdit() {
   const { editMode } = useEditMode()
   const { dispatch } = useBoard()
+  // `dispatch` is a new function on every board render, and `cancelStaging` always
+  // makes a new state — depending on it here re-ran this effect forever once any
+  // board render happened in Edit mode. It only needs to run when Edit turns on.
+  const dispatchRef = useRef(dispatch)
+  dispatchRef.current = dispatch
   useEffect(() => {
     if (!editMode) return
-    dispatch({ type: 'cancelStaging' })
-    dispatch({ type: 'selectScheduledActivity', id: null })
-  }, [editMode, dispatch])
+    dispatchRef.current({ type: 'cancelStaging' })
+    dispatchRef.current({ type: 'selectScheduledActivity', id: null })
+  }, [editMode])
   return null
 }

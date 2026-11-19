@@ -29,6 +29,11 @@ describe('AuthScreen (initial render)', () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>Sign in</)
   })
 
+  it('hides the password by default, with a Show password toggle beside the field', () => {
+    expect(html).toMatch(/<input id="[^"]+" type="password"/)
+    expect(html).toMatch(/<button[^>]*aria-label="Show password"[^>]*aria-pressed="false"/)
+  })
+
   it('labels both fields accessibly and ties them to a real <label>', () => {
     const emailLabelMatch = html.match(/<label[^>]*for="([^"]+)"[^>]*>Email<\/label>/)
     const passwordLabelMatch = html.match(/<label[^>]*for="([^"]+)"[^>]*>Password<\/label>/)
