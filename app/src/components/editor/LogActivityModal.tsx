@@ -16,6 +16,7 @@ import { FlagPicker } from './FlagPicker'
 import { MultiselectFieldPicker } from './MultiselectFieldPicker'
 import { QualityPicker } from './QualityPicker'
 import { SymptomsPicker } from './SymptomsPicker'
+import { DictationField } from '@/components/ui/DictationButton'
 
 /**
  * The log-activity popup (Modal Redesign §B, refined further this round) —
@@ -226,14 +227,16 @@ export function LogActivityModal({
                 "Deep log" stub). No expand/collapse, no separate heading —
                 the textarea's own placeholder carries the label. Persisted
                 like quality/flags/symptoms, encrypted at rest (rule 10). */}
-            <textarea
-              value={staging.notes}
-              onChange={(event) => onSetNotes(event.target.value)}
-              aria-label={primaryNoteLabel}
-              placeholder={primaryNoteLabel}
-              rows={3}
-              className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-            />
+            <DictationField>
+              <textarea
+                value={staging.notes}
+                onChange={(event) => onSetNotes(event.target.value)}
+                aria-label={primaryNoteLabel}
+                placeholder={primaryNoteLabel}
+                rows={3}
+                className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              />
+            </DictationField>
 
             {/* Extra fields — generic, never hardcoded to Sleep: a second text
                 note, titled on the activity itself or on its header button
@@ -248,14 +251,16 @@ export function LogActivityModal({
                 <label htmlFor="secondary-note" className="sr-only">
                   {secondaryNoteLabel}
                 </label>
-                <textarea
-                  id="secondary-note"
-                  value={staging.dreamsNote}
-                  onChange={(event) => onSetDreamsNote(event.target.value)}
-                  placeholder={secondaryNoteLabel}
-                  rows={3}
-                  className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-                />
+                <DictationField>
+                  <textarea
+                    id="secondary-note"
+                    value={staging.dreamsNote}
+                    onChange={(event) => onSetDreamsNote(event.target.value)}
+                    placeholder={secondaryNoteLabel}
+                    rows={3}
+                    className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  />
+                </DictationField>
               </div>
             )}
 

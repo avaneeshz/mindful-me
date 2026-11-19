@@ -14,6 +14,7 @@ import { NoteEntryRow } from '@/components/NoteEntryRow'
 import { useNoteEntries } from '@/state/useNoteEntries'
 import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
+import { DictationField } from '@/components/ui/DictationButton'
 
 const fieldClass =
   'w-full rounded-md border border-line bg-surface px-md py-sm text-body font-semibold text-ink transition-colors placeholder:font-normal placeholder:text-ink-dim hover:border-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
@@ -200,16 +201,18 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
               <label htmlFor={textareaId} className="sr-only">
                 Note
               </label>
-              <textarea
-                ref={textareaRef}
-                id={textareaId}
-                value={noteText}
-                onChange={(event) => setNoteText(event.target.value)}
-                rows={3}
-                placeholder="Write a note…"
-                disabled={submitting}
-                className={cn(fieldClass, 'resize-none disabled:opacity-60')}
-              />
+              <DictationField disabled={submitting}>
+                <textarea
+                  ref={textareaRef}
+                  id={textareaId}
+                  value={noteText}
+                  onChange={(event) => setNoteText(event.target.value)}
+                  rows={3}
+                  placeholder="Write a note…"
+                  disabled={submitting}
+                  className={cn('pr-5xl', fieldClass, 'resize-none disabled:opacity-60')}
+                />
+              </DictationField>
             </div>
 
             {error && (

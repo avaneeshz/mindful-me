@@ -100,3 +100,31 @@ function clampCaret(n: number, value: string): number {
   if (!Number.isFinite(n)) return value.length
   return Math.min(Math.max(0, Math.trunc(n)), value.length)
 }
+
+/** A person's own dictation choices, kept on the device. */
+export interface DictationPrefs {
+  /** Show mic buttons at all. */
+  enabled: boolean
+  /** They have read the one-time "audio goes to a speech service" notice. */
+  disclosed: boolean
+}
+
+export const DEFAULT_DICTATION_PREFS: DictationPrefs = { enabled: true, disclosed: false }
+
+/** Reads stored prefs defensively: anything unexpected falls back field by field. */
+export function parseDictationPrefs(raw: unknown): DictationPrefs {
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_DICTATION_PREFS
+  const r = raw as Record<string, unknown>
+  return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_DICTATION_PREFS.enabled,
+    disclosed: typeof r.disclosed === 'boolean' ? r.disclosed : DEFAULT_DICTATION_PREFS.disclosed,
+  }
+}
+
+/** The one-time notice shown before the first recording is sent anywhere. */
+export const DICTATION_DISCLOSURE = {
+  title: 'Type with your voice?',
+  description:
+    'Dictation sends your recording to Groq, a speech-to-text service, to turn it into text. The recording is not stored by mindful-me or kept after it is transcribed. You can turn dictation off any time in Settings.',
+  confirmLabel: 'Allow and start',
+} as const

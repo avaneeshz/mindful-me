@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { dictationErrorMessage, formatElapsed, insertAtSelection, type DictationErrorCode } from './dictation'
+import {
+  DEFAULT_DICTATION_PREFS,
+  dictationErrorMessage,
+  formatElapsed,
+  insertAtSelection,
+  parseDictationPrefs,
+  type DictationErrorCode,
+} from './dictation'
 
 describe('insertAtSelection', () => {
   it('inserts into an empty field with no extra spaces', () => {
@@ -83,5 +90,21 @@ describe('dictationErrorMessage', () => {
     expect(dictationErrorMessage('permission_denied')).toMatch(/browser settings/i)
     expect(dictationErrorMessage('offline')).toMatch(/offline/i)
     expect(dictationErrorMessage('rate_limited')).toMatch(/little while/i)
+  })
+})
+
+describe('parseDictationPrefs', () => {
+  it('defaults to on and not yet disclosed', () => {
+    expect(parseDictationPrefs(null)).toEqual(DEFAULT_DICTATION_PREFS)
+    expect(DEFAULT_DICTATION_PREFS).toEqual({ enabled: true, disclosed: false })
+  })
+
+  it('keeps valid stored values', () => {
+    expect(parseDictationPrefs({ enabled: false, disclosed: true })).toEqual({ enabled: false, disclosed: true })
+  })
+
+  it('repairs bad fields one at a time', () => {
+    expect(parseDictationPrefs({ enabled: 'no', disclosed: true })).toEqual({ enabled: true, disclosed: true })
+    expect(parseDictationPrefs('junk')).toEqual(DEFAULT_DICTATION_PREFS)
   })
 })
