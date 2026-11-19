@@ -128,3 +128,25 @@ export const DICTATION_DISCLOSURE = {
     'Dictation sends your recording to Groq, a speech-to-text service, to turn it into text. The recording is not stored by mindful-me or kept after it is transcribed. You can turn dictation off any time in Settings.',
   confirmLabel: 'Allow and start',
 } as const
+
+/**
+ * Trims dictated text so a field with a `maxLength` never overflows. `maxLength`
+ * of 0 or less means no limit. When it has to cut, it cuts at a word boundary.
+ */
+export function fitInsertion(
+  currentLength: number,
+  selectionLength: number,
+  inserted: string,
+  maxLength: number,
+): { text: string; truncated: boolean } {
+  if (maxLength <= 0) return { text: inserted, truncated: false }
+  const room = maxLength - (currentLength - selectionLength)
+  if (room <= 0) return { text: '', truncated: true }
+  if (inserted.length <= room) return { text: inserted, truncated: false }
+  let cut = inserted.slice(0, room)
+  if (!/\s/.test(inserted.charAt(room))) {
+    const lastSpace = cut.search(/\s\S*$/)
+    if (lastSpace > 0) cut = cut.slice(0, lastSpace)
+  }
+  return { text: cut.trimEnd(), truncated: true }
+}

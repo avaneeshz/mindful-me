@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_DICTATION_PREFS,
   dictationErrorMessage,
+  fitInsertion,
   formatElapsed,
   insertAtSelection,
   parseDictationPrefs,
@@ -106,5 +107,32 @@ describe('parseDictationPrefs', () => {
   it('repairs bad fields one at a time', () => {
     expect(parseDictationPrefs({ enabled: 'no', disclosed: true })).toEqual({ enabled: true, disclosed: true })
     expect(parseDictationPrefs('junk')).toEqual(DEFAULT_DICTATION_PREFS)
+  })
+})
+
+describe('fitInsertion', () => {
+  it('leaves text alone when there is no limit or it fits', () => {
+    expect(fitInsertion(5, 0, ' hello', 0)).toEqual({ text: ' hello', truncated: false })
+    expect(fitInsertion(5, 0, ' hello', 20)).toEqual({ text: ' hello', truncated: false })
+  })
+
+  it('counts a replaced selection as free room', () => {
+    expect(fitInsertion(10, 4, 'abcd', 10)).toEqual({ text: 'abcd', truncated: false })
+  })
+
+  it('reports a full field as nothing inserted', () => {
+    expect(fitInsertion(10, 0, ' hi', 10)).toEqual({ text: '', truncated: true })
+  })
+
+  it('cuts at a word boundary, not mid-word', () => {
+    expect(fitInsertion(0, 0, 'one two three', 9)).toEqual({ text: 'one two', truncated: true })
+  })
+
+  it('keeps the whole last word when the cut lands exactly on a boundary', () => {
+    expect(fitInsertion(0, 0, 'one two three', 7)).toEqual({ text: 'one two', truncated: true })
+  })
+
+  it('falls back to a hard cut for one very long word', () => {
+    expect(fitInsertion(0, 0, 'abcdefghij', 4)).toEqual({ text: 'abcd', truncated: true })
   })
 })

@@ -69,16 +69,45 @@ export function checkAudio(mimeType: string | null | undefined, byteLength: numb
 }
 
 /**
- * Seconds to charge against the user's daily cap. The client reports the clip
- * length; we clamp it, and fall back to a size-based estimate when it is
- * missing or nonsense. (Underreporting only helps a user past the daily cap —
- * the hourly request cap still holds, and the 10 MB size cap bounds each clip.)
+ * Seconds to charge against the user's daily cap: the larger of what the client
+ * reports and a size-based floor, so a clip can't be billed as "1 second" to
+ * dodge the cap. The floor assumes at least ~32 KB/s, far above any real
+ * Opus/AAC recording (≈4–16 KB/s), so honest clips are never over-charged.
  */
 export function billableSeconds(claimed: unknown, byteLength: number): number {
   const n = typeof claimed === 'string' ? Number(claimed) : typeof claimed === 'number' ? claimed : NaN
-  if (Number.isFinite(n) && n > 0) return Math.min(MAX_AUDIO_SECONDS, Math.max(1, Math.ceil(n)))
-  // ~16 KB/s is a generous mid-point between Opus (≈4 KB/s) and AAC (≈8–16 KB/s).
-  return Math.min(MAX_AUDIO_SECONDS, Math.max(1, Math.ceil(byteLength / 16000)))
+  const reported = Number.isFinite(n) && n > 0 ? Math.ceil(n) : 0
+  const floor = Math.ceil(byteLength / 32000)
+  return Math.min(MAX_AUDIO_SECONDS, Math.max(1, reported, floor))
+}
+
+/**
+ * Reads a request body but gives up (returns null) once it passes `maxBytes`,
+ * whether or not the sender declared a Content-Length — so an oversized or
+ * chunked upload is never buffered whole.
+ */
+export async function readBodyWithLimit(body: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<Uint8Array | null> {
+  if (!body) return new Uint8Array(0)
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out
 }
 
 /** Vocabulary hint for Whisper: trimmed, whitespace-collapsed, length-capped. */

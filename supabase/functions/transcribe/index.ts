@@ -8,6 +8,7 @@ import {
   mapUpstreamStatus,
   normalizeLanguage,
   parseQuotaResult,
+  readBodyWithLimit,
   rateLimitedMessage,
   resolveModel,
   sanitizePrompt,
@@ -48,15 +49,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'not_configured', message: 'Dictation is not set up on this project yet.' }, 500)
   }
 
-  // Reject oversize bodies before reading them.
+  // Never buffer more than the cap, whatever the sender declares (or omits).
   const declared = Number(req.headers.get('content-length') ?? '0')
-  if (declared > MAX_REQUEST_BYTES) {
+  const bytes = declared > MAX_REQUEST_BYTES ? null : await readBodyWithLimit(req.body, MAX_REQUEST_BYTES)
+  if (!bytes) {
     return jsonResponse({ error: 'too_large', message: 'The recording is too long. Try a shorter clip.' }, 413)
   }
 
   let form: FormData
   try {
-    form = await req.formData()
+    form = await new Response(bytes, { headers: { 'content-type': req.headers.get('content-type') ?? '' } }).formData()
   } catch {
     return jsonResponse({ error: 'unsupported_audio', message: 'Send the clip as multipart form data.' }, 415)
   }

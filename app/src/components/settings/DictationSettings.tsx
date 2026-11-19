@@ -7,7 +7,7 @@ export function DictationSettings() {
   const { enabled, setEnabled } = useDictationPrefs()
   if (!VOICE_DICTATION_ENABLED) return null
   return (
-    <div className="flex flex-col gap-sm">
+    <section aria-labelledby="dictation-heading" className="mt-3xl flex flex-col gap-sm">
       <h2 id="dictation-heading" className="text-body font-semibold text-ink">
         Voice dictation
       </h2>
@@ -27,6 +27,6 @@ export function DictationSettings() {
           {enabled ? 'On' : 'Off'}
         </Chip>
       </div>
-    </div>
+    </section>
   )
 }

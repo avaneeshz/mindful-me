@@ -85,9 +85,7 @@ export function SettingsPage() {
         <HiddenItemsPanel />
       </section>
 
-      <section aria-labelledby="dictation-heading" className="mt-3xl">
-        <DictationSettings />
-      </section>
+      <DictationSettings />
 
       <section aria-labelledby="not-synced-heading" className="mt-3xl">
         <h2 id="not-synced-heading" className="text-body font-semibold text-ink">

@@ -38,7 +38,7 @@ export function DictationButtonView({ status, elapsedMs, errorMessage, onPress, 
           type="button"
           role="alert"
           onClick={onDismissError}
-          className="absolute bottom-full right-0 mb-xs w-max max-w-[260px] rounded-sm border border-line bg-surface px-md py-sm text-left text-caption text-ink shadow-sm"
+          className="absolute right-0 top-full z-10 mt-xs w-max max-w-[260px] rounded-sm border border-line bg-surface px-md py-sm text-left text-caption text-ink shadow-sm"
         >
           {errorMessage}
         </button>
@@ -107,7 +107,7 @@ export function DictationButton({ getTarget, vocabularyHint, disabled, className
 }
 
 /**
- * Wraps one `<textarea>`/`<input>` and puts a mic in its bottom-right corner.
+ * Wraps one `<textarea>`/`<input>` and puts a mic in its top-right corner (the bottom-right belongs to a textarea's resize grip).
  * Opt-in per field: wrap the field, and give the field `pr-5xl` so text never
  * runs underneath the button.
  */
@@ -127,7 +127,7 @@ export function DictationField({
   return (
     <div ref={box} className={cn('relative', className)}>
       {children}
-      <DictationButton getTarget={getTarget} vocabularyHint={vocabularyHint} disabled={disabled} className="absolute bottom-xs right-xs" />
+      <DictationButton getTarget={getTarget} vocabularyHint={vocabularyHint} disabled={disabled} className="absolute right-xs top-xs" />
     </div>
   )
 }

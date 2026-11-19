@@ -9,6 +9,7 @@ import {
   mapUpstreamStatus,
   normalizeLanguage,
   parseQuotaResult,
+  readBodyWithLimit,
   rateLimitedMessage,
   resolveModel,
   sanitizePrompt,
@@ -65,11 +66,44 @@ describe('billableSeconds', () => {
   })
 
   it('estimates from size when the claim is missing or nonsense', () => {
-    expect(billableSeconds(null, 160_000)).toBe(10)
-    expect(billableSeconds('abc', 160_000)).toBe(10)
-    expect(billableSeconds('-4', 160_000)).toBe(10)
+    expect(billableSeconds(null, 320_000)).toBe(10)
+    expect(billableSeconds('abc', 320_000)).toBe(10)
+    expect(billableSeconds('-4', 320_000)).toBe(10)
     expect(billableSeconds(undefined, 1)).toBe(1)
     expect(billableSeconds(null, MAX_AUDIO_BYTES)).toBe(MAX_AUDIO_SECONDS)
+  })
+
+  it('cannot be undercut by under-reporting: a big clip claiming 1s is still charged for its size', () => {
+    expect(billableSeconds('1', MAX_AUDIO_BYTES)).toBe(MAX_AUDIO_SECONDS)
+    expect(billableSeconds('1', 640_000)).toBe(20)
+  })
+
+  it('does not over-charge a normal clip (about 8 KB/s)', () => {
+    expect(billableSeconds('30', 240_000)).toBe(30)
+  })
+})
+
+describe('readBodyWithLimit', () => {
+  const streamOf = (...parts: number[]) =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const n of parts) controller.enqueue(new Uint8Array(n).fill(7))
+        controller.close()
+      },
+    })
+
+  it('returns the whole body when it fits', async () => {
+    const out = await readBodyWithLimit(streamOf(10, 20), 100)
+    expect(out?.byteLength).toBe(30)
+  })
+
+  it('returns null as soon as the limit is passed, even with no declared length', async () => {
+    expect(await readBodyWithLimit(streamOf(60, 60), 100)).toBeNull()
+  })
+
+  it('accepts a body exactly at the limit and an absent body', async () => {
+    expect((await readBodyWithLimit(streamOf(100), 100))?.byteLength).toBe(100)
+    expect((await readBodyWithLimit(null, 100))?.byteLength).toBe(0)
   })
 })
 

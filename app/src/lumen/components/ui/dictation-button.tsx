@@ -38,7 +38,7 @@ export function DictationButtonView({
           type="button"
           role="alert"
           onClick={onDismissError}
-          className="absolute bottom-full right-0 mb-1.5 w-max max-w-[260px] rounded-control border border-line/10 bg-surface-3 px-3 py-2 text-left text-xs text-ink shadow-raised"
+          className="absolute right-0 top-full z-10 mt-1.5 w-max max-w-[260px] rounded-control border border-line/10 bg-surface-3 px-3 py-2 text-left text-xs text-ink shadow-raised"
         >
           {errorMessage}
         </button>
@@ -114,7 +114,7 @@ function DictationButton({
   )
 }
 
-/** Wraps one Lumen text field with a mic in its bottom-right corner. Give the field `pr-14`. */
+/** Wraps one Lumen text field with a mic in its top-right corner (bottom-right is the resize grip). Give the field `pr-14`. */
 export function DictationField({
   children,
   vocabularyHint,
@@ -131,7 +131,7 @@ export function DictationField({
   return (
     <div ref={box} className={cn('relative flex flex-col', className)}>
       {children}
-      <DictationButton getTarget={getTarget} vocabularyHint={vocabularyHint} disabled={disabled} className="absolute bottom-1 right-1" />
+      <DictationButton getTarget={getTarget} vocabularyHint={vocabularyHint} disabled={disabled} className="absolute right-1 top-1" />
     </div>
   )
 }
