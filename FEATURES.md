@@ -32,7 +32,7 @@ What's actually built and merged to `main` — not aspirational. See [`BACKLOG.m
 
 - ✅ **Mic button on note fields** (both interfaces). Tap to start, tap again to stop; the speech is transcribed (Whisper via Groq, language auto-detected, English/Hindi/mixed) and inserted at the cursor, where the browser's own undo reverses it in one step. Escape cancels; recording stops if the tab is hidden; only one recording at a time.
 - ✅ Every state is handled: recording (elapsed time, subtle pulse that respects reduced motion), transcribing, specific messages for blocked microphone, no microphone, offline, rate limit, too long and server errors. The button is hidden where the browser can't record, in local-only mode, and on locked fields.
-- ✅ **Privacy:** a one-time notice before first use, an on/off switch in Settings, no audio or transcript stored or logged. Limits per person: 60 requests an hour, 1 hour of audio a day.
+- ✅ **Privacy:** no first-use pop-up, an on/off switch in Settings that says where audio goes, no audio or transcript stored or logged. Limits per person: 60 requests an hour, 1 hour of audio a day.
 - Details and reasoning: `DECISIONS.md` (2026-11-19).
 
 ## Navigation & shell

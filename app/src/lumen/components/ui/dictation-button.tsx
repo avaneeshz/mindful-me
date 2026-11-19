@@ -1,11 +1,9 @@
 import { useCallback, useRef, type ReactNode } from 'react'
 import { Loader2, Mic, Square } from 'lucide-react'
-import { DICTATION_DISCLOSURE, formatElapsed, type DictationStatus } from '@/domain/dictation'
+import { formatElapsed, type DictationStatus } from '@/domain/dictation'
 import { useDictationField } from '@/components/ui/useDictationField'
 import type { TextFieldElement } from '@/components/ui/insertIntoField'
 import { cn } from '@/lumen/lib/utils'
-import { Button } from './button'
-import { Sheet } from './sheet'
 
 /**
  * The Lumen skin of the mic button. All behaviour — recording, transcribing,
@@ -83,34 +81,14 @@ function DictationButton({
   const field = useDictationField({ getTarget, vocabularyHint, disabled })
   if (!field.visible) return null
   return (
-    <>
-      <DictationButtonView
-        status={field.status}
-        elapsedMs={field.elapsedMs}
-        errorMessage={field.errorMessage}
-        onPress={field.onPress}
-        onDismissError={field.dismissError}
-        className={className}
-      />
-      <Sheet
-        open={field.disclosure.open}
-        onOpenChange={(open) => !open && field.disclosure.decline()}
-        title={DICTATION_DISCLOSURE.title}
-        description={DICTATION_DISCLOSURE.description}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={field.disclosure.decline}>
-              Not now
-            </Button>
-            <Button variant="primary" onClick={field.disclosure.accept}>
-              {DICTATION_DISCLOSURE.confirmLabel}
-            </Button>
-          </div>
-        }
-      >
-        <span className="sr-only">Dictation privacy notice</span>
-      </Sheet>
-    </>
+    <DictationButtonView
+      status={field.status}
+      elapsedMs={field.elapsedMs}
+      errorMessage={field.errorMessage}
+      onPress={field.onPress}
+      onDismissError={field.dismissError}
+      className={className}
+    />
   )
 }
 

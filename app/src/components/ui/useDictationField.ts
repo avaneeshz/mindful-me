@@ -17,8 +17,6 @@ export interface DictationField extends UseDictation {
   /** Whether to render a mic at all. */
   visible: boolean
   onPress: () => void
-  /** The one-time "audio goes to a speech service" notice. */
-  disclosure: { open: boolean; accept: () => void; decline: () => void }
 }
 
 /**
@@ -40,7 +38,6 @@ export function useDictationField({ getTarget, vocabularyHint, disabled = false 
   })
   const { status, cancel, dismissError, toggle } = dictation
   const prefs = useDictationPrefs()
-  const [disclosureOpen, setDisclosureOpen] = useState(false)
 
   useEffect(() => {
     if (status !== 'recording') return
@@ -70,20 +67,8 @@ export function useDictationField({ getTarget, vocabularyHint, disabled = false 
   const onPress = useCallback(() => {
     setNotice(null)
     if (isFieldLocked(getTarget())) return
-    if (!prefs.disclosed) {
-      setDisclosureOpen(true)
-      return
-    }
     toggle()
-  }, [getTarget, toggle, prefs.disclosed])
-
-  const accept = useCallback(() => {
-    prefs.markDisclosed()
-    setDisclosureOpen(false)
-    // The tap on "Allow" is itself the user gesture the microphone prompt needs.
-    toggle()
-  }, [prefs, toggle])
-  const decline = useCallback(() => setDisclosureOpen(false), [])
+  }, [getTarget, toggle])
 
   return {
     ...dictation,
@@ -91,6 +76,5 @@ export function useDictationField({ getTarget, vocabularyHint, disabled = false 
     dismissError: dismissMessage,
     visible: dictation.supported && prefs.enabled && !disabled,
     onPress,
-    disclosure: { open: disclosureOpen, accept, decline },
   }
 }

@@ -1,4 +1,4 @@
-import { Fragment, useId } from 'react'
+import { useId } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 
@@ -15,7 +15,6 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
-  portal = false,
 }: {
   open: boolean
   title: string
@@ -24,14 +23,10 @@ export function ConfirmDialog({
   cancelLabel?: string
   onConfirm: () => void
   onCancel: () => void
-  /** Render outside the surrounding layout (needed inside transformed pop-ups). */
-  portal?: boolean
 }) {
   const titleId = useId()
-  const Wrap = portal ? Dialog.Portal : Fragment
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
-      <Wrap>
       <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
       <Dialog.Content
         role="alertdialog"
@@ -60,7 +55,6 @@ export function ConfirmDialog({
           </Button>
         </div>
       </Dialog.Content>
-      </Wrap>
     </Dialog.Root>
   )
 }

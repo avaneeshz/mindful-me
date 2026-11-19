@@ -1,7 +1,6 @@
 import { useCallback, useRef, type ReactNode } from 'react'
 import { Loader2, Mic, Square } from 'lucide-react'
-import { DICTATION_DISCLOSURE, formatElapsed, type DictationStatus } from '@/domain/dictation'
-import { ConfirmDialog } from './ConfirmDialog'
+import { formatElapsed, type DictationStatus } from '@/domain/dictation'
 import { cn } from '@/lib/utils'
 import { useDictationField } from './useDictationField'
 import type { TextFieldElement } from './insertIntoField'
@@ -84,25 +83,14 @@ export function DictationButton({ getTarget, vocabularyHint, disabled, className
   const field = useDictationField({ getTarget, vocabularyHint, disabled })
   if (!field.visible) return null
   return (
-    <>
-      <DictationButtonView
-        status={field.status}
-        elapsedMs={field.elapsedMs}
-        errorMessage={field.errorMessage}
-        onPress={field.onPress}
-        onDismissError={field.dismissError}
-        className={className}
-      />
-      <ConfirmDialog
-        portal
-        open={field.disclosure.open}
-        title={DICTATION_DISCLOSURE.title}
-        description={DICTATION_DISCLOSURE.description}
-        confirmLabel={DICTATION_DISCLOSURE.confirmLabel}
-        onConfirm={field.disclosure.accept}
-        onCancel={field.disclosure.decline}
-      />
-    </>
+    <DictationButtonView
+      status={field.status}
+      elapsedMs={field.elapsedMs}
+      errorMessage={field.errorMessage}
+      onPress={field.onPress}
+      onDismissError={field.dismissError}
+      className={className}
+    />
   )
 }
 
