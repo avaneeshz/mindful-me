@@ -95,17 +95,17 @@ describe('dictationErrorMessage', () => {
 })
 
 describe('parseDictationPrefs', () => {
-  it('defaults to on and not yet disclosed', () => {
+  it('defaults to on', () => {
     expect(parseDictationPrefs(null)).toEqual(DEFAULT_DICTATION_PREFS)
-    expect(DEFAULT_DICTATION_PREFS).toEqual({ enabled: true, disclosed: false })
+    expect(DEFAULT_DICTATION_PREFS).toEqual({ enabled: true })
   })
 
   it('keeps valid stored values', () => {
-    expect(parseDictationPrefs({ enabled: false, disclosed: true })).toEqual({ enabled: false, disclosed: true })
+    expect(parseDictationPrefs({ enabled: false })).toEqual({ enabled: false })
   })
 
   it('repairs bad fields one at a time', () => {
-    expect(parseDictationPrefs({ enabled: 'no', disclosed: true })).toEqual({ enabled: true, disclosed: true })
+    expect(parseDictationPrefs({ enabled: 'no' })).toEqual({ enabled: true })
     expect(parseDictationPrefs('junk')).toEqual(DEFAULT_DICTATION_PREFS)
   })
 })
