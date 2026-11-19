@@ -195,11 +195,7 @@ export function HeaderBar({
           Board") sits left; the viewed-date navigator, weather, and account
           control sit right. Nothing else shares this line. */}
       <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
-        <div className="flex items-center gap-md mobile:pl-[52px]">
-          {/* Edit sits at the far left and the day controls at the far right, so
-              the two never share a cluster. On a phone the menu launcher owns the
-              very corner, so Edit starts just beside it. */}
-          <EditModeToggle active={editMode} onToggle={onToggleEditMode} />
+        <div className="flex items-center gap-sm mobile:pl-[52px]">
           <CounclMark />
           <h1 className="font-display text-h1 font-semibold text-ink mobile:text-h1-sm">
             <CounclTitle />
@@ -221,6 +217,8 @@ export function HeaderBar({
           <DownloadDayButton viewedDate={viewedDate} activities={activities} />
 
           <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
+
+          <EditModeToggle active={editMode} onToggle={onToggleEditMode} />
 
           <WeatherPill className="mobile:hidden" />
 

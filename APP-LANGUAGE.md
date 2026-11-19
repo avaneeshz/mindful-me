@@ -26,7 +26,7 @@ The words product, engineering and users all use for the parts of mindful-me (Cl
 | **Day off** | Marks the viewed day as a day off, with an optional reason. Shown as a small dot on that date in the Calendar. Locked in Edit mode. | `DayOffControl.tsx`, `state/useDayOffs.ts` |
 | **Download day** | Exports the viewed day as a PDF. | `DownloadDayButton.tsx` |
 | **Sync status** | Shows whether everything has reached the server, with Retry. | `SyncStatusPill.tsx` |
-| **Edit / Done** | Turns Edit mode on and off. Sits at the far left of the Header; everything else is on the right. | `EditModeToggle` in `HeaderButtonEditor.tsx` |
+| **Edit / Done** | Turns Edit mode on and off. | `EditModeToggle` in `HeaderButtonEditor.tsx` |
 | **Weather** | Current temperature for your location. Hidden on phones. | `WeatherPill.tsx` |
 | **Account menu** | Settings, switch to Lumen, sign out. | `AccountMenu` in `HeaderBar.tsx` |
 
