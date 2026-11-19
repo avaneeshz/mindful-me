@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Pencil, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Pencil, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { TileDto } from '@/api/tiles'
 import { ActivityEditView } from '@/components/editor/ActivityEditView'
+import { Button } from '@/components/ui/button'
 import { AddNameRow, EditableActivityList, RowIconButton } from '@/components/editor/ActivityRows'
 import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { TileForm } from '@/components/editor/TileForm'
@@ -26,7 +27,7 @@ export function TileEditPanel({
   onClose,
 }: {
   tile: TileDto
-  tiles: Pick<UseTilesResult, 'renameTile' | 'setTileColor' | 'tiles'>
+  tiles: Pick<UseTilesResult, 'renameTile' | 'setTileColor' | 'tiles' | 'reorder'>
   activities: UseActivityHierarchyResult
   onClose: () => void
 }) {
@@ -62,6 +63,13 @@ export function TileEditPanel({
 
   const Icon = resolveIcon(tile.iconKey)
   const { visible, hidden } = childrenOf(rows, null, tile.id)
+  // Where the tile sits in the row. Dragging is the fast way; these two buttons are the tap alternative.
+  const shownTileIds = [...tiles.tiles].filter((t) => !t.hidden).sort((a, b) => a.sortOrder - b.sortOrder).map((t) => t.id)
+  const position = shownTileIds.indexOf(tile.id)
+  const moveTile = (delta: -1 | 1) => {
+    const next = moveInOrder(shownTileIds, tile.id, delta)
+    if (next) tiles.reorder(next)
+  }
 
   return (
     <>
@@ -96,6 +104,20 @@ export function TileEditPanel({
           </div>
         </div>
       )}
+
+      <div className="flex items-center justify-between gap-sm" role="group" aria-label="Position">
+        <span className="text-caption font-semibold text-ink">
+          Position <span className="font-normal text-ink-dim">{position + 1} of {shownTileIds.length}</span>
+        </span>
+        <span className="flex items-center gap-xs">
+          <Button type="button" variant="outline" aria-label="Move earlier" disabled={position <= 0} onClick={() => moveTile(-1)}>
+            <ArrowLeft aria-hidden="true" className="size-[14px]" />
+          </Button>
+          <Button type="button" variant="outline" aria-label="Move later" disabled={position === shownTileIds.length - 1} onClick={() => moveTile(1)}>
+            <ArrowRight aria-hidden="true" className="size-[14px]" />
+          </Button>
+        </span>
+      </div>
 
       <section aria-label="Colour" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>

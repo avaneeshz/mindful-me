@@ -16,11 +16,14 @@ import { cn } from '@/lib/utils'
  * anything is saved.
  */
 export function CardEditPanel({ card, onClose }: { card: number; onClose: () => void }) {
-  const { nameFor, imageFor, rename, setImage, visibleOrder: order, moveBy } = useReflectionCards()
+  const { nameFor, imageFor, rename, setImage, rows, moveBy, moveToGroup } = useReflectionCards()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(nameFor(card))
   const { chosen, view, setView, problem, choose, frame, cancel } = useCardPicture()
-  const position = order.indexOf(card)
+  // Where the tile sits is within its own category: position, and which category it is in.
+  const home = rows.find((row) => row.cards.includes(card))
+  const position = home ? home.cards.indexOf(card) : 0
+  const count = home ? home.cards.length : 1
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -99,9 +102,30 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
         </span>
       </button>
 
+      {rows.length > 1 && home && (
+        <div className="flex items-center justify-between gap-sm">
+          <label className="text-caption font-semibold text-ink" htmlFor={`card-category-${card}`}>
+            Category
+          </label>
+          <select
+            id={`card-category-${card}`}
+            value={home.group.id}
+            disabled={busy}
+            onChange={(e) => void run(() => moveToGroup(card, e.target.value), () => undefined)}
+            className={cn(fieldClass, 'w-auto max-w-[60%] py-xs')}
+          >
+            {rows.map((row) => (
+              <option key={row.group.id} value={row.group.id}>
+                {row.group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-sm" role="group" aria-label="Position">
         <span className="text-caption font-semibold text-ink">
-          Position <span className="font-normal text-ink-dim">{position + 1} of {order.length}</span>
+          Position <span className="font-normal text-ink-dim">{position + 1} of {count}</span>
         </span>
         <span className="flex items-center gap-xs">
           <Button
@@ -117,7 +141,7 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
             type="button"
             variant="outline"
             aria-label="Move later"
-            disabled={busy || position === order.length - 1}
+            disabled={busy || position === count - 1}
             onClick={() => void run(() => moveBy(card, 1), () => undefined)}
           >
             <ArrowRight aria-hidden="true" className="size-[14px]" />

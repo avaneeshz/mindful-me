@@ -1,28 +1,47 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
   apiCreateReflectionCustomCard,
+  apiGetReflectionCardGroups,
   apiGetReflectionCardOrder,
   apiGetReflectionHiddenCards,
   apiListReflectionCustomCards,
   apiListReflectionCardOverrides,
   apiSetReflectionCardHidden,
   apiSetReflectionCardImage,
+  apiSetReflectionCardLayout,
   apiSetReflectionCardName,
-  apiSetReflectionCardOrder,
 } from '@/api/reflectionCardOverrides'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { resolveCardName, withCardName } from '@/domain/reflectionCardNames'
 import {
   DEFAULT_CARD_ORDER,
   MAX_CUSTOM_CARDS,
-  mergeVisibleOrder,
   moveCardBy,
   nextCustomCardNumber,
   normalizeCardOrder,
   normalizeHiddenCards,
-  sameOrder,
   visibleCards,
 } from '@/domain/reflectionCardOrder'
+import {
+  addCardGroup,
+  addCardToGroup,
+  applyCardLayout,
+  cardLayout,
+  defaultCardGroups,
+  DEFAULT_CARD_GROUP_ID,
+  deleteCardGroup,
+  flattenCardGroups,
+  groupOfCard,
+  isCardGroupsEqual,
+  MAX_CARD_GROUPS,
+  moveCardGroup,
+  moveCardToGroup,
+  normalizeCardGroups,
+  renameCardGroup,
+  type CardGroup,
+} from '@/domain/reflectionCardGroups'
+import type { HeaderButtonLayout } from '@/domain/headerButtons'
+import { generateId } from '@/domain/scheduling'
 import { loadCardCustomization, saveCardCustomization, type CardCustomization } from '@/lib/reflectionCardsStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useAccountOwner } from '@/state/useAccountOwner'
@@ -40,7 +59,7 @@ interface Snapshot extends CardCustomization {
   owner: string | null
 }
 
-const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER, custom: [], hidden: [] }
+const EMPTY: Snapshot = { owner: null, names: {}, images: {}, order: DEFAULT_CARD_ORDER, custom: [], hidden: [], groups: defaultCardGroups(DEFAULT_CARD_ORDER) }
 let snapshot: Snapshot = EMPTY
 const listeners = new Set<() => void>()
 
@@ -52,7 +71,7 @@ const current = () => snapshot
 
 function publish(next: Snapshot) {
   snapshot = next
-  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order, custom: next.custom, hidden: next.hidden })
+  if (next.owner) saveCardCustomization(next.owner, { names: next.names, images: next.images, order: next.order, custom: next.custom, hidden: next.hidden, groups: next.groups })
   listeners.forEach((l) => l())
 }
 
@@ -94,8 +113,15 @@ export function useReflectionCards() {
       if (cancelled || snapshot.owner !== owner) return
       if (stored !== null) publish({ ...snapshot, order: normalizeCardOrder(stored, snapshot.custom) })
       const hidden = await apiGetReflectionHiddenCards()
-      if (cancelled || hidden === null || snapshot.owner !== owner) return
-      publish({ ...snapshot, hidden: normalizeHiddenCards(hidden, snapshot.custom) })
+      if (cancelled || snapshot.owner !== owner) return
+      if (hidden !== null) publish({ ...snapshot, hidden: normalizeHiddenCards(hidden, snapshot.custom) })
+      // The categories last: they decide where each tile sits, so they need the tiles and the order first.
+      const storedGroups = await apiGetReflectionCardGroups()
+      if (cancelled || storedGroups === null || snapshot.owner !== owner) return
+      // Nothing saved on the server, but a layout made on this device is kept rather than reset.
+      const keepLocal = storedGroups === undefined && snapshot.groups.some((g) => g.id !== DEFAULT_CARD_GROUP_ID)
+      const groups = normalizeCardGroups(keepLocal ? snapshot.groups : storedGroups, snapshot.order, snapshot.custom)
+      publish({ ...snapshot, groups, order: flattenCardGroups(groups) })
     })()
     return () => {
       cancelled = true
@@ -131,26 +157,62 @@ export function useReflectionCards() {
   }, [])
 
   /**
-   * Puts the shown tiles in `nextVisible` order; hidden tiles keep their own
-   * slots. Shown at once; rolled back, with a message, if the server refuses or can't be reached.
+   * Saves a new set of categories (which also decides the order). Shown at
+   * once; rolled back, with a message, if the server refuses or can't be reached.
    */
-  const reorder = useCallback(async (nextVisible: readonly number[]): Promise<CardSaveResult> => {
+  const commitGroups = useCallback(async (next: readonly CardGroup[]): Promise<CardSaveResult> => {
     const before = snapshot
-    const order = normalizeCardOrder(mergeVisibleOrder(before.order, before.hidden, nextVisible), before.custom)
-    if (sameOrder(order, before.order)) return { ok: true }
-    publish({ ...before, order })
+    if (isCardGroupsEqual(next, before.groups)) return { ok: true }
+    const groups = normalizeCardGroups(next, flattenCardGroups(next), before.custom)
+    publish({ ...before, groups, order: flattenCardGroups(groups) })
     if (!supabaseConfigured) return { ok: true }
-    const result = await apiSetReflectionCardOrder(order)
+    const result = await apiSetReflectionCardLayout(groups)
     if (result.ok) return result
-    if (snapshot.owner === before.owner) publish({ ...snapshot, order: before.order })
-    return { ok: false, message: result.reason === 'invalid' ? 'That order can’t be saved.' : SAVE_FAILED }
+    if (snapshot.owner === before.owner) publish({ ...snapshot, groups: before.groups, order: before.order })
+    return { ok: false, message: result.reason === 'invalid' ? 'That arrangement can’t be saved.' : SAVE_FAILED }
   }, [])
 
-  /** The tap alternative to dragging: one step earlier or later. */
-  const moveBy = useCallback(
-    (card: number, delta: -1 | 1) => reorder(moveCardBy(visibleCards(snapshot.order, snapshot.hidden), card, delta)),
-    [reorder],
+  /** A drag (or the tap equivalent): which category each shown tile is now in, and their order. */
+  const arrange = useCallback(
+    (layout: HeaderButtonLayout) => commitGroups(applyCardLayout(snapshot.groups, snapshot.hidden, layout)),
+    [commitGroups],
   )
+
+  /** The tap alternative to dragging: one step earlier or later within its own category. */
+  const moveBy = useCallback(
+    (card: number, delta: -1 | 1) => {
+      const group = groupOfCard(snapshot.groups, card)
+      if (!group) return Promise.resolve<CardSaveResult>({ ok: true })
+      const shown = cardLayout([group], snapshot.hidden)[0]!.buttonIds.map(Number)
+      const moved = moveCardBy(shown, card, delta)
+      return commitGroups(applyCardLayout(snapshot.groups, snapshot.hidden, [{ groupId: group.id, buttonIds: moved.map(String) }]))
+    },
+    [commitGroups],
+  )
+
+  /** The tap alternative to dragging a tile into another category: it goes to the end of it. */
+  const moveToGroup = useCallback(
+    (card: number, groupId: string) => commitGroups(moveCardToGroup(snapshot.groups, card, groupId)),
+    [commitGroups],
+  )
+
+  /** Makes a new category (empty); returns it so the caller can use it at once. */
+  const addGroup = useCallback(
+    async (name: string): Promise<CardSaveResult & { group?: CardGroup }> => {
+      if (snapshot.groups.length >= MAX_CARD_GROUPS) return { ok: false, message: `You can have up to ${MAX_CARD_GROUPS} categories.` }
+      const id = generateId()
+      const result = await commitGroups(addCardGroup(snapshot.groups, id, name))
+      return result.ok ? { ...result, group: snapshot.groups.find((g) => g.id === id) } : result
+    },
+    [commitGroups],
+  )
+  const renameGroup = useCallback((id: string, name: string) => commitGroups(renameCardGroup(snapshot.groups, id, name)), [commitGroups])
+  /** Its tiles move to the end of the next category (or `moveToId`) — a category's delete never deletes tiles. */
+  const deleteGroup = useCallback(
+    (id: string, moveToId?: string) => commitGroups(deleteCardGroup(snapshot.groups, id, moveToId)),
+    [commitGroups],
+  )
+  const moveGroup = useCallback((id: string, delta: -1 | 1) => commitGroups(moveCardGroup(snapshot.groups, id, delta)), [commitGroups])
 
   /**
    * Adds a tile of the account's own, with a name and an optional picture
@@ -158,7 +220,7 @@ export function useReflectionCards() {
    * tile's number; with no backend the number is allocated on this device.
    * The new tile goes last.
    */
-  const addCard = useCallback(async (name: string, imageData: string | null): Promise<CardSaveResult & { card?: number }> => {
+  const addCard = useCallback(async (name: string, imageData: string | null, groupId?: string): Promise<CardSaveResult & { card?: number }> => {
     const before = snapshot
     const trimmed = name.trim().replace(/\s+/g, ' ')
     if (before.custom.length >= MAX_CUSTOM_CARDS) return { ok: false, message: `You can add up to ${MAX_CUSTOM_CARDS} tiles.` }
@@ -181,13 +243,20 @@ export function useReflectionCards() {
     const latest = snapshot
     if (latest.owner !== before.owner) return { ok: true, card }
     const custom = [...latest.custom, card].sort((a, b) => a - b)
+    const groups = addCardToGroup(latest.groups, card, groupId)
     publish({
       ...latest,
       custom,
       names: { ...latest.names, [card]: trimmed },
       images: imageData ? { ...latest.images, [card]: imageData } : latest.images,
-      order: normalizeCardOrder([...latest.order, card], custom),
+      groups,
+      order: flattenCardGroups(groups),
     })
+    // The server files a new tile with the others; one that went into a particular category is saved there next.
+    if (supabaseConfigured && groupId && groupId !== latest.groups[0]?.id) {
+      const saved = await apiSetReflectionCardLayout(groups)
+      if (!saved.ok) return { ok: true, card }
+    }
     return { ok: true, card }
   }, [])
 
@@ -216,8 +285,17 @@ export function useReflectionCards() {
     /** What the grid shows: the order without the hidden tiles. */
     visibleOrder: visibleCards(snap.order, snap.hidden),
     hiddenCards: snap.hidden,
-    reorder,
+    /** The categories, in order, each with every tile it holds (hidden ones included). */
+    groups: snap.groups,
+    /** What the grid shows: each category with only its shown tiles. */
+    rows: snap.groups.map((group) => ({ group, cards: group.cards.filter((c) => !snap.hidden.includes(c)) })),
+    arrange,
     moveBy,
+    moveToGroup,
+    addGroup,
+    renameGroup,
+    deleteGroup,
+    moveGroup,
     hideCard,
     restoreCard,
     addCard, canAddCard: snap.custom.length < MAX_CUSTOM_CARDS,

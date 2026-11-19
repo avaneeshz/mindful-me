@@ -5,9 +5,9 @@ import { supplementItemLabel, type SupplementCompletion, type SupplementItemKey 
 import type { HeaderButtonConfig } from '@/domain/headerButtons'
 import { useSupplementCompletions } from '@/state/useSupplementCompletions'
 import { localDateISO } from '@/lib/localTime'
+import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
 
-const PANEL_WIDTH = 320
 
 /**
  * A `'checklist'`-category header control — an independently-toggleable
@@ -29,7 +29,6 @@ const PANEL_WIDTH = 320
  */
 export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonConfig; viewedDate: Date }) {
   const [open, setOpen] = useState(false)
-  const [align, setAlign] = useState<'left' | 'right'>('left')
   const [expandedNotes, setExpandedNotes] = useState<Set<SupplementItemKey>>(new Set())
   const [noteDrafts, setNoteDrafts] = useState<Partial<Record<SupplementItemKey, string>>>({})
 
@@ -72,15 +71,7 @@ export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonCo
   }, [open])
 
   function toggle() {
-    setOpen((wasOpen) => {
-      if (!wasOpen) {
-        const rect = triggerRef.current?.getBoundingClientRect()
-        if (rect) {
-          setAlign(rect.left + PANEL_WIDTH <= window.innerWidth - 16 ? 'left' : 'right')
-        }
-      }
-      return !wasOpen
-    })
+    setOpen((wasOpen) => !wasOpen)
   }
 
   function close() {
@@ -129,14 +120,7 @@ export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonCo
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-labelledby={headingId}
-          className={cn(
-            'absolute top-[calc(100%+8px)] z-30 w-[min(320px,calc(100vw-32px))] rounded-md border border-line bg-surface p-md shadow-elevation-2',
-            align === 'left' ? 'left-0' : 'right-0',
-          )}
-        >
+        <HeaderPopup aria-labelledby={headingId} onClose={close}>
           <div className="mb-md flex items-center justify-between">
             <h2 id={headingId} className="text-body font-semibold text-ink">
               {button.label}
@@ -231,7 +215,7 @@ export function ChecklistButton({ button, viewedDate }: { button: HeaderButtonCo
               })}
             </ul>
           )}
-        </div>
+        </HeaderPopup>
       )}
     </div>
   )
