@@ -21,6 +21,7 @@ These are the reasons a future native app is realistic. Don't regress them.
 - **Rules live in Postgres**: every table created in `supabase/migrations/` enables RLS, a DB-level no-overlap constraint and validated RPCs. A second client can't bypass them.
 - **Times are stored as wall-clock time plus an IANA time zone** (product rule 3).
 - **The Health Sync OAuth callback edge function takes `redirectUri` from the client** instead of assuming a web origin, so the server side already accepts mobile deep-link redirects.
+- **Voice dictation reuses cleanly.** The `transcribe` edge function and `api/transcribe.ts` carry over to a native app unchanged. Only `lib/audioRecorder.ts` (the one MediaRecorder/getUserMedia adapter) would be replaced, e.g. by `expo-audio`. The state machine (`state/dictationController.ts`) and rules (`domain/dictation.ts`) are framework-free. Web-only parts: `components/ui/insertIntoField.ts` (DOM insertion) and the two button skins.
 
 ---
 

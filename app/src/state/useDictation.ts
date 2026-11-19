@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { dictationErrorMessage, type DictationErrorCode, type DictationStatus } from '@/domain/dictation'
 import { apiTranscribe, isTranscriptionAvailable } from '@/api/transcribe'
 import { onAppVisibilityChange } from '@/lib/appVisibility'
+import { isOnline } from '@/lib/connectivity'
 import { createAudioRecorder, isRecordingSupported } from '@/lib/audioRecorder'
 import { VOICE_DICTATION_ENABLED } from '@/lib/featureFlags'
 import { DictationController, type DictationDeps } from './dictationController'
@@ -32,7 +33,7 @@ const defaultDeps: DictationDeps = {
   createRecorder: createAudioRecorder,
   transcribe: apiTranscribe,
   now: () => Date.now(),
-  isOnline: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  isOnline,
   onVisibilityChange: onAppVisibilityChange,
 }
 

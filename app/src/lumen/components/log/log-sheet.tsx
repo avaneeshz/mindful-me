@@ -24,6 +24,7 @@ import {
 import { useStore } from '@/lumen/lib/store'
 import { addDays, cn, formatDuration, weekdayShort } from '@/lumen/lib/utils'
 import { ReflectionsSection } from './reflections'
+import { DictationField } from '@/lumen/components/ui/dictation-button'
 
 /**
  * What the sheet is for: a new entry (optionally from a tile, or straight to
@@ -530,12 +531,14 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-ink-muted">{label}</span>
-      <textarea
-        value={value}
-        rows={3}
-        onChange={(e) => onChange(e.target.value)}
-        className="resize-y rounded-control border border-line/[0.09] bg-surface-2/60 px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
-      />
+      <DictationField>
+        <textarea
+          value={value}
+          rows={3}
+          onChange={(e) => onChange(e.target.value)}
+          className="pr-14 resize-y rounded-control border border-line/[0.09] bg-surface-2/60 px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
+        />
+      </DictationField>
     </label>
   )
 }

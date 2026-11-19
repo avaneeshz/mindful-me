@@ -22,6 +22,7 @@ import { Sheet } from '@/lumen/components/ui/sheet'
 import { LUMEN_DAY_END, LUMEN_DAY_START, minutesWithin } from '@/lumen/domain/lumenDay'
 import { useStore } from '@/lumen/lib/store'
 import { cn, formatDay, formatDuration } from '@/lumen/lib/utils'
+import { DictationField } from '@/lumen/components/ui/dictation-button'
 
 /**
  * The person's own header buttons — the same list, order and data Classic's
@@ -400,15 +401,17 @@ function ChecklistSheet({
               </div>
               {showNote && (
                 <div className="px-3 pb-3">
-                  <textarea
-                    rows={2}
-                    value={draft}
-                    placeholder="Add a note"
-                    aria-label={`Note for ${labelOf(entry.itemKey)}`}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [entry.itemKey]: e.target.value }))}
-                    onBlur={() => draft !== entry.note && void setCompletion(entry.itemKey, entry.done, draft)}
-                    className="w-full resize-y rounded-control border border-line/[0.09] bg-surface-1 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
-                  />
+                  <DictationField>
+                    <textarea
+                      rows={2}
+                      value={draft}
+                      placeholder="Add a note"
+                      aria-label={`Note for ${labelOf(entry.itemKey)}`}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [entry.itemKey]: e.target.value }))}
+                      onBlur={() => draft !== entry.note && void setCompletion(entry.itemKey, entry.done, draft)}
+                      className="pr-14 w-full resize-y rounded-control border border-line/[0.09] bg-surface-1 px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
+                    />
+                  </DictationField>
                 </div>
               )}
             </li>
@@ -457,13 +460,15 @@ function NotesSheet({
         {types && (
           <ChoiceChips label="Type" options={types} selected={editing.types} onToggle={(t) => t && setEditing({ ...editing, types: toggleEntryType(editing.types, t) })} />
         )}
-        <textarea
-          rows={3}
-          value={editing.text}
-          aria-label="Edit note"
-          onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-          className="resize-y rounded-control border border-line/[0.09] bg-surface-1 px-3 py-2.5 text-[15px] text-ink focus-visible:border-accent-ink/60"
-        />
+        <DictationField>
+          <textarea
+            rows={3}
+            value={editing.text}
+            aria-label="Edit note"
+            onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+            className="pr-14 resize-y rounded-control border border-line/[0.09] bg-surface-1 px-3 py-2.5 text-[15px] text-ink focus-visible:border-accent-ink/60"
+          />
+        </DictationField>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -518,14 +523,16 @@ function NotesSheet({
         {types && (
           <ChoiceChips label="Type" options={types} selected={selectedTypes} onToggle={(t) => t && setSelectedTypes((s) => toggleEntryType(s, t))} />
         )}
-        <textarea
-          rows={3}
-          value={text}
-          placeholder="Write it down…"
-          aria-label={`New ${button.label} note`}
-          onChange={(e) => setText(e.target.value)}
-          className="resize-y rounded-control border border-line/[0.09] bg-surface-2/60 px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
-        />
+        <DictationField>
+          <textarea
+            rows={3}
+            value={text}
+            placeholder="Write it down…"
+            aria-label={`New ${button.label} note`}
+            onChange={(e) => setText(e.target.value)}
+            className="pr-14 resize-y rounded-control border border-line/[0.09] bg-surface-2/60 px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
+          />
+        </DictationField>
         <Button
           variant="primary"
           className="self-end"
