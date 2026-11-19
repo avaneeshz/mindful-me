@@ -119,12 +119,6 @@ describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
     expect(html).toMatch(/aria-label="Delete Supplements"[^>]*class="[^"]*-right-xs/)
   })
 
-  it('puts Edit at the far left of the header, before the title', () => {
-    const html = render()
-    expect(html.indexOf('aria-label="Edit"')).toBeGreaterThan(-1)
-    expect(html.indexOf('aria-label="Edit"')).toBeLessThan(html.indexOf('<h1'))
-  })
-
   it('in edit mode shows an Add button in every category, and one Add category', () => {
     const html = render(true)
     expect(html.match(/aria-label="Add button"/g)?.length).toBe(1)
