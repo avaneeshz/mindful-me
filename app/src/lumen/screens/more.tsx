@@ -1,6 +1,6 @@
-import { ChevronRight, CloudAlert, Eye, HeartPulse, LayoutGrid, LogOut, Rows3, ScrollText, Shapes, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, CloudAlert, Eye, HeartPulse, Mic, LayoutGrid, LogOut, Rows3, ScrollText, Shapes, UserRound, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
-import { Segmented } from '@/lumen/components/ui/primitives'
+import { Segmented, Switch } from '@/lumen/components/ui/primitives'
 import { CustomizeSheet } from '@/lumen/components/today/customize-sheet'
 import { ActivityLogScreen } from './settings/activity-log'
 import { NeedsAttentionScreen } from './settings/needs-attention'
@@ -13,9 +13,12 @@ import { useInterfaceMode } from '@/state/InterfaceContext'
 import type { InterfaceMode } from '@/lib/interfaceMode'
 import { useStore } from '@/lumen/lib/store'
 import { usePendingWrites } from '@/state/usePendingWrites'
+import { useDictationPrefs } from '@/state/useDictationPrefs'
+import { VOICE_DICTATION_ENABLED } from '@/lib/featureFlags'
 
 export function MoreScreen() {
   const { allTiles, hiddenTiles, settingsView, openSettings, headerButtons } = useStore()
+  const dictation = useDictationPrefs()
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const { mode, setMode } = useInterfaceMode()
   const { signedIn, email, firstName, initials, signOut } = useLumenAccount()
@@ -72,6 +75,18 @@ export function MoreScreen() {
           />
         </div>
       </Group>
+
+      {VOICE_DICTATION_ENABLED && (
+        <Group title="Voice">
+          <Row
+            icon={Mic}
+            label="Voice dictation"
+            hint="Speak instead of typing in notes. Audio is sent to Groq to be turned into text and is not stored."
+          >
+            <Switch checked={dictation.enabled} onChange={() => dictation.setEnabled(!dictation.enabled)} label="Voice dictation" />
+          </Row>
+        </Group>
+      )}
 
       <Group title="Connections">
         <Row

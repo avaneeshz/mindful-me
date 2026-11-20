@@ -46,6 +46,7 @@ import type { DisplayValueHistoryEntry } from '@/lib/displayValuesLocalStore'
 import { dateFromLocalDateISO, localDateISO } from '@/lib/localTime'
 import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
+import { DictationField } from '@/components/ui/DictationButton'
 
 function nowMinutes(): number {
   return clockToMinutes(nowClock()) ?? 0
@@ -520,14 +521,16 @@ export function DisplayValueButton({
                     <label htmlFor={`${inputId}-dreams`} className="sr-only">
                       {displayButtonNoteFieldLabel(buttonKey, 'secondary')}
                     </label>
-                    <textarea
-                      id={`${inputId}-dreams`}
-                      value={dreamsNote}
-                      onChange={(event) => setDreamsNote(event.target.value)}
-                      placeholder={displayButtonNoteFieldLabel(buttonKey, 'secondary')}
-                      rows={2}
-                      className={textareaClass}
-                    />
+                    <DictationField>
+                      <textarea
+                        id={`${inputId}-dreams`}
+                        value={dreamsNote}
+                        onChange={(event) => setDreamsNote(event.target.value)}
+                        placeholder={displayButtonNoteFieldLabel(buttonKey, 'secondary')}
+                        rows={2}
+                        className={cn('pr-5xl', textareaClass)}
+                      />
+                    </DictationField>
                   </div>
                 )}
 
@@ -536,14 +539,16 @@ export function DisplayValueButton({
                     <label htmlFor={`${inputId}-note`} className="sr-only">
                       {displayButtonNoteFieldLabel(buttonKey, 'primary')}
                     </label>
-                    <textarea
-                      id={`${inputId}-note`}
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      placeholder={`Add a ${displayButtonNoteFieldLabel(buttonKey, 'primary').toLowerCase()}`}
-                      rows={2}
-                      className={textareaClass}
-                    />
+                    <DictationField>
+                      <textarea
+                        id={`${inputId}-note`}
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder={`Add a ${displayButtonNoteFieldLabel(buttonKey, 'primary').toLowerCase()}`}
+                        rows={2}
+                        className={cn('pr-5xl', textareaClass)}
+                      />
+                    </DictationField>
                   </div>
                 )}
 

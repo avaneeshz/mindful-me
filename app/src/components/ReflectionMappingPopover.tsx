@@ -5,6 +5,7 @@ import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import type { ActivityList } from '@/domain/types'
 import { Button } from '@/components/ui/button'
+import { DictationField } from '@/components/ui/DictationButton'
 
 /** Which activity + card the popup is currently open for. */
 export interface PendingReflectionMapping {
@@ -92,14 +93,16 @@ export function ReflectionMappingPopover({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-md">
-          <textarea
-            ref={textareaRef}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="Add a note"
-            rows={4}
-            className="w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-          />
+          <DictationField>
+            <textarea
+              ref={textareaRef}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Add a note"
+              rows={4}
+              className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            />
+          </DictationField>
 
           <div className="flex items-center justify-between gap-md">
             {existing ? (

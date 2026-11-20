@@ -12,6 +12,7 @@ import {
   type NoteEntry,
 } from '@/domain/notes'
 import { cn } from '@/lib/utils'
+import { DictationField } from '@/components/ui/DictationButton'
 
 /**
  * One stored note in a history list: its timestamp, types and text, with
@@ -87,15 +88,17 @@ export function NoteEntryRow({
           <label htmlFor={textareaId} className="sr-only">
             Edit note
           </label>
-          <textarea
-            id={textareaId}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            rows={3}
-            autoFocus
-            disabled={busy}
-            className={cn(fieldClass, 'resize-none text-caption font-semibold disabled:opacity-60')}
-          />
+          <DictationField disabled={busy}>
+            <textarea
+              id={textareaId}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              rows={3}
+              autoFocus
+              disabled={busy}
+              className={cn('pr-5xl', fieldClass, 'resize-none text-caption font-semibold disabled:opacity-60')}
+            />
+          </DictationField>
           <div className="flex items-center gap-md">
             <Button type="submit" variant="accent" size="inline" disabled={busy || !canSubmit}>
               {busy ? (
