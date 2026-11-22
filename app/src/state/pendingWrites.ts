@@ -95,7 +95,8 @@ const executors: Record<string, (...args: any[]) => Promise<Executed>> = {
   'headerButtonGroup.delete': async (id, moveToId) => bool(await apiDeleteHeaderButtonGroup(id, moveToId)),
   'headerButtonGroup.reorder': async (ids) => bool(await apiReorderHeaderButtonGroups(ids)),
   // `id` is absent on a change queued by an older build: that one falls back to the old create.
-  'note.create': async (buttonKey, note, types, id) => nullable(await apiCreateNoteEntry(buttonKey, note, types, id)),
+  'note.create': async (buttonKey, note, types, id, createdAt) =>
+    nullable(await apiCreateNoteEntry(buttonKey, note, types, id, createdAt)),
   'note.update': async (id, note, types) => nullable(await apiUpdateNoteEntry(serverId(id), note, types)),
   'note.delete': async (id) => bool(await apiDeleteNoteEntry(serverId(id))),
   'parameterOption.create': async (type, label, iconKey, id) => nullable(await apiCreateParameterOption(type, label, iconKey, id)),

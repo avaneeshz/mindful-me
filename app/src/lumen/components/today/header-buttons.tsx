@@ -1,4 +1,4 @@
-import { Beef, Check, ChevronDown, Footprints, Hash, ListChecks, NotebookPen, Timer, Trash2, type LucideIcon } from 'lucide-react'
+import { Beef, CalendarClock, Check, ChevronDown, Footprints, Hash, ListChecks, NotebookPen, Timer, Trash2, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { formatDisplayValue, parseDisplayValue } from '@/domain/displayButtons'
 import type { HeaderButtonConfig } from '@/domain/headerButtons'
@@ -15,6 +15,7 @@ import {
 import { useDailyValue } from '@/state/useDailyValue'
 import { useDisplayValueHistory } from '@/state/useDisplayValueHistory'
 import { useNoteEntries } from '@/state/useNoteEntries'
+import { useNoteWhen } from '@/state/useNoteWhen'
 import { useSupplementCompletions } from '@/state/useSupplementCompletions'
 import { Button } from '@/lumen/components/ui/button'
 import { ChoiceChips, IconBubble, ProgressRing } from '@/lumen/components/ui/primitives'
@@ -442,6 +443,9 @@ function NotesSheet({
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
   const [editing, setEditing] = useState<{ id: string; text: string; types: string[] } | null>(null)
   const [showEarlier, setShowEarlier] = useState(false)
+  const [savedFor, setSavedFor] = useState<Date | null>(null)
+  const when = useNoteWhen()
+  const resetWhen = when.reset
 
   useEffect(() => {
     if (!open) return
@@ -449,10 +453,12 @@ function NotesSheet({
     setSelectedTypes([])
     setEditing(null)
     setShowEarlier(false)
-  }, [open])
+    setSavedFor(null)
+    resetWhen()
+  }, [open, resetWhen])
 
   const { recent, earlier } = partitionNoteEntriesByToday(notes.entries, now)
-  const canStore = canSubmitNote(key, text, selectedTypes)
+  const canStore = canSubmitNote(key, text, selectedTypes) && !when.error
 
   const row = (entry: NoteEntry) =>
     editing?.id === entry.id ? (
@@ -516,7 +522,7 @@ function NotesSheet({
       open={open}
       onOpenChange={(o) => !o && onClose()}
       title={button.label}
-      description="Notes are kept with the time you write them."
+      description="Notes are kept with the date and time you choose — now, unless you change it."
       leading={<IconBubble icon={NotebookPen} hue="accent" />}
     >
       <div className="flex flex-col gap-3">
@@ -533,21 +539,61 @@ function NotesSheet({
             className="pr-14 resize-y rounded-control border border-line/[0.09] bg-surface-2/60 px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-faint focus-visible:border-accent-ink/60"
           />
         </DictationField>
+        {when.custom ? (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-ink-muted">When</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="datetime-local"
+                aria-label="Date and time of this note"
+                aria-invalid={when.error !== null}
+                value={when.inputValue}
+                max={when.max}
+                onChange={(e) => when.setInputValue(e.target.value)}
+                className="h-11 min-w-0 flex-1 rounded-control border border-line/[0.09] bg-surface-2/60 px-3 text-sm tabular text-ink focus-visible:border-accent-ink/60"
+              />
+              <Button variant="ghost" className="h-11" onClick={when.reset}>
+                Use now
+              </Button>
+            </div>
+            {when.error && <span className="text-sm text-danger">{when.error}</span>}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={when.start}
+            className="-mx-1 flex min-h-11 items-center justify-between gap-3 rounded-control px-1 text-sm text-ink-muted transition-colors hover:text-ink"
+          >
+            <span className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" />
+              Now · {formatNoteTimestamp(now)}
+            </span>
+            <span className="font-medium text-accent-ink">Change</span>
+          </button>
+        )}
         <Button
           variant="primary"
           className="self-end"
           disabled={!canStore || notes.submitting}
-          onClick={() =>
-            void notes.addNote(text.trim(), selectedTypes).then((ok) => {
+          onClick={() => {
+            const chosen = when.when
+            void notes.addNote(text.trim(), selectedTypes, chosen).then((ok) => {
               if (ok) {
                 setText('')
                 setSelectedTypes([])
+                setSavedFor(chosen ?? null)
+                when.reset()
               }
             })
-          }
+          }}
         >
           Store
         </Button>
+        {savedFor && (
+          <p role="status" className="text-sm text-ink-muted">
+            Saved for {formatNoteTimestamp(savedFor)}.
+          </p>
+        )}
         {notes.error && <p className="text-sm text-ink-faint">{notes.error}</p>}
       </div>
 

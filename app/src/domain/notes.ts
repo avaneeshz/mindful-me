@@ -182,6 +182,41 @@ export function formatNoteTimestamp(date: Date): string {
   return `${datePart} · ${timePart}`
 }
 
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/** A `Date` as the `YYYY-MM-DDTHH:mm` string an `<input type="datetime-local">` holds — device-local wall clock, never UTC-shifted. */
+export function toDateTimeLocalValue(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+/** The inverse: a `datetime-local` string read as the device's local wall clock, or `null` if blank/malformed. */
+export function parseDateTimeLocalValue(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value)
+  if (!match) return null
+  const [year, month, day, hour, minute] = match.slice(1).map(Number)
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0)
+  // `new Date` rolls an impossible date (31 Feb) forward — reject it instead.
+  const roundTrips = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  return roundTrips ? date : null
+}
+
+/**
+ * Why a chosen note time can't be used, or `null` if it can. A note records
+ * something that has happened, so it can't be dated ahead of now (a minute of
+ * slack, since the picker only has minute precision). The database enforces the
+ * same limit — see `create_note_entry_v4`.
+ */
+export function noteTimeError(chosen: Date | null, now: Date): string | null {
+  if (chosen === null) return 'Enter a valid date and time.'
+  if (chosen.getTime() > now.getTime() + 60_000) return 'A note can’t be dated in the future.'
+  return null
+}
+
+/** Newest first by when the note happened — a back-dated note slots into its place, not the top. */
+export function sortNotesNewestFirst(entries: readonly NoteEntry[]): NoteEntry[] {
+  return [...entries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
 /** Whether a note has ever been edited since it was first stored — `updatedAt` only ever moves once `update_note_entry` touches a row. */
 export function noteEntryWasEdited(entry: Pick<NoteEntry, 'createdAt' | 'updatedAt'>): boolean {
   return entry.updatedAt !== entry.createdAt

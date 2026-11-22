@@ -11,6 +11,10 @@ import {
   noteButtonLabel,
   noteButtonTypes,
   noteEntryWasEdited,
+  noteTimeError,
+  parseDateTimeLocalValue,
+  sortNotesNewestFirst,
+  toDateTimeLocalValue,
   partitionNoteEntriesByToday,
   requiresEntryType,
   setNoteButtonTypesRegistry,
@@ -224,5 +228,44 @@ describe('state tile note buttons', () => {
   it('recognises custom tiles (numbers above 18) too', () => {
     expect(tileCardFromNoteKey('tile19_ab')).toBe(19)
     expect(tileCardFromNoteKey('tile500_ab')).toBe(500)
+  })
+})
+
+describe('note date and time', () => {
+  it('round-trips a device-local wall-clock time through the datetime-local format', () => {
+    const date = new Date(2026, 10, 22, 9, 5)
+    expect(toDateTimeLocalValue(date)).toBe('2026-11-22T09:05')
+    expect(parseDateTimeLocalValue('2026-11-22T09:05')?.getTime()).toBe(date.getTime())
+  })
+
+  it('rejects blank, malformed and impossible values', () => {
+    for (const value of ['', '2026-11-22', '2026-02-31T10:00', 'nope']) {
+      expect(parseDateTimeLocalValue(value)).toBeNull()
+    }
+  })
+
+  it('allows a time up to now and in the past, but not the future', () => {
+    const now = new Date(2026, 10, 22, 12, 0)
+    expect(noteTimeError(new Date(2026, 10, 21, 8, 0), now)).toBeNull()
+    expect(noteTimeError(new Date(2026, 10, 22, 12, 0), now)).toBeNull()
+    expect(noteTimeError(new Date(2026, 10, 22, 12, 30), now)).toMatch(/future/)
+    expect(noteTimeError(null, now)).toMatch(/valid/)
+  })
+
+  it('sorts newest first by when the note happened', () => {
+    const entry = (id: string, createdAt: string): NoteEntry => ({
+      id,
+      buttonKey: 'gifts',
+      note: id,
+      entryTypes: [],
+      createdAt,
+      updatedAt: createdAt,
+    })
+    const sorted = sortNotesNewestFirst([
+      entry('old', '2026-11-20T10:00:00.000Z'),
+      entry('new', '2026-11-22T10:00:00.000Z'),
+      entry('mid', '2026-11-21T10:00:00.000Z'),
+    ])
+    expect(sorted.map((e) => e.id)).toEqual(['new', 'mid', 'old'])
   })
 })
