@@ -164,6 +164,25 @@ export async function apiSetHeaderButtonHidden(headerButtonId: string, hidden: b
   return true
 }
 
+/**
+ * Permanently deletes a header button. `'has_history'` is server-enforced:
+ * the button still has logged notes, values or checklist ticks, so it stays
+ * hidden instead. `'unreachable'` means the request itself failed.
+ */
+export async function apiDeleteHeaderButton(
+  headerButtonId: string,
+): Promise<{ ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }> {
+  if (!supabase) return { ok: false, reason: 'unreachable' }
+  const { error } = await supabase.rpc('delete_header_button', { p_id: headerButtonId })
+  if (error) {
+    if (error.message.includes('header_button_has_history_use_hide')) return { ok: false, reason: 'has_history' }
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] delete_header_button failed', error.message)
+    return { ok: false, reason: 'unreachable' }
+  }
+  return { ok: true }
+}
+
 export async function apiReorderHeaderButtons(orderedIds: string[]): Promise<boolean> {
   if (!supabase) return false
   const { error } = await supabase.rpc('reorder_header_buttons', { p_ordered_ids: orderedIds })
