@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_HEADER_BUTTONS } from './headerButtons'
 import {
   addNoteField,
+  copyButtonInput,
   dedupeHeaderButtonInput,
   duplicatesRemovedNotice,
   defaultNewFieldKind,
@@ -142,5 +143,26 @@ describe('removing duplicates before a save', () => {
     expect(duplicatesRemovedNotice('RN', ['calm', 'Calm', 'Hope'])).toBe(
       '“RN”: saved with 2 duplicates removed (calm, Hope). Each value can only appear once.',
     )
+  })
+})
+
+describe('copyButtonInput', () => {
+  const source = {
+    ...DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'gifts')!,
+    label: 'Ideas',
+    noteTypes: ['A', 'B'],
+  }
+
+  it('re-homes a content-entry button on the page under its own storage key', () => {
+    const copy = copyButtonInput(source, 499, () => 'tile499_abc')
+    expect(copy).toMatchObject({ category: 'notes', label: 'Ideas', tileCard: 499, key: 'tile499_abc', noteTypes: ['A', 'B'] })
+  })
+
+  it('copies a checklist without carrying over item keys, and a daily number with its target', () => {
+    const checklist = copyButtonInput(DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'supplements')!, 500, () => 'x')
+    expect(checklist.checklistItems?.every((item) => !('key' in item))).toBe(true)
+    expect(checklist).not.toHaveProperty('key')
+    const protein = copyButtonInput(DEFAULT_HEADER_BUTTONS.find((b) => b.id === 'protein')!, 500, () => 'x')
+    expect(protein).toMatchObject({ category: 'day_value', dayValueUnit: 'target', dayValueTarget: 80 })
   })
 })
