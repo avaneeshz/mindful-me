@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { HeaderBar } from '@/components/HeaderBar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
@@ -236,6 +236,8 @@ function AuthedApp({ now }: { now?: Date }) {
   )
 }
 
+const BUTTON_PAGE_PATHS = ['/dashboard', '/product-page']
+
 /**
  * Thin adapter between the app-wide providers (`BoardContext`, `AuthContext`)
  * and `HeaderBar`'s props — kept as its own component (rather than inlined in
@@ -243,6 +245,8 @@ function AuthedApp({ now }: { now?: Date }) {
  * prop list. Must render inside `BoardProvider` (it does — see above).
  */
 function AppHeaderBar() {
+  // The button pages carry their own buttons, so the header's would only repeat above them.
+  const { pathname } = useLocation()
   const { editMode, toggleEditMode } = useEditMode()
   const { state, dispatch, now, viewedDate, setViewedDate, logQuickLog, syncQueue, retrySyncNow } = useBoard()
   const { user, signOut } = useAuth()
@@ -261,6 +265,7 @@ function AppHeaderBar() {
       onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
       editMode={editMode}
       onToggleEditMode={toggleEditMode}
+      showButtons={!BUTTON_PAGE_PATHS.includes(pathname)}
     />
   )
 }

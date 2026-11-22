@@ -98,6 +98,12 @@ export interface HeaderBarProps {
    */
   editMode: boolean
   onToggleEditMode: () => void
+  /**
+   * Whether row 2 — the header's own button categories — shows. The sidebar's
+   * button pages turn it off: they carry their own buttons, and these would
+   * only repeat above them.
+   */
+  showButtons?: boolean
 }
 
 export function HeaderBar({
@@ -113,6 +119,7 @@ export function HeaderBar({
   onEditActivity,
   editMode,
   onToggleEditMode,
+  showButtons = true,
 }: HeaderBarProps) {
   // One-time upload of any pre-migration Steps data still sitting only in
   // this browser's localStorage — see `state/useStepsBackfill.ts`. A no-op
@@ -236,90 +243,94 @@ export function HeaderBar({
         </div>
       </div>
 
-      {/* Row 2 — the day's entry controls, on their own wrapping line beneath
-          the header so they read as one group, left-aligned and consistently
-          spaced rather than crammed against the title. Note pills first —
-          Extra Senses (was Gifts), Learnings, People (was Mirror), Scriptures;
-          each opens a note-entry popover (see `NoteButtonPill`), Chits and
-          Opportunities moved to the sidebar — then the display buttons
-          (Vipassana/Exercise/Breathing/Sleep/Prayer/Sermons/Worship minutes,
-          Steps/Protein counts), which always show a stored per-day number
-          (computed, for the quick-log ones) and log/set it on click. Prayer,
-          Sermons and Worship moved here from the note-pill row — see
-          `domain/notes.ts`'s own doc comment. */}
-      <EditSectionLabel section="nonNegotiableButtons" editMode={editMode} />
-      {/* The user's own categories — each a named row holding any mix of the
-          four kinds of button (note, quick activity, daily number,
-          checklist). A hairline separates them; an empty category only shows
-          while editing. */}
-      <HeaderButtonBoard
-        rows={rows}
-        groups={groups}
-        editMode={editMode}
-        onArrange={arrange}
-        onEdit={openEditForm}
-        onDelete={setPendingDelete}
-        onAddButton={(group) => setFormMode({ kind: 'add', groupId: group.id })}
-        onAddGroup={addGroup}
-        onRenameGroup={renameGroup}
-        onDeleteGroup={deleteGroup}
-        onMoveGroup={(group, direction) => {
-          const ids = groups.map((g) => g.id)
-          const from = ids.indexOf(group.id)
-          const to = from + direction
-          if (from === -1 || to < 0 || to >= ids.length) return
-          ;[ids[from], ids[to]] = [ids[to]!, ids[from]!]
-          reorderGroups(ids)
-        }}
-        renderButton={(button) =>
-          button.category === 'notes' ? (
-            <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
-          ) : button.category === 'checklist' ? (
-            <ChecklistButton button={button} viewedDate={viewedDate} />
-          ) : (
-            <DisplayValueButton
-              buttonKey={button.id}
-              viewedDate={viewedDate}
-              activities={activities}
-              onQuickLog={onQuickLog}
-              onEditActivity={onEditActivity}
+      {showButtons && (
+        <>
+          {/* Row 2 — the day's entry controls, on their own wrapping line beneath
+              the header so they read as one group, left-aligned and consistently
+              spaced rather than crammed against the title. Note pills first —
+              Extra Senses (was Gifts), Learnings, People (was Mirror), Scriptures;
+              each opens a note-entry popover (see `NoteButtonPill`), Chits and
+              Opportunities moved to the sidebar — then the display buttons
+              (Vipassana/Exercise/Breathing/Sleep/Prayer/Sermons/Worship minutes,
+              Steps/Protein counts), which always show a stored per-day number
+              (computed, for the quick-log ones) and log/set it on click. Prayer,
+              Sermons and Worship moved here from the note-pill row — see
+              `domain/notes.ts`'s own doc comment. */}
+          <EditSectionLabel section="nonNegotiableButtons" editMode={editMode} />
+          {/* The user's own categories — each a named row holding any mix of the
+              four kinds of button (note, quick activity, daily number,
+              checklist). A hairline separates them; an empty category only shows
+              while editing. */}
+          <HeaderButtonBoard
+            rows={rows}
+            groups={groups}
+            editMode={editMode}
+            onArrange={arrange}
+            onEdit={openEditForm}
+            onDelete={setPendingDelete}
+            onAddButton={(group) => setFormMode({ kind: 'add', groupId: group.id })}
+            onAddGroup={addGroup}
+            onRenameGroup={renameGroup}
+            onDeleteGroup={deleteGroup}
+            onMoveGroup={(group, direction) => {
+              const ids = groups.map((g) => g.id)
+              const from = ids.indexOf(group.id)
+              const to = from + direction
+              if (from === -1 || to < 0 || to >= ids.length) return
+              ;[ids[from], ids[to]] = [ids[to]!, ids[from]!]
+              reorderGroups(ids)
+            }}
+            renderButton={(button) =>
+              button.category === 'notes' ? (
+                <NoteButtonPill buttonKey={button.key ?? button.id} label={button.label} />
+              ) : button.category === 'checklist' ? (
+                <ChecklistButton button={button} viewedDate={viewedDate} />
+              ) : (
+                <DisplayValueButton
+                  buttonKey={button.id}
+                  viewedDate={viewedDate}
+                  activities={activities}
+                  onQuickLog={onQuickLog}
+                  onEditActivity={onEditActivity}
+                />
+              )
+            }
+          />
+
+          {notice && (
+            <p role="status" className="text-caption font-semibold text-ink-dim">
+              {notice}
+            </p>
+          )}
+
+          {editMode && <HiddenInSettingsLink count={hidden.length} noun="button" />}
+
+          <ConfirmDialog
+            open={pendingDelete !== null}
+            title="Are you sure you want to delete this button?"
+            description={
+              pendingDelete
+                ? `“${pendingDelete.label}” will be removed from your header. You can bring it back any time from Settings → Hidden items.`
+                : undefined
+            }
+            confirmLabel="Delete"
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              if (pendingDelete) hideButton(pendingDelete.id)
+              setPendingDelete(null)
+            }}
+          />
+
+          {formMode && (
+            <HeaderButtonFormDialog
+              mode={formMode}
+              groups={groups}
+              onClose={() => setFormMode(null)}
+              onCreate={handleCreate}
+              onUpdate={handleUpdate}
             />
-          )
-        }
-      />
-
-      {notice && (
-        <p role="status" className="text-caption font-semibold text-ink-dim">
-          {notice}
-        </p>
-      )}
-
-      {editMode && <HiddenInSettingsLink count={hidden.length} noun="button" />}
-
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        title="Are you sure you want to delete this button?"
-        description={
-          pendingDelete
-            ? `“${pendingDelete.label}” will be removed from your header. You can bring it back any time from Settings → Hidden items.`
-            : undefined
-        }
-        confirmLabel="Delete"
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) hideButton(pendingDelete.id)
-          setPendingDelete(null)
-        }}
-      />
-
-      {formMode && (
-        <HeaderButtonFormDialog
-          mode={formMode}
-          groups={groups}
-          onClose={() => setFormMode(null)}
-          onCreate={handleCreate}
-          onUpdate={handleUpdate}
-        />
+          )}
+        </>
       )}
     </header>
   )
