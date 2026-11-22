@@ -280,3 +280,36 @@ export function toCreateInput(draft: HeaderButtonDraft, activityId: string | nul
     checklistItems: category === 'checklist' ? lines(draft.checklistItemsText).map((label) => ({ label })) : [],
   }
 }
+
+/**
+ * A copy of `button` as a new button on State Tile / page `tileCard`. A content-entry button
+ * gets its own storage key there (`newKey`), so the copy keeps its own notes and the original's
+ * are untouched; checklist items get fresh keys for the same reason.
+ */
+export function copyButtonInput(
+  button: HeaderButtonConfig,
+  tileCard: number,
+  newKey: () => string,
+): NewHeaderButtonInput {
+  return {
+    category: button.category,
+    label: button.label,
+    tileCard,
+    ...(button.category === 'notes' ? { key: newKey() } : {}),
+    activityId: button.activityId,
+    activityName: button.activityName,
+    entryMode: button.entryMode,
+    quickLogType: button.quickLogType,
+    quickLogTypeLabel: button.quickLogType ? button.quickLogTypeLabel : null,
+    dayValueUnit: button.dayValueUnit,
+    dayValueTarget: button.dayValueTarget,
+    noteFields: button.noteFields.map((f) => ({
+      fieldKind: f.fieldKind,
+      key: f.key,
+      label: f.label,
+      options: [...f.options],
+    })),
+    noteTypes: [...button.noteTypes],
+    checklistItems: button.checklistItems.map((item) => ({ label: item.label })),
+  }
+}

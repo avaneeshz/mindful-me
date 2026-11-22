@@ -6,6 +6,7 @@ import { HeaderBar } from '@/components/HeaderBar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
 import { InterfaceErrorBoundary } from '@/components/InterfaceErrorBoundary'
 import { TodayPage } from '@/routes/TodayPage'
+import { DashboardPage, ProductPage } from '@/routes/ButtonPage'
 import { HealthSyncPage } from '@/routes/HealthSyncPage'
 import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
 import { SettingsPage } from '@/routes/SettingsPage'
@@ -187,6 +188,8 @@ function AuthedApp({ now }: { now?: Date }) {
                       path="/"
                       element={<TodayPage />}
                     />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/product-page" element={<ProductPage />} />
                     <Route path="/health-sync" element={<HealthSyncPage />} />
                     <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
@@ -194,8 +197,8 @@ function AuthedApp({ now }: { now?: Date }) {
                     <Route path="/settings/activity-log" element={<ActivityLogPage />} />
                     <Route path="/settings/not-synced" element={<NeedsAttentionPage />} />
                     {/*
-                      "Today", "Health Sync" and "Settings" (with its Add device
-                      picker) are the only routed screens.
+                      "Today", "Dashboard", "Product Page", "Health Sync" and "Settings"
+                      (with its Add device picker) are the only routed screens.
                       "Activity Library" (PICKER-CUSTOM-1) isn't a route at all
                       — it is the inline tile editor on Today (`EditableTileRow`),
                       on whenever the top-bar Edit toggle above is on. The

@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Clock,
+  LayoutDashboard,
   Flag,
   HeartPulse,
   Home,
   Leaf,
   Lightbulb,
   Menu,
+  Package,
   Palette,
   PanelLeftClose,
   PieChart,
@@ -36,7 +38,12 @@ interface NavEntry {
   to?: string
 }
 
-const NAV_TODAY: NavEntry[] = [{ label: 'Today', icon: Home, to: '/' }]
+const NAV_TODAY: NavEntry[] = [
+  { label: 'Today', icon: Home, to: '/' },
+  // Button pages: a State Tile's window as a screen of its own (routes/ButtonPage.tsx).
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Product Page', icon: Package, to: '/product-page' },
+]
 
 /**
  * Its own group directly below "Today". Non-functional for now (no

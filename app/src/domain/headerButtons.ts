@@ -544,6 +544,24 @@ export function groupTileCard(group: Pick<HeaderButtonGroup, 'tileCard'>): numbe
   return group.tileCard ?? null
 }
 
+/**
+ * The sidebar's button pages (Dashboard, Product Page). Each is a full page of
+ * the same buttons and categories a State Tile window holds, stored under a
+ * reserved tile number at the very top of the 1–500 range. Custom State Tiles
+ * are capped at 50 and numbered upward from 19, so they never reach these.
+ */
+export const BUTTON_PAGES = {
+  dashboard: { scope: 499, title: 'Dashboard', sourceCategory: 'Dashboard' },
+  product: { scope: 500, title: 'Product Page', sourceCategory: 'Product Page' },
+} as const
+export type ButtonPageId = keyof typeof BUTTON_PAGES
+
+/** The header category called `name` (case and spacing aside), if there is one. */
+export function findGroupByName(groups: readonly HeaderButtonGroup[], name: string): HeaderButtonGroup | null {
+  const wanted = name.trim().toLowerCase()
+  return groups.find((g) => g.name.trim().toLowerCase() === wanted) ?? null
+}
+
 export const MAX_GROUP_NAME_LENGTH = 40
 
 /** Local-only / pre-fetch fallback — the one category everyone starts with. */
