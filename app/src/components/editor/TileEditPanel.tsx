@@ -11,7 +11,6 @@ import { ColorPicker } from '@/components/ui/ColorPicker'
 import { effectiveActivityColor } from '@/domain/colors'
 import { childrenOf, isTopLevelNameTaken } from '@/domain/pickerHierarchy'
 import { colorTintStyle } from '@/components/ui/colorStyles'
-import { cn } from '@/lib/utils'
 import { resolveIcon } from '@/lib/iconRegistry'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import type { UseTilesResult } from '@/state/useTiles'
@@ -35,7 +34,6 @@ export function TileEditPanel({
   const navigate = useNavigate()
   const [openActivityId, setOpenActivityId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
-  const [editingColour, setEditingColour] = useState(false)
   const rows = activities.activities
   const openActivity = openActivityId ? rows.find((a) => a.id === openActivityId) ?? null : null
 
@@ -90,30 +88,14 @@ export function TileEditPanel({
             <RowIconButton label={`Rename ${tile.label}`} onClick={() => setRenaming(true)}>
               <Pencil aria-hidden="true" className="size-[14px]" />
             </RowIconButton>
-            <span
-              role="img"
-              aria-label={tile.color ? `Colour ${tile.color.toUpperCase()}` : 'No colour'}
-              className={cn('ml-sm size-[20px] shrink-0 rounded-full border border-line', !tile.color && 'bg-surface-2')}
-              style={tile.color ? { background: tile.color } : undefined}
-            />
-            <RowIconButton label="Edit colour" onClick={() => setEditingColour((v) => !v)} expanded={editingColour}>
-              <Pencil aria-hidden="true" className="size-[14px]" />
-            </RowIconButton>
+            <div className="ml-sm">
+              <ColorPicker compact value={tile.color ?? null} onChange={(color) => tiles.setTileColor(tile.id, color)} inheritedLabel="No colour" />
+            </div>
           </div>
           <RowIconButton label="Close" onClick={onClose}>
             <X aria-hidden="true" className="size-[16px]" />
           </RowIconButton>
         </div>
-      )}
-
-      {editingColour && (
-        <section aria-label="Colour">
-          <ColorPicker
-            value={tile.color ?? null}
-            onChange={(color) => tiles.setTileColor(tile.id, color)}
-            inheritedLabel="No colour"
-          />
-        </section>
       )}
 
       <section aria-label="Activities" className="flex flex-col gap-sm">
