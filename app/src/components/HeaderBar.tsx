@@ -8,7 +8,7 @@ import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
-import { CounclMark, CounclTitle } from '@/components/CounclBrand'
+import { CounclTitle } from '@/components/CounclBrand'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { EditModeToggle, HeaderButtonFormDialog } from '@/components/HeaderButtonEditor'
@@ -185,7 +185,6 @@ export function HeaderBar({
           control sit right. Nothing else shares this line. */}
       <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
         <div className="flex items-center gap-sm mobile:pl-[52px]">
-          <CounclMark />
           <h1 className="font-display text-h1 font-semibold text-ink mobile:text-h1-sm">
             <CounclTitle />
           </h1>
