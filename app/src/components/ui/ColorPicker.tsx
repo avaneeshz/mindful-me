@@ -24,7 +24,7 @@ export function ColorPicker({
   inheritedColor?: string | null
   /** e.g. "Uses Work & Projects’ colour" — shown while `value` is null. */
   inheritedLabel?: string
-  /** Just the current colour and the Custom button, on one line — no hex field or Reset. */
+  /** Just the current colour and the Custom button, on one line — no hex field. */
   compact?: boolean
 }) {
   const [hexDraft, setHexDraft] = useState(value ?? '')
@@ -100,6 +100,16 @@ export function ColorPicker({
           style={shown ? { background: shown } : undefined}
         />
         {customButton}
+        <button
+          type="button"
+          aria-label="Reset colour"
+          title="Reset colour"
+          onClick={() => onChange(null)}
+          disabled={value === null}
+          className="flex size-[32px] shrink-0 items-center justify-center rounded-md text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink disabled:pointer-events-none disabled:opacity-40"
+        >
+          <RotateCcw aria-hidden="true" className="size-[14px]" />
+        </button>
       </div>
     )
   }
