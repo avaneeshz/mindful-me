@@ -5,6 +5,8 @@ import { fieldClass } from '@/components/ui/formField'
 import { cardNoteWasEdited, MAX_CARD_NOTE_LENGTH, validateCardNote } from '@/domain/reflectionCardNotes'
 import { formatNoteTimestamp } from '@/domain/notes'
 import { useReflectionCardNotes } from '@/state/useReflectionCardNotes'
+import { useNoteWhen } from '@/state/useNoteWhen'
+import { NoteWhenField } from '@/components/NoteWhenField'
 import { cn } from '@/lib/utils'
 import { DictationField } from '@/components/ui/DictationButton'
 
@@ -18,6 +20,8 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
   const { notes, status, saving, addNote, updateNote } = useReflectionCardNotes(card, open)
   const [historyOpen, setHistoryOpen] = useState(false)
   const historyListId = useId()
+  const when = useNoteWhen()
+  const [savedFor, setSavedFor] = useState<Date | null>(null)
   const [draft, setDraft] = useState('')
   const [draftError, setDraftError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -27,10 +31,13 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
   async function onAdd(e: FormEvent) {
     e.preventDefault()
     if (saving) return
-    const result = await addNote(draft)
+    const chosen = when.when
+    const result = await addNote(draft, chosen)
     if (result.ok) {
       setDraft('')
       setDraftError(null)
+      setSavedFor(chosen ?? null)
+      when.reset()
     } else setDraftError(result.message)
   }
 
@@ -44,7 +51,7 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
     } else setEditError(result.message)
   }
 
-  const draftBlocked = validateCardNote(draft) !== null
+  const draftBlocked = validateCardNote(draft) !== null || when.error !== null
 
   return (
     <div className="flex flex-col gap-md">
@@ -58,14 +65,23 @@ export function CardNotesPanel({ card, title, open }: { card: number; title: str
             rows={4}
             value={draft}
             maxLength={MAX_CARD_NOTE_LENGTH}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              setSavedFor(null)
+            }}
             placeholder="Write a note…"
             className={cn('pr-5xl', fieldClass, 'resize-y py-sm')}
           />
         </DictationField>
+        <NoteWhenField when={when} disabled={saving} />
         {draftError && (
           <p role="alert" className="text-caption text-ink">
             {draftError}
+          </p>
+        )}
+        {savedFor && (
+          <p role="status" className="text-caption text-ink-dim">
+            Saved for {formatNoteTimestamp(savedFor)}.
           </p>
         )}
         <div>
