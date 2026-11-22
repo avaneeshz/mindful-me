@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiListNoteEntries } from '@/api/notes'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
-import { noteButtonLabel, type NoteButtonKey, type NoteEntry } from '@/domain/notes'
+import { noteButtonLabel, sortNotesNewestFirst, type NoteButtonKey, type NoteEntry } from '@/domain/notes'
 import { loadLocalNoteEntries, saveLocalNoteEntries } from '@/lib/noteEntriesLocalStore'
 import { supabaseConfigured } from '@/lib/supabaseClient'
 import { amendPendingWrite, cancelPendingWrite, getPendingIds, writeThrough } from './pendingWrites'
@@ -17,7 +17,8 @@ export interface UseNoteEntriesResult {
   error: string | null
   /** True from the moment Store is pressed until the write settles — the Add-button double-submit guard (rule 9's spirit, applied to Store). */
   submitting: boolean
-  addNote: (note: string, entryTypes: readonly string[]) => Promise<boolean>
+  /** `when` is the moment the note happened; omit it for "now", stamped by the server's own clock. */
+  addNote: (note: string, entryTypes: readonly string[], when?: Date) => Promise<boolean>
   /** The id of the entry currently being saved (edit) or removed, if any — the same double-submit guard as `submitting`, scoped per-row since a history list has many independent rows. */
   pendingEntryId: string | null
   updateNote: (id: string, note: string, entryTypes: readonly string[]) => Promise<boolean>
@@ -42,6 +43,8 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
   const [submitting, setSubmitting] = useState(false)
   const [pendingEntryId, setPendingEntryId] = useState<string | null>(null)
   const hasFetchedRef = useRef(false)
+  // Notes whose time the user chose (not "now") — an unsent save that gets edited must keep sending it.
+  const chosenTimeRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!active || hasFetchedRef.current) return
@@ -63,7 +66,9 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
       // user wrote and the server hasn't confirmed yet (a failed or slow save)
       // is never erased by it. The device's own copy is the "local" side.
       const pending = getPendingIds('note')
-      const merged = reconcileList(loadLocalNoteEntries(buttonKey) ?? [], server, pending.save, pending.delete, (e) => e.id)
+      const merged = sortNotesNewestFirst(
+        reconcileList(loadLocalNoteEntries(buttonKey) ?? [], server, pending.save, pending.delete, (e) => e.id),
+      )
       setEntries(merged)
       saveLocalNoteEntries(buttonKey, merged)
       setStatus('ready')
@@ -74,7 +79,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
   }, [active, buttonKey])
 
   const addNote = useCallback(
-    async (note: string, entryTypes: readonly string[]): Promise<boolean> => {
+    async (note: string, entryTypes: readonly string[], when?: Date): Promise<boolean> => {
       const trimmed = note.trim()
       if (trimmed === '') return false
 
@@ -83,7 +88,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
 
       // Local-first (rule 6): the new entry is visible and durable on this
       // device before any network round-trip even starts.
-      const now = new Date().toISOString()
+      const now = (when ?? new Date()).toISOString()
       const local: NoteEntry = {
         id: generateId(),
         buttonKey,
@@ -92,7 +97,8 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         createdAt: now,
         updatedAt: now,
       }
-      const withLocal = [local, ...entries]
+      if (when) chosenTimeRef.current.add(local.id)
+      const withLocal = sortNotesNewestFirst([local, ...entries])
       setEntries(withLocal)
       saveLocalNoteEntries(buttonKey, withLocal)
 
@@ -102,7 +108,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
           entity: 'note',
           recordId: local.id,
           op: 'save',
-          args: [buttonKey, trimmed, [...entryTypes], local.id],
+          args: [buttonKey, trimmed, [...entryTypes], local.id, when ? now : null],
           label: `Add note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`,
         })
         if (out.status !== 'ok' || !out.result) {
@@ -110,7 +116,7 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         } else {
           // Reconcile the locally-minted id/timestamp with the server's
           // authoritative row ("server wins once it answers").
-          const reconciled = [out.result, ...entries]
+          const reconciled = sortNotesNewestFirst([out.result, ...entries])
           setEntries(reconciled)
           saveLocalNoteEntries(buttonKey, reconciled)
         }
@@ -146,7 +152,10 @@ export function useNoteEntries(buttonKey: NoteButtonKey, active: boolean): UseNo
         const label = `Edit note on “${noteButtonLabel(buttonKey)}”${entryTypes.length ? ` · ${entryTypes.join(', ')}` : ''}`
         // The note's first save never reached the server yet: just correct the
         // unsent save, rather than editing a note the server has no id for.
-        if (amendPendingWrite('note', id, 'note.create', { args: [buttonKey, trimmed, [...entryTypes], id], label })) {
+        if (amendPendingWrite('note', id, 'note.create', {
+            args: [buttonKey, trimmed, [...entryTypes], id, chosenTimeRef.current.has(id) ? entries.find((e) => e.id === id)?.createdAt ?? null : null],
+            label,
+          })) {
           setPendingEntryId(null)
           return true
         }

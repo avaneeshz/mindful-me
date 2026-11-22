@@ -75,9 +75,31 @@ export async function apiCreateNoteEntry(
    * second one. Omit only for a change queued before this existed.
    */
   id?: string,
+  /**
+   * When the note happened, as an ISO instant — only passed when the user
+   * picked a time; otherwise the server stamps its own clock. Needs the note's
+   * `id` and `create_note_entry_v4`; if the database predates it the save is
+   * left to retry rather than quietly filed under the wrong time.
+   */
+  createdAt?: string | null,
 ): Promise<NoteEntry | null> {
   if (!supabase) return null
   const types = entryTypes.length > 0 ? entryTypes : null
+  if (createdAt && id && UUID.test(id)) {
+    const { data, error } = await supabase.rpc('create_note_entry_v4', {
+      p_id: id,
+      p_button_key: buttonKey,
+      p_note: note,
+      p_entry_types: types,
+      p_created_at: createdAt,
+    })
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[notes] create_note_entry_v4 failed — kept locally, will retry on next load', error.message)
+      return null
+    }
+    return dtoToClient(data as NoteEntryDto)
+  }
   if (id && UUID.test(id)) {
     const { data, error } = await supabase.rpc('create_note_entry_v3', {
       p_id: id,
