@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Moon, User } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { chipVariants } from '@/components/ui/chip'
 import { DatePicker } from '@/components/DatePicker'
 import { DayOffControl } from '@/components/DayOffControl'
@@ -8,7 +8,7 @@ import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
-import { CounclMark, CounclTitle } from '@/components/CounclBrand'
+import { CounclTitle } from '@/components/CounclBrand'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { EditModeToggle, HeaderButtonFormDialog } from '@/components/HeaderButtonEditor'
@@ -185,9 +185,16 @@ export function HeaderBar({
           control sit right. Nothing else shares this line. */}
       <div className="flex min-h-header flex-wrap items-center justify-between gap-lg mobile:gap-md">
         <div className="flex items-center gap-sm mobile:pl-[52px]">
-          <CounclMark />
           <h1 className="font-display text-h1 font-semibold text-ink mobile:text-h1-sm">
-            <CounclTitle />
+            {/* The name is the way home: it lands on Today, on today's date. */}
+            <Link
+              to="/"
+              aria-label="COUNCL — go to Today"
+              onClick={() => onSelectDate(logicalToday(now))}
+              className="rounded-sm transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink"
+            >
+              <CounclTitle />
+            </Link>
           </h1>
         </div>
 
