@@ -119,14 +119,12 @@ export function noteButtonLabel(key: NoteButtonKey): string {
 }
 
 /**
- * State Tiles with a full-screen notes window. Inside it the user creates any
- * number of note buttons, exactly like the header's: each is an ordinary
- * `header_buttons` 'notes' row (own label, optional types) whose notes are
- * ordinary `note_entries`. What marks a button as a tile's is only its
- * storage key, `tile<card>_<id>` — the header skips those, the tile's
- * window shows only them. Today only Decisions (card 9).
+ * Every State Tile opens a full-screen window that holds the header's own
+ * kinds of button. A tile's note buttons are ordinary `header_buttons` 'notes'
+ * rows (own label, optional types) whose notes are ordinary `note_entries`,
+ * with the storage key `tile<card>_<id>` — which is also how buttons made
+ * before tiles had a `tile_card` column are recognised.
  */
-export const STATE_TILE_NOTE_CARDS: readonly number[] = [9]
 
 /** A fresh storage key for a new note button on a State Tile. */
 export function newTileNoteKey(card: number): NoteButtonKey {
@@ -135,14 +133,10 @@ export function newTileNoteKey(card: number): NoteButtonKey {
 
 /** The tile a note button's key belongs to, or `null` for a header button. */
 export function tileCardFromNoteKey(key: string | null | undefined): number | null {
-  const match = key ? /^tile(\d{1,2})_[0-9a-z]+$/.exec(key) : null
+  const match = key ? /^tile(\d{1,3})_[0-9a-z]+$/.exec(key) : null
   if (!match) return null
   const card = Number(match[1])
-  return card >= 1 && card <= 18 ? card : null
-}
-
-export function hasStateTileNotesWindow(card: number): boolean {
-  return STATE_TILE_NOTE_CARDS.includes(card)
+  return card >= 1 && card <= 500 ? card : null
 }
 
 /** The type values this button offers, or `null` if it has no type selector. */

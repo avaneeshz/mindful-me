@@ -90,7 +90,7 @@ const executors: Record<string, (...args: any[]) => Promise<Executed>> = {
   'headerButton.setHidden': async (id, hidden) => bool(await apiSetHeaderButtonHidden(id, hidden)),
   'headerButton.reorder': async (ids) => bool(await apiReorderHeaderButtons(ids)),
   'headerButton.arrange': async (layout) => bool(await apiArrangeHeaderButtons(layout)),
-  'headerButtonGroup.create': async (id, name) => nullable(await apiCreateHeaderButtonGroup(id, name)),
+  'headerButtonGroup.create': async (id, name, tileCard) => nullable(await apiCreateHeaderButtonGroup(id, name, tileCard)),
   'headerButtonGroup.rename': async (id, name) => bool(await apiRenameHeaderButtonGroup(id, name)),
   'headerButtonGroup.delete': async (id, moveToId) => bool(await apiDeleteHeaderButtonGroup(id, moveToId)),
   'headerButtonGroup.reorder': async (ids) => bool(await apiReorderHeaderButtonGroups(ids)),

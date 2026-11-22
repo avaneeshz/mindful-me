@@ -26,7 +26,7 @@
  * added by hand — no special-casing by origin, anywhere.
  */
 import { resolveNoteFields } from '@/domain/activityNoteFields'
-import { GIFT_TYPES, LEARNING_TYPES } from '@/domain/notes'
+import { GIFT_TYPES, LEARNING_TYPES, tileCardFromNoteKey } from '@/domain/notes'
 import { SUPPLEMENT_ITEMS } from '@/domain/supplements'
 
 export const HEADER_BUTTON_CATEGORIES = ['activity', 'checklist', 'notes', 'day_value'] as const
@@ -96,6 +96,12 @@ export interface HeaderButtonConfig {
   sortOrder: number
   /** The user's own category this button sits in. `null` until the server assigns one — shown in the first category. */
   groupId: string | null
+  /**
+   * The State Tile this button belongs to, or `null`/absent for a header button. Optional so a
+   * snapshot saved before tiles had their own buttons still reads — those fall back to the
+   * `tile<n>_` storage key (see `buttonTileCard`).
+   */
+  tileCard?: number | null
   // --- 'activity' ---
   activityId: string | null
   /** The catalog card name `quickLogName` used to key off — e.g. `'Sports or Exercise'`. */
@@ -326,6 +332,7 @@ export interface HeaderButtonDto {
   note_types: string[]
   checklist_items: { key: string; label: string }[]
   group_id?: string | null
+  tile_card?: number | null
 }
 
 export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonConfig {
@@ -337,6 +344,7 @@ export function headerButtonConfigFromDto(dto: HeaderButtonDto): HeaderButtonCon
     hidden: dto.hidden,
     sortOrder: dto.sort_order,
     groupId: dto.group_id ?? null,
+    tileCard: dto.tile_card ?? null,
     activityId: dto.activity_id,
     activityName: dto.activity_name,
     entryMode: dto.entry_mode === 'song_count' ? 'songCount' : 'duration',
@@ -510,6 +518,8 @@ export interface HeaderButtonGroup {
   id: string
   name: string
   sortOrder: number
+  /** The State Tile this category belongs to; `null`/absent for the header's own categories. */
+  tileCard?: number | null
 }
 
 /** The shape `public.list_header_button_groups()` hands back. */
@@ -517,10 +527,21 @@ export interface HeaderButtonGroupDto {
   id: string
   name: string
   sort_order: number
+  tile_card?: number | null
 }
 
 export function headerButtonGroupFromDto(dto: HeaderButtonGroupDto): HeaderButtonGroup {
-  return { id: dto.id, name: dto.name, sortOrder: dto.sort_order }
+  return { id: dto.id, name: dto.name, sortOrder: dto.sort_order, tileCard: dto.tile_card ?? null }
+}
+
+/** The State Tile a button lives on, or `null` for a header button. */
+export function buttonTileCard(button: Pick<HeaderButtonConfig, 'tileCard' | 'key'>): number | null {
+  return button.tileCard ?? tileCardFromNoteKey(button.key)
+}
+
+/** The State Tile a category belongs to, or `null` for one of the header's. */
+export function groupTileCard(group: Pick<HeaderButtonGroup, 'tileCard'>): number | null {
+  return group.tileCard ?? null
 }
 
 export const MAX_GROUP_NAME_LENGTH = 40
