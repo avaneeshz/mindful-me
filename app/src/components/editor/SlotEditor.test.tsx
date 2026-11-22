@@ -386,6 +386,19 @@ describe('inline Edit mode: the tile row edits in place, no separate dialog', ()
     return boardReducer(committed, { type: 'selectScheduledActivity', id: realId(committed) })
   })()
 
+  it('offers the activity tiles their own Edit toggle in slot mode and in activity mode', () => {
+    for (const state of [slotModeState, activityModeState]) {
+      const html = renderInProvider(state, false)
+      expect(html).toContain('aria-label="Edit activity tiles"')
+      expect(html).not.toMatch(/aria-label="Edit activity tiles"[^>]*\sdisabled=/)
+    }
+  })
+
+  it('shows that toggle as "Done" while the tiles are being edited', () => {
+    const html = renderInProvider(slotModeState, true)
+    expect(html).toContain('aria-label="Done editing activity tiles"')
+  })
+
   it('shows the ordinary logging tiles, and no edit controls, while edit mode is off', () => {
     const html = renderInProvider(slotModeState, false)
     expect(html).not.toContain('Add tile')

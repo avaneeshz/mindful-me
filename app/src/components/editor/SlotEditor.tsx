@@ -23,6 +23,8 @@ import { LogActivityModal } from './LogActivityModal'
 import { SlotActivityList } from './SlotActivityList'
 import { TileRow } from './TileRow'
 import { EditLock } from '@/components/ui/EditLock'
+import { EditModeToggle } from '@/components/HeaderButtonEditor'
+import { useEditMode } from '@/state/EditModeContext'
 import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 
 /** How long the undo affordance stays available after a removal. */
@@ -79,6 +81,25 @@ export function SlotEditor({
   editMode,
 }: SlotEditorProps) {
   const { activities, selectedSlot, staging, removal } = state
+  const { editMode: globalEditMode, toggleActivityTilesEdit } = useEditMode()
+
+  // The activity tiles' own Edit. Starting it drops anything half-logged and
+  // deselects a selected activity — the tiles only show in slot mode — the
+  // same clean slate the global Edit gives (`CancelLoggingOnEdit`).
+  const tilesEditToggle = (
+    <EditModeToggle
+      subject="activity tiles"
+      active={editMode && !globalEditMode}
+      disabled={globalEditMode}
+      onToggle={() => {
+        if (!editMode) {
+          dispatch({ type: 'cancelStaging' })
+          dispatch({ type: 'selectScheduledActivity', id: null })
+        }
+        toggleActivityTilesEdit()
+      }}
+    />
+  )
 
   // "Activity mode": an activity was selected on the timeline (or by clicking
   // a fully-covered slot). Its summary REPLACES the whole slot body below —
@@ -174,6 +195,8 @@ export function SlotEditor({
       className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
       {selectedActivity ? (
+        <>
+        <div className="mb-md flex justify-end">{tilesEditToggle}</div>
         <EditLock>
         <ActivitySummary
           activity={selectedActivity}
@@ -191,6 +214,7 @@ export function SlotEditor({
           syncState={activitySyncState(syncQueue, selectedActivity.id)}
         />
         </EditLock>
+        </>
       ) : (
         <>
           <header className="flex flex-wrap items-start justify-between gap-lg">
@@ -230,6 +254,7 @@ export function SlotEditor({
               </div>
               <CapacityMeter segments={meterSegments} />
             </div>
+            {tilesEditToggle}
           </header>
 
           <EditLock>

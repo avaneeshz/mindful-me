@@ -42,16 +42,31 @@ import { cn } from '@/lib/utils'
  * this user's own initial provisioning or was added by hand afterward.
  */
 
-export function EditModeToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+export function EditModeToggle({
+  active,
+  onToggle,
+  subject,
+  disabled = false,
+}: {
+  active: boolean
+  onToggle: () => void
+  /** Names what this toggle edits for assistive tech ("activity tiles" → "Edit activity tiles"). Omitted for the global toggle. */
+  subject?: string
+  /** Greyed out and inert — a section's own toggle while the global Edit is already on. */
+  disabled?: boolean
+}) {
+  const doneLabel = subject ? `Done editing ${subject}` : 'Done editing'
+  const editLabel = subject ? `Edit ${subject}` : 'Edit'
   return (
     <button
       type="button"
       aria-pressed={active}
-      aria-label={active ? 'Done editing' : 'Edit'}
+      aria-label={active ? doneLabel : editLabel}
+      disabled={disabled}
       onClick={onToggle}
       className={cn(
         chipVariants({ tone: active ? 'active' : 'surface', size: 'sm', interactive: true }),
-        'font-semibold',
+        'font-semibold disabled:cursor-not-allowed disabled:opacity-50',
       )}
     >
       {active ? <Check aria-hidden="true" className="size-[14px]" /> : <Pencil aria-hidden="true" className="size-[14px]" />}
@@ -330,10 +345,13 @@ export function HeaderButtonFormDialog({
   onCreate,
   onUpdate,
   lockCategory = false,
+  categories = HEADER_BUTTON_CATEGORIES,
 }: {
   mode: FormMode
   /** The type was fixed by the caller (an add opened with `category`): no Back to the type list, just Cancel. */
   lockCategory?: boolean
+  /** The types offered when adding; the header offers all four, a State Tile leaves out Quick activity. */
+  categories?: readonly HeaderButtonCategory[]
   /** The user's categories — the form's Category picker, which is also how a button is moved by tapping. */
   groups: readonly HeaderButtonGroup[]
   onClose: () => void
@@ -497,7 +515,7 @@ export function HeaderButtonFormDialog({
         {step === 'type' && (
           <div role="group" aria-label="Button type" className="flex flex-col gap-sm">
             <p className="text-body text-ink-dim">What kind of button do you want to add?</p>
-            {HEADER_BUTTON_CATEGORIES.map((option) => {
+            {categories.map((option) => {
               const Icon = TYPE_CHOICES[option].icon
               return (
                 <button

@@ -25,6 +25,8 @@
     --surface-2: #1e1e21;
     --ink: #f2f1ec;
     --ink-dim: #8c8c90;
+    /* The brand's one accent: the dot in the COUNCL wordmark. Not a UI colour. */
+    --gold: #d4ae5e;
     --line: rgba(255, 255, 255, 0.14);
     --line-soft: rgba(255, 255, 255, 0.08);
     --inv-bg: #f2f1ec;
@@ -78,6 +80,7 @@
     --surface-2: #f1f0ec;
     --ink: #17171a;
     --ink-dim: #75757a;
+    --gold: #c9a45c;
     --line: rgba(10, 10, 11, 0.14);
     --line-soft: rgba(10, 10, 11, 0.08);
     --inv-bg: #17171a;

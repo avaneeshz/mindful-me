@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_HEADER_BUTTONS,
+  buttonTileCard,
+  groupTileCard,
+  headerButtonGroupFromDto,
   dedupeChecklistItemKey,
   headerButtonConfigFromDto,
   isUuid,
@@ -455,5 +458,32 @@ describe('note-field ids sent to the server', () => {
     const placeholder = withNotes.noteFields.find((f) => f.fieldKind === 'text')
     expect(isUuid(placeholder?.id)).toBe(false)
     expect(withServerFieldIds(withNotes.noteFields).every((f) => f.id === undefined || isUuid(f.id))).toBe(true)
+  })
+})
+
+describe('State Tile scope', () => {
+  const header = { tileCard: null, key: 'gifts' }
+
+  it('puts a header button, and a header category, in no tile', () => {
+    expect(buttonTileCard(header)).toBeNull()
+    expect(buttonTileCard({ key: null })).toBeNull()
+    expect(groupTileCard({})).toBeNull()
+    expect(groupTileCard({ tileCard: null })).toBeNull()
+  })
+
+  it('uses the tile a button was made for, whatever its kind or key', () => {
+    expect(buttonTileCard({ tileCard: 4, key: null })).toBe(4)
+    expect(buttonTileCard({ tileCard: 23, key: 'user_abc' })).toBe(23)
+    expect(groupTileCard({ tileCard: 4 })).toBe(4)
+  })
+
+  it('still places a note button saved before tiles had their own column, by its key', () => {
+    expect(buttonTileCard({ key: 'tile9_0123abcd' })).toBe(9)
+    expect(buttonTileCard({ tileCard: null, key: 'tile9_0123abcd' })).toBe(9)
+  })
+
+  it('reads a tile out of the server rows', () => {
+    expect(headerButtonGroupFromDto({ id: 'g', name: 'Buttons', sort_order: 0, tile_card: 9 }).tileCard).toBe(9)
+    expect(headerButtonGroupFromDto({ id: 'g', name: 'Buttons', sort_order: 0 }).tileCard).toBeNull()
   })
 })

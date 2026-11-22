@@ -11,7 +11,7 @@ import { EditLock } from '@/components/ui/EditLock'
 import { EditSectionLabel } from '@/components/ui/EditSectionLabel'
 
 export function TodayPage() {
-  const { editMode } = useEditMode()
+  const { editMode, activityTilesEdit, stateTilesEdit } = useEditMode()
   const { state, dispatch, now, nowSlot, viewedDate, isViewingToday, syncQueue } = useBoard()
   const colors = useActivityColors()
 
@@ -93,14 +93,14 @@ export function TodayPage() {
           viewedDate={viewedDate}
           onOpenReflectionNote={openMapping}
           syncQueue={syncQueue}
-          editMode={editMode}
+          editMode={activityTilesEdit}
         />
       </div>
 
       <div className="mb-5xl mt-2xl ipad-land:mb-lg ipad-land:mt-md">
-        <EditSectionLabel section="stateTiles" className="mb-sm" />
+        <EditSectionLabel section="stateTiles" editMode={stateTilesEdit} className="mb-sm" />
         {/* Not wrapped in EditLock: in Edit mode the tiles are edited; otherwise they open their notes. */}
-        <ReflectionSection editMode={editMode} />
+        <ReflectionSection editMode={stateTilesEdit} />
       </div>
 
       <ReflectionMappingPopover
