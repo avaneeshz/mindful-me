@@ -148,6 +148,7 @@ function EditTile({
       open={open}
       onOpenChange={onOpenChange}
       label={`Edit ${tile.label}`}
+      variant="window"
       anchor={
         // The popover's anchor stays a plain, stable element; the drag wrapper (whose
         // ref the drag hook re-creates every render) sits inside it, never on it.
