@@ -4,7 +4,6 @@ import {
   formatEntryTypes,
   formatNoteTimestamp,
   GIFT_TYPES,
-  hasStateTileNotesWindow,
   newTileNoteKey,
   tileCardFromNoteKey,
   LEARNING_TYPES,
@@ -217,13 +216,13 @@ describe('state tile note buttons', () => {
   })
 
   it('treats header button keys as not belonging to any tile', () => {
-    for (const key of ['gifts', 'user_abc123', 'tile_9', 'tile0_ab', 'tile19_ab', 'tile9_', 'xtile9_ab', null, undefined]) {
+    for (const key of ['gifts', 'user_abc123', 'tile_9', 'tile0_ab', 'tile501_ab', 'tile9_', 'xtile9_ab', null, undefined]) {
       expect(tileCardFromNoteKey(key)).toBeNull()
     }
   })
 
-  it('opens the full-screen window for Decisions only', () => {
-    expect(hasStateTileNotesWindow(9)).toBe(true)
-    expect(hasStateTileNotesWindow(1)).toBe(false)
+  it('recognises custom tiles (numbers above 18) too', () => {
+    expect(tileCardFromNoteKey('tile19_ab')).toBe(19)
+    expect(tileCardFromNoteKey('tile500_ab')).toBe(500)
   })
 })

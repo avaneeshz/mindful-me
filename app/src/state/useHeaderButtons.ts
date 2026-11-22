@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   apiListHeaderButtonGroups,
   apiListHeaderButtons,
+  apiListTileHeaderButtonGroups,
   apiProvisionDefaultHeaderButtons,
   type CreateHeaderButtonInput,
   type HeaderButtonNoteFieldInput,
@@ -11,7 +12,9 @@ import {
   DEFAULT_HEADER_BUTTONS,
   DEFAULT_HEADER_BUTTON_GROUPS,
   applyLayout,
+  buttonTileCard,
   groupHeaderButtons,
+  groupTileCard,
   isUuid,
   layoutFromRows,
   noteLabelsFromFields,
@@ -26,7 +29,6 @@ import {
 } from '@/domain/headerButtons'
 import { dedupeHeaderButtonInput, duplicatesRemovedNotice, type NewHeaderButtonInput } from '@/domain/headerButtonForm'
 import { rowForLoggedActivity } from '@/domain/colors'
-import { tileCardFromNoteKey } from '@/domain/notes'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
 import {
@@ -39,6 +41,13 @@ import { supabaseConfigured } from '@/lib/supabaseClient'
 import { useOptionalPickerData } from './PickerDataContext'
 import { getPendingIds, writeThrough } from './pendingWrites'
 
+/** One State Tile's buttons and categories — the same shape the header renders from. */
+export interface TileBoard {
+  visible: HeaderButtonConfig[]
+  hidden: HeaderButtonConfig[]
+  groups: HeaderButtonGroup[]
+}
+
 export type HeaderButtonsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface UseHeaderButtonsResult {
@@ -46,11 +55,18 @@ export interface UseHeaderButtonsResult {
   visible: HeaderButtonConfig[]
   /** Every note button, tile-scoped and hidden ones included — what the note-type/label lookups read. */
   noteButtons: HeaderButtonConfig[]
-  /** A State Tile's own note buttons (those created inside its window), in order. Never in `visible`/`hidden`. */
-  tileButtons: (card: number) => HeaderButtonConfig[]
+  /** Every button the user has, tile-scoped and hidden ones included — what the display-value registry reads. */
+  allButtons: HeaderButtonConfig[]
+  /**
+   * A State Tile's own board: its buttons (visible and hidden) and its own categories, in the user's order.
+   * Never part of `visible`/`hidden`/`groups`, which are the header's.
+   */
+  tileBoard: (card: number) => TileBoard
+  /** Gives a tile its first category (once the lists have loaded), so a button always has somewhere to go. */
+  ensureTileGroup: (card: number) => void
   /** Buttons this user has hidden — edit mode's own "Hidden" section, so a hide is never a dead end. */
   hidden: HeaderButtonConfig[]
-  /** The user's own categories, in their order. Always at least one. */
+  /** The header's own categories, in their order. Always at least one. */
   groups: HeaderButtonGroup[]
   status: HeaderButtonsStatus
   error: string | null
@@ -65,7 +81,8 @@ export interface UseHeaderButtonsResult {
   reorder: (orderedIds: string[]) => void
   /** One drag or move: which category each visible button now lives in, and their order. */
   arrange: (layout: HeaderButtonLayout) => void
-  addGroup: (name: string) => HeaderButtonGroup
+  /** `tileCard` makes it one of that State Tile's categories; omitted, it is one of the header's. */
+  addGroup: (name: string, tileCard?: number | null) => HeaderButtonGroup
   renameGroup: (id: string, name: string) => void
   /** Its buttons (hidden ones too) move to `moveToId`, or the first other category. The last category can't be deleted. */
   deleteGroup: (id: string, moveToId?: string) => void
@@ -139,20 +156,30 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
       saveLocalHeaderButtons(merged)
 
       // Categories are read after the buttons: provisioning creates the first
-      // one server-side. A failed read keeps this device's copy.
+      // one server-side. A failed read keeps this device's copy. The header's
+      // and each State Tile's come from separate lists and are kept apart.
       const serverGroups = await apiListHeaderButtonGroups()
+      const serverTileGroups = await apiListTileHeaderButtonGroups()
       if (cancelled) return
-      if (serverGroups && serverGroups.length > 0) {
-        const localGroups = loadLocalHeaderButtonGroups() ?? []
-        const pendingGroups = getPendingIds('headerButtonGroup')
-        const protectedGroupIds = pendingGroups.save.has('order')
-          ? new Set([...pendingGroups.save, ...localGroups.map((g) => g.id)])
-          : pendingGroups.save
-        const mergedGroups = reconcileList(localGroups, serverGroups, protectedGroupIds, pendingGroups.delete, (g) => g.id)
-        if (mergedGroups.length > 0) {
-          setGroups(mergedGroups)
-          saveLocalHeaderButtonGroups(mergedGroups)
-        }
+      const localAll = loadLocalHeaderButtonGroups() ?? []
+      const headerLocal = localAll.filter((g) => groupTileCard(g) === null)
+      const tileLocal = localAll.filter((g) => groupTileCard(g) !== null)
+      const pendingGroups = getPendingIds('headerButtonGroup')
+      const protectFor = (local: HeaderButtonGroup[]) =>
+        pendingGroups.save.has('order') ? new Set([...pendingGroups.save, ...local.map((g) => g.id)]) : pendingGroups.save
+      const mergedHeader =
+        serverGroups && serverGroups.length > 0
+          ? reconcileList(headerLocal, serverGroups, protectFor(headerLocal), pendingGroups.delete, (g) => g.id)
+          : null
+      const mergedTile = serverTileGroups
+        ? reconcileList(tileLocal, serverTileGroups, protectFor(tileLocal), pendingGroups.delete, (g) => g.id)
+        : null
+      const headerChanged = mergedHeader !== null && mergedHeader.length > 0
+      if (headerChanged || mergedTile !== null) {
+        const headerPart = headerChanged ? mergedHeader : headerLocal.length > 0 ? headerLocal : [...DEFAULT_HEADER_BUTTON_GROUPS]
+        const next = [...headerPart, ...(mergedTile ?? tileLocal)]
+        setGroups(next)
+        saveLocalHeaderButtonGroups(next)
       }
       setStatus('ready')
     }
@@ -220,6 +247,8 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
       const { input, removed } = dedupeHeaderButtonInput(rawInput)
       setNotice(duplicatesRemovedNotice(input.label, removed))
       const id = generateId()
+      const tile = input.tileCard ?? null
+      const scopeGroups = groups.filter((g) => groupTileCard(g) === tile)
       const maxSortOrder = all.reduce((max, b) => Math.max(max, b.sortOrder), -1)
       const created: HeaderButtonConfig = {
         id,
@@ -228,7 +257,8 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         label: input.label,
         hidden: false,
         sortOrder: maxSortOrder + 1,
-        groupId: groupId && groups.some((g) => g.id === groupId) ? groupId : null,
+        groupId: groupId && scopeGroups.some((g) => g.id === groupId) ? groupId : null,
+        tileCard: tile,
         activityId: input.activityId ?? null,
         activityName: activityName ?? null,
         entryMode: input.entryMode ?? 'duration',
@@ -249,7 +279,12 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
         // The server files a new button under the first category; once it exists there, put it where it was added.
         const placement =
           created.groupId !== null
-            ? layoutFromRows(groupHeaderButtons(groups, partitionHeaderButtons([...all, created]).visible))
+            ? layoutFromRows(
+                groupHeaderButtons(
+                  scopeGroups,
+                  partitionHeaderButtons([...all, created].filter((b) => buttonTileCard(b) === tile)).visible,
+                ),
+              )
             : null
 
         void writeThrough({
@@ -369,11 +404,13 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   )
 
   const addGroup = useCallback(
-    (name: string): HeaderButtonGroup => {
+    (name: string, tileCard?: number | null): HeaderButtonGroup => {
+      const tile = tileCard ?? null
       const created: HeaderButtonGroup = {
         id: generateId(),
         name: name.trim(),
-        sortOrder: groups.reduce((max, g) => Math.max(max, g.sortOrder), -1) + 1,
+        sortOrder: groups.filter((g) => groupTileCard(g) === tile).reduce((max, g) => Math.max(max, g.sortOrder), -1) + 1,
+        tileCard: tile,
       }
       commitGroups([...groups, created])
       if (supabaseConfigured) {
@@ -382,7 +419,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
           entity: 'headerButtonGroup',
           recordId: created.id,
           op: 'save',
-          args: [created.id, created.name],
+          args: [created.id, created.name, tile],
           label: `Add category “${created.name}”`,
         }).then((out) => {
           if (out.status !== 'ok') setError('Saved on this device — will sync once you’re back online.')
@@ -416,12 +453,15 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
 
   const deleteGroup = useCallback(
     (id: string, moveToId?: string): void => {
-      const remaining = sortGroups(groups.filter((g) => g.id !== id))
+      const gone = groups.find((g) => g.id === id)
+      if (!gone) return
+      // Buttons only ever move to a category of the same place (the header, or the same tile).
+      const remaining = sortGroups(groups.filter((g) => g.id !== id && groupTileCard(g) === groupTileCard(gone)))
       const target = remaining.find((g) => g.id === moveToId) ?? remaining[0]
-      if (!target || remaining.length === groups.length) return
+      if (!target) return
       const name = groups.find((g) => g.id === id)?.name ?? 'a category'
       commit(reassignGroup(all, id, target.id))
-      commitGroups(remaining)
+      commitGroups(groups.filter((g) => g.id !== id))
       if (supabaseConfigured) {
         void writeThrough({
           action: 'headerButtonGroup.delete',
@@ -460,13 +500,9 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [groups],
   )
 
-  // Note buttons created inside a State Tile's window belong to that tile, not the header.
-  const { visible: rawVisible, hidden: rawHidden } = partitionHeaderButtons(all.filter((b) => tileCardFromNoteKey(b.key) === null))
+  // A button on a State Tile belongs to that tile, never to the header.
+  const { visible: rawVisible, hidden: rawHidden } = partitionHeaderButtons(all.filter((b) => buttonTileCard(b) === null))
   const noteButtons = useMemo(() => all.filter((b) => b.category === 'notes'), [all])
-  const tileButtons = useCallback(
-    (card: number) => partitionHeaderButtons(all.filter((b) => tileCardFromNoteKey(b.key) === card)).visible,
-    [all],
-  )
 
   // An activity-category button is a view of its activity's own note titles
   // (the single source of truth — see `withActivityNotes`), so what the
@@ -484,6 +520,30 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   )
   const visible = useMemo(() => rawVisible.map((b) => withActivityNotes(b, rowFor(b))), [rawVisible, rowFor])
   const hidden = useMemo(() => rawHidden.map((b) => withActivityNotes(b, rowFor(b))), [rawHidden, rowFor])
+  const allButtons = useMemo(() => all.map((b) => withActivityNotes(b, rowFor(b))), [all, rowFor])
+  const headerGroups = useMemo(() => sortGroups(groups.filter((g) => groupTileCard(g) === null)), [groups])
+
+  const tileBoard = useCallback(
+    (card: number): TileBoard => {
+      const { visible: v, hidden: h } = partitionHeaderButtons(all.filter((b) => buttonTileCard(b) === card))
+      return {
+        visible: v.map((b) => withActivityNotes(b, rowFor(b))),
+        hidden: h.map((b) => withActivityNotes(b, rowFor(b))),
+        groups: sortGroups(groups.filter((g) => groupTileCard(g) === card)),
+      }
+    },
+    [all, groups, rowFor],
+  )
+
+  const ensureTileGroup = useCallback(
+    (card: number): void => {
+      // Wait for the server's answer first, so a tile that already has a category is never given a second one.
+      if (status === 'idle' || status === 'loading') return
+      if (groups.some((g) => groupTileCard(g) === card)) return
+      addGroup('Buttons', card)
+    },
+    [status, groups, addGroup],
+  )
 
   // Editing a button's note fields edits the ACTIVITY's, so the two can never drift.
   const syncNotesToActivity = useCallback(
@@ -517,14 +577,14 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     [updateButton, syncNotesToActivity, all],
   )
 
-  const sortedGroups = useMemo(() => sortGroups(groups), [groups])
-
   return {
     visible,
     hidden,
     noteButtons,
-    tileButtons,
-    groups: sortedGroups,
+    allButtons,
+    tileBoard,
+    ensureTileGroup,
+    groups: headerGroups,
     status,
     error,
     notice,
