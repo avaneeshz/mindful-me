@@ -24,7 +24,7 @@ export function ColorPicker({
   inheritedColor?: string | null
   /** e.g. "Uses Work & Projects’ colour" — shown while `value` is null. */
   inheritedLabel?: string
-  /** Just the current colour and the Custom button, on one line — no hex field or Reset. */
+  /** Just the current colour and the Custom button, on one line — hex field, Custom and Reset all on one line. */
   compact?: boolean
 }) {
   const [hexDraft, setHexDraft] = useState(value ?? '')
@@ -59,6 +59,28 @@ export function ColorPicker({
     setHexError(false)
     if (normalized !== value) onChange(normalized)
   }
+
+  const hexField = (
+    <input
+      className={cn(fieldClass, 'py-xs text-caption uppercase tabular-nums', hexError && 'border-status-error')}
+      placeholder="#RRGGBB"
+      aria-label="Hex colour"
+      aria-invalid={hexError || undefined}
+      value={hexDraft}
+      maxLength={7}
+      onChange={(e) => {
+        setHexDraft(e.target.value)
+        setHexError(false)
+      }}
+      onBlur={commitHex}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commitHex()
+        }
+      }}
+    />
+  )
 
   const customButton = (
     <label
@@ -99,7 +121,18 @@ export function ColorPicker({
           className={cn('size-[24px] shrink-0 rounded-full border border-line', !shown && 'bg-surface-2')}
           style={shown ? { background: shown } : undefined}
         />
+        <div className="w-[104px] shrink-0">{hexField}</div>
         {customButton}
+        <button
+          type="button"
+          aria-label="Reset colour"
+          title="Reset colour"
+          onClick={() => onChange(null)}
+          disabled={value === null}
+          className="flex size-[32px] shrink-0 items-center justify-center rounded-md text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink disabled:pointer-events-none disabled:opacity-40"
+        >
+          <RotateCcw aria-hidden="true" className="size-[14px]" />
+        </button>
       </div>
     )
   }
@@ -132,25 +165,7 @@ export function ColorPicker({
         {/* The full-spectrum picker: a real <input type="color"> styled as a
             swatch button, so the platform's own colour dialog opens on tap. */}
         {customButton}
-        <input
-          className={cn(fieldClass, 'py-xs text-caption uppercase tabular-nums', hexError && 'border-status-error')}
-          placeholder="#RRGGBB"
-          aria-label="Hex colour"
-          aria-invalid={hexError || undefined}
-          value={hexDraft}
-          maxLength={7}
-          onChange={(e) => {
-            setHexDraft(e.target.value)
-            setHexError(false)
-          }}
-          onBlur={commitHex}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              commitHex()
-            }
-          }}
-        />
+        {hexField}
       </div>
       {hexError && (
         <p role="alert" className="text-caption text-status-error">
