@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  apiDeleteHeaderButton,
   apiListHeaderButtonGroups,
   apiListHeaderButtons,
   apiListTileHeaderButtonGroups,
@@ -48,6 +49,8 @@ export interface TileBoard {
   groups: HeaderButtonGroup[]
 }
 
+export type DeleteHeaderButtonResult = { ok: true } | { ok: false; reason: 'has_history' | 'unreachable' }
+
 export type HeaderButtonsStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface UseHeaderButtonsResult {
@@ -77,6 +80,8 @@ export interface UseHeaderButtonsResult {
   updateButton: (input: UpdateHeaderButtonInput & { category: HeaderButtonConfig['category'] }) => void
   hideButton: (id: string) => void
   unhideButton: (id: string) => void
+  /** Permanent. Refused (`has_history`) while the button still has logged data — it stays hidden instead. */
+  deleteButton: (id: string) => Promise<DeleteHeaderButtonResult>
   /** One full reorder (the whole visible list's new order), not a per-row move — see `reorder_header_buttons`'s own doc comment. */
   reorder: (orderedIds: string[]) => void
   /** One drag or move: which category each visible button now lives in, and their order. */
@@ -370,6 +375,20 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
   const hideButton = useCallback((id: string) => setHidden(id, true), [setHidden])
   const unhideButton = useCallback((id: string) => setHidden(id, false), [setHidden])
 
+  const deleteButton = useCallback(
+    async (id: string): Promise<DeleteHeaderButtonResult> => {
+      // A button that never reached the server (device-made id, or no backend) has nothing to check there.
+      if (supabaseConfigured && isUuid(id)) {
+        const result = await apiDeleteHeaderButton(id)
+        if (!result.ok) return result
+      }
+      commit(all.filter((button) => button.id !== id))
+      return { ok: true }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all],
+  )
+
   const reorder = useCallback(
     (orderedIds: string[]): void => {
       const orderIndex = new Map(orderedIds.map((id, index) => [id, index]))
@@ -592,6 +611,7 @@ export function useHeaderButtons(): UseHeaderButtonsResult {
     updateButton: updateButtonSynced,
     hideButton,
     unhideButton,
+    deleteButton,
     reorder,
     arrange,
     addGroup,
