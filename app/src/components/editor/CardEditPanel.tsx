@@ -62,7 +62,7 @@ export function CardEditPanel({ card, onClose }: { card: number; onClose: () => 
             }
           >
             {busy ? <Loader2 aria-hidden="true" className="size-[14px] animate-spin" /> : null}
-            Use picture
+            Save picture
           </Button>
           <Button type="button" variant="ghost" disabled={busy} onClick={cancel}>
             Back

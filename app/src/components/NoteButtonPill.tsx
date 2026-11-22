@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { ChevronDown, Loader2, X } from 'lucide-react'
+import { CalendarClock, ChevronDown, Loader2, X } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
   canSubmitNote,
+  formatNoteTimestamp,
   noteButtonTypes,
   partitionNoteEntriesByToday,
   toggleEntryType,
@@ -12,6 +13,7 @@ import {
 } from '@/domain/notes'
 import { NoteEntryRow } from '@/components/NoteEntryRow'
 import { useNoteEntries } from '@/state/useNoteEntries'
+import { useNoteWhen } from '@/state/useNoteWhen'
 import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
 import { DictationField } from '@/components/ui/DictationButton'
@@ -38,7 +40,8 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const [open, setOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [entryTypes, setEntryTypes] = useState<string[]>([])
-  const [justSaved, setJustSaved] = useState(false)
+  const [justSaved, setJustSaved] = useState<{ at: Date | null } | null>(null)
+  const when = useNoteWhen()
   // History is collapsed by default (SCRUM-13 follow-up) — the popover opens
   // straight to the Store form; the log of past notes is a click away
   // rather than always taking up space underneath it.
@@ -53,13 +56,14 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const recentHeadingId = useId()
   const historyHeadingId = useId()
   const historyListId = useId()
+  const whenId = useId()
 
   const { entries, status, error, submitting, addNote, pendingEntryId, updateNote, deleteNote } = useNoteEntries(
     buttonKey,
     open,
   )
   const types = noteButtonTypes(buttonKey)
-  const canSubmit = canSubmitNote(buttonKey, noteText, entryTypes)
+  const canSubmit = canSubmitNote(buttonKey, noteText, entryTypes) && !when.error
   // "Today" here is the real device-current calendar day — notes aren't
   // day-scoped like a `ScheduledActivity` (no `viewedDate` concept exists in
   // this component at all), so this is deliberately NOT the header's viewed
@@ -95,7 +99,9 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     if (open) textareaRef.current?.focus()
     else {
       setHistoryOpen(false) // Collapsed again next time this popover opens.
+      when.reset() // Each opening starts on "now" again.
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   useEffect(() => {
@@ -115,14 +121,16 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
     event.preventDefault()
     if (submitting || !canSubmit) return // Rule 9's double-submit guard, applied to Store.
 
-    const ok = await addNote(noteText, entryTypes)
+    const chosen = when.when
+    const ok = await addNote(noteText, entryTypes, chosen)
     if (!ok) return
 
     setNoteText('')
     setEntryTypes([])
-    setJustSaved(true)
+    when.reset()
+    setJustSaved({ at: chosen ?? null })
     window.clearTimeout(savedFlashTimeoutRef.current)
-    savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 2500)
+    savedFlashTimeoutRef.current = window.setTimeout(() => setJustSaved(null), 2500)
   }
 
   function renderEntryRow(entry: NoteEntry) {
@@ -215,6 +223,47 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
               </DictationField>
             </div>
 
+            {when.custom ? (
+              <div className="flex flex-col gap-xs">
+                <label htmlFor={whenId} className="text-caption font-semibold text-ink-dim">
+                  When
+                </label>
+                <div className="flex items-center gap-sm">
+                  <input
+                    id={whenId}
+                    type="datetime-local"
+                    aria-invalid={when.error !== null}
+                    value={when.inputValue}
+                    max={when.max}
+                    disabled={submitting}
+                    onChange={(event) => when.setInputValue(event.target.value)}
+                    className={cn(fieldClass, 'min-w-0 flex-1 tabular-nums disabled:opacity-60')}
+                  />
+                  <Button type="button" variant="ghost" size="control" onClick={when.reset} disabled={submitting}>
+                    Use now
+                  </Button>
+                </div>
+                {when.error && (
+                  <p role="alert" className="text-caption font-semibold text-ink-dim">
+                    {when.error}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={when.start}
+                disabled={submitting}
+                className="flex items-center justify-between gap-sm rounded-md py-xs text-caption text-ink-dim transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-60"
+              >
+                <span className="flex items-center gap-xs">
+                  <CalendarClock aria-hidden="true" className="size-[14px]" />
+                  Now · {formatNoteTimestamp(new Date())}
+                </span>
+                <span className="font-semibold text-ink">Change</span>
+              </button>
+            )}
+
             {error && (
               <p role="alert" className="text-caption font-semibold text-ink-dim">
                 {error}
@@ -234,7 +283,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
               </Button>
               {justSaved && (
                 <span role="status" className="text-caption font-semibold text-ink-dim">
-                  Saved.
+                  {justSaved.at ? `Saved for ${formatNoteTimestamp(justSaved.at)}.` : 'Saved.'}
                 </span>
               )}
             </div>
