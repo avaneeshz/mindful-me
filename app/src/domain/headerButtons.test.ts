@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_HEADER_BUTTONS,
   buttonTileCard,
+  findGroupByName,
+  BUTTON_PAGES,
   groupTileCard,
   headerButtonGroupFromDto,
   dedupeChecklistItemKey,
@@ -485,5 +487,23 @@ describe('State Tile scope', () => {
   it('reads a tile out of the server rows', () => {
     expect(headerButtonGroupFromDto({ id: 'g', name: 'Buttons', sort_order: 0, tile_card: 9 }).tileCard).toBe(9)
     expect(headerButtonGroupFromDto({ id: 'g', name: 'Buttons', sort_order: 0 }).tileCard).toBeNull()
+  })
+})
+
+describe('button pages', () => {
+  it('finds a category by name, ignoring case and spacing', () => {
+    const groups = [
+      { id: 'a', name: 'Buttons', sortOrder: 0 },
+      { id: 'b', name: ' product page ', sortOrder: 1 },
+    ]
+    expect(findGroupByName(groups, 'Product Page')?.id).toBe('b')
+    expect(findGroupByName(groups, 'Dashboard')).toBeNull()
+  })
+
+  it('reserves distinct scopes inside the tile range, above the 50 custom tiles', () => {
+    const scopes = Object.values(BUTTON_PAGES).map((p) => p.scope)
+    expect(new Set(scopes).size).toBe(scopes.length)
+    for (const scope of scopes) expect(scope).toBeGreaterThan(18 + 50)
+    for (const scope of scopes) expect(scope).toBeLessThanOrEqual(500)
   })
 })
