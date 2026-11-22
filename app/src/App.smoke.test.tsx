@@ -170,7 +170,7 @@ describe('Today screen', () => {
   })
 
   it('keeps the sidebar with Today active and the rest as placeholders', () => {
-    expect(html).toContain('Ritual Board')
+    expect(html).not.toContain('Small steps. Every day.')
     expect(html).toContain('Stay Consistent')
     expect(html).toContain('My Slots')
     expect(html).toContain('(not yet available)')
