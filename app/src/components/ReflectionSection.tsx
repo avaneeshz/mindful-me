@@ -3,8 +3,7 @@ import { ImagePlus, Pencil, Trash2 } from 'lucide-react'
 import { EditOverlay } from '@/components/editor/EditOverlay'
 import { CardEditPanel } from '@/components/editor/CardEditPanel'
 import { NewCardPanel } from '@/components/editor/NewCardPanel'
-import { StateTileNotesWindow } from '@/components/StateTileNotesWindow'
-import { hasStateTileNotesWindow } from '@/domain/notes'
+import { StateTileWindow } from '@/components/StateTileWindow'
 import { CardNotesPanel } from '@/components/editor/CardNotesPanel'
 import { AddCategoryControl, AddHeaderButtonChip, CategoryHeading, EditModeToggle } from '@/components/HeaderButtonEditor'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -131,9 +130,8 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
                   const card = REFLECTION_CARDS.find((c) => c.number === number) ?? { number, title: `Card ${number}`, subtitle: '', image: '' }
                   const title = nameFor(card.number)
                   const isOpen = openCard === card.number
-                  // A tile with a full-screen notes window opens it instead of the small
-                  // popover — except in Edit mode, which still edits the tile itself.
-                  const fullScreen = !editMode && hasStateTileNotesWindow(card.number)
+                  // Outside Edit mode a tile opens its full-screen window; Edit mode still edits the tile itself.
+                  const fullScreen = !editMode
                   const selected = editMode && isSelected(id)
                   const dragProps = editMode ? itemProps(id) : null
                   // While several travel together their own slots are placeholders showing where they'll land.
@@ -207,7 +205,7 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
                               </button>
                             </div>
                             {fullScreen && (
-                              <StateTileNotesWindow
+                              <StateTileWindow
                                 card={card.number}
                                 title={title}
                                 open={isOpen}

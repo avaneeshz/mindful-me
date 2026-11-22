@@ -81,6 +81,8 @@ export interface CreateHeaderButtonInput {
   noteFields?: HeaderButtonNoteFieldInput[]
   noteTypes?: string[]
   checklistItems?: { key?: string; label: string }[]
+  /** The State Tile the button is made for; absent for a header button. */
+  tileCard?: number | null
 }
 
 /**
@@ -107,6 +109,8 @@ export async function apiCreateHeaderButton(rawInput: CreateHeaderButtonInput): 
     p_note_fields: withServerFieldIds(input.noteFields ?? []),
     p_note_types: input.noteTypes ?? [],
     p_checklist_items: input.checklistItems ?? [],
+    // Sent only for a tile, so a header button's call is exactly what it was before tiles had buttons.
+    ...(input.tileCard != null ? { p_tile_card: input.tileCard } : {}),
   })
   if (error) {
     // eslint-disable-next-line no-console
@@ -187,10 +191,30 @@ export async function apiListHeaderButtonGroups(): Promise<HeaderButtonGroup[] |
   return ((data ?? []) as HeaderButtonGroupDto[]).map(headerButtonGroupFromDto)
 }
 
-/** `id` is client-supplied, so a dropped-connection retry never creates a second category. */
-export async function apiCreateHeaderButtonGroup(id: string, name: string): Promise<string | null> {
+/**
+ * Every State Tile's own categories — `public.list_tile_header_button_groups()`.
+ * `null` on any failure to reach the server (also while that function does not
+ * exist yet), so the device's own copy is kept.
+ */
+export async function apiListTileHeaderButtonGroups(): Promise<HeaderButtonGroup[] | null> {
   if (!supabase) return null
-  const { data, error } = await supabase.rpc('create_header_button_group', { p_name: name, p_id: id })
+  const { data, error } = await supabase.rpc('list_tile_header_button_groups')
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[headerButtons] list_tile_header_button_groups failed — staying on local data', error.message)
+    return null
+  }
+  return ((data ?? []) as HeaderButtonGroupDto[]).map(headerButtonGroupFromDto)
+}
+
+/** `id` is client-supplied, so a dropped-connection retry never creates a second category. `tileCard` makes it a State Tile's. */
+export async function apiCreateHeaderButtonGroup(id: string, name: string, tileCard?: number | null): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('create_header_button_group', {
+    p_name: name,
+    p_id: id,
+    ...(tileCard != null ? { p_tile_card: tileCard } : {}),
+  })
   if (error) {
     // eslint-disable-next-line no-console
     console.warn('[headerButtons] create_header_button_group failed — kept locally, will retry', error.message)

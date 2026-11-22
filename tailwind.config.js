@@ -72,6 +72,7 @@ export default {
       'surface-2': 'var(--surface-2)',
       ink: 'var(--ink)',
       'ink-dim': 'var(--ink-dim)',
+      gold: 'var(--gold)',
       line: 'var(--line)',
       'line-soft': 'var(--line-soft)',
       // The "invert" pair — a selected/active/primary fill is the OTHER
@@ -127,6 +128,8 @@ export default {
 
       fontFamily: {
         display: ['Fraunces', 'Georgia', 'serif'],
+        // The COUNCL wordmark only: a geometric sans with a true circular O.
+        wordmark: ['Montserrat', 'Inter', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
       },
 

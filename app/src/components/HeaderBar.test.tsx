@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { HeaderBar } from './HeaderBar'
 import { HeaderButtonsProvider } from '@/state/HeaderButtonsContext'
 
@@ -7,6 +8,7 @@ const FIXED_NOW = new Date(2026, 8, 5, 10, 0)
 
 function render(editMode = false): string {
   return renderToStaticMarkup(
+    <MemoryRouter>
     <HeaderButtonsProvider>
       <HeaderBar
         now={FIXED_NOW}
@@ -22,7 +24,8 @@ function render(editMode = false): string {
         editMode={editMode}
         onToggleEditMode={() => {}}
       />
-    </HeaderButtonsProvider>,
+    </HeaderButtonsProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -145,5 +148,16 @@ describe('HeaderBar edit mode (HEADER-CUSTOM-1)', () => {
     expect(html).toContain('aria-label="Move Buttons down"')
     // The only category can't be deleted — a button always needs somewhere to live.
     expect(html).not.toContain('aria-label="Delete Buttons"')
+  })
+})
+
+describe('HeaderBar wordmark', () => {
+  it('is a link home, named COUNCL, with a golden dot inside the O', () => {
+    const html = render()
+    const link = /<a [^>]*>/.exec(html)?.[0] ?? ''
+    expect(link).toContain('href="/"')
+    expect(link).toContain('aria-label="COUNCL — go to Today"')
+    expect(html).toContain('bg-gold')
+    expect(html).toMatch(/aria-label="COUNCL"/)
   })
 })

@@ -52,6 +52,22 @@ export function CounclMark({ className }: { className?: string }) {
 /** The product name as it's always written: all capitals, no "i". */
 export const PRODUCT_NAME = 'COUNCL'
 
+/**
+ * The wordmark: COUNCL in widely spaced geometric capitals, with a small golden dot at the centre of the "O". The dot is
+ * decoration (hidden from assistive tech), so the name is still read as "COUNCL".
+ */
 export function CounclTitle() {
-  return <span className="tracking-[0.08em]">{PRODUCT_NAME}</span>
+  return (
+    <span className="font-wordmark font-medium tracking-[0.18em]" role="img" aria-label={PRODUCT_NAME}>
+      <span aria-hidden="true">
+        C
+        {/* The O carries no letter-spacing of its own (it is added after it), so the dot sits at its true centre. */}
+        <span className="relative mr-[0.18em] inline-block tracking-normal">
+          O
+          <span className="absolute left-1/2 top-1/2 size-[0.16em] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold" />
+        </span>
+        UNCL
+      </span>
+    </span>
+  )
 }
