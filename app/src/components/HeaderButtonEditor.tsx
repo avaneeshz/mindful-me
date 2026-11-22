@@ -42,16 +42,31 @@ import { cn } from '@/lib/utils'
  * this user's own initial provisioning or was added by hand afterward.
  */
 
-export function EditModeToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+export function EditModeToggle({
+  active,
+  onToggle,
+  subject,
+  disabled = false,
+}: {
+  active: boolean
+  onToggle: () => void
+  /** Names what this toggle edits for assistive tech ("activity tiles" → "Edit activity tiles"). Omitted for the global toggle. */
+  subject?: string
+  /** Greyed out and inert — a section's own toggle while the global Edit is already on. */
+  disabled?: boolean
+}) {
+  const doneLabel = subject ? `Done editing ${subject}` : 'Done editing'
+  const editLabel = subject ? `Edit ${subject}` : 'Edit'
   return (
     <button
       type="button"
       aria-pressed={active}
-      aria-label={active ? 'Done editing' : 'Edit'}
+      aria-label={active ? doneLabel : editLabel}
+      disabled={disabled}
       onClick={onToggle}
       className={cn(
         chipVariants({ tone: active ? 'active' : 'surface', size: 'sm', interactive: true }),
-        'font-semibold',
+        'font-semibold disabled:cursor-not-allowed disabled:opacity-50',
       )}
     >
       {active ? <Check aria-hidden="true" className="size-[14px]" /> : <Pencil aria-hidden="true" className="size-[14px]" />}

@@ -5,10 +5,11 @@ import { CardEditPanel } from '@/components/editor/CardEditPanel'
 import { NewCardPanel } from '@/components/editor/NewCardPanel'
 import { StateTileWindow } from '@/components/StateTileWindow'
 import { CardNotesPanel } from '@/components/editor/CardNotesPanel'
-import { AddCategoryControl, AddHeaderButtonChip, CategoryHeading } from '@/components/HeaderButtonEditor'
+import { AddCategoryControl, AddHeaderButtonChip, CategoryHeading, EditModeToggle } from '@/components/HeaderButtonEditor'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { REORDER_ITEM_ATTR, useSelectableReorder } from '@/components/ui/useSelectableReorder'
+import { useEditMode } from '@/state/EditModeContext'
 import { useReflectionCards } from '@/state/useReflectionCards'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { asCategoryGroups } from '@/domain/reflectionCardGroups'
@@ -46,6 +47,7 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
     canAddCard,
   } = useReflectionCards()
   const idBase = useId()
+  const { editMode: globalEditMode, toggleStateTilesEdit } = useEditMode()
   const [pendingDelete, setPendingDelete] = useState<number | null>(null)
   /** The category an "Add tile" form is open in. */
   const [addingIn, setAddingIn] = useState<string | null>(null)
@@ -79,9 +81,17 @@ export function ReflectionSection({ editMode = false }: { editMode?: boolean }) 
       aria-labelledby="reflection-heading"
       className="rounded-lg border border-line bg-surface p-2xl shadow-elevation-1 mobile:p-lg ipad-land:p-lg"
     >
-      <h2 id="reflection-heading" className="font-display text-slot-time font-semibold text-ink">
-        {sectionName('stateTiles')}
-      </h2>
+      <div className="flex items-center justify-between gap-md">
+        <h2 id="reflection-heading" className="font-display text-slot-time font-semibold text-ink">
+          {sectionName('stateTiles')}
+        </h2>
+        <EditModeToggle
+          subject="state tiles"
+          active={editMode && !globalEditMode}
+          onToggle={toggleStateTilesEdit}
+          disabled={globalEditMode}
+        />
+      </div>
 
       <div className="mt-xl flex flex-col mobile:mt-lg">
         {rows.map((row, index) => {
