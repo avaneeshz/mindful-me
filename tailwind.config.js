@@ -128,6 +128,8 @@ export default {
 
       fontFamily: {
         display: ['Fraunces', 'Georgia', 'serif'],
+        // The COUNCL wordmark only: a geometric sans with a true circular O.
+        wordmark: ['Montserrat', 'Inter', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
       },
 
