@@ -11,6 +11,7 @@ import { ColorPicker } from '@/components/ui/ColorPicker'
 import { effectiveActivityColor } from '@/domain/colors'
 import { childrenOf, isTopLevelNameTaken } from '@/domain/pickerHierarchy'
 import { colorTintStyle } from '@/components/ui/colorStyles'
+import { cn } from '@/lib/utils'
 import { resolveIcon } from '@/lib/iconRegistry'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import type { UseTilesResult } from '@/state/useTiles'
@@ -34,6 +35,7 @@ export function TileEditPanel({
   const navigate = useNavigate()
   const [openActivityId, setOpenActivityId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [editingColour, setEditingColour] = useState(false)
   const rows = activities.activities
   const openActivity = openActivityId ? rows.find((a) => a.id === openActivityId) ?? null : null
 
@@ -77,34 +79,42 @@ export function TileEditPanel({
         />
       ) : (
         <div className="flex items-center justify-between gap-sm">
-          <div className="flex min-w-0 items-center gap-sm">
+          <div className="flex min-w-0 items-center gap-xs">
             <span
-              className="flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink"
+              className="mr-xs flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink"
               style={colorTintStyle(tile.color ?? null, { border: false })}
             >
               <Icon aria-hidden="true" className="size-[16px]" />
             </span>
             <h3 className="truncate text-btn font-semibold text-ink">{tile.label}</h3>
-          </div>
-          <div className="flex shrink-0 items-center">
             <RowIconButton label={`Rename ${tile.label}`} onClick={() => setRenaming(true)}>
               <Pencil aria-hidden="true" className="size-[14px]" />
             </RowIconButton>
-            <RowIconButton label="Close" onClick={onClose}>
-              <X aria-hidden="true" className="size-[16px]" />
+            <span
+              role="img"
+              aria-label={tile.color ? `Colour ${tile.color.toUpperCase()}` : 'No colour'}
+              className={cn('ml-sm size-[20px] shrink-0 rounded-full border border-line', !tile.color && 'bg-surface-2')}
+              style={tile.color ? { background: tile.color } : undefined}
+            />
+            <RowIconButton label="Edit colour" onClick={() => setEditingColour((v) => !v)} expanded={editingColour}>
+              <Pencil aria-hidden="true" className="size-[14px]" />
             </RowIconButton>
           </div>
+          <RowIconButton label="Close" onClick={onClose}>
+            <X aria-hidden="true" className="size-[16px]" />
+          </RowIconButton>
         </div>
       )}
 
-      <section aria-label="Colour" className="flex flex-col gap-sm">
-        <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>
-        <ColorPicker
-          value={tile.color ?? null}
-          onChange={(color) => tiles.setTileColor(tile.id, color)}
-          inheritedLabel="No colour"
-        />
-      </section>
+      {editingColour && (
+        <section aria-label="Colour">
+          <ColorPicker
+            value={tile.color ?? null}
+            onChange={(color) => tiles.setTileColor(tile.id, color)}
+            inheritedLabel="No colour"
+          />
+        </section>
+      )}
 
       <section aria-label="Activities" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Activities</h4>
