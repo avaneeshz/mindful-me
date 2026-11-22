@@ -17,12 +17,15 @@ export function ColorPicker({
   onChange,
   inheritedColor = null,
   inheritedLabel,
+  compact = false,
 }: {
   value: string | null
   onChange: (color: string | null) => void
   inheritedColor?: string | null
   /** e.g. "Uses Work & Projects’ colour" — shown while `value` is null. */
   inheritedLabel?: string
+  /** Just the current colour and the Custom button, on one line — no hex field or Reset. */
+  compact?: boolean
 }) {
   const [hexDraft, setHexDraft] = useState(value ?? '')
   const [hexError, setHexError] = useState(false)
@@ -57,6 +60,50 @@ export function ColorPicker({
     if (normalized !== value) onChange(normalized)
   }
 
+  const customButton = (
+    <label
+      className={cn(
+        'relative flex shrink-0 cursor-pointer items-center gap-xs rounded-md border px-sm py-xs text-caption font-semibold text-ink transition-colors hover:border-ink',
+        'focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink',
+        value !== null ? 'border-ink' : 'border-line',
+      )}
+    >
+      <Pipette aria-hidden="true" className="size-[14px]" />
+      Custom
+      <input
+        type="color"
+        aria-label="Choose any colour"
+        className="absolute inset-0 size-full cursor-pointer opacity-0"
+        value={shown ?? PICKER_START_COLOR}
+        onChange={(e) => {
+          const next = normalizeHexColor(e.target.value)
+          if (!next) return
+          setLivePreview(next)
+          setHexDraft(next)
+          if (commitTimer.current) clearTimeout(commitTimer.current)
+          commitTimer.current = setTimeout(() => {
+            setLivePreview(null)
+            onChange(next)
+          }, 300)
+        }}
+      />
+    </label>
+  )
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-sm">
+        <span
+          role="img"
+          aria-label={value ? `Colour ${value.toUpperCase()}` : (inheritedLabel ?? 'Default colour')}
+          className={cn('size-[24px] shrink-0 rounded-full border border-line', !shown && 'bg-surface-2')}
+          style={shown ? { background: shown } : undefined}
+        />
+        {customButton}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-sm">
       <div className="flex items-center justify-between gap-sm">
@@ -84,33 +131,7 @@ export function ColorPicker({
       <div className="flex items-center gap-sm">
         {/* The full-spectrum picker: a real <input type="color"> styled as a
             swatch button, so the platform's own colour dialog opens on tap. */}
-        <label
-          className={cn(
-            'relative flex shrink-0 cursor-pointer items-center gap-xs rounded-md border px-sm py-xs text-caption font-semibold text-ink transition-colors hover:border-ink',
-            'focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink',
-            value !== null ? 'border-ink' : 'border-line',
-          )}
-        >
-          <Pipette aria-hidden="true" className="size-[14px]" />
-          Custom
-          <input
-            type="color"
-            aria-label="Choose any colour"
-            className="absolute inset-0 size-full cursor-pointer opacity-0"
-            value={shown ?? PICKER_START_COLOR}
-            onChange={(e) => {
-              const next = normalizeHexColor(e.target.value)
-              if (!next) return
-              setLivePreview(next)
-              setHexDraft(next)
-              if (commitTimer.current) clearTimeout(commitTimer.current)
-              commitTimer.current = setTimeout(() => {
-                setLivePreview(null)
-                onChange(next)
-              }, 300)
-            }}
-          />
-        </label>
+        {customButton}
         <input
           className={cn(fieldClass, 'py-xs text-caption uppercase tabular-nums', hexError && 'border-status-error')}
           placeholder="#RRGGBB"
