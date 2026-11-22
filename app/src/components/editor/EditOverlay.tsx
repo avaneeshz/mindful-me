@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { headerPopupClass } from '@/components/ui/HeaderPopup'
+import { cn } from '@/lib/utils'
 
 /**
  * The one container the inline Edit mode uses for its small editors: a
@@ -21,6 +23,7 @@ export function EditOverlay({
   label,
   anchor,
   children,
+  variant = 'popover',
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -28,8 +31,32 @@ export function EditOverlay({
   label: string
   anchor: ReactNode
   children: ReactNode
+  /**
+   * `popover` (default): small editor anchored to its tile. `window`: the same
+   * centred 80%-width window a header button opens, for editors with real
+   * content (a tile and its activities).
+   */
+  variant?: 'popover' | 'window'
 }) {
   const isMobile = useIsMobile()
+
+  if (variant === 'window') {
+    return (
+      <>
+        {anchor}
+        <Dialog.Root open={open} onOpenChange={onOpenChange}>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className={cn(headerPopupClass, 'flex flex-col gap-md focus:outline-none')}
+          >
+            <Dialog.Title className="sr-only">{label}</Dialog.Title>
+            {children}
+          </Dialog.Content>
+        </Dialog.Root>
+      </>
+    )
+  }
 
   if (isMobile) {
     return (

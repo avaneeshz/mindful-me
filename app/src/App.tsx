@@ -1,11 +1,12 @@
 import { Loader2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { HeaderBar } from '@/components/HeaderBar'
 import { AuthScreen } from '@/components/auth/AuthScreen'
 import { InterfaceErrorBoundary } from '@/components/InterfaceErrorBoundary'
 import { TodayPage } from '@/routes/TodayPage'
+import { DashboardPage, ProductPage } from '@/routes/ButtonPage'
 import { HealthSyncPage } from '@/routes/HealthSyncPage'
 import { HealthSyncCallbackPage } from '@/routes/HealthSyncCallbackPage'
 import { SettingsPage } from '@/routes/SettingsPage'
@@ -187,6 +188,8 @@ function AuthedApp({ now }: { now?: Date }) {
                       path="/"
                       element={<TodayPage />}
                     />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/product-page" element={<ProductPage />} />
                     <Route path="/health-sync" element={<HealthSyncPage />} />
                     <Route path="/health-sync/callback" element={<HealthSyncCallbackPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
@@ -194,8 +197,8 @@ function AuthedApp({ now }: { now?: Date }) {
                     <Route path="/settings/activity-log" element={<ActivityLogPage />} />
                     <Route path="/settings/not-synced" element={<NeedsAttentionPage />} />
                     {/*
-                      "Today", "Health Sync" and "Settings" (with its Add device
-                      picker) are the only routed screens.
+                      "Today", "Dashboard", "Product Page", "Health Sync" and "Settings"
+                      (with its Add device picker) are the only routed screens.
                       "Activity Library" (PICKER-CUSTOM-1) isn't a route at all
                       — it is the inline tile editor on Today (`EditableTileRow`),
                       on whenever the top-bar Edit toggle above is on. The
@@ -233,6 +236,8 @@ function AuthedApp({ now }: { now?: Date }) {
   )
 }
 
+const BUTTON_PAGE_PATHS = ['/dashboard', '/product-page']
+
 /**
  * Thin adapter between the app-wide providers (`BoardContext`, `AuthContext`)
  * and `HeaderBar`'s props — kept as its own component (rather than inlined in
@@ -240,6 +245,8 @@ function AuthedApp({ now }: { now?: Date }) {
  * prop list. Must render inside `BoardProvider` (it does — see above).
  */
 function AppHeaderBar() {
+  // The button pages carry their own buttons, so the header's would only repeat above them.
+  const { pathname } = useLocation()
   const { editMode, toggleEditMode } = useEditMode()
   const { state, dispatch, now, viewedDate, setViewedDate, logQuickLog, syncQueue, retrySyncNow } = useBoard()
   const { user, signOut } = useAuth()
@@ -258,6 +265,7 @@ function AppHeaderBar() {
       onEditActivity={(id) => dispatch({ type: 'editActivity', id })}
       editMode={editMode}
       onToggleEditMode={toggleEditMode}
+      showButtons={!BUTTON_PAGE_PATHS.includes(pathname)}
     />
   )
 }
