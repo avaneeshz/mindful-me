@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, Pencil, X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { TileDto } from '@/api/tiles'
 import { ActivityEditView } from '@/components/editor/ActivityEditView'
-import { Button } from '@/components/ui/button'
-import { AddNameRow, EditableActivityList, RowIconButton } from '@/components/editor/ActivityRows'
+import { AddNameRow, RowIconButton } from '@/components/editor/ActivityRows'
+import { ActivityCardGrid } from '@/components/editor/ActivityCardGrid'
 import { HiddenInSettingsLink } from '@/components/settings/HiddenItemsPanel'
 import { TileForm } from '@/components/editor/TileForm'
 import { ColorPicker } from '@/components/ui/ColorPicker'
 import { effectiveActivityColor } from '@/domain/colors'
-import { childrenOf, isTopLevelNameTaken, moveInOrder } from '@/domain/pickerHierarchy'
+import { childrenOf, isTopLevelNameTaken } from '@/domain/pickerHierarchy'
 import { colorTintStyle } from '@/components/ui/colorStyles'
 import { resolveIcon } from '@/lib/iconRegistry'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import type { UseTilesResult } from '@/state/useTiles'
 
 /**
- * The content of a tile's edit popover: rename the tile and its icon, and
- * manage its activities. A row's pencil drills into that activity's own
+ * The content of a tile's edit window: rename the tile and pick its colour (the
+ * only two tile-level edits), then its activities as draggable square cards. A row's pencil drills into that activity's own
  * editor (`ActivityEditView`) inside the same popover, with a back button.
  */
 export function TileEditPanel({
@@ -27,7 +27,7 @@ export function TileEditPanel({
   onClose,
 }: {
   tile: TileDto
-  tiles: Pick<UseTilesResult, 'renameTile' | 'setTileColor' | 'tiles' | 'reorder'>
+  tiles: Pick<UseTilesResult, 'renameTile' | 'setTileColor' | 'tiles'>
   activities: UseActivityHierarchyResult
   onClose: () => void
 }) {
@@ -63,14 +63,6 @@ export function TileEditPanel({
 
   const Icon = resolveIcon(tile.iconKey)
   const { visible, hidden } = childrenOf(rows, null, tile.id)
-  // Where the tile sits in the row. Dragging is the fast way; these two buttons are the tap alternative.
-  const shownTileIds = [...tiles.tiles].filter((t) => !t.hidden).sort((a, b) => a.sortOrder - b.sortOrder).map((t) => t.id)
-  const position = shownTileIds.indexOf(tile.id)
-  const moveTile = (delta: -1 | 1) => {
-    const next = moveInOrder(shownTileIds, tile.id, delta)
-    if (next) tiles.reorder(next)
-  }
-
   return (
     <>
       {renaming ? (
@@ -105,20 +97,6 @@ export function TileEditPanel({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-sm" role="group" aria-label="Position">
-        <span className="text-caption font-semibold text-ink">
-          Position <span className="font-normal text-ink-dim">{position + 1} of {shownTileIds.length}</span>
-        </span>
-        <span className="flex items-center gap-xs">
-          <Button type="button" variant="outline" aria-label="Move earlier" disabled={position <= 0} onClick={() => moveTile(-1)}>
-            <ArrowLeft aria-hidden="true" className="size-[14px]" />
-          </Button>
-          <Button type="button" variant="outline" aria-label="Move later" disabled={position === shownTileIds.length - 1} onClick={() => moveTile(1)}>
-            <ArrowRight aria-hidden="true" className="size-[14px]" />
-          </Button>
-        </span>
-      </div>
-
       <section aria-label="Colour" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>
         <ColorPicker
@@ -130,24 +108,12 @@ export function TileEditPanel({
 
       <section aria-label="Activities" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Activities</h4>
-        <EditableActivityList
+        <ActivityCardGrid
           rows={visible}
           emptyText="No activities yet. Add the first one below."
-          subtitle={(row) =>
-            childrenOf(rows, row.id, tile.id)
-              .visible.map((c) => c.name)
-              .join(' · ')
-          }
           colorFor={(row) => effectiveActivityColor(rows, tiles.tiles, row.id)}
           onOpen={setOpenActivityId}
-          onMove={(id, direction) => {
-            const next = moveInOrder(
-              visible.map((r) => r.id),
-              id,
-              direction,
-            )
-            if (next) activities.reorder(next)
-          }}
+          onReorder={activities.reorder}
           onHide={activities.hideActivity}
         />
         <AddNameRow

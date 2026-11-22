@@ -13,6 +13,13 @@ import { cn } from '@/lib/utils'
  * owner's own outside-press and Escape handling. Used by every header button so
  * they all open the same way.
  */
+/** The window's size and surface, shared with other editors that open the same 80% window. */
+export const headerPopupClass = cn(
+  'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-y-auto',
+  'w-[80vw] max-h-[calc(100dvh-96px)] mobile:w-[calc(100vw-16px)] mobile:max-h-[calc(100dvh-32px)]',
+  'rounded-md border border-line bg-surface p-lg shadow-elevation-2 mobile:p-md',
+)
+
 export function HeaderPopup({
   onClose,
   className,
@@ -28,12 +35,7 @@ export function HeaderPopup({
       <div
         role="dialog"
         {...dialogProps}
-        className={cn(
-          'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-y-auto',
-          'w-[80vw] max-h-[calc(100dvh-96px)] mobile:w-[calc(100vw-16px)] mobile:max-h-[calc(100dvh-32px)]',
-          'rounded-md border border-line bg-surface p-lg shadow-elevation-2 mobile:p-md',
-          className,
-        )}
+        className={cn(headerPopupClass, className)}
       >
         {children}
       </div>
