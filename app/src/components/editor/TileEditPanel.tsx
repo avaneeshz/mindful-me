@@ -77,34 +77,26 @@ export function TileEditPanel({
         />
       ) : (
         <div className="flex items-center justify-between gap-sm">
-          <div className="flex min-w-0 items-center gap-sm">
+          <div className="flex min-w-0 items-center gap-xs">
             <span
-              className="flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink"
+              className="mr-xs flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink"
               style={colorTintStyle(tile.color ?? null, { border: false })}
             >
               <Icon aria-hidden="true" className="size-[16px]" />
             </span>
             <h3 className="truncate text-btn font-semibold text-ink">{tile.label}</h3>
-          </div>
-          <div className="flex shrink-0 items-center">
             <RowIconButton label={`Rename ${tile.label}`} onClick={() => setRenaming(true)}>
               <Pencil aria-hidden="true" className="size-[14px]" />
             </RowIconButton>
-            <RowIconButton label="Close" onClick={onClose}>
-              <X aria-hidden="true" className="size-[16px]" />
-            </RowIconButton>
+            <div className="ml-sm">
+              <ColorPicker compact value={tile.color ?? null} onChange={(color) => tiles.setTileColor(tile.id, color)} inheritedLabel="No colour" />
+            </div>
           </div>
+          <RowIconButton label="Close" onClick={onClose}>
+            <X aria-hidden="true" className="size-[16px]" />
+          </RowIconButton>
         </div>
       )}
-
-      <section aria-label="Colour" className="flex flex-col gap-sm">
-        <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>
-        <ColorPicker
-          value={tile.color ?? null}
-          onChange={(color) => tiles.setTileColor(tile.id, color)}
-          inheritedLabel="No colour"
-        />
-      </section>
 
       <section aria-label="Activities" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Activities</h4>

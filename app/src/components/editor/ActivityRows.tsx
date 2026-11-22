@@ -10,15 +10,19 @@ export function RowIconButton({
   label,
   onClick,
   disabled,
+  expanded,
   children,
 }: {
   label: string
   onClick: () => void
   disabled?: boolean
+  /** Set when the button toggles a panel: reports whether it is open. */
+  expanded?: boolean
   children: ReactNode
 }) {
   return (
     <button
+      aria-expanded={expanded}
       type="button"
       aria-label={label}
       title={label}
