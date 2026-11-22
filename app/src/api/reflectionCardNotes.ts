@@ -32,14 +32,25 @@ export async function apiListReflectionCardNotes(card: number): Promise<Reflecti
 export type SaveNoteResult = { ok: true; note: ReflectionCardNote } | { ok: false; reason: 'invalid' | 'unreachable' }
 
 function fail(error: { message: string }): SaveNoteResult {
-  const invalid = ['note_required', 'note_too_long', 'invalid_card', 'invalid_note', 'note_not_found']
+  const invalid = ['note_required', 'note_too_long', 'invalid_card', 'invalid_note', 'note_not_found', 'note_time_in_future', 'note_time_too_old']
   return { ok: false, reason: invalid.some((c) => error.message.includes(c)) ? 'invalid' : 'unreachable' }
 }
 
-/** `id` is minted on the device, so a retry after a lost reply returns the same note. */
-export async function apiCreateReflectionCardNote(id: string, card: number, note: string): Promise<SaveNoteResult> {
+/**
+ * `id` is minted on the device, so a retry after a lost reply returns the same
+ * note. `createdAt` (an ISO instant) is only passed when the user chose when the
+ * note happened; otherwise the server stamps its own clock.
+ */
+export async function apiCreateReflectionCardNote(
+  id: string,
+  card: number,
+  note: string,
+  createdAt?: string,
+): Promise<SaveNoteResult> {
   if (!supabase) return { ok: false, reason: 'unreachable' }
-  const { data, error } = await supabase.rpc('create_reflection_card_note', { p_id: id, p_card: card, p_note: note })
+  const { data, error } = createdAt
+    ? await supabase.rpc('create_reflection_card_note_v2', { p_id: id, p_card: card, p_note: note, p_created_at: createdAt })
+    : await supabase.rpc('create_reflection_card_note', { p_id: id, p_card: card, p_note: note })
   return error ? fail(error) : { ok: true, note: toNote(data as NoteDto) }
 }
 

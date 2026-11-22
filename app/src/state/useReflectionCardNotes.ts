@@ -60,21 +60,21 @@ export function useReflectionCardNotes(card: number, active: boolean) {
   )
 
   const addNote = useCallback(
-    async (text: string): Promise<CardNoteSaveResult> => {
+    async (text: string, when?: Date): Promise<CardNoteSaveResult> => {
       const problem = validateCardNote(text)
       if (problem) return { ok: false, message: problem }
       setSaving(true)
       const id = generateId()
       let saved: ReflectionCardNote
       if (supabaseConfigured) {
-        const result = await apiCreateReflectionCardNote(id, card, text.trim())
+        const result = await apiCreateReflectionCardNote(id, card, text.trim(), when?.toISOString())
         if (!result.ok) {
           setSaving(false)
           return { ok: false, message: result.reason === 'invalid' ? 'That note can’t be saved.' : SAVE_FAILED }
         }
         saved = result.note
       } else {
-        const now = new Date().toISOString()
+        const now = (when ?? new Date()).toISOString()
         saved = { id, card, note: text.trim(), createdAt: now, updatedAt: now }
       }
       commit([saved, ...notes])

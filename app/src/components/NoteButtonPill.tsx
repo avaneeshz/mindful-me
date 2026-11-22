@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { CalendarClock, ChevronDown, Loader2, X } from 'lucide-react'
+import { ChevronDown, Loader2, X } from 'lucide-react'
 import { Chip, chipVariants } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +14,7 @@ import {
 import { NoteEntryRow } from '@/components/NoteEntryRow'
 import { useNoteEntries } from '@/state/useNoteEntries'
 import { useNoteWhen } from '@/state/useNoteWhen'
+import { NoteWhenField } from '@/components/NoteWhenField'
 import { HeaderPopup } from '@/components/ui/HeaderPopup'
 import { cn } from '@/lib/utils'
 import { DictationField } from '@/components/ui/DictationButton'
@@ -56,7 +57,6 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
   const recentHeadingId = useId()
   const historyHeadingId = useId()
   const historyListId = useId()
-  const whenId = useId()
 
   const { entries, status, error, submitting, addNote, pendingEntryId, updateNote, deleteNote } = useNoteEntries(
     buttonKey,
@@ -223,46 +223,7 @@ export function NoteButtonPill({ buttonKey, label }: { buttonKey: NoteButtonKey;
               </DictationField>
             </div>
 
-            {when.custom ? (
-              <div className="flex flex-col gap-xs">
-                <label htmlFor={whenId} className="text-caption font-semibold text-ink-dim">
-                  When
-                </label>
-                <div className="flex items-center gap-sm">
-                  <input
-                    id={whenId}
-                    type="datetime-local"
-                    aria-invalid={when.error !== null}
-                    value={when.inputValue}
-                    max={when.max}
-                    disabled={submitting}
-                    onChange={(event) => when.setInputValue(event.target.value)}
-                    className={cn(fieldClass, 'min-w-0 flex-1 tabular-nums disabled:opacity-60')}
-                  />
-                  <Button type="button" variant="ghost" size="control" onClick={when.reset} disabled={submitting}>
-                    Use now
-                  </Button>
-                </div>
-                {when.error && (
-                  <p role="alert" className="text-caption font-semibold text-ink-dim">
-                    {when.error}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={when.start}
-                disabled={submitting}
-                className="flex items-center justify-between gap-sm rounded-md py-xs text-caption text-ink-dim transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-60"
-              >
-                <span className="flex items-center gap-xs">
-                  <CalendarClock aria-hidden="true" className="size-[14px]" />
-                  Now · {formatNoteTimestamp(new Date())}
-                </span>
-                <span className="font-semibold text-ink">Change</span>
-              </button>
-            )}
+            <NoteWhenField when={when} disabled={submitting} />
 
             {error && (
               <p role="alert" className="text-caption font-semibold text-ink-dim">
