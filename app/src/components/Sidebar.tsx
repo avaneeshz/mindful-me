@@ -209,15 +209,15 @@ export function Sidebar() {
 
       <div className="sidebar-header relative z-10 px-2xl pb-3xl">
         {/*
-          The menu button sits on its OWN row above the brand, aligned to the
+          The menu button sits on its OWN row, aligned to the
           trailing edge — expanded and collapsed alike. It is laid out with flex
-          (never absolute coordinates), so it cannot overlap the branding at any
+          (never absolute coordinates), so it cannot overlap anything at any
           width, and the rail keeps the same control in the same place instead
           of swapping in a different one.
 
           `min-h-control` reserves the band even in the one state where the
           button itself is hidden (the mobile drawer, which shows the close
-          control below instead), so the brand never jumps between states.
+          control below instead), so the nav never jumps between states.
         */}
         <div className="sidebar-collapse-row flex min-h-control items-center justify-end">
           <button
@@ -238,18 +238,6 @@ export function Sidebar() {
           >
             <Menu aria-hidden="true" className="size-[18px]" />
           </button>
-        </div>
-
-        <div className="sidebar-brand-row mt-md flex items-start gap-lg">
-          <div className="flex min-w-0 items-center gap-md">
-            <div className="flex size-brand shrink-0 items-center justify-center rounded-md bg-inv-bg">
-              <Sparkles aria-hidden="true" className="size-[18px] text-inv-ink" />
-            </div>
-            <div className="sidebar-label min-w-0">
-              <div className="font-display text-brand font-semibold text-ink">Ritual Board</div>
-              <div className="mt-xs text-micro text-ink-dim">Small steps. Every day.</div>
-            </div>
-          </div>
         </div>
       </div>
 

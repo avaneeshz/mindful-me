@@ -208,14 +208,9 @@
   padding-inline: 0;
 }
 
-.sidebar-shell.sidebar-collapsed .sidebar-collapse-row,
-.sidebar-shell.sidebar-collapsed .sidebar-brand-row {
+.sidebar-shell.sidebar-collapsed .sidebar-collapse-row {
   justify-content: center;
   padding-inline: 0;
-}
-
-.sidebar-shell.sidebar-collapsed .sidebar-brand-row > div:first-child {
-  justify-content: center;
 }
 
 /* ---------------------------------------------------------------------------

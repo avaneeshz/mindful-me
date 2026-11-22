@@ -13,7 +13,7 @@ interface HiddenItem {
   id: string
   label: string
   onRestore: () => void
-  /** Present only where a permanent delete is allowed (tiles, activities). */
+  /** Present only where a permanent delete is allowed (header buttons, tiles, activities). */
   onDelete?: () => Promise<DeleteResult>
 }
 
@@ -37,6 +37,7 @@ export function HiddenItemsPanel() {
     id: button.id,
     label: button.label,
     onRestore: () => headerButtons.unhideButton(button.id),
+    onDelete: () => headerButtons.deleteButton(button.id),
   }))
 
   const tileItems: HiddenItem[] = tiles.tiles
