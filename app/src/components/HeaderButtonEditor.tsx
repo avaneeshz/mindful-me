@@ -330,10 +330,13 @@ export function HeaderButtonFormDialog({
   onCreate,
   onUpdate,
   lockCategory = false,
+  categories = HEADER_BUTTON_CATEGORIES,
 }: {
   mode: FormMode
   /** The type was fixed by the caller (an add opened with `category`): no Back to the type list, just Cancel. */
   lockCategory?: boolean
+  /** The types offered when adding; the header offers all four, a State Tile leaves out Quick activity. */
+  categories?: readonly HeaderButtonCategory[]
   /** The user's categories — the form's Category picker, which is also how a button is moved by tapping. */
   groups: readonly HeaderButtonGroup[]
   onClose: () => void
@@ -497,7 +500,7 @@ export function HeaderButtonFormDialog({
         {step === 'type' && (
           <div role="group" aria-label="Button type" className="flex flex-col gap-sm">
             <p className="text-body text-ink-dim">What kind of button do you want to add?</p>
-            {HEADER_BUTTON_CATEGORIES.map((option) => {
+            {categories.map((option) => {
               const Icon = TYPE_CHOICES[option].icon
               return (
                 <button

@@ -13,6 +13,7 @@ import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
 import { setDisplayButtonsRegistry } from '@/domain/displayButtons'
 import type { NewHeaderButtonInput } from '@/domain/headerButtonForm'
 import {
+  HEADER_BUTTON_CATEGORIES,
   groupHeaderButtons,
   layoutAfterMove,
   layoutFromRows,
@@ -27,8 +28,8 @@ import { cn } from '@/lib/utils'
 
 /**
  * The full-screen window every State Tile opens. It is the header's own
- * button system on a bigger canvas, for this one tile: the same four kinds of
- * button (quick activity, checklist, content entry, daily number), the same
+ * button system on a bigger canvas, for this one tile: three of the header's four
+ * kinds of button (checklist, content entry, daily number — not quick activity), the same
  * named categories, the same Edit mode with drag-to-arrange (and the same moves
  * by tapping), add, edit and delete. The buttons are the tile's alone — they
  * are stored like the header's (`header_buttons` rows) but carry the tile's
@@ -68,6 +69,9 @@ export function StateTileWindow({
     </Dialog.Root>
   )
 }
+
+/** A State Tile holds every kind of header button except Quick activity. */
+const TILE_BUTTON_CATEGORIES = HEADER_BUTTON_CATEGORIES.filter((c) => c !== 'activity')
 
 type FormMode = null | { kind: 'add'; groupId: string } | { kind: 'edit'; button: HeaderButtonConfig }
 
@@ -151,7 +155,7 @@ function StateTileWindowBody({ card, title, onClose }: { card: number; title: st
                   <div className="flex flex-col gap-xs">
                     <p className="text-body font-semibold text-ink">No buttons yet</p>
                     <p className="text-caption text-ink-dim">
-                      Add a button to log an activity, tick a checklist, keep a daily number or write notes for {title}.
+                      Add a button to tick a checklist, keep a daily number or write notes for {title}.
                     </p>
                   </div>
                   {firstGroup && <AddHeaderButtonChip onClick={() => setFormMode({ kind: 'add', groupId: firstGroup.id })} />}
@@ -250,6 +254,7 @@ function StateTileWindowBody({ card, title, onClose }: { card: number; title: st
         <HeaderButtonFormDialog
           mode={formMode}
           groups={board.groups}
+          categories={TILE_BUTTON_CATEGORIES}
           onClose={() => setFormMode(null)}
           onCreate={handleCreate}
           onUpdate={handleUpdate}
