@@ -95,16 +95,9 @@ export function ActivityEditView({
       {/* Title, icon and colour share one line (like the tile editor); the icon opens its picker just below. */}
       <div className="flex flex-wrap items-center gap-x-md gap-y-sm">
         <div className="flex min-w-0 items-center gap-xs">
-          <button
-            type="button"
-            aria-label={`Change icon for ${activity.name}`}
-            aria-expanded={choosingIcon}
-            title="Change icon"
-            onClick={() => setChoosingIcon((v) => !v)}
-            className="mr-xs flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink transition-colors hover:bg-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
-          >
+          <span className="mr-xs flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink">
             <ActivityIcon aria-hidden="true" className="size-[16px]" />
-          </button>
+          </span>
           {renaming ? (
             <div className="min-w-[220px] flex-1">
               <InlineNameForm
@@ -126,6 +119,16 @@ export function ActivityEditView({
             </>
           )}
         </div>
+        <Button
+          variant="outline"
+          size="inline"
+          className="px-sm py-xs text-caption"
+          aria-label={`Change icon for ${activity.name}`}
+          aria-expanded={choosingIcon}
+          onClick={() => setChoosingIcon((v) => !v)}
+        >
+          {choosingIcon ? 'Done' : 'Change icon'}
+        </Button>
         <ColorPicker
           compact
           value={activity.color ?? null}
