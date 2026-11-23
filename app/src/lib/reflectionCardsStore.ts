@@ -1,4 +1,5 @@
 import { readStoredJSON, writeStoredJSON } from '@/lib/storage'
+import { frameKey } from '@/lib/frame'
 import { parseCardNames, type ReflectionCardNames } from '@/domain/reflectionCardNames'
 import { isCustomCard, normalizeCardOrder, normalizeHiddenCards } from '@/domain/reflectionCardOrder'
 import { flattenCardGroups, normalizeCardGroups, type CardGroup } from '@/domain/reflectionCardGroups'
@@ -22,7 +23,7 @@ export interface CardCustomization {
   groups: readonly CardGroup[]
 }
 
-const keyFor = (owner: string) => `mindful-me:state-tiles:${owner}`
+const keyFor = (owner: string) => frameKey(`mindful-me:state-tiles:${owner}`)
 
 export function parseCardImages(value: unknown): Record<number, string> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}

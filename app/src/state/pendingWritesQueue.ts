@@ -18,6 +18,12 @@ export interface PendingWrite {
   id: string
   /** Owner — a change is only ever replayed into the account that made it. */
   userId: string
+  /**
+   * The frame the change was made in. Rows are partitioned by frame, so it is only replayed while
+   * that frame is the one on screen (its requests carry that frame). Absent on entries saved before
+   * frames existed, which read as Frame 1.
+   */
+  frame?: number
   /** Replay handler name, e.g. `tile.update` (see the registry in `pendingWrites.ts`). */
   action: string
   /** Collection the record belongs to, e.g. `tile` — what reconcile asks about. */
@@ -97,9 +103,16 @@ export function findWrite(queue: PendingWrites, userId: string, entity: string, 
 }
 
 /** The next entry to replay: oldest first, due, not behind an earlier change to the same record, not in flight. */
-export function nextDueWrite(queue: PendingWrites, userId: string, now: number, inFlight: ReadonlySet<string>): PendingWrite | null {
+export function nextDueWrite(
+  queue: PendingWrites,
+  userId: string,
+  now: number,
+  inFlight: ReadonlySet<string>,
+  frame = 1,
+): PendingWrite | null {
   const mine = writesForUser(queue, userId).sort((a, b) => a.createdAt - b.createdAt)
   for (const write of mine) {
+    if ((write.frame ?? 1) !== frame) continue // waits until its own frame is on screen
     if (inFlight.has(write.id) || write.nextAttemptAt > now || isBlocked(mine, write)) continue
     return write
   }

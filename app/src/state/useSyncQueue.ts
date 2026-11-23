@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { logActivity } from '@/lib/activityLogger'
+import { getFrame } from '@/lib/frame'
 import { withSyncLock } from '@/lib/syncLock'
 import { dateFromLocalDateISO } from '@/lib/localTime'
 import { runIntent, type SyncIntent } from './sync'
@@ -169,7 +170,7 @@ export function useSyncQueue(disabled: boolean): SyncQueueHandle {
     for (const intent of intents) {
       logActivity({ kind: 'save', summary: `Saved on device: ${describeSyncIntent(intent)}`, detail: intent })
     }
-    updateQueue((current) => enqueueIntents(current, intents, referenceDateISO, Date.now(), () => crypto.randomUUID()))
+    updateQueue((current) => enqueueIntents(current, intents, referenceDateISO, Date.now(), () => crypto.randomUUID(), getFrame()))
     void drainQueue()
   }
 
