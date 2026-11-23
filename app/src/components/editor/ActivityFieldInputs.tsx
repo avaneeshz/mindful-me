@@ -18,11 +18,14 @@ export function ActivityFieldInputs({
   values,
   onSetText,
   onToggleLabel,
+  compact,
 }: {
   fields: readonly ActivityField[]
   values: FieldValues
   onSetText: (fieldId: string, text: string) => void
   onToggleLabel: (fieldId: string, label: string) => void
+  /** The narrower header quick-log popup: smaller captions and shorter text areas. */
+  compact?: boolean
 }) {
   return (
     <>
@@ -38,7 +41,7 @@ export function ActivityFieldInputs({
                   onChange={(event) => onSetText(field.id, event.target.value)}
                   aria-label={field.label}
                   placeholder={field.label}
-                  rows={3}
+                  rows={compact ? 2 : 3}
                   className={TEXTAREA}
                 />
               </DictationField>
@@ -54,6 +57,7 @@ export function ActivityFieldInputs({
               options={options}
               selected={selected}
               onToggle={(label) => onToggleLabel(field.id, label)}
+              compact={compact}
             />
           )
         })}

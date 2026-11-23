@@ -8,6 +8,7 @@ import {
   type ActivityFieldKind,
   type StandardFieldKey,
 } from '@/domain/activityFields'
+import { displayButtonForActivityName } from '@/domain/displayButtons'
 import { reconcileList } from '@/domain/reconcileList'
 import { generateId } from '@/domain/scheduling'
 import type { ActivityRow } from '@/domain/pickerHierarchy'
@@ -62,8 +63,12 @@ function localStandardFields(rows: readonly ActivityRow[]): ActivityField[] {
       legacyKey: key,
       options: [],
     })
+    // A header button (Sleep's "Dreams", "How was your sleep?") can carry fields of its own; the
+    // database copies them onto the activity, so the preview does too.
+    const buttonFields = displayButtonForActivityName(row.name)?.noteFields ?? []
+    const secondLabel = row.secondNoteLabel?.trim() || buttonFields.find((f) => f.fieldKind === 'text' && f.key === 'secondary')?.label
     out.push(note('note_primary', row.noteLabel?.trim() || 'Notes', 0))
-    if (row.secondNoteLabel?.trim()) out.push(note('note_secondary', row.secondNoteLabel.trim(), 1))
+    if (secondLabel) out.push(note('note_secondary', secondLabel, 1))
     ;(['quality', 'symptom', 'flag'] as const).forEach((type, index) => {
       out.push({
         id: `local:${row.id}:${type}`,
@@ -76,6 +81,20 @@ function localStandardFields(rows: readonly ActivityRow[]): ActivityField[] {
         options: vocabulary[type].map((o, i) => ({ id: `${row.id}:${o.id}`, label: o.label, sortOrder: i, hidden: false })),
       })
     })
+    buttonFields
+      .filter((f) => f.fieldKind === 'multiselect')
+      .forEach((f, index) => {
+        out.push({
+          id: `local:${row.id}:button:${f.id}`,
+          activityId: row.id,
+          kind: 'multiselect',
+          label: f.label,
+          sortOrder: 5 + index,
+          hidden: false,
+          legacyKey: null,
+          options: f.options.map((label, i) => ({ id: `${row.id}:${f.id}:${label}`, label, sortOrder: i, hidden: false })),
+        })
+      })
   }
   return out
 }

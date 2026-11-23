@@ -58,4 +58,20 @@ describe('custom field values while logging', () => {
     const s = run(start([entry]), { type: 'editActivity', id: 'e1' }, { type: 'commit' })
     expect(s.activities.find((a) => a.id === 'e1')!.fieldValues).toBeUndefined()
   })
+
+  it('saves a header quick-log entry’s values on the activity and syncs them with it', () => {
+    const before = start()
+    const after = boardReducer(before, {
+      type: 'quickLogActivity',
+      cardName: 'Homework',
+      startMinutes: 600,
+      durationMinutes: 30,
+      fieldValues: { sleep: { text: null, labels: ['Deep Restorative'] } },
+    })
+    const saved = after.activities.find((a) => a.name === 'Homework')!
+    expect(saved.fieldValues).toEqual({ sleep: { text: null, labels: ['Deep Restorative'] } })
+    expect(deriveSyncIntents({ type: 'quickLogActivity', cardName: 'Homework', startMinutes: 600, durationMinutes: 30 }, before, after)).toEqual([
+      { kind: 'create', activity: saved },
+    ])
+  })
 })
