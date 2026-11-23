@@ -10,6 +10,17 @@ import {
   apiSetHeaderButtonHidden,
   apiUpdateHeaderButton,
 } from '@/api/headerButtons'
+import {
+  apiCreateActivityField,
+  apiCreateActivityFieldOption,
+  apiRenameActivityField,
+  apiRenameActivityFieldOption,
+  apiReorderActivityFieldOptions,
+  apiReorderActivityFields,
+  apiSetActivityFieldHidden,
+  apiSetActivityFieldOptionHidden,
+  type FieldWriteResult,
+} from '@/api/activityFields'
 import { apiCreateNoteEntry, apiDeleteNoteEntry, apiUpdateNoteEntry } from '@/api/notes'
 import { apiCreateParameterOption, apiSetActivityParameterSelection } from '@/api/parameterOptions'
 import { apiSetDailyValue } from '@/api/dailyValues'
@@ -59,6 +70,11 @@ const reasoned = (result: { ok: boolean; reason?: string }): Executed => ({
   outcome: result.ok ? 'ok' : result.reason === 'duplicate_name' ? 'rejected' : 'retry',
   result,
 })
+/** A field/option write the server refused for good (a clashing title) is dropped, not retried forever. */
+const fieldWrite = (result: FieldWriteResult): Executed => ({
+  outcome: result.ok ? 'ok' : result.reason === 'duplicate' ? 'rejected' : 'retry',
+  result,
+})
 
 /** Where the server assigned its own id (notes), the device-made id a later edit still carries maps to it. */
 let idMap: Record<string, string> = {}
@@ -74,6 +90,14 @@ function rememberServerId(write: Pick<PendingWrite, 'action' | 'recordId'>, resu
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /** Replay handlers, by action name. The args are exactly what the hook passed, round-tripped through JSON. */
 const executors: Record<string, (...args: any[]) => Promise<Executed>> = {
+  'activityField.create': async (id, activityId, kind, label) => fieldWrite(await apiCreateActivityField(id, activityId, kind, label)),
+  'activityField.rename': async (id, label) => fieldWrite(await apiRenameActivityField(id, label)),
+  'activityField.setHidden': async (id, hidden) => fieldWrite(await apiSetActivityFieldHidden(id, hidden)),
+  'activityField.reorder': async (activityId, ids) => fieldWrite(await apiReorderActivityFields(activityId, ids)),
+  'activityFieldOption.create': async (id, fieldId, label) => fieldWrite(await apiCreateActivityFieldOption(id, fieldId, label)),
+  'activityFieldOption.rename': async (id, label) => fieldWrite(await apiRenameActivityFieldOption(id, label)),
+  'activityFieldOption.setHidden': async (id, hidden) => fieldWrite(await apiSetActivityFieldOptionHidden(id, hidden)),
+  'activityFieldOption.reorder': async (fieldId, ids) => fieldWrite(await apiReorderActivityFieldOptions(fieldId, ids)),
   'tile.create': async (id, label, iconKey) => nullable(await apiCreateTile(id, label, iconKey)),
   'tile.update': async (id, label, iconKey) => bool(await apiUpdateTile(id, label, iconKey)),
   'tile.setColor': async (id, color) => bool(await apiSetTileColor(id, color)),

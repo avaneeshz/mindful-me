@@ -16,6 +16,7 @@ import { useDismissedActivities } from '@/state/dismissedActivities'
 import { activitySyncState, type SyncQueue } from '@/state/syncQueue'
 import { useCatalogActivityId } from '@/state/useCatalogActivityId'
 import { useActivityNoteFields } from '@/state/useActivityNoteFields'
+import { useCustomFieldsForActivity } from '@/state/useCustomFieldsForActivity'
 import { useEffectiveParameterOptions } from '@/state/useEffectiveParameterOptions'
 import { ActivitySummary } from './ActivitySummary'
 import { CapacityMeter, type CapacityMeterSegment } from './CapacityMeter'
@@ -177,6 +178,7 @@ export function SlotEditor({
   // justified.
   const stagedActivityId = useCatalogActivityId(staging.cardName)
   const noteFields = useActivityNoteFields(staging.cardName)
+  const customFields = useCustomFieldsForActivity(staging.cardName, staging.path)
   const parameterOptions = useEffectiveParameterOptions(stagedActivityId)
   const qualityOptions =
     parameterOptions.status === 'ready' ? parameterOptions.effective.quality.map((o) => o.label) : undefined
@@ -303,6 +305,9 @@ export function SlotEditor({
         onSetNotes={(notes) => dispatch({ type: 'setStagingNotes', notes })}
         onToggleFieldSelection={(fieldId, value) => dispatch({ type: 'toggleStagingFieldSelection', fieldId, value })}
         onSetDreamsNote={(note) => dispatch({ type: 'setStagingDreamsNote', note })}
+        customFields={customFields}
+        onSetFieldText={(fieldId, text) => dispatch({ type: 'setStagingFieldText', fieldId, text })}
+        onToggleFieldValue={(fieldId, label) => dispatch({ type: 'toggleStagingFieldValue', fieldId, label })}
         onCommit={() => dispatch({ type: 'commit' })}
         onCancel={() => dispatch({ type: 'cancelStaging' })}
         qualityOptions={qualityOptions}

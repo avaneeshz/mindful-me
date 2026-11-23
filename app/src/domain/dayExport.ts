@@ -30,7 +30,8 @@ import {
 } from './displayButtons'
 import { formatEntryTypes, formatNoteTimestamp, noteButtonLabel, type NoteEntry } from './notes'
 import { localDateISO } from '@/lib/localTime'
-import type { ActivityList } from './types'
+import { hasFieldValues, recordedFields, type ActivityField } from './activityFields'
+import type { ActivityList, ScheduledActivity } from './types'
 
 export interface ExportReflectionEntry {
   card: number
@@ -50,7 +51,19 @@ export interface ExportActivity {
   /** At most one (rule: "Protective response" is single-select) — `null` when none was recorded. */
   flag: string | null
   notes: string | null
+  /**
+   * The activity's own notes and multiple-select fields as recorded on this entry, in order — set when
+   * the entry used them, in which case the fixed quality / symptoms / protective-response / notes above
+   * are not printed. `null` keeps the original fixed layout (older entries, or fields not available).
+   */
+  customFields: ExportField[] | null
   reflections: ExportReflectionEntry[]
+}
+
+export interface ExportField {
+  label: string
+  /** A note's text, or a multiple-select field's choices joined for display ("—" when none). */
+  value: string
 }
 
 export interface ExportNoteEntry {
@@ -106,10 +119,24 @@ export interface DayExportInput {
   localDisplayValues?: Partial<Record<DisplayButtonKey, number | null>>
   /** Resolves a reflection card number to its display title (`data/reflectionCards.ts`, kept out of this pure module). */
   reflectionCardTitle: (card: number) => string
+  /** The activity's own fields (hidden included) for an entry, or undefined when unavailable — see `ExportActivity.customFields`. */
+  fieldsForActivity?: (activity: ScheduledActivity) => readonly ActivityField[] | undefined
 }
 
 function formatDateLabel(date: Date): string {
   return date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+function customFieldsFor(
+  activity: ScheduledActivity,
+  fieldsFor: DayExportInput['fieldsForActivity'],
+): ExportField[] | null {
+  const fields = fieldsFor?.(activity)
+  if (!fields || !activity.fieldValues || !hasFieldValues(activity.fieldValues)) return null
+  return recordedFields(fields, activity.fieldValues).map((f) => ({
+    label: f.label,
+    value: f.kind === 'text' ? (f.text ?? '') : f.labels.length > 0 ? f.labels.join(', ') : '—',
+  }))
 }
 
 export function assembleDayExport(input: DayExportInput): DayExportData {
@@ -128,6 +155,7 @@ export function assembleDayExport(input: DayExportInput): DayExportData {
     symptoms: [...a.symptoms],
     flag: a.flags[0] ?? null,
     notes: a.notes,
+    customFields: customFieldsFor(a, input.fieldsForActivity),
     reflections: a.reflections.map((r) => ({
       card: r.card,
       title: input.reflectionCardTitle(r.card),

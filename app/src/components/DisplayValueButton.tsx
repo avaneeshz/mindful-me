@@ -45,6 +45,9 @@ import { loadDisplayValue, saveDisplayValue } from '@/lib/displayValuesLocalStor
 import type { DisplayValueHistoryEntry } from '@/lib/displayValuesLocalStore'
 import { dateFromLocalDateISO, localDateISO } from '@/lib/localTime'
 import { HeaderPopup } from '@/components/ui/HeaderPopup'
+import { ActivityFieldInputs } from '@/components/editor/ActivityFieldInputs'
+import { withText, withToggledLabel, type FieldValues as ActivityFieldValues } from '@/domain/activityFields'
+import { useCustomFieldsForActivity } from '@/state/useCustomFieldsForActivity'
 import { cn } from '@/lib/utils'
 import { DictationField } from '@/components/ui/DictationButton'
 
@@ -160,6 +163,10 @@ export function DisplayValueButton({
   const [note, setNote] = useState('')
   const [fieldSelections, setFieldSelections] = useState<FieldSelections>({})
   const [dreamsNote, setDreamsNote] = useState('')
+  // The activity's own notes and multiple-select values (`domain/activityFields.ts`) — the popup
+  // follows the activity's fields; the old button-configured ones are only a fallback.
+  const [fieldValues, setFieldValues] = useState<ActivityFieldValues>({})
+  const customFields = useCustomFieldsForActivity(quickLogName ?? null, type ? [type] : [])
   const [error, setError] = useState<string | null>(null)
   // Rule 9's double-submit guard: `onQuickLog`/`commitLocal` return
   // synchronously (the actual write is dispatched in the background), so
@@ -294,6 +301,7 @@ export function DisplayValueButton({
     setNote('')
     setFieldSelections({})
     setDreamsNote('')
+    setFieldValues({})
     setError(null)
     setSubmitting(false)
     setOpen(true)
@@ -339,9 +347,10 @@ export function DisplayValueButton({
         startMinutes,
         durationMinutes,
         path: type ? [type] : [],
-        notes: hasNote && note.trim() ? note : null,
-        fieldSelections,
-        dreamsNote: hasDreamsNote && dreamsNote.trim() ? dreamsNote : null,
+        notes: !customFields && hasNote && note.trim() ? note : null,
+        fieldSelections: customFields ? {} : fieldSelections,
+        dreamsNote: !customFields && hasDreamsNote && dreamsNote.trim() ? dreamsNote : null,
+        fieldValues: customFields ? fieldValues : undefined,
       })
       if (!result.ok) {
         setSubmitting(false)
@@ -360,6 +369,7 @@ export function DisplayValueButton({
       setNote('')
       setFieldSelections({})
       setDreamsNote('')
+      setFieldValues({})
       setError(null)
       setOpen(false)
       triggerRef.current?.focus()
@@ -490,66 +500,78 @@ export function DisplayValueButton({
                   </fieldset>
                 )}
 
-                {multiselectFields.map((field) => (
-                  <MultiselectFieldPicker
-                    key={field.id}
-                    label={field.label}
-                    options={field.options}
-                    selected={fieldSelections[field.id] ?? []}
-                    onToggle={(value) =>
-                      setFieldSelections((prev) => {
-                        const current = prev[field.id] ?? []
-                        return {
-                          ...prev,
-                          [field.id]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
-                        }
-                      })
-                    }
+                {customFields ? (
+                  <ActivityFieldInputs
                     compact
+                    fields={customFields}
+                    values={fieldValues}
+                    onSetText={(fieldId, text) => setFieldValues((prev) => withText(prev, fieldId, text))}
+                    onToggleLabel={(fieldId, label) => setFieldValues((prev) => withToggledLabel(prev, fieldId, label))}
                   />
-                ))}
-
-                {/* Dreams before the general Note (swapped per product
-                    feedback), and neither carries a visible heading any
-                    more — same convention `LogActivityModal.tsx`'s own
-                    top-level Notes textarea already uses: no expand/
-                    collapse, no separate caption line, the placeholder
-                    alone carries the label. An `sr-only` `<label>` keeps
-                    each field named for assistive tech. */}
-                {hasDreamsNote && (
-                  <div>
-                    <label htmlFor={`${inputId}-dreams`} className="sr-only">
-                      {displayButtonNoteFieldLabel(buttonKey, 'secondary')}
-                    </label>
-                    <DictationField>
-                      <textarea
-                        id={`${inputId}-dreams`}
-                        value={dreamsNote}
-                        onChange={(event) => setDreamsNote(event.target.value)}
-                        placeholder={displayButtonNoteFieldLabel(buttonKey, 'secondary')}
-                        rows={2}
-                        className={cn('pr-5xl', textareaClass)}
+                ) : (
+                  <>
+                    {multiselectFields.map((field) => (
+                      <MultiselectFieldPicker
+                        key={field.id}
+                        label={field.label}
+                        options={field.options}
+                        selected={fieldSelections[field.id] ?? []}
+                        onToggle={(value) =>
+                          setFieldSelections((prev) => {
+                            const current = prev[field.id] ?? []
+                            return {
+                              ...prev,
+                              [field.id]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
+                            }
+                          })
+                        }
+                        compact
                       />
-                    </DictationField>
-                  </div>
-                )}
+                    ))}
 
-                {hasNote && (
-                  <div>
-                    <label htmlFor={`${inputId}-note`} className="sr-only">
-                      {displayButtonNoteFieldLabel(buttonKey, 'primary')}
-                    </label>
-                    <DictationField>
-                      <textarea
-                        id={`${inputId}-note`}
-                        value={note}
-                        onChange={(event) => setNote(event.target.value)}
-                        placeholder={`Add a ${displayButtonNoteFieldLabel(buttonKey, 'primary').toLowerCase()}`}
-                        rows={2}
-                        className={cn('pr-5xl', textareaClass)}
-                      />
-                    </DictationField>
-                  </div>
+                    {/* Dreams before the general Note (swapped per product
+                        feedback), and neither carries a visible heading any
+                        more — same convention `LogActivityModal.tsx`'s own
+                        top-level Notes textarea already uses: no expand/
+                        collapse, no separate caption line, the placeholder
+                        alone carries the label. An `sr-only` `<label>` keeps
+                        each field named for assistive tech. */}
+                    {hasDreamsNote && (
+                      <div>
+                        <label htmlFor={`${inputId}-dreams`} className="sr-only">
+                          {displayButtonNoteFieldLabel(buttonKey, 'secondary')}
+                        </label>
+                        <DictationField>
+                          <textarea
+                            id={`${inputId}-dreams`}
+                            value={dreamsNote}
+                            onChange={(event) => setDreamsNote(event.target.value)}
+                            placeholder={displayButtonNoteFieldLabel(buttonKey, 'secondary')}
+                            rows={2}
+                            className={cn('pr-5xl', textareaClass)}
+                          />
+                        </DictationField>
+                      </div>
+                    )}
+
+                    {hasNote && (
+                      <div>
+                        <label htmlFor={`${inputId}-note`} className="sr-only">
+                          {displayButtonNoteFieldLabel(buttonKey, 'primary')}
+                        </label>
+                        <DictationField>
+                          <textarea
+                            id={`${inputId}-note`}
+                            value={note}
+                            onChange={(event) => setNote(event.target.value)}
+                            placeholder={`Add a ${displayButtonNoteFieldLabel(buttonKey, 'primary').toLowerCase()}`}
+                            rows={2}
+                            className={cn('pr-5xl', textareaClass)}
+                          />
+                        </DictationField>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {error && (

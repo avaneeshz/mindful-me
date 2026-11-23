@@ -1,6 +1,7 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { useActivityHierarchy, type UseActivityHierarchyResult } from './useActivityHierarchy'
 import { useTiles, type UseTilesResult } from './useTiles'
+import { useActivityFields, type UseActivityFieldsResult } from './useActivityFields'
 import { useCustomIcons, type UseCustomIconsResult } from './useCustomIcons'
 
 interface PickerDataContextValue {
@@ -8,6 +9,8 @@ interface PickerDataContextValue {
   activities: UseActivityHierarchyResult
   /** Uploaded icons for tiles and activities (#15). */
   customIcons: UseCustomIconsResult
+  /** Each top-level activity's own notes and multiple-select fields. */
+  activityFields: UseActivityFieldsResult
 }
 
 const PickerDataContext = createContext<PickerDataContextValue | null>(null)
@@ -35,7 +38,8 @@ export function PickerDataProvider({ children }: { children: ReactNode }) {
   const tiles = useTiles()
   const activities = useActivityHierarchy()
   const customIcons = useCustomIcons()
-  return <PickerDataContext.Provider value={{ tiles, activities, customIcons }}>{children}</PickerDataContext.Provider>
+  const activityFields = useActivityFields(activities.activities)
+  return <PickerDataContext.Provider value={{ tiles, activities, customIcons, activityFields }}>{children}</PickerDataContext.Provider>
 }
 
 export function usePickerData(): PickerDataContextValue {

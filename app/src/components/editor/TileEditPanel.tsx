@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Pencil, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import type { TileDto } from '@/api/tiles'
 import { ActivityEditView } from '@/components/editor/ActivityEditView'
 import { AddNameRow, RowIconButton } from '@/components/editor/ActivityRows'
@@ -12,6 +11,7 @@ import { effectiveActivityColor } from '@/domain/colors'
 import { childrenOf, isTopLevelNameTaken } from '@/domain/pickerHierarchy'
 import { colorTintStyle } from '@/components/ui/colorStyles'
 import { resolveIcon } from '@/lib/iconRegistry'
+import type { UseActivityFieldsResult } from '@/state/useActivityFields'
 import type { UseActivityHierarchyResult } from '@/state/useActivityHierarchy'
 import type { UseTilesResult } from '@/state/useTiles'
 
@@ -24,14 +24,15 @@ export function TileEditPanel({
   tile,
   tiles,
   activities,
+  activityFields,
   onClose,
 }: {
   tile: TileDto
   tiles: Pick<UseTilesResult, 'renameTile' | 'setTileColor' | 'tiles'>
   activities: UseActivityHierarchyResult
+  activityFields: UseActivityFieldsResult
   onClose: () => void
 }) {
-  const navigate = useNavigate()
   const [openActivityId, setOpenActivityId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const rows = activities.activities
@@ -53,10 +54,10 @@ export function TileEditPanel({
         tileLabel={tile.label}
         tiles={tiles.tiles}
         activities={activities}
+        activityFields={activityFields}
         onBack={() => setOpenActivityId(parent ? parent.id : null)}
         onOpen={setOpenActivityId}
         onClose={onClose}
-        onManageOptions={() => navigate('/settings#options')}
       />
     )
   }
