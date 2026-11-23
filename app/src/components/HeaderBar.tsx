@@ -9,6 +9,7 @@ import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
 import { CounclTitle } from '@/components/CounclBrand'
+import { FrameSwitcher } from '@/components/FrameSwitcher'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { EditModeToggle, HeaderButtonFormDialog } from '@/components/HeaderButtonEditor'
@@ -204,6 +205,10 @@ export function HeaderBar({
             </Link>
           </h1>
         </div>
+
+        {/* Between the name and the day controls. Today has a single frame, so
+            both arrows rest disabled until a second one exists. */}
+        <FrameSwitcher frame={1} frameCount={1} className="mobile:order-last mobile:w-full mobile:justify-center" />
 
         <div className="flex flex-wrap items-center justify-end gap-sm">
           {/*
