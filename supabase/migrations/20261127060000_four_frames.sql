@@ -593,16 +593,29 @@ $$;
 
 -- 5. The shared timeline keeps working across frames: its functions see every frame's
 --    activities, options and fields (a timeline entry may belong to any frame).
+-- (Supabase's postgres role may not run `ALTER FUNCTION ... SET app.*`, so each
+--  plpgsql function sets the flag itself, transaction-locally, as its first statement.
+--  SQL-language functions have no body to patch; they read through RLS and only ever
+--  see the request's own frame, which is the correct behaviour for them.)
 do $$
-declare r record;
+declare r record; v_def text; v_new text;
 begin
   for r in
-    select p.oid::regprocedure as sig
-    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where (n.nspname = 'public' and p.proname in ('create_scheduled_activity', 'reschedule_scheduled_activity', 'list_scheduled_activities', 'to_scheduled_activity_dto', 'scheduling_ceiling', 'log_scheduled_activity_event', 'soft_delete_scheduled_activity', 'restore_scheduled_activity', 'purge_deleted_scheduled_activities', 'list_scheduled_activity_field_values', 'set_scheduled_activity_dreams', 'set_scheduled_activity_field_selections', 'set_scheduled_activity_field_values', 'set_scheduled_activity_flags', 'set_scheduled_activity_notes', 'set_scheduled_activity_quality', 'set_scheduled_activity_reflections', 'set_scheduled_activity_sleep_quality', 'set_scheduled_activity_status', 'set_scheduled_activity_symptoms'))
-       or (n.nspname = 'internal' and p.proname in ('write_scheduled_activity_field_selections'))
+    select p.oid, p.oid::regprocedure as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    join pg_language l on l.oid = p.prolang
+    where l.lanname = 'plpgsql'
+      and ((n.nspname = 'public' and p.proname in ('create_scheduled_activity', 'reschedule_scheduled_activity', 'list_scheduled_activities', 'to_scheduled_activity_dto', 'scheduling_ceiling', 'log_scheduled_activity_event', 'soft_delete_scheduled_activity', 'restore_scheduled_activity', 'purge_deleted_scheduled_activities', 'list_scheduled_activity_field_values', 'set_scheduled_activity_dreams', 'set_scheduled_activity_field_selections', 'set_scheduled_activity_field_values', 'set_scheduled_activity_flags', 'set_scheduled_activity_notes', 'set_scheduled_activity_quality', 'set_scheduled_activity_reflections', 'set_scheduled_activity_sleep_quality', 'set_scheduled_activity_status', 'set_scheduled_activity_symptoms'))
+        or (n.nspname = 'internal' and p.proname in ('write_scheduled_activity_field_selections')))
   loop
-    execute format('alter function %s set app.any_frame = ''1''', r.sig);
+    v_def := pg_get_functiondef(r.oid);
+    continue when v_def like '%app.any_frame%';
+    v_new := regexp_replace(v_def, '(\n\s*begin\s*\n)', E'\\1  perform set_config(''app.any_frame'', ''1'', true);\n');
+    if v_new = v_def then
+      raise exception 'could not patch %', r.sig;
+    end if;
+    execute v_new;
   end loop;
 end $$;
 
