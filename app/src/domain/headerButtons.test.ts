@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_CUSTOM_CARDS } from '@/domain/reflectionCardOrder'
 import {
   DEFAULT_HEADER_BUTTONS,
   buttonTileCard,
@@ -500,10 +501,10 @@ describe('button pages', () => {
     expect(findGroupByName(groups, 'Dashboard')).toBeNull()
   })
 
-  it('reserves distinct scopes inside the tile range, above the 50 custom tiles', () => {
+  it('reserves distinct scopes inside the tile range, above the custom tiles', () => {
     const scopes = Object.values(BUTTON_PAGES).map((p) => p.scope)
     expect(new Set(scopes).size).toBe(scopes.length)
-    for (const scope of scopes) expect(scope).toBeGreaterThan(18 + 50)
+    for (const scope of scopes) expect(scope).toBeGreaterThan(18 + MAX_CUSTOM_CARDS)
     for (const scope of scopes) expect(scope).toBeLessThanOrEqual(500)
   })
 })
