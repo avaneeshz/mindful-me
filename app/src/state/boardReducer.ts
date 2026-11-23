@@ -220,6 +220,7 @@ export type BoardAction =
       notes?: string | null
       fieldSelections?: FieldSelections
       dreamsNote?: string | null
+      fieldValues?: FieldValues
     }
 
 /**
@@ -736,6 +737,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         notes: action.notes?.trim() ? action.notes : null,
         fieldSelections: action.fieldSelections ?? {},
         dreamsNote: action.dreamsNote?.trim() ? action.dreamsNote : null,
+        fieldValues: action.fieldValues,
       })
       return { ...state, activities: [...state.activities, committed] }
     }

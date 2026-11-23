@@ -286,18 +286,18 @@ export function LogActivityModal({
                     </DictationField>
                   </div>
                 )}
+                {multiselectFields.map((field) => (
+                  <MultiselectFieldPicker
+                    key={field.id}
+                    label={field.label}
+                    options={field.options}
+                    selected={staging.fieldSelections[field.id] ?? []}
+                    onToggle={(value) => onToggleFieldSelection(field.id, value)}
+                  />
+                ))}
               </>
             )}
 
-            {multiselectFields.map((field) => (
-              <MultiselectFieldPicker
-                key={field.id}
-                label={field.label}
-                options={field.options}
-                selected={staging.fieldSelections[field.id] ?? []}
-                onToggle={(value) => onToggleFieldSelection(field.id, value)}
-              />
-            ))}
 
             {/* Save: a small centered pill, not a full-width bar. Cancel is
                 gone — the X close icon above is the only way to dismiss

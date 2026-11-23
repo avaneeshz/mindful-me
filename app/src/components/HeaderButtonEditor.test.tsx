@@ -96,44 +96,19 @@ describe('HeaderButtonFormDialog — add mode', () => {
   })
 })
 
-describe('HeaderButtonFormDialog — edit mode, Sleep (2 text fields + 1 multiselect)', () => {
-  it('renders all 3 configured fields, each with its own type caption', () => {
+describe('HeaderButtonFormDialog — edit mode: notes and fields come from the activity', () => {
+  it('no longer lists or edits the button’s own fields — Sleep’s notes and multiple-select field live on the activity', () => {
     const html = renderEdit()
     expect(html).toContain('Edit Sleep')
-    expect(html).toContain('Note')
-    expect(html).toContain('Dreams')
-    expect(html).toContain('How was your sleep?')
-    // Two text captions (Note, Dreams) + one multiple-choice caption.
-    expect(html.match(/Text note/g)?.length).toBe(2)
-    expect(html.match(/Multiple choice/g)?.length).toBe(1)
-  })
-
-  it('lets the button remove only its own multiple-choice field — text notes belong to the activity', () => {
-    const html = renderEdit()
-    expect(html).not.toContain('aria-label="Remove Note"')
-    expect(html).not.toContain('aria-label="Remove Dreams"')
-    expect(html).toContain('aria-label="Remove How was your sleep?"')
-    expect(html).not.toContain('from the activity')
-  })
-
-  it('does not explain where note fields come from', () => {
-    expect(renderEdit()).not.toContain('Written notes come from the activity itself')
-  })
-
-  it('still shows the dashed "+ Add field" row below the configured list', () => {
-    const html = renderEdit()
-    expect(html).toContain('border-dashed')
-    expect(html).toContain('Add multiple-choice field')
-  })
-})
-
-describe('HeaderButtonFormDialog — edit mode, Vipassana (no configured fields)', () => {
-  it('shows an empty Fields list with just the "+ Add field" affordance', () => {
-    const html = renderEdit(VIPASSANA_BUTTON)
-    expect(html).toContain('Fields')
     expect(html).not.toContain('Text note')
     expect(html).not.toContain('Multiple choice')
-    expect(html).toContain('Add multiple-choice field')
+    expect(html).not.toContain('aria-label="Remove How was your sleep?"')
+    expect(html).not.toContain('Add multiple-choice field')
+  })
+
+  it('tells the user where to change them', () => {
+    expect(renderEdit()).toContain('come from the activity itself')
+    expect(renderEdit(VIPASSANA_BUTTON)).toContain('come from the activity itself')
   })
 })
 

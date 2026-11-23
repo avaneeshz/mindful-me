@@ -1,3 +1,4 @@
+import type { FieldValues } from '@/domain/activityFields'
 import {
   createContext,
   useContext,
@@ -60,6 +61,8 @@ export interface QuickLogInput {
   notes?: string | null
   fieldSelections?: FieldSelections
   dreamsNote?: string | null
+  /** The activity's own notes and multiple-select values, keyed by field id (`domain/activityFields.ts`). */
+  fieldValues?: FieldValues
 }
 
 export type QuickLogResult = { ok: true } | { ok: false; reason: 'occupied' | 'too-long' }
@@ -439,6 +442,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
         notes: input.notes,
         fieldSelections: input.fieldSelections,
         dreamsNote: input.dreamsNote,
+        fieldValues: input.fieldValues,
       })
       return { ok: true }
     }
@@ -451,6 +455,7 @@ export function BoardProvider({ children, now: fixedNow }: BoardProviderProps) {
         notes: input.notes?.trim() ? input.notes : null,
         fieldSelections: input.fieldSelections ?? {},
         dreamsNote: input.dreamsNote?.trim() ? input.dreamsNote : null,
+        fieldValues: input.fieldValues,
       },
     )
     saveLocalActivities(startDay, [...(loadLocalActivities(startDay) ?? []), committed])

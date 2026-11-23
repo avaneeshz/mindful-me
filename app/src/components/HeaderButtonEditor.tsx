@@ -14,7 +14,6 @@ import {
 } from '@/domain/headerButtons'
 import type { UpdateHeaderButtonInput } from '@/api/headerButtons'
 import {
-  addNoteField,
   type NewHeaderButtonInput,
   toCreateInput,
   toUpdateInput,
@@ -375,7 +374,8 @@ export function HeaderButtonFormDialog({
   const [activityName, setActivityName] = useState(existing?.activityName ?? '')
   const [quickLogType, setQuickLogType] = useState(existing?.quickLogType ?? false)
   const quickLogTypeLabel = existing?.quickLogTypeLabel ?? 'Type'
-  const [fields, setFields] = useState<FieldDraft[]>(
+  // Kept as they are so saving a button never drops what an older version stored on it.
+  const [fields] = useState<FieldDraft[]>(
     (existing?.noteFields ?? []).map((f) => ({
       id: f.id,
       fieldKind: f.fieldKind,
@@ -384,11 +384,6 @@ export function HeaderButtonFormDialog({
       options: [...f.options],
     })),
   )
-  const [isAddingField, setIsAddingField] = useState(false)
-  const [draftKind, setDraftKind] = useState<'text' | 'multiselect'>('text')
-  const [draftLabel, setDraftLabel] = useState('')
-  const [draftOptions, setDraftOptions] = useState<string[]>([''])
-  const [fieldError, setFieldError] = useState<string | null>(null)
   const [dayValueUnit, setDayValueUnit] = useState<'min' | 'int' | 'target'>(existing?.dayValueUnit ?? 'int')
   const [dayValueTarget, setDayValueTarget] = useState(existing?.dayValueTarget?.toString() ?? '')
   const [noteTypesText, setNoteTypesText] = useState((existing?.noteTypes ?? []).join('\n'))
@@ -420,42 +415,6 @@ export function HeaderButtonFormDialog({
     dayValueTarget,
     noteTypesText,
     checklistItemsText,
-  }
-
-  function openAddField(): void {
-    setDraftKind('multiselect')
-    setDraftLabel('')
-    setDraftOptions([''])
-    setFieldError(null)
-    setIsAddingField(true)
-  }
-
-  function cancelAddField(): void {
-    setIsAddingField(false)
-    setFieldError(null)
-  }
-
-  function confirmAddField(): void {
-    const result = addNoteField(fields, { kind: draftKind, label: draftLabel, options: draftOptions })
-    if (!result.ok) {
-      setFieldError(result.error)
-      return
-    }
-    setFields(result.fields)
-    setIsAddingField(false)
-    setFieldError(null)
-  }
-
-  function removeField(index: number): void {
-    setFields(fields.filter((_, i) => i !== index))
-  }
-
-  function updateDraftOption(index: number, value: string): void {
-    setDraftOptions(draftOptions.map((o, i) => (i === index ? value : o)))
-  }
-
-  function removeDraftOption(index: number): void {
-    setDraftOptions(draftOptions.filter((_, i) => i !== index))
   }
 
   async function handleSubmit(): Promise<void> {
@@ -614,128 +573,13 @@ export function HeaderButtonFormDialog({
                   </div>
                 )}
 
-                {/* Fields — every configured note field this button logs
-                    alongside duration, text and multiselect alike (was three
-                    separate checkboxes: primary note / secondary note / the
-                    Sleep-only "quality picker" special case; now one
-                    generic, uncapped-for-multiselect list). */}
+                {/* Notes and multiple-select fields belong to the ACTIVITY, not to this button: this popup
+                    shows whatever the activity has, so there is nothing to configure here. */}
                 {isEdit && (
-                <div className="flex flex-col gap-sm">
-                  <span className={labelClass}>Fields</span>
-
-                  {fields.length > 0 && (
-                    <div className="flex flex-col gap-xs">
-                      {fields.map((field, index) => (
-                        <div
-                          key={field.id ?? `draft-${index}`}
-                          className="flex items-center gap-sm rounded-md border border-line bg-surface px-md py-sm"
-                        >
-                          {field.fieldKind === 'multiselect' ? (
-                            <ListChecks aria-hidden="true" className="size-[16px] shrink-0 text-ink-dim" />
-                          ) : (
-                            <AlignLeft aria-hidden="true" className="size-[16px] shrink-0 text-ink-dim" />
-                          )}
-                          <div className="flex min-w-0 flex-1 flex-col">
-                            <span className="truncate text-body font-medium text-ink">{field.label}</span>
-                            <span className="text-caption text-ink-dim">
-                              {field.fieldKind === 'multiselect' ? 'Multiple choice' : 'Text note'}
-                            </span>
-                          </div>
-                          {field.fieldKind === 'multiselect' && (
-                            <button
-                              type="button"
-                              aria-label={`Remove ${field.label}`}
-                              onClick={() => removeField(index)}
-                              className="flex size-[24px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
-                            >
-                              <X aria-hidden="true" className="size-[12px]" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {!isAddingField ? (
-                    <button
-                      type="button"
-                      onClick={openAddField}
-                      className="flex items-center justify-center gap-xs rounded-md border border-dashed border-line px-md py-sm text-caption font-semibold text-ink-dim transition-colors hover:border-ink hover:text-ink"
-                    >
-                      <Plus aria-hidden="true" className="size-[14px]" />
-                      Add multiple-choice field
-                    </button>
-                  ) : (
-                    <div className="flex flex-col gap-sm rounded-md border border-line bg-bg p-md">
-                      <span className="text-body font-semibold text-ink">New multiple-choice field</span>
-                      <div className="flex flex-col gap-xs">
-                        <label htmlFor="field-title" className={labelClass}>
-                          Title
-                        </label>
-                        <input
-                          id="field-title"
-                          value={draftLabel}
-                          onChange={(event) => setDraftLabel(event.target.value)}
-                          placeholder={draftKind === 'multiselect' ? 'e.g. How was your sleep?' : 'e.g. Note'}
-                          className={fieldClass}
-                        />
-                      </div>
-
-                      {draftKind === 'multiselect' && (
-                        <div className="flex flex-col gap-xs">
-                          <div className="flex items-center justify-between">
-                            <span className={labelClass}>Options</span>
-                            <span className="text-caption text-ink-dim">
-                              {draftOptions.filter((o) => o.trim() !== '').length} option
-                              {draftOptions.filter((o) => o.trim() !== '').length === 1 ? '' : 's'}
-                            </span>
-                          </div>
-                          {draftOptions.map((option, index) => (
-                            <div key={index} className="flex items-center gap-xs">
-                              <input
-                                aria-label={`Option ${index + 1}`}
-                                value={option}
-                                onChange={(event) => updateDraftOption(index, event.target.value)}
-                                placeholder={`Option ${index + 1}`}
-                                className={fieldClass}
-                              />
-                              <button
-                                type="button"
-                                aria-label={`Remove option ${index + 1}`}
-                                onClick={() => removeDraftOption(index)}
-                                className="flex size-[28px] shrink-0 items-center justify-center rounded-full text-ink-dim transition-colors hover:bg-bg hover:text-ink"
-                              >
-                                <X aria-hidden="true" className="size-[12px]" />
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => setDraftOptions([...draftOptions, ''])}
-                            className="self-start text-caption font-semibold text-ink-dim transition-colors hover:text-ink"
-                          >
-                            + Add option
-                          </button>
-                        </div>
-                      )}
-
-                      {fieldError && (
-                        <p role="alert" className="text-caption font-semibold text-ink">
-                          {fieldError}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-end gap-sm pt-xs">
-                        <Button type="button" variant="outline" onClick={cancelAddField}>
-                          Cancel
-                        </Button>
-                        <Button type="button" onClick={confirmAddField}>
-                          Add field
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  <p className="text-caption text-ink-dim">
+                    Notes and multiple-select fields for this button come from the activity itself. To add, rename or
+                    remove them, edit the activity from its tile.
+                  </p>
                 )}
               </>
             )}
