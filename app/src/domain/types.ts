@@ -1,3 +1,4 @@
+import type { FieldValues as CustomFieldValues } from '@/domain/activityFields'
 import type { LucideIcon } from 'lucide-react'
 
 /**
@@ -243,6 +244,12 @@ export interface ScheduledActivity {
   notes: string | null
   /** Reflection-card pairings, optional, any number at once — see `ReflectionEntry`. */
   reflections: ReflectionEntry[]
+  /**
+   * Values for this activity's own custom notes and multiple-select fields (`domain/activityFields.ts`),
+   * keyed by field id. Absent when not loaded (offline) or never set — absent is NOT "empty": an
+   * absent value is never sent to the server as a clear.
+   */
+  fieldValues?: CustomFieldValues
   status: ScheduleStatus
   /** IANA zone the user was in when this was scheduled — locks the wall clock. */
   timezone: string

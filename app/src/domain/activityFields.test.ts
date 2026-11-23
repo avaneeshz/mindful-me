@@ -3,6 +3,7 @@ import {
   fieldsForActivity,
   isFieldLabelTaken,
   isOptionLabelTaken,
+  loggableFields,
   moveId,
   normalizeFieldValues,
   rootActivityId,
@@ -116,5 +117,18 @@ describe('moveId', () => {
     expect(moveId(['a', 'b', 'c'], 'a', -1)).toBeNull()
     expect(moveId(['a', 'b', 'c'], 'c', 1)).toBeNull()
     expect(moveId(['a', 'b'], 'zz', 1)).toBeNull()
+  })
+})
+
+describe('loggableFields', () => {
+  const fields = [field({ id: 'a', label: 'A' }), field({ id: 'h', label: 'H', hidden: true, sortOrder: 1 })]
+  it('offers the visible fields, resolving a subtype to its parent', () => {
+    expect(loggableFields(fields, rows, 'hill')!.map((f) => f.id)).toEqual(['a'])
+  })
+  it('is undefined when the activity has no fields at all, so the fixed form can stand in', () => {
+    expect(loggableFields(fields, [{ id: 'other', parentId: null }], 'other')).toBeUndefined()
+  })
+  it('is empty — not undefined — when the user hid every field', () => {
+    expect(loggableFields([field({ id: 'h', label: 'H', hidden: true })], rows, 'run')).toEqual([])
   })
 })

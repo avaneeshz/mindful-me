@@ -10,6 +10,7 @@ import {
   apiSetScheduledActivityStatus,
   apiSoftDeleteScheduledActivity,
 } from '@/api/scheduledActivities'
+import { apiSetFieldValues } from '@/api/activityFields'
 
 /**
  * What a dispatched action implies should happen on the server, derived
@@ -123,10 +124,12 @@ export function deriveSyncIntents(
  */
 export function runIntent(intent: SyncIntent, reference: Date): Promise<void> {
   switch (intent.kind) {
+    // The custom notes / multiple-select values go in a second call after the entry itself
+    // exists. A failure of either re-queues the whole intent, and both are safe to repeat.
     case 'create':
-      return apiCreateScheduledActivity(intent.activity, reference)
+      return apiCreateScheduledActivity(intent.activity, reference).then(() => saveFieldValues(intent.activity, false))
     case 'reschedule':
-      return apiRescheduleScheduledActivity(intent.activity, reference)
+      return apiRescheduleScheduledActivity(intent.activity, reference).then(() => saveFieldValues(intent.activity, true))
     case 'flags':
       return apiSetScheduledActivityFlags(intent.activity.id, intent.activity.flags)
     case 'status':
@@ -140,4 +143,15 @@ export function runIntent(intent: SyncIntent, reference: Date): Promise<void> {
     case 'removeReflection':
       return apiRemoveScheduledActivityReflection(intent.scheduledActivityId, intent.card)
   }
+}
+
+/**
+ * Writes an entry's custom-field values. A brand-new entry with none has nothing to write; an edit
+ * with `{}` clears what was there. An entry whose values are unknown (`undefined`) is left alone.
+ */
+async function saveFieldValues(activity: ScheduledActivity, isEdit: boolean): Promise<void> {
+  const values = activity.fieldValues
+  if (values === undefined) return
+  if (!isEdit && Object.keys(values).length === 0) return
+  await apiSetFieldValues(activity.id, values)
 }

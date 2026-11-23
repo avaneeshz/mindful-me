@@ -101,6 +101,22 @@ export function visibleOptions(field: Pick<ActivityField, 'options'>): ActivityF
   return field.options.filter((o) => !o.hidden).sort(bySort)
 }
 
+/**
+ * The fields to offer while logging `activityId`, or `undefined` when the activity has none at all
+ * (not loaded yet, or a brand-new activity the server hasn't set up) — the caller then falls back
+ * to the original fixed form rather than showing an empty one. An activity whose fields are ALL
+ * hidden returns `[]`: that is a choice the user made, not a gap.
+ */
+export function loggableFields(
+  fields: readonly ActivityField[],
+  rows: readonly Pick<ActivityRow, 'id' | 'parentId'>[],
+  activityId: string,
+): ActivityField[] | undefined {
+  const all = fieldsForActivity(fields, rows, activityId, { includeHidden: true })
+  if (all.length === 0) return undefined
+  return all.filter((f) => !f.hidden)
+}
+
 export function emptyFieldValue(): FieldValue {
   return { text: null, labels: [] }
 }

@@ -138,6 +138,31 @@ export function useActivityFields(activities: readonly ActivityRow[] = []): UseA
     }
   }, [])
 
+  // A top-level activity made on this device gets its standard fields on the server the moment it
+  // is stored there. Re-read a few times (the create may still be queued) until they arrive.
+  const refetchAttempts = useRef(new Map<string, number>())
+  useEffect(() => {
+    if (!supabaseConfigured || status !== 'ready') return
+    const have = new Set(fields.map((f) => f.activityId))
+    const missing = activities.filter((a) => a.parentId === null && !a.id.startsWith('local:') && !have.has(a.id))
+    const due = missing.filter((a) => (refetchAttempts.current.get(a.id) ?? 0) < 4)
+    if (due.length === 0) return
+    const attempt = Math.max(...due.map((a) => (refetchAttempts.current.get(a.id) ?? 0) + 1))
+    const timer = setTimeout(() => {
+      // Counted when it actually runs, so a re-render that cancels the timer doesn't use one up.
+      for (const a of due) refetchAttempts.current.set(a.id, (refetchAttempts.current.get(a.id) ?? 0) + 1)
+      void apiListActivityFields().then((server) => {
+        if (!server) return
+        setFields((prev) => {
+          const known = new Set(prev.map((f) => f.id))
+          const added = server.filter((f) => !known.has(f.id))
+          return added.length === 0 ? prev : [...prev, ...added]
+        })
+      })
+    }, 1500 * attempt)
+    return () => clearTimeout(timer)
+  }, [activities, fields, status])
+
   const send = useCallback(
     (spec: Parameters<typeof writeThrough>[0], onRejected: () => void): void => {
       if (!supabaseConfigured) return

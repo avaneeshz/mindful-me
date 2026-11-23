@@ -13,6 +13,7 @@ import {
   type CandidateSchedule,
   type ScheduleBounds,
 } from '@/domain/scheduling'
+import { withText, withToggledLabel, type FieldValues } from '@/domain/activityFields'
 import type { ActivityCard, ActivityQuality, FieldSelections, FlagId, ScheduledActivity, Symptom } from '@/domain/types'
 
 /**
@@ -41,6 +42,8 @@ export interface StagingState {
   fieldSelections: FieldSelections
   /** "Dreams" (or whatever a button's second text field is labeled) — a SEPARATE freeform note from `notes`. */
   dreamsNote: string
+  /** The activity's own custom notes and multiple-select values, keyed by field id (`domain/activityFields.ts`). */
+  fieldValues: FieldValues
   /**
    * Id of the activity being edited in place, or null when adding a new one.
    * Saving replaces that activity rather than appending a duplicate. Because
@@ -100,6 +103,7 @@ export const EMPTY_STAGING: StagingState = {
   notes: '',
   fieldSelections: {},
   dreamsNote: '',
+  fieldValues: {},
   editingId: null,
 }
 
@@ -142,6 +146,10 @@ export type BoardAction =
   | { type: 'toggleStagingFieldSelection'; fieldId: string; value: string }
   /** Sleep-quick-log-only in practice — a SEPARATE field from `setStagingNotes`. */
   | { type: 'setStagingDreamsNote'; note: string }
+  /** Sets or clears one custom note's text, keyed by its field id. */
+  | { type: 'setStagingFieldText'; fieldId: string; text: string }
+  /** Adds or removes one option label of a custom multiple-select field, keyed by its field id. */
+  | { type: 'toggleStagingFieldValue'; fieldId: string; label: string }
   | { type: 'commit' }
   | { type: 'editActivity'; id: string }
   | { type: 'removeActivity'; id: string }
@@ -289,6 +297,7 @@ function stageFrom(
     notes: '',
     fieldSelections: {},
     dreamsNote: '',
+    fieldValues: {},
     editingId: candidate.id,
   }
 }
@@ -460,6 +469,19 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
       return { ...state, staging: { ...state.staging, dreamsNote: action.note } }
     }
 
+    case 'setStagingFieldText': {
+      if (!state.staging.cardName) return state
+      return { ...state, staging: { ...state.staging, fieldValues: withText(state.staging.fieldValues, action.fieldId, action.text) } }
+    }
+
+    case 'toggleStagingFieldValue': {
+      if (!state.staging.cardName) return state
+      return {
+        ...state,
+        staging: { ...state.staging, fieldValues: withToggledLabel(state.staging.fieldValues, action.fieldId, action.label) },
+      }
+    }
+
     case 'commit': {
       const { staging } = state
       if (!staging.cardName || !isStagingComplete(staging)) return state
@@ -499,6 +521,12 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
         reflections: prior?.reflections ?? [],
         fieldSelections: staging.fieldSelections,
         dreamsNote: staging.dreamsNote.trim() ? staging.dreamsNote : null,
+        // An entry whose values were never loaded (offline) stays "unknown" unless the user
+        // actually entered something — an unknown value is never sent to the server as a clear.
+        fieldValues:
+          prior && prior.fieldValues === undefined && Object.keys(staging.fieldValues).length === 0
+            ? undefined
+            : staging.fieldValues,
         status: prior?.status ?? 'planned',
         timezone: prior?.timezone,
       })
@@ -530,6 +558,7 @@ export function boardReducer(state: BoardState, action: BoardAction): BoardState
           notes: activity.notes ?? '',
           fieldSelections: { ...activity.fieldSelections },
           dreamsNote: activity.dreamsNote ?? '',
+          fieldValues: { ...(activity.fieldValues ?? {}) },
           editingId: activity.id,
         },
       }
