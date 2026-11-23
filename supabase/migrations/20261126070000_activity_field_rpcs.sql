@@ -217,12 +217,8 @@ begin
     raise exception 'invalid_field_values' using errcode = '22023';
   end if;
 
-  with recursive up(id, parent_id) as (
-    select a.id, a.parent_id from public.activities a where a.id = v_activity
-    union all
-    select p.id, p.parent_id from public.activities p join up on p.id = up.parent_id
-  )
-  select id into v_root from up where parent_id is null;
+  -- Older entries can point at the shared catalog copy of an activity; use the user's own copy by name.
+  v_root := internal.entry_root_activity(v_user, v_activity);
 
   for v in select * from jsonb_array_elements(coalesce(p_values, '[]'::jsonb)) loop
     select * into v_field from public.activity_fields
