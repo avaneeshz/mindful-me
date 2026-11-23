@@ -10,6 +10,7 @@ import { ChecklistButton } from '@/components/ChecklistButton'
 import { DownloadDayButton } from '@/components/DownloadDayButton'
 import { CounclTitle } from '@/components/CounclBrand'
 import { FrameSwitcher } from '@/components/FrameSwitcher'
+import { FRAME_COUNT, getFrame, switchFrame } from '@/lib/frame'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { EditModeToggle, HeaderButtonFormDialog } from '@/components/HeaderButtonEditor'
@@ -206,9 +207,15 @@ export function HeaderBar({
           </h1>
         </div>
 
-        {/* Between the name and the day controls. Today has a single frame, so
-            both arrows rest disabled until a second one exists. */}
-        <FrameSwitcher frame={1} frameCount={1} className="mobile:order-last mobile:w-full mobile:justify-center" />
+        {/* Between the name and the day controls. Four independent frames; the
+            choice is remembered and switching restarts the app in the new frame. */}
+        <FrameSwitcher
+          frame={getFrame()}
+          frameCount={FRAME_COUNT}
+          onPrevious={() => switchFrame(getFrame() - 1)}
+          onNext={() => switchFrame(getFrame() + 1)}
+          className="mobile:order-last mobile:w-full mobile:justify-center"
+        />
 
         <div className="flex flex-wrap items-center justify-end gap-sm">
           {/*

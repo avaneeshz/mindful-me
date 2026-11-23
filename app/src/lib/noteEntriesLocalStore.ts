@@ -1,9 +1,10 @@
 import type { NoteButtonKey, NoteEntry } from '@/domain/notes'
+import { frameKey } from '@/lib/frame'
 
 const STORAGE_PREFIX = 'mindful-me:notes:'
 
 function keyFor(buttonKey: NoteButtonKey): string {
-  return `${STORAGE_PREFIX}${buttonKey}`
+  return `${frameKey(STORAGE_PREFIX)}${buttonKey}`
 }
 
 /**

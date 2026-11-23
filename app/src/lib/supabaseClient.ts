@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { loggedFetch } from '@/lib/loggedFetch'
+import { withFrameHeader } from '@/lib/frameFetch'
 
 /**
  * Local-first (rule 6): the app must work fully offline / with no backend
@@ -16,7 +17,8 @@ export const supabaseConfigured = Boolean(url && key)
 export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(url!, key!, {
       // Every request is recorded to the user's activity log (Settings).
-      global: { fetch: loggedFetch },
+      // Database requests also name the frame they are for (lib/frame.ts).
+      global: { fetch: withFrameHeader(loggedFetch) },
       auth: {
         persistSession: true,
         autoRefreshToken: true,

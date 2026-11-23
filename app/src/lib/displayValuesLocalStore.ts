@@ -1,9 +1,10 @@
 import type { DisplayButtonKey } from '@/domain/displayButtons'
+import { frameKey } from '@/lib/frame'
 
 const STORAGE_PREFIX = 'mindful-me:display:'
 
 function keyFor(buttonKey: DisplayButtonKey): string {
-  return `${STORAGE_PREFIX}${buttonKey}`
+  return `${frameKey(STORAGE_PREFIX)}${buttonKey}`
 }
 
 type DayMap = Record<string, number>

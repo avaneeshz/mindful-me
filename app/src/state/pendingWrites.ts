@@ -43,6 +43,7 @@ import {
   type PendingWrites,
 } from './pendingWritesQueue'
 import { loadIdMap, loadPendingWrites, savePendingWrites, saveIdMap } from './pendingWritesStorage'
+import { getFrame } from '@/lib/frame'
 
 /**
  * Write-through for every user change that is not a scheduled activity.
@@ -233,6 +234,7 @@ export async function writeThrough<R = unknown>(spec: WriteSpec): Promise<WriteR
   const write: PendingWrite = {
     id: crypto.randomUUID(),
     userId,
+    frame: getFrame(),
     action: spec.action,
     entity: spec.entity,
     recordId: spec.recordId,
@@ -284,7 +286,7 @@ export async function drain(): Promise<void> {
   draining = true
   try {
     for (;;) {
-      const write = nextDueWrite(queue, currentUserId, Date.now(), inFlight)
+      const write = nextDueWrite(queue, currentUserId, Date.now(), inFlight, getFrame())
       if (!write) return
       inFlight.add(write.id)
       const executed = await execute(write)

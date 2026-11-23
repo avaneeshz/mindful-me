@@ -75,3 +75,23 @@ describe('pending writes ledger', () => {
     expect(q).toEqual([])
   })
 })
+
+describe('frames', () => {
+  it('replays a change only while the frame it was made in is on screen', () => {
+    const q = addWrite([], write({ id: 'f2', frame: 2 }))
+    expect(nextDueWrite(q, 'u', 1, none, 1)).toBeNull()
+    expect(nextDueWrite(q, 'u', 1, none, 2)?.id).toBe('f2')
+  })
+
+  it('treats an entry saved before frames existed as Frame 1', () => {
+    const q = addWrite([], write({ id: 'old' }))
+    expect(nextDueWrite(q, 'u', 1, none, 1)?.id).toBe('old')
+    expect(nextDueWrite(q, 'u', 1, none, 3)).toBeNull()
+  })
+
+  it('does not let a waiting change in another frame block this frame', () => {
+    let q = addWrite([], write({ id: 'a', frame: 2, recordId: 'r1', createdAt: 1 }))
+    q = addWrite(q, write({ id: 'b', frame: 1, recordId: 'r2', createdAt: 2 }))
+    expect(nextDueWrite(q, 'u', 1, none, 1)?.id).toBe('b')
+  })
+})

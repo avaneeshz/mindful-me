@@ -1,4 +1,5 @@
 import type { HeaderButtonConfig, HeaderButtonGroup } from '@/domain/headerButtons'
+import { frameKey } from '@/lib/frame'
 
 const SNAPSHOT_KEY = 'mindful-me:header-buttons:snapshot'
 const GROUPS_KEY = 'mindful-me:header-button-groups:snapshot'
@@ -23,7 +24,7 @@ const GROUPS_KEY = 'mindful-me:header-button-groups:snapshot'
  */
 export function loadLocalHeaderButtons(): HeaderButtonConfig[] | null {
   try {
-    const raw = window.localStorage.getItem(SNAPSHOT_KEY)
+    const raw = window.localStorage.getItem(frameKey(SNAPSHOT_KEY))
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as HeaderButtonConfig[]) : null
@@ -34,7 +35,7 @@ export function loadLocalHeaderButtons(): HeaderButtonConfig[] | null {
 
 export function saveLocalHeaderButtons(buttons: readonly HeaderButtonConfig[]): void {
   try {
-    window.localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(buttons))
+    window.localStorage.setItem(frameKey(SNAPSHOT_KEY), JSON.stringify(buttons))
   } catch {
     // In-memory state is still correct; only cross-reload durability is lost.
   }
@@ -43,7 +44,7 @@ export function saveLocalHeaderButtons(buttons: readonly HeaderButtonConfig[]): 
 /** The user's categories — same one-local-copy, fail-closed contract as the button snapshot above. */
 export function loadLocalHeaderButtonGroups(): HeaderButtonGroup[] | null {
   try {
-    const raw = window.localStorage.getItem(GROUPS_KEY)
+    const raw = window.localStorage.getItem(frameKey(GROUPS_KEY))
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) && parsed.length > 0 ? (parsed as HeaderButtonGroup[]) : null
@@ -54,7 +55,7 @@ export function loadLocalHeaderButtonGroups(): HeaderButtonGroup[] | null {
 
 export function saveLocalHeaderButtonGroups(groups: readonly HeaderButtonGroup[]): void {
   try {
-    window.localStorage.setItem(GROUPS_KEY, JSON.stringify(groups))
+    window.localStorage.setItem(frameKey(GROUPS_KEY), JSON.stringify(groups))
   } catch {
     // In-memory state is still correct; only cross-reload durability is lost.
   }
