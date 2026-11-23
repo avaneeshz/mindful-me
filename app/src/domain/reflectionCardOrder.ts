@@ -8,8 +8,8 @@ export const CARD_COUNT = 18
 
 export const DEFAULT_CARD_ORDER: readonly number[] = Array.from({ length: CARD_COUNT }, (_, i) => i + 1)
 
-/** The most custom tiles one account can add (the database enforces the same cap). */
-export const MAX_CUSTOM_CARDS = 50
+/** The most custom tiles one frame can hold: numbers 19..498 (499 and 500 are the Dashboard and Product Page). The database enforces the same ceiling. */
+export const MAX_CUSTOM_CARDS = 480
 
 /** Custom tiles are numbered 19 and up, per account. */
 export function isCustomCard(card: number): boolean {
