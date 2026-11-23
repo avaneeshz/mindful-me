@@ -92,57 +92,54 @@ export function ActivityEditView({
         </RowIconButton>
       </div>
 
-      {renaming ? (
-        <InlineNameForm
-          initial={activity.name}
-          error={renameError}
-          onSave={rename}
-          onCancel={() => {
-            setRenaming(false)
-            setRenameError(null)
-          }}
-        />
-      ) : (
-        <div className="flex items-center justify-between gap-sm">
-          <h3 className="min-w-0 truncate text-btn font-semibold text-ink">{activity.name}</h3>
-          <RowIconButton label={`Rename ${activity.name}`} onClick={() => setRenaming(true)}>
-            <Pencil aria-hidden="true" className="size-[14px]" />
-          </RowIconButton>
+      {/* Title, icon and colour share one line (like the tile editor); the icon opens its picker just below. */}
+      <div className="flex flex-wrap items-center gap-x-md gap-y-sm">
+        <div className="flex min-w-0 items-center gap-xs">
+          <span className="mr-xs flex size-chip shrink-0 items-center justify-center rounded-sm bg-surface-2 text-ink">
+            <ActivityIcon aria-hidden="true" className="size-[16px]" />
+          </span>
+          {renaming ? (
+            <div className="min-w-[220px] flex-1">
+              <InlineNameForm
+                initial={activity.name}
+                error={renameError}
+                onSave={rename}
+                onCancel={() => {
+                  setRenaming(false)
+                  setRenameError(null)
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              <h3 className="min-w-0 truncate text-btn font-semibold text-ink">{activity.name}</h3>
+              <RowIconButton label={`Rename ${activity.name}`} onClick={() => setRenaming(true)}>
+                <Pencil aria-hidden="true" className="size-[14px]" />
+              </RowIconButton>
+            </>
+          )}
         </div>
-      )}
-
-      <section aria-label="Icon" className="flex flex-col gap-sm">
-        <div className="flex items-center justify-between gap-sm">
-          <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Icon</h4>
-          <div className="flex items-center gap-sm">
-            <span className="flex size-chip items-center justify-center rounded-sm bg-surface-2 text-ink">
-              <ActivityIcon aria-hidden="true" className="size-[16px]" />
-            </span>
-            <Button
-              variant="outline"
-              size="inline"
-              className="px-sm py-xs text-caption"
-              aria-expanded={choosingIcon}
-              onClick={() => setChoosingIcon((v) => !v)}
-            >
-              {choosingIcon ? 'Done' : 'Change'}
-            </Button>
-          </div>
-        </div>
-        {choosingIcon && (
-          <IconPicker value={activity.iconKey} onChange={(iconKey) => activities.setActivityIcon(activity.id, iconKey)} />
-        )}
-      </section>
-
-      <section aria-label="Colour" className="flex flex-col gap-sm">
-        <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Colour</h4>
+        <Button
+          variant="outline"
+          size="inline"
+          className="px-sm py-xs text-caption"
+          aria-label={`Change icon for ${activity.name}`}
+          aria-expanded={choosingIcon}
+          onClick={() => setChoosingIcon((v) => !v)}
+        >
+          {choosingIcon ? 'Done' : 'Change icon'}
+        </Button>
         <ColorPicker
+          compact
           value={activity.color ?? null}
           onChange={(color) => activities.setActivityColor(activity.id, color)}
           inheritedColor={inheritedColor}
           inheritedLabel={inheritedColor ? `Same as ${inheritedFrom}` : 'No colour'}
         />
-      </section>
+      </div>
+      {choosingIcon && (
+        <IconPicker value={activity.iconKey} onChange={(iconKey) => activities.setActivityIcon(activity.id, iconKey)} />
+      )}
 
       <section aria-label="Subtypes" className="flex flex-col gap-sm">
         <h4 className="text-caption font-bold uppercase tracking-tag text-ink-dim">Subtypes</h4>
