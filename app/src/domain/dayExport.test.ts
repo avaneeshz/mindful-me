@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assembleDayExport } from './dayExport'
+import type { ActivityField } from './activityFields'
 import type { NoteEntry } from './notes'
 import type { ActivityList, ScheduledActivity } from './types'
 
@@ -175,5 +176,35 @@ describe('assembleDayExport', () => {
       reflectionCardTitle,
     })
     expect(result.displayValues).toEqual([])
+  })
+})
+
+describe('assembleDayExport — the activity’s own notes and fields', () => {
+  const fields: ActivityField[] = [
+    { id: 'q', activityId: 'x', kind: 'multiselect', label: 'Activity quality', sortOrder: 0, hidden: false, legacyKey: 'quality', options: [] },
+    { id: 'g', activityId: 'x', kind: 'text', label: 'Gratitude', sortOrder: 1, hidden: false, legacyKey: null, options: [] },
+    { id: 'old', activityId: 'x', kind: 'multiselect', label: 'Retired field', sortOrder: 2, hidden: true, legacyKey: null, options: [] },
+  ]
+  const run = (a: ScheduledActivity, fieldsFor?: (a: ScheduledActivity) => readonly ActivityField[] | undefined) =>
+    assembleDayExport({ viewedDate, activities: [a], noteEntries: [], reflectionCardTitle, fieldsForActivity: fieldsFor }).activities[0]!
+
+  it('exports recorded fields under their own titles, keeping hidden ones that hold history', () => {
+    const a = activity({
+      fieldValues: {
+        q: { text: null, labels: ['Flow', 'Calm'] },
+        g: { text: 'sun', labels: [] },
+        old: { text: null, labels: ['Kept'] },
+      },
+    })
+    expect(run(a, () => fields).customFields).toEqual([
+      { label: 'Activity quality', value: 'Flow, Calm' },
+      { label: 'Gratitude', value: 'sun' },
+      { label: 'Retired field', value: 'Kept' },
+    ])
+  })
+
+  it('keeps the fixed layout for an older entry, or when the fields are unavailable', () => {
+    expect(run(activity({ quality: ['Flow'] }), () => fields).customFields).toBeNull()
+    expect(run(activity({ fieldValues: { g: { text: 'x', labels: [] } } })).customFields).toBeNull()
   })
 })

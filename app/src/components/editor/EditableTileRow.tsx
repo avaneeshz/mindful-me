@@ -27,7 +27,7 @@ const LANE = 'tiles'
  * Works entirely through `usePickerData` (the hooks), never the API.
  */
 export function EditableTileRow() {
-  const { tiles: tilesResult, activities } = usePickerData()
+  const { tiles: tilesResult, activities, activityFields } = usePickerData()
   const [openId, setOpenId] = useState<string | null>(null)
 
   const ordered = [...tilesResult.tiles].sort((a, b) => a.sortOrder - b.sortOrder)
@@ -72,7 +72,7 @@ export function EditableTileRow() {
             drag={itemProps(tile.id)}
             onToggleSelected={() => toggleSelected(tile.id)}
           >
-            <TileEditPanel tile={tile} tiles={tilesResult} activities={activities} onClose={() => setOpenId(null)} />
+            <TileEditPanel tile={tile} tiles={tilesResult} activities={activities} activityFields={activityFields} onClose={() => setOpenId(null)} />
           </EditTile>
         ))}
 

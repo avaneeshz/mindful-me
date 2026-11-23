@@ -25,6 +25,7 @@ const FULL_DATA: DayExportData = {
       symptoms: ['Dryness'],
       flag: 'Anger',
       notes: 'Felt centred.',
+      customFields: null,
       reflections: [{ card: 3, title: 'Internal Systems', note: 'Check-in.' }],
     },
   ],

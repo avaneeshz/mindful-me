@@ -17,6 +17,8 @@ import { MultiselectFieldPicker } from './MultiselectFieldPicker'
 import { QualityPicker } from './QualityPicker'
 import { SymptomsPicker } from './SymptomsPicker'
 import { DictationField } from '@/components/ui/DictationButton'
+import type { ActivityField } from '@/domain/activityFields'
+import { ActivityFieldInputs } from './ActivityFieldInputs'
 
 /**
  * The log-activity popup (Modal Redesign §B, refined further this round) —
@@ -47,6 +49,9 @@ export function LogActivityModal({
   onSetNotes,
   onToggleFieldSelection,
   onSetDreamsNote,
+  customFields,
+  onSetFieldText,
+  onToggleFieldValue,
   onCommit,
   onCancel,
   qualityOptions,
@@ -72,6 +77,15 @@ export function LogActivityModal({
   /** One multiselect-kind note field's toggle, keyed by that field's own id — see the section below, gated on whichever activity-category button (if any) is configured for `staging.cardName`. */
   onToggleFieldSelection: (fieldId: string, value: string) => void
   onSetDreamsNote: (note: string) => void
+  /**
+   * This activity's own notes and multiple-select fields (`ActivityFieldsPanel` is where they are
+   * made). When given, they REPLACE the fixed quality / symptoms / protective-response pickers and
+   * the note boxes below; omitted (not loaded yet, no backend, or none exist), the original fixed
+   * set is shown, so this form never blocks on the network.
+   */
+  customFields?: readonly ActivityField[]
+  onSetFieldText?: (fieldId: string, text: string) => void
+  onToggleFieldValue?: (fieldId: string, label: string) => void
   onCommit: () => void
   onCancel: () => void
   /**
@@ -219,49 +233,60 @@ export function LogActivityModal({
               />
             )}
 
-            <QualityPicker selected={staging.quality} onToggle={onToggleQuality} options={qualityOptions} />
-            <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} options={symptomOptions} />
-            <FlagPicker selected={staging.flag} onSelect={onSetFlag} options={flagOptions} />
-
-            {/* Notes — a real, always-visible field now (was the inert
-                "Deep log" stub). No expand/collapse, no separate heading —
-                the textarea's own placeholder carries the label. Persisted
-                like quality/flags/symptoms, encrypted at rest (rule 10). */}
-            <DictationField>
-              <textarea
-                value={staging.notes}
-                onChange={(event) => onSetNotes(event.target.value)}
-                aria-label={primaryNoteLabel}
-                placeholder={primaryNoteLabel}
-                rows={3}
-                className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            {customFields && onSetFieldText && onToggleFieldValue ? (
+              <ActivityFieldInputs
+                fields={customFields}
+                values={staging.fieldValues}
+                onSetText={onSetFieldText}
+                onToggleLabel={onToggleFieldValue}
               />
-            </DictationField>
+            ) : (
+              <>
+                <QualityPicker selected={staging.quality} onToggle={onToggleQuality} options={qualityOptions} />
+                <SymptomsPicker selected={staging.symptoms} onToggle={onToggleSymptom} options={symptomOptions} />
+                <FlagPicker selected={staging.flag} onSelect={onSetFlag} options={flagOptions} />
 
-            {/* Extra fields — generic, never hardcoded to Sleep: a second text
-                note, titled on the activity itself or on its header button
-                (e.g. Sleep's "Dreams"), from the plain notes textarea
-                above, plus any multiselect-kind fields (e.g. Sleep's "How
-                was your sleep?"), each rendered with its own configured
-                label/options. Gated on `configuredButton`, not a card-name
-                check, exactly like the sub/third drill-down chips above are
-                gated on `options`. */}
-            {secondaryNoteLabel && (
-              <div>
-                <label htmlFor="secondary-note" className="sr-only">
-                  {secondaryNoteLabel}
-                </label>
+                {/* Notes — a real, always-visible field now (was the inert
+                    "Deep log" stub). No expand/collapse, no separate heading —
+                    the textarea's own placeholder carries the label. Persisted
+                    like quality/flags/symptoms, encrypted at rest (rule 10). */}
                 <DictationField>
                   <textarea
-                    id="secondary-note"
-                    value={staging.dreamsNote}
-                    onChange={(event) => onSetDreamsNote(event.target.value)}
-                    placeholder={secondaryNoteLabel}
+                    value={staging.notes}
+                    onChange={(event) => onSetNotes(event.target.value)}
+                    aria-label={primaryNoteLabel}
+                    placeholder={primaryNoteLabel}
                     rows={3}
                     className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                   />
                 </DictationField>
-              </div>
+
+                {/* Extra fields — generic, never hardcoded to Sleep: a second text
+                    note, titled on the activity itself or on its header button
+                    (e.g. Sleep's "Dreams"), from the plain notes textarea
+                    above, plus any multiselect-kind fields (e.g. Sleep's "How
+                    was your sleep?"), each rendered with its own configured
+                    label/options. Gated on `configuredButton`, not a card-name
+                    check, exactly like the sub/third drill-down chips above are
+                    gated on `options`. */}
+                {secondaryNoteLabel && (
+                  <div>
+                    <label htmlFor="secondary-note" className="sr-only">
+                      {secondaryNoteLabel}
+                    </label>
+                    <DictationField>
+                      <textarea
+                        id="secondary-note"
+                        value={staging.dreamsNote}
+                        onChange={(event) => onSetDreamsNote(event.target.value)}
+                        placeholder={secondaryNoteLabel}
+                        rows={3}
+                        className="pr-5xl w-full resize-y rounded-md border border-line bg-bg px-md py-sm text-note text-ink placeholder:text-ink-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                      />
+                    </DictationField>
+                  </div>
+                )}
+              </>
             )}
 
             {multiselectFields.map((field) => (

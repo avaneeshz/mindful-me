@@ -1,3 +1,4 @@
+import type { FieldValues as CustomFieldValues } from '@/domain/activityFields'
 /**
  * The shared scheduling module (Target Architecture — see the
  * full-stack-engineer agent definition). Both entry gestures — dragging a
@@ -342,6 +343,8 @@ export interface CommitContext {
   fieldSelections?: FieldSelections
   /** A SEPARATE freeform note from `notes` — driven by whichever button's second text field is configured. */
   dreamsNote?: string | null
+  /** This activity's own custom notes / multiple-select values — see `ScheduledActivity.fieldValues`. Omitted keeps it absent. */
+  fieldValues?: CustomFieldValues
 }
 
 export function generateId(): string {
@@ -374,6 +377,7 @@ export function commitSchedule(
     reflections: context.reflections ?? [],
     fieldSelections: context.fieldSelections ?? {},
     dreamsNote: context.dreamsNote ?? null,
+    ...(context.fieldValues !== undefined ? { fieldValues: context.fieldValues } : {}),
     status: context.status ?? 'planned',
     timezone:
       context.timezone ??

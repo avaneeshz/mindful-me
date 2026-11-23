@@ -11,6 +11,7 @@ import type {
   Symptom,
 } from '@/domain/types'
 import { catalogIdForName, nameForCatalogId } from './catalog'
+import { apiListFieldValues } from './activityFields'
 import { numberForReflectionCardId, reflectionCardIdForNumber } from './reflectionCards'
 
 function dayShiftMinutes(localDate: string, axisDate?: Date): number {
@@ -117,6 +118,18 @@ async function scheduleParams(activity: ScheduledActivity, reference: Date) {
 }
 
 /**
+ * Attaches each entry's custom-field values (one extra read for the whole list). If that read fails the
+ * entries come back with `fieldValues` absent — "unknown", never "empty" — so a later edit can't
+ * accidentally clear what it couldn't see.
+ */
+async function withFieldValues(activities: ScheduledActivity[]): Promise<ScheduledActivity[]> {
+  if (activities.length === 0) return activities
+  const values = await apiListFieldValues(activities.map((a) => a.id))
+  if (values === null) return activities
+  return activities.map((a) => ({ ...a, fieldValues: values[a.id] ?? {} }))
+}
+
+/**
  * Rule 8: always a bounded window — never the user's full history.
  *
  * Returns `null` (never `[]`) on any failure to reach/read the server, so a
@@ -138,7 +151,8 @@ export async function apiListScheduledActivities(
     console.warn('[sync] list_scheduled_activities failed — staying on local data', error.message)
     return null
   }
-  return Promise.all(((data ?? []) as ScheduledActivityDto[]).map((dto) => dtoToClient(dto, axisDate)))
+  const activities = await Promise.all(((data ?? []) as ScheduledActivityDto[]).map((dto) => dtoToClient(dto, axisDate)))
+  return withFieldValues(activities)
 }
 
 /**
@@ -204,12 +218,14 @@ export async function apiListScheduledActivitiesWithDates(
     console.warn('[sync] list_scheduled_activities failed — staying on local data', error.message)
     return null
   }
-  return Promise.all(
+  const rows = await Promise.all(
     ((data ?? []) as ScheduledActivityDto[]).map(async (dto) => ({
       activity: await dtoToClient(dto),
       localDate: dto.local_date,
     })),
   )
+  const withValues = await withFieldValues(rows.map((r) => r.activity))
+  return rows.map((r, i) => ({ ...r, activity: withValues[i]! }))
 }
 
 export async function apiCreateScheduledActivity(activity: ScheduledActivity, reference: Date): Promise<void> {

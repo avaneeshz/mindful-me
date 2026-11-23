@@ -9,6 +9,9 @@ import { downloadDayExportPdf } from '@/lib/dayExportPdf'
 import { loadDisplayValue } from '@/lib/displayValuesLocalStore'
 import { localDateISO, localDayRange } from '@/lib/localTime'
 import { cn } from '@/lib/utils'
+import { fieldsForEntry } from '@/domain/activityFields'
+import { rowForLoggedActivity } from '@/domain/colors'
+import { useOptionalPickerData } from '@/state/PickerDataContext'
 
 function reflectionCardTitle(card: number): string {
   return REFLECTION_CARDS.find((c) => c.number === card)?.title ?? `Card ${card}`
@@ -84,6 +87,7 @@ export function DownloadDayButton({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const errorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const picker = useOptionalPickerData()
 
   async function handleDownload() {
     if (pending) return
@@ -112,6 +116,11 @@ export function DownloadDayButton({
           protein: loadDisplayValue('protein', dateKey),
         },
         reflectionCardTitle,
+        fieldsForActivity: (activity) => {
+          const rows = picker?.activities.activities
+          const row = rows ? rowForLoggedActivity(rows, activity.name, activity.path) : null
+          return rows && row && picker ? fieldsForEntry(picker.activityFields.fields, rows, row.id) : undefined
+        },
       })
 
       downloadDayExportPdf(data)

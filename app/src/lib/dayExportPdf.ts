@@ -94,17 +94,23 @@ function renderActivities(cursor: Cursor, data: DayExportData): void {
       bodyLine(cursor, activity.pathLabel, { color: INK_DIM, size: 9.5 })
     }
 
-    const signalRows: [string, string][] = [
-      ['Activity quality', activity.quality.length > 0 ? activity.quality.join(', ') : '—'],
-      ['Chronic symptoms', activity.symptoms.length > 0 ? activity.symptoms.join(', ') : '—'],
-      ['Protective response', activity.flag ?? '—'],
-    ]
-    for (const [label, value] of signalRows) {
-      bodyLine(cursor, `${label}:  ${value}`, { size: 9.5, color: INK_DIM })
-    }
+    if (activity.customFields) {
+      for (const field of activity.customFields) {
+        bodyLine(cursor, `${field.label}:  ${field.value}`, { size: 9.5, color: INK_DIM })
+      }
+    } else {
+      const signalRows: [string, string][] = [
+        ['Activity quality', activity.quality.length > 0 ? activity.quality.join(', ') : '—'],
+        ['Chronic symptoms', activity.symptoms.length > 0 ? activity.symptoms.join(', ') : '—'],
+        ['Protective response', activity.flag ?? '—'],
+      ]
+      for (const [label, value] of signalRows) {
+        bodyLine(cursor, `${label}:  ${value}`, { size: 9.5, color: INK_DIM })
+      }
 
-    if (activity.notes) {
-      bodyLine(cursor, `Notes: ${activity.notes}`, { size: 10 })
+      if (activity.notes) {
+        bodyLine(cursor, `Notes: ${activity.notes}`, { size: 10 })
+      }
     }
 
     if (activity.reflections.length > 0) {
