@@ -11,6 +11,8 @@ import { DownloadDayButton } from '@/components/DownloadDayButton'
 import { CounclTitle } from '@/components/CounclBrand'
 import { FrameSwitcher } from '@/components/FrameSwitcher'
 import { FRAME_COUNT, getFrame, switchFrame } from '@/lib/frame'
+import { frameDisplayName } from '@/domain/frameNames'
+import { useFrameNames } from '@/state/useFrameNames'
 import { WeatherPill } from '@/components/WeatherPill'
 import { SyncStatusPill } from '@/components/SyncStatusPill'
 import { EditModeToggle, HeaderButtonFormDialog } from '@/components/HeaderButtonEditor'
@@ -150,6 +152,7 @@ export function HeaderBar({
     deleteGroup,
     reorderGroups,
   } = useSharedHeaderButtons()
+  const { names: frameNames, rename: renameFrame } = useFrameNames()
   const [formMode, setFormMode] = useState<null | { kind: 'add'; groupId: string } | { kind: 'edit'; button: HeaderButtonConfig }>(
     null,
   )
@@ -212,6 +215,8 @@ export function HeaderBar({
         <FrameSwitcher
           frame={getFrame()}
           frameCount={FRAME_COUNT}
+          name={frameDisplayName(getFrame(), frameNames)}
+          onRename={(name) => renameFrame(getFrame(), name)}
           onPrevious={() => switchFrame(getFrame() - 1)}
           onNext={() => switchFrame(getFrame() + 1)}
           className="mobile:order-last mobile:w-full mobile:justify-center"
