@@ -40,6 +40,11 @@ export interface QueuedSyncItem {
   /** The scheduled activity this write is about — see `intentActivityId`. */
   activityId: string
   /**
+   * The frame the change was made in (informational — the timeline is shared by every frame, so a
+   * timeline write replays whichever frame is on screen). Absent on older entries, which read as Frame 1.
+   */
+  frame?: number
+  /**
    * `localDateISO` of the calendar day this intent's `reference` (the day
    * `startMinutes` is anchored to) was computed against — a plain string so
    * it round-trips through JSON/localStorage without reviving into a `Date`.
@@ -120,6 +125,7 @@ export function enqueueIntents(
   referenceDateISO: string,
   now: number,
   makeId: () => string,
+  frame = 1,
 ): SyncQueue {
   if (intents.length === 0) return queue
   let next = queue
@@ -154,6 +160,7 @@ export function enqueueIntents(
         id: makeId(),
         intent,
         activityId,
+        frame,
         referenceDateISO,
         attempts: 0,
         status: 'pending' as const,

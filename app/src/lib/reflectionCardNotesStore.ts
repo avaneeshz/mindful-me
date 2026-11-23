@@ -1,4 +1,5 @@
 import { readStoredJSON, writeStoredJSON } from '@/lib/storage'
+import { frameKey } from '@/lib/frame'
 import { parseCardNotes, type ReflectionCardNote } from '@/domain/reflectionCardNotes'
 
 /**
@@ -6,7 +7,7 @@ import { parseCardNotes, type ReflectionCardNote } from '@/domain/reflectionCard
  * instantly (and offline). Keyed by account. Without a backend this is the
  * only copy; with one, the server is the source of truth.
  */
-const keyFor = (owner: string, card: number) => `mindful-me:state-tile-notes:${owner}:${card}`
+const keyFor = (owner: string, card: number) => frameKey(`mindful-me:state-tile-notes:${owner}:${card}`)
 
 export function loadCardNotes(owner: string, card: number): ReflectionCardNote[] {
   return parseCardNotes(readStoredJSON(keyFor(owner, card)))

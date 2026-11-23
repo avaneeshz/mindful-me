@@ -1,10 +1,11 @@
 import type { SupplementCompletion } from '@/domain/supplements'
+import { frameKey } from '@/lib/frame'
 
 const STORAGE_PREFIX = 'mindful-me:supplements:'
 
 /** Keyed by (checklist button, day) now that more than one checklist can exist — was just `localDate` when Supplements was the only one. */
 function keyFor(headerButtonId: string, localDate: string): string {
-  return `${STORAGE_PREFIX}${headerButtonId}:${localDate}`
+  return `${frameKey(STORAGE_PREFIX)}${headerButtonId}:${localDate}`
 }
 
 /**
