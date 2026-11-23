@@ -14,3 +14,18 @@ describe('FrameSwitcher', () => {
     expect(html).not.toContain('disabled=""')
   })
 })
+
+describe('FrameSwitcher naming', () => {
+  it('shows a custom name instead of the default', () => {
+    const html = renderToStaticMarkup(<FrameSwitcher frame={2} frameCount={4} name="Work" />)
+    expect(html).toContain('Work')
+    expect(html).not.toContain('Frame 2')
+  })
+
+  it('only offers renaming when it can be saved', () => {
+    const plain = renderToStaticMarkup(<FrameSwitcher frame={1} frameCount={4} />)
+    expect(plain).not.toContain('rename')
+    const editable = renderToStaticMarkup(<FrameSwitcher frame={1} frameCount={4} onRename={() => {}} />)
+    expect(editable).toContain('Frame 1 — rename')
+  })
+})
