@@ -1,14 +1,18 @@
 import { useMemo } from 'react'
-import { loggableFields, type ActivityField } from '@/domain/activityFields'
+import { fieldsForEntry, loggableFields, type ActivityField } from '@/domain/activityFields'
 import { rowForLoggedActivity } from '@/domain/colors'
 import { useOptionalPickerData } from './PickerDataContext'
 
 /**
- * The notes and multiple-select fields to show when logging `cardName` (+ `path`), or `undefined`
+ * The notes and multiple-select fields to show when logging (or, with `includeHidden`, to title a past entry) `cardName` (+ `path`), or `undefined`
  * when they aren't available — outside a `PickerDataProvider`, before they have loaded, or when the
  * server could not be reached — so the log form shows its original fixed fields instead.
  */
-export function useCustomFieldsForActivity(cardName: string | null, path: readonly string[]): ActivityField[] | undefined {
+export function useCustomFieldsForActivity(
+  cardName: string | null,
+  path: readonly string[],
+  { includeHidden = false }: { includeHidden?: boolean } = {},
+): ActivityField[] | undefined {
   const picker = useOptionalPickerData()
   const rows = picker?.activities.activities
   const fields = picker?.activityFields.fields
@@ -17,7 +21,8 @@ export function useCustomFieldsForActivity(cardName: string | null, path: readon
   return useMemo(() => {
     if (!rows || !fields || !ready || !cardName) return undefined
     const row = rowForLoggedActivity(rows, cardName, path)
-    return row ? loggableFields(fields, rows, row.id) : undefined
+    if (!row) return undefined
+    return includeHidden ? fieldsForEntry(fields, rows, row.id) : loggableFields(fields, rows, row.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, fields, ready, cardName, pathKey])
+  }, [rows, fields, ready, cardName, pathKey, includeHidden])
 }

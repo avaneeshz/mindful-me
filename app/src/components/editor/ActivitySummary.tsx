@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
-import { Activity, AlertTriangle, CloudUpload, HeartPulse, Pencil, Shield, X } from 'lucide-react'
+import { Activity, AlertTriangle, CloudUpload, HeartPulse, ListChecks, Pencil, Shield, X } from 'lucide-react'
 import { categoryOf, findCard } from '@/data/activities'
 import { REFLECTION_CARDS } from '@/data/reflectionCards'
 import { formatActivityRange } from '@/domain/slots'
@@ -10,6 +10,8 @@ import type { ScheduledActivity } from '@/domain/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useActivityNoteFields } from '@/state/useActivityNoteFields'
+import { useCustomFieldsForActivity } from '@/state/useCustomFieldsForActivity'
+import { hasFieldValues, recordedFields } from '@/domain/activityFields'
 import { CategoryIconChip } from './CategoryIconChip'
 import { sectionName } from '@/domain/appLanguage'
 import { useReflectionCards } from '@/state/useReflectionCards'
@@ -67,6 +69,14 @@ export function ActivitySummary({
   const noteFields = useActivityNoteFields(activity.name ?? null)
   const primaryNoteLabel = noteFields.primaryLabel ?? 'Notes'
   const secondaryNoteLabel = noteFields.secondaryLabel ?? 'Dreams'
+  // An entry that recorded values for the activity's own notes and fields reads back through those
+  // fields (titled as they are now); an older entry, or one whose fields can't be loaded, keeps the
+  // original fixed layout.
+  const customFields = useCustomFieldsForActivity(activity.name ?? null, activity.path, { includeHidden: true })
+  const recorded =
+    customFields && activity.fieldValues && hasFieldValues(activity.fieldValues)
+      ? recordedFields(customFields, activity.fieldValues)
+      : null
 
   return (
     <div>
@@ -137,14 +147,38 @@ export function ActivitySummary({
           Both halves stack on a narrow viewport. */}
       <div className="mt-xl grid gap-2xl md:grid-cols-2 ipad-land:mt-lg ipad-land:gap-xl">
         <div className="flex flex-col gap-xl">
-          <div className="grid grid-cols-1 gap-lg sm:grid-cols-3">
-            <SignalGroup icon={Activity} label="Activity Quality" values={activity.quality} />
-            <SignalGroup icon={HeartPulse} label="Chronic Symptoms" values={activity.symptoms} />
-            <SignalGroup icon={Shield} label="Protective Response" values={activity.flags} />
-          </div>
+          {recorded ? (
+            <>
+              <div className="grid grid-cols-1 gap-lg sm:grid-cols-3">
+                {recorded
+                  .filter((f) => f.kind === 'multiselect')
+                  .map((f) => (
+                    <SignalGroup
+                      key={f.id}
+                      icon={f.legacyKey === 'quality' ? Activity : f.legacyKey === 'symptom' ? HeartPulse : f.legacyKey === 'flag' ? Shield : ListChecks}
+                      label={f.label}
+                      values={f.labels}
+                    />
+                  ))}
+              </div>
+              {recorded
+                .filter((f) => f.kind === 'text')
+                .map((f) => (
+                  <NoteBlock key={f.id} label={f.label} text={f.text!} />
+                ))}
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-lg sm:grid-cols-3">
+                <SignalGroup icon={Activity} label="Activity Quality" values={activity.quality} />
+                <SignalGroup icon={HeartPulse} label="Chronic Symptoms" values={activity.symptoms} />
+                <SignalGroup icon={Shield} label="Protective Response" values={activity.flags} />
+              </div>
 
-          {activity.notes && <NoteBlock label={primaryNoteLabel} text={activity.notes} />}
-          {activity.dreamsNote && <NoteBlock label={secondaryNoteLabel} text={activity.dreamsNote} />}
+              {activity.notes && <NoteBlock label={primaryNoteLabel} text={activity.notes} />}
+              {activity.dreamsNote && <NoteBlock label={secondaryNoteLabel} text={activity.dreamsNote} />}
+            </>
+          )}
         </div>
 
         <div className="md:border-l md:border-line md:pl-2xl">

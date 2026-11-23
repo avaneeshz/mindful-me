@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   fieldsForActivity,
   isFieldLabelTaken,
+  hasFieldValues,
   isOptionLabelTaken,
+  recordedFields,
   loggableFields,
   moveId,
   normalizeFieldValues,
@@ -130,5 +132,28 @@ describe('loggableFields', () => {
   })
   it('is empty — not undefined — when the user hid every field', () => {
     expect(loggableFields([field({ id: 'h', label: 'H', hidden: true })], rows, 'run')).toEqual([])
+  })
+})
+
+describe('reading an entry back', () => {
+  const fields = [
+    field({ id: 'q', label: 'Quality', kind: 'multiselect', legacyKey: 'quality' }),
+    field({ id: 'n', label: 'Gratitude', sortOrder: 1 }),
+    field({ id: 'n2', label: 'Empty note', sortOrder: 2 }),
+    field({ id: 'm', label: 'Mood', kind: 'multiselect', sortOrder: 3, hidden: true }),
+    field({ id: 'm2', label: 'Old mood', kind: 'multiselect', sortOrder: 4, hidden: true }),
+  ]
+  it('detects whether anything was recorded', () => {
+    expect(hasFieldValues(undefined)).toBe(false)
+    expect(hasFieldValues({ n: { text: ' ', labels: [] } })).toBe(false)
+    expect(hasFieldValues({ q: { text: null, labels: ['A'] } })).toBe(true)
+  })
+  it('shows visible multiple-select fields even when empty, notes only with text, hidden fields only with history', () => {
+    const rows = recordedFields(fields, { n: { text: 'hi', labels: [] }, m2: { text: null, labels: ['Kept'] } })
+    expect(rows.map((r) => [r.label, r.text, r.labels])).toEqual([
+      ['Quality', null, []],
+      ['Gratitude', 'hi', []],
+      ['Old mood', null, ['Kept']],
+    ])
   })
 })

@@ -117,6 +117,52 @@ export function loggableFields(
   return all.filter((f) => !f.hidden)
 }
 
+/** Whether an entry has any custom note or multiple-select value saved. */
+export function hasFieldValues(values: FieldValues | undefined): boolean {
+  return !!values && Object.values(values).some((v) => !isFieldValueEmpty(v))
+}
+
+/** One field as it reads back on a past entry. */
+export interface RecordedField {
+  id: string
+  label: string
+  kind: ActivityFieldKind
+  legacyKey: StandardFieldKey | null
+  /** A note's text; null for a multiple-select field. */
+  text: string | null
+  /** A multiple-select field's chosen labels; empty for a note. */
+  labels: string[]
+}
+
+/**
+ * What to show for an entry, in the order the user arranged the fields. Hidden fields still show
+ * whatever the entry recorded (hiding never erases history) but only when it recorded something;
+ * a visible multiple-select field always shows (as "—" when empty) so the summary keeps its shape;
+ * a note shows only when it has text.
+ */
+export function recordedFields(fields: readonly ActivityField[], values: FieldValues): RecordedField[] {
+  const out: RecordedField[] = []
+  for (const f of [...fields].sort(bySort)) {
+    const v = values[f.id]
+    const text = f.kind === 'text' ? ((v?.text ?? '').trim() === '' ? null : v!.text) : null
+    const labels = f.kind === 'multiselect' ? (v?.labels ?? []) : []
+    const hasValue = text !== null || labels.length > 0
+    const show = f.kind === 'multiselect' ? !f.hidden || hasValue : hasValue
+    if (show) out.push({ id: f.id, label: f.label, kind: f.kind, legacyKey: f.legacyKey, text, labels })
+  }
+  return out
+}
+
+/** Every field of the activity an entry belongs to — hidden ones too, so history can still be titled — or `undefined` when there are none. */
+export function fieldsForEntry(
+  fields: readonly ActivityField[],
+  rows: readonly Pick<ActivityRow, 'id' | 'parentId'>[],
+  activityId: string,
+): ActivityField[] | undefined {
+  const all = fieldsForActivity(fields, rows, activityId, { includeHidden: true })
+  return all.length === 0 ? undefined : all
+}
+
 export function emptyFieldValue(): FieldValue {
   return { text: null, labels: [] }
 }
