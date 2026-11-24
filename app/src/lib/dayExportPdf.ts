@@ -15,58 +15,18 @@
  */
 import { jsPDF } from 'jspdf'
 import type { DayExportData } from '@/domain/dayExport'
-
-const PAGE_WIDTH = 595.28 // A4, points
-const PAGE_HEIGHT = 841.89
-const MARGIN = 56
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2
-
-const INK = '#1a1a1a'
-const INK_DIM = '#6b6b6b'
-const LINE = '#dcdcdc'
-
-interface Cursor {
-  doc: jsPDF
-  y: number
-}
-
-function ensureSpace(cursor: Cursor, needed: number): void {
-  if (cursor.y + needed <= PAGE_HEIGHT - MARGIN) return
-  cursor.doc.addPage()
-  cursor.y = MARGIN
-}
-
-function ruleLine(cursor: Cursor): void {
-  ensureSpace(cursor, 1)
-  cursor.doc.setDrawColor(LINE)
-  cursor.doc.line(MARGIN, cursor.y, PAGE_WIDTH - MARGIN, cursor.y)
-  cursor.y += 18
-}
-
-function sectionHeading(cursor: Cursor, text: string): void {
-  ensureSpace(cursor, 28)
-  cursor.doc.setFont('helvetica', 'bold')
-  cursor.doc.setFontSize(13)
-  cursor.doc.setTextColor(INK)
-  cursor.doc.text(text.toUpperCase(), MARGIN, cursor.y)
-  cursor.y += 18
-}
-
-function bodyLine(cursor: Cursor, text: string, opts: { color?: string; bold?: boolean; size?: number } = {}): void {
-  const size = opts.size ?? 10.5
-  cursor.doc.setFont('helvetica', opts.bold ? 'bold' : 'normal')
-  cursor.doc.setFontSize(size)
-  cursor.doc.setTextColor(opts.color ?? INK)
-  const lines = cursor.doc.splitTextToSize(text, CONTENT_WIDTH - 14) as string[]
-  ensureSpace(cursor, lines.length * (size + 3) + 2)
-  cursor.doc.text(lines, MARGIN + 14, cursor.y)
-  cursor.y += lines.length * (size + 3)
-}
-
-function emptyNotice(cursor: Cursor, text: string): void {
-  bodyLine(cursor, text, { color: INK_DIM })
-  cursor.y += 6
-}
+import {
+  INK,
+  INK_DIM,
+  MARGIN,
+  PAGE_WIDTH,
+  bodyLine,
+  emptyNotice,
+  ensureSpace,
+  ruleLine,
+  sectionHeading,
+  type Cursor,
+} from '@/lib/pdfKit'
 
 function renderActivities(cursor: Cursor, data: DayExportData): void {
   sectionHeading(cursor, 'Activities')
@@ -111,6 +71,12 @@ function renderActivities(cursor: Cursor, data: DayExportData): void {
       if (activity.notes) {
         bodyLine(cursor, `Notes: ${activity.notes}`, { size: 10 })
       }
+    }
+
+    // Recorded on the entry itself, whichever layout it used above.
+    if (activity.dreams) bodyLine(cursor, `Dreams: ${activity.dreams}`, { size: 10 })
+    for (const selection of activity.selections) {
+      bodyLine(cursor, `${selection.label}:  ${selection.value}`, { size: 9.5, color: INK_DIM })
     }
 
     if (activity.reflections.length > 0) {
@@ -172,6 +138,26 @@ function renderDisplayValues(cursor: Cursor, data: DayExportData): void {
   }
 }
 
+function renderChecklists(cursor: Cursor, data: DayExportData): void {
+  sectionHeading(cursor, 'Checklists')
+  for (const checklist of data.checklists) {
+    ensureSpace(cursor, 30)
+    cursor.doc.setFont('helvetica', 'bold')
+    cursor.doc.setFontSize(10.5)
+    cursor.doc.setTextColor(INK)
+    cursor.doc.text(checklist.label, MARGIN, cursor.y)
+    cursor.y += 14
+    for (const item of checklist.items) {
+      const note = item.note ? ` — ${item.note}` : ''
+      bodyLine(cursor, `${item.done ? '[x]' : '[  ]'}  ${item.label}${note}`, {
+        size: 10,
+        color: item.done ? INK : INK_DIM,
+      })
+    }
+    cursor.y += 8
+  }
+}
+
 /** Builds the finished document. Exported separately from `downloadDayExportPdf` so it stays testable without a real browser download. */
 export function renderDayExportPdf(data: DayExportData): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
@@ -203,6 +189,11 @@ export function renderDayExportPdf(data: DayExportData): jsPDF {
   cursor.y += 6
   ruleLine(cursor)
   renderDisplayValues(cursor, data)
+  if (data.checklists.length > 0) {
+    cursor.y += 6
+    ruleLine(cursor)
+    renderChecklists(cursor, data)
+  }
 
   return doc
 }

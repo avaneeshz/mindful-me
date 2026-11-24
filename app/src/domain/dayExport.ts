@@ -31,6 +31,7 @@ import {
 import { formatEntryTypes, formatNoteTimestamp, noteButtonLabel, type NoteEntry } from './notes'
 import { localDateISO } from '@/lib/localTime'
 import { hasFieldValues, recordedFields, type ActivityField } from './activityFields'
+import { fullDayChecklist, type SupplementCompletion, type SupplementItemConfig } from './supplements'
 import type { ActivityList, ScheduledActivity } from './types'
 
 export interface ExportReflectionEntry {
@@ -51,6 +52,10 @@ export interface ExportActivity {
   /** At most one (rule: "Protective response" is single-select) — `null` when none was recorded. */
   flag: string | null
   notes: string | null
+  /** The second text note (Sleep's "Dreams" by default) — `null` when none was written. */
+  dreams: string | null
+  /** Multiple-select choices recorded on the entry (e.g. "How was your sleep?"), one row per field that has any. */
+  selections: ExportField[]
   /**
    * The activity's own notes and multiple-select fields as recorded on this entry, in order — set when
    * the entry used them, in which case the fixed quality / symptoms / protective-response / notes above
@@ -75,6 +80,18 @@ export interface ExportNoteEntry {
   timestampLabel: string
 }
 
+export interface ExportChecklistItem {
+  label: string
+  done: boolean
+  note: string
+}
+
+/** One checklist button's state for the day. Only checklists the user touched that day are exported. */
+export interface ExportChecklist {
+  label: string
+  items: ExportChecklistItem[]
+}
+
 export interface ExportDisplayValue {
   label: string
   valueLabel: string
@@ -88,6 +105,7 @@ export interface DayExportData {
   activities: ExportActivity[]
   noteEntries: ExportNoteEntry[]
   displayValues: ExportDisplayValue[]
+  checklists: ExportChecklist[]
   /** True when every section above is empty — the renderer shows a calm "nothing logged" page instead of blank sections. */
   isEmpty: boolean
 }
@@ -119,6 +137,16 @@ export interface DayExportInput {
   localDisplayValues?: Partial<Record<DisplayButtonKey, number | null>>
   /** Resolves a reflection card number to its display title (`data/reflectionCards.ts`, kept out of this pure module). */
   reflectionCardTitle: (card: number) => string
+  /**
+   * Every number button the user has — quick-log minutes and daily numbers alike, user-added ones
+   * included, under their own current label. Defaults to the built-in set. Values for daily numbers
+   * come from `localDisplayValues` under the same `key`.
+   */
+  numberButtons?: readonly { key: DisplayButtonKey; label: string }[]
+  /** The checklist buttons and what was ticked on the viewed day — see `ExportChecklist`. */
+  checklists?: readonly { label: string; items: readonly SupplementItemConfig[]; completions: readonly SupplementCompletion[] }[]
+  /** Resolves a multiple-select field id to its label (from the button config), when known. */
+  noteFieldLabel?: (fieldId: string) => string | undefined
   /** The activity's own fields (hidden included) for an entry, or undefined when unavailable — see `ExportActivity.customFields`. */
   fieldsForActivity?: (activity: ScheduledActivity) => readonly ActivityField[] | undefined
 }
@@ -155,6 +183,13 @@ export function assembleDayExport(input: DayExportInput): DayExportData {
     symptoms: [...a.symptoms],
     flag: a.flags[0] ?? null,
     notes: a.notes,
+    dreams: a.dreamsNote && a.dreamsNote.trim() ? a.dreamsNote : null,
+    selections: Object.entries(a.fieldSelections ?? {})
+      .filter(([, values]) => values.length > 0)
+      .map(([fieldId, values]) => ({
+        label: input.noteFieldLabel?.(fieldId) ?? 'Selections',
+        value: values.join(', '),
+      })),
     customFields: customFieldsFor(a, input.fieldsForActivity),
     reflections: a.reflections.map((r) => ({
       card: r.card,
@@ -176,7 +211,8 @@ export function assembleDayExport(input: DayExportInput): DayExportData {
 
   const localDisplayValues = input.localDisplayValues ?? {}
   const displayValues: ExportDisplayValue[] = []
-  for (const button of DISPLAY_BUTTONS) {
+  const numberButtons = input.numberButtons ?? DISPLAY_BUTTONS.map((b) => ({ key: b.key, label: b.label }))
+  for (const button of numberButtons) {
     const quickLogName = displayButtonQuickLogName(button.key)
     let raw: number | null
     if (quickLogName) {
@@ -195,12 +231,28 @@ export function assembleDayExport(input: DayExportInput): DayExportData {
     }
   }
 
+  const checklists: ExportChecklist[] = []
+  for (const checklist of input.checklists ?? []) {
+    const day = fullDayChecklist(checklist.items, localDateISO(input.viewedDate), checklist.completions)
+    if (!day.some((entry) => entry.done || entry.note.trim())) continue
+    checklists.push({
+      label: checklist.label,
+      items: day.map((entry) => ({
+        label: checklist.items.find((item) => item.key === entry.itemKey)?.label ?? entry.itemKey,
+        done: entry.done,
+        note: entry.note.trim(),
+      })),
+    })
+  }
+
   return {
     dateLabel: formatDateLabel(input.viewedDate),
     isoDate: localDateISO(input.viewedDate),
     activities,
     noteEntries,
     displayValues,
-    isEmpty: activities.length === 0 && noteEntries.length === 0 && displayValues.length === 0,
+    checklists,
+    isEmpty:
+      activities.length === 0 && noteEntries.length === 0 && displayValues.length === 0 && checklists.length === 0,
   }
 }

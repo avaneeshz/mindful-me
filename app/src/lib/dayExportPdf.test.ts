@@ -8,6 +8,7 @@ const EMPTY_DATA: DayExportData = {
   activities: [],
   noteEntries: [],
   displayValues: [],
+  checklists: [],
   isEmpty: true,
 }
 
@@ -25,6 +26,8 @@ const FULL_DATA: DayExportData = {
       symptoms: ['Dryness'],
       flag: 'Anger',
       notes: 'Felt centred.',
+      dreams: 'A quiet lake.',
+      selections: [{ label: 'How was your sleep?', value: 'Deep Restorative' }],
       customFields: null,
       reflections: [{ card: 3, title: 'Internal Systems', note: 'Check-in.' }],
     },
@@ -41,6 +44,15 @@ const FULL_DATA: DayExportData = {
   displayValues: [
     { label: 'Vipassana', valueLabel: '45m' },
     { label: 'Steps', valueLabel: '4.2k' },
+  ],
+  checklists: [
+    {
+      label: 'Supplements',
+      items: [
+        { label: 'Zinc', done: true, note: 'with lunch' },
+        { label: 'Omega', done: false, note: '' },
+      ],
+    },
   ],
   isEmpty: false,
 }

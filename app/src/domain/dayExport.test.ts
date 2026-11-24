@@ -208,3 +208,56 @@ describe('assembleDayExport — the activity’s own notes and fields', () => {
     expect(run(activity({ fieldValues: { g: { text: 'x', labels: [] } } })).customFields).toBeNull()
   })
 })
+
+describe('assembleDayExport — everything logged', () => {
+  const base = { viewedDate: new Date(2026, 8, 11), noteEntries: [], reflectionCardTitle: () => 'Card' }
+
+  it('exports the second text note and multiple-select choices recorded on an entry', () => {
+    const data = assembleDayExport({
+      ...base,
+      activities: [
+        activity({ name: 'Sleep', dreamsNote: 'Flying over water', fieldSelections: { f1: ['Deep Restorative'], f2: [] } }),
+      ],
+      noteFieldLabel: (fieldId) => (fieldId === 'f1' ? 'How was your sleep?' : undefined),
+    })
+    const entry = data.activities[0]!
+    expect(entry.dreams).toBe('Flying over water')
+    expect(entry.selections).toEqual([{ label: 'How was your sleep?', value: 'Deep Restorative' }])
+  })
+
+  it('leaves dreams and selections empty when none were recorded', () => {
+    const data = assembleDayExport({ ...base, activities: [activity()] })
+    expect(data.activities[0]!.dreams).toBeNull()
+    expect(data.activities[0]!.selections).toEqual([])
+  })
+
+  it('includes a user-added daily number under its own label, and skips it when unset', () => {
+    const numberButtons = [{ key: 'water', label: 'Water' }]
+    const set = assembleDayExport({ ...base, activities: [], numberButtons, localDisplayValues: { water: 6 } })
+    expect(set.displayValues.map((v) => v.label)).toEqual(['Water'])
+    const unset = assembleDayExport({ ...base, activities: [], numberButtons, localDisplayValues: {} })
+    expect(unset.displayValues).toEqual([])
+  })
+
+  it('exports a checklist touched that day with every item, and omits an untouched one', () => {
+    const items = [{ key: 'a', label: 'Zinc' }, { key: 'b', label: 'Omega' }]
+    const data = assembleDayExport({
+      ...base,
+      activities: [],
+      checklists: [
+        { label: 'Supplements', items, completions: [{ itemKey: 'a', localDate: '2026-09-11', done: true, note: ' with lunch ', completedAt: null }] },
+        { label: 'Evening', items, completions: [] },
+      ],
+    })
+    expect(data.checklists).toEqual([
+      {
+        label: 'Supplements',
+        items: [
+          { label: 'Zinc', done: true, note: 'with lunch' },
+          { label: 'Omega', done: false, note: '' },
+        ],
+      },
+    ])
+    expect(data.isEmpty).toBe(false)
+  })
+})

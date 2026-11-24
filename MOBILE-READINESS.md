@@ -49,9 +49,10 @@ These UI files call `api*` functions at runtime instead of going through a hook,
 | File | Direct call |
 |---|---|
 | `routes/SettingsPage.tsx` | `apiGetHealthConnectionStatus` |
-| `components/DownloadDayButton.tsx` | `apiListNoteEntriesForDate` |
 | `components/HeaderButtonEditor.tsx` | `catalogIdForName` |
 | `lumen/screens/settings/buttons.tsx` | `catalogIdForName` |
+
+**Progress:** the download control (`components/DownloadMenu.tsx`) now reads everything through `state/useExportBuilders.ts`; the rows left in the table are still open.
 
 **Fix:** move each call into a `state/` hook (e.g. `useHealthMetrics`, `useHealthConnectionStatus`, `useNoteEntriesForDate`) or an existing one, and have the component call the hook. Behaviour stays the same.
 

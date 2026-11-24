@@ -7,7 +7,7 @@ import { DayOffControl } from '@/components/DayOffControl'
 import { NoteButtonPill } from '@/components/NoteButtonPill'
 import { DisplayValueButton } from '@/components/DisplayValueButton'
 import { ChecklistButton } from '@/components/ChecklistButton'
-import { DownloadDayButton } from '@/components/DownloadDayButton'
+import { DownloadMenu } from '@/components/DownloadMenu'
 import { CounclTitle } from '@/components/CounclBrand'
 import { FrameSwitcher } from '@/components/FrameSwitcher'
 import { FRAME_COUNT, getFrame, switchFrame } from '@/lib/frame'
@@ -79,7 +79,7 @@ export interface HeaderBarProps {
   onSignOut: () => void
   /**
    * The viewed day's board — read by the Vipassana display button for its
-   * computed total and to validate a new entry, and by `DownloadDayButton`
+   * computed total and to validate a new entry, and by `DownloadMenu`
    * as the activity source for that day's PDF export.
    */
   activities: ActivityList
@@ -234,7 +234,7 @@ export function HeaderBar({
           */}
           <DatePill now={now} viewedDate={viewedDate} onSelectDate={onSelectDate} />
 
-          <DownloadDayButton viewedDate={viewedDate} activities={activities} />
+          <DownloadMenu viewedDate={viewedDate} activities={activities} />
 
           <SyncStatusPill queue={syncQueue} onRetryNow={onRetrySyncNow} />
 
